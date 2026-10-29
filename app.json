@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "TradeHub",
+    "slug": "trade-app",
+    "version": "0.3.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tradehub.app"
+    },
+    "android": {
+      "package": "com.tradehub.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#071B31"
+      }
+    }
+  }
+}
