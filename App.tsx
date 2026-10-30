@@ -350,7 +350,7 @@ export default function App() {
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
-    if (tradeScreen === 'tradeProfile') return <TradeSettingsScreen {...tradeProps} />;
+    if (tradeScreen === 'tradeProfile') return <TradeSettingsScreen {...tradeProps} signOut={() => supabase.auth.signOut()} />;
     return <TradeHomeScreen {...tradeProps} />;
   }
 
@@ -424,6 +424,7 @@ export default function App() {
           setMode('tradesperson');
           setTradeScreen('tradeHome');
         }}
+        signOut={() => supabase.auth.signOut()}
       />
     );
   }
@@ -1154,9 +1155,11 @@ function MessagesScreen({ trade, navigate }: { trade: Trade; navigate: (screen: 
 function CustomerProfileScreen({
   navigate,
   switchToTrade,
+  signOut,
 }: {
   navigate: (screen: CustomerScreen) => void;
   switchToTrade: () => void;
+  signOut: () => void;
 }) {
   return (
     <CustomerShell current="customerProfile" navigate={navigate}>
@@ -1182,6 +1185,10 @@ function CustomerProfileScreen({
             <Text style={styles.proSwitchSub}>Open TradeHub Pro to manage availability and nearby work.</Text>
           </View>
           <Text style={styles.proSwitchArrow}>→</Text>
+        </Pressable>
+
+        <Pressable style={styles.signOutButton} onPress={signOut}>
+          <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </ScrollView>
     </CustomerShell>
@@ -1353,10 +1360,12 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
 function TradeSettingsScreen({
   navigate,
   switchToCustomer,
+  signOut,
 }: {
   screen: TradeScreen;
   navigate: (screen: TradeScreen) => void;
   switchToCustomer: () => void;
+  signOut: () => void;
 }) {
   return (
     <TradeShell current="tradeProfile" navigate={navigate}>
@@ -1376,6 +1385,7 @@ function TradeSettingsScreen({
         ))}
 
         <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}><Text style={styles.backCustomerText}>Switch to customer app</Text></Pressable>
+        <Pressable style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></Pressable>
       </ScrollView>
     </TradeShell>
   );
@@ -1792,5 +1802,7 @@ const styles = StyleSheet.create({
   darkChevron: { color: '#8FA4B5', fontSize: 26 },
   backCustomerButton: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: C.cyan, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   backCustomerText: { color: C.cyan, fontWeight: '900' },
+  signOutButton: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: '#D5DCE5', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  signOutText: { color: C.red, fontWeight: '900' },
 });
 
