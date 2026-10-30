@@ -932,16 +932,22 @@ function MapMock({
     { lat: 0.008, lng: 0.005 },
   ];
 
-  const markers = mapTrades.slice(0, 5).map((trade, index) => {
-    const offset = offsets[index] ?? { lat: 0, lng: 0 };
+  const markers = mapTrades.map((trade, index) => {
+    const offset = offsets[index % offsets.length] ?? { lat: 0, lng: 0 };
     return {
       id: trade.id,
       name: trade.name,
       role: trade.role,
       distance: trade.distance,
       image: trade.image,
-      lat: centre.latitude + offset.lat,
-      lng: centre.longitude + offset.lng,
+      accent: trade.accent,
+      badge: trade.role === 'Electrician'
+        ? 'E'
+        : trade.role === 'Locksmith'
+          ? 'L'
+          : trade.role.charAt(0).toUpperCase(),
+      lat: centre.latitude + offset.lat + Math.floor(index / offsets.length) * 0.0014,
+      lng: centre.longitude + offset.lng - Math.floor(index / offsets.length) * 0.0011,
     };
   });
 
@@ -958,6 +964,7 @@ function MapMock({
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.1.0/dist/MarkerCluster.css" />
 <style>
   html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#e9eef3; }
   body { overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
@@ -980,14 +987,33 @@ function MapMock({
   .trade-pin { position:relative; display:flex; align-items:center; justify-content:center; }
   .trade-avatar {
     width:44px; height:44px; border-radius:22px; object-fit:cover;
-    border:3px solid #0A7AFF; background:#fff;
-    box-shadow:0 5px 18px rgba(7,27,49,.24);
+    border:3px solid var(--accent); background:#fff;
+    box-shadow:0 5px 18px rgba(7,27,49,.22);
   }
   .trade-online {
     position:absolute; right:-1px; top:-1px;
-    width:12px; height:12px; border-radius:6px;
+    width:11px; height:11px; border-radius:6px;
     background:#10B981; border:2px solid #fff;
   }
+  .trade-badge {
+    position:absolute; left:-3px; bottom:-3px;
+    min-width:17px; height:17px; border-radius:9px;
+    padding:0 4px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--accent); color:white; border:2px solid white;
+    font-size:8px; line-height:13px; font-weight:900;
+    box-shadow:0 2px 7px rgba(7,27,49,.18);
+  }
+  .trade-cluster { background:transparent !important; border:none !important; }
+  .cluster-bubble {
+    width:48px; height:48px; border-radius:24px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:#08243F; color:#fff;
+    border:3px solid rgba(255,255,255,.95);
+    box-shadow:0 6px 20px rgba(7,27,49,.25);
+  }
+  .cluster-count { font-size:15px; line-height:16px; font-weight:900; }
+  .cluster-label { margin-top:1px; font-size:7px; line-height:8px; font-weight:700; opacity:.78; text-transform:uppercase; letter-spacing:.35px; }
   .dot {
     width:13px; height:13px; border-radius:7px; background:#0A7AFF;
     border:3px solid white; box-shadow:0 0 0 9px rgba(10,122,255,.13);
@@ -997,6 +1023,7 @@ function MapMock({
 <body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.1.0/dist/leaflet.markercluster.js"></script>
 <script>
   const centre = ${JSON.stringify([centre.latitude, centre.longitude])};
   const markers = ${escapedMarkers};
@@ -1021,20 +1048,46 @@ function MapMock({
     L.marker([user.lat, user.lng], { icon:userIcon, interactive:false }).addTo(map);
   }
 
+  const tradeLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    zoomToBoundsOnClick: true,
+    spiderfyOnMaxZoom: true,
+    removeOutsideVisibleBounds: true,
+    chunkedLoading: true,
+    maxClusterRadius: function(zoom) {
+      if (zoom <= 11) return 72;
+      if (zoom <= 13) return 58;
+      return 46;
+    },
+    disableClusteringAtZoom: 16,
+    iconCreateFunction: function(cluster) {
+      const count = cluster.getChildCount();
+      return L.divIcon({
+        className: 'trade-cluster',
+        html: '<div class="cluster-bubble"><div class="cluster-count">' + count + '</div><div class="cluster-label">nearby</div></div>',
+        iconSize: [48,48],
+        iconAnchor: [24,24]
+      });
+    }
+  });
+
   markers.forEach((m) => {
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span></div>',
+      html: '<div class="trade-pin" style="--accent:' + m.accent + '"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span><span class="trade-badge">' + m.badge + '</span></div>',
       iconSize: [50,50],
       iconAnchor: [25,25]
     });
 
-    L.marker([m.lat, m.lng], { icon })
-      .addTo(map)
+    const marker = L.marker([m.lat, m.lng], { icon })
       .on('click', () => {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:m.id }));
       });
+
+    tradeLayer.addLayer(marker);
   });
+
+  map.addLayer(tradeLayer);
 </script>
 </body>
 </html>`;
