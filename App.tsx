@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import { supabase } from './lib/supabase';
@@ -9,6 +9,7 @@ import * as Location from 'expo-location';
 import {
   Image,
   Linking,
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -642,6 +643,7 @@ function MapScreen({
   const [maxDistance, setMaxDistance] = useState(5);
   const [minRating, setMinRating] = useState(0);
   const [availableOnly, setAvailableOnly] = useState(true);
+  const [selectedMapTrade, setSelectedMapTrade] = useState<Trade | null>(null);
 
   const filtered = trades.filter(trade => {
     if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
@@ -654,7 +656,13 @@ function MapScreen({
   const activeFilterCount =
     (maxDistance !== 5 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
-    (availableOnly ? 1 : 0);
+    (!availableOnly ? 1 : 0);
+
+  useEffect(() => {
+    if (selectedMapTrade && !filtered.some(trade => trade.id === selectedMapTrade.id)) {
+      setSelectedMapTrade(null);
+    }
+  }, [selectedCategory, maxDistance, minRating, availableOnly]);
 
   const clearFilters = () => {
     setMaxDistance(5);
@@ -668,12 +676,12 @@ function MapScreen({
         <View style={styles.mapSearchRow}>
           <View style={styles.mapSearch}>
             <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={18} color={C.muted} />
-            <Text style={styles.mapSearchText}>Search this area</Text>
+            <Text style={styles.mapSearchText}>Search trade or area</Text>
           </View>
 
           <Pressable
             style={[styles.mapControlButton, showFilters && styles.mapControlButtonActive]}
-            onPress={() => setShowFilters(v => !v)}
+            onPress={() => setShowFilters(true)}
           >
             <AppIcon
               icon={{ ios: 'slider.horizontal.3', android: 'tune' }}
@@ -689,7 +697,10 @@ function MapScreen({
 
           <Pressable
             style={styles.mapControlButton}
-            onPress={() => setListMode(v => !v)}
+            onPress={() => {
+              setSelectedMapTrade(null);
+              setListMode(v => !v);
+            }}
           >
             <AppIcon
               icon={listMode
@@ -711,11 +722,90 @@ function MapScreen({
           <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
+      </View>
 
-        {showFilters ? (
-          <View style={styles.filterPanel}>
+      {listMode ? (
+        <ScrollView style={styles.directoryList} contentContainerStyle={{ paddingBottom: 100 }}>
+          <View style={styles.directoryHeaderRow}>
+            <Text style={styles.directoryTitle}>Nearby tradespeople</Text>
+            <Text style={styles.directoryCount}>{filtered.length} found</Text>
+          </View>
+          {filtered.length ? (
+            filtered.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)
+          ) : (
+            <View style={styles.noResults}>
+              <Text style={styles.noResultsTitle}>No tradespeople match those filters</Text>
+              <Text style={styles.noResultsSub}>Try increasing the distance or lowering the minimum rating.</Text>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <MapMock trades={filtered} onTrade={setSelectedMapTrade} />
+
+          {selectedMapTrade ? (
+            <View style={styles.mapPreviewCard}>
+              <Pressable style={styles.mapPreviewClose} onPress={() => setSelectedMapTrade(null)}>
+                <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={14} color={C.muted} />
+              </Pressable>
+
+              <View style={styles.mapPreviewTop}>
+                <Image source={{ uri: selectedMapTrade.image }} style={styles.mapPreviewImage} />
+                <View style={styles.mapPreviewMain}>
+                  <View style={styles.mapPreviewNameRow}>
+                    <Text style={styles.mapPreviewName}>{selectedMapTrade.name}</Text>
+                    {selectedMapTrade.verified ? (
+                      <AppIcon icon={{ ios: 'checkmark.seal.fill', android: 'verified' }} size={16} color={C.blue} />
+                    ) : null}
+                  </View>
+                  <Text style={styles.mapPreviewRole}>{selectedMapTrade.role}</Text>
+                  <Text style={styles.mapPreviewMeta}>
+                    ★ {selectedMapTrade.rating} ({selectedMapTrade.reviews}) · {selectedMapTrade.distance} mi · ~{selectedMapTrade.eta} min
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.mapPreviewInfoRow}>
+                <View style={styles.mapPreviewAvailable}>
+                  <View style={styles.mapPreviewDot} />
+                  <Text style={styles.mapPreviewAvailableText}>Available now</Text>
+                </View>
+                <Text style={styles.mapPreviewPrice}>From £{selectedMapTrade.callout} call-out</Text>
+              </View>
+
+              <View style={styles.mapPreviewActions}>
+                <Pressable
+                  style={styles.mapPreviewSecondary}
+                  onPress={() => Linking.openURL('tel:' + selectedMapTrade.phone)}
+                >
+                  <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={17} color={C.navy2} />
+                  <Text style={styles.mapPreviewSecondaryText}>Call</Text>
+                </Pressable>
+                <Pressable style={styles.mapPreviewPrimary} onPress={() => openTrade(selectedMapTrade)}>
+                  <Text style={styles.mapPreviewPrimaryText}>View profile</Text>
+                  <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={C.white} />
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      <Modal
+        visible={showFilters}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <View style={styles.filterModalRoot}>
+          <Pressable style={styles.filterModalBackdrop} onPress={() => setShowFilters(false)} />
+          <View style={styles.filterSheet}>
+            <View style={styles.filterSheetHandle} />
             <View style={styles.filterPanelHeader}>
-              <Text style={styles.filterPanelTitle}>Filters</Text>
+              <View>
+                <Text style={styles.filterPanelTitle}>Filter tradespeople</Text>
+                <Text style={styles.filterPanelSub}>Only show people who fit what you need.</Text>
+              </View>
               <Pressable onPress={clearFilters}>
                 <Text style={styles.clearFiltersText}>Reset</Text>
               </Pressable>
@@ -733,11 +823,11 @@ function MapScreen({
                 style={[styles.filterOption, !availableOnly && styles.filterOptionActive]}
                 onPress={() => setAvailableOnly(false)}
               >
-                <Text style={[styles.filterOptionText, !availableOnly && styles.filterOptionTextActive]}>Any</Text>
+                <Text style={[styles.filterOptionText, !availableOnly && styles.filterOptionTextActive]}>Show all</Text>
               </Pressable>
             </View>
 
-            <Text style={styles.filterSectionLabel}>Distance</Text>
+            <Text style={styles.filterSectionLabel}>Maximum distance</Text>
             <View style={styles.filterOptionRow}>
               {[1, 3, 5, 10].map(distance => (
                 <Pressable
@@ -771,30 +861,13 @@ function MapScreen({
                 </Pressable>
               ))}
             </View>
-          </View>
-        ) : null}
-      </View>
 
-      {listMode ? (
-        <ScrollView style={styles.directoryList} contentContainerStyle={{ paddingBottom: 100 }}>
-          <View style={styles.directoryHeaderRow}>
-            <Text style={styles.directoryTitle}>Nearby tradespeople</Text>
-            <Text style={styles.directoryCount}>{filtered.length} found</Text>
+            <Pressable style={styles.filterApplyButton} onPress={() => setShowFilters(false)}>
+              <Text style={styles.filterApplyText}>Show {filtered.length} tradespeople</Text>
+            </Pressable>
           </View>
-          {filtered.length ? (
-            filtered.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)
-          ) : (
-            <View style={styles.noResults}>
-              <Text style={styles.noResultsTitle}>No tradespeople match those filters</Text>
-              <Text style={styles.noResultsSub}>Try increasing the distance or lowering the minimum rating.</Text>
-            </View>
-          )}
-        </ScrollView>
-      ) : (
-        <View style={{ flex: 1 }}>
-          <MapMock trades={filtered} onTrade={openTrade} />
         </View>
-      )}
+      </Modal>
     </CustomerShell>
   );
 }
@@ -1755,16 +1828,22 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: C.navy },
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
-  filterPanel: { backgroundColor: C.white, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E8EDF3', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
-  filterPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  filterPanelTitle: { fontSize: 17, fontWeight: '900', color: C.text },
-  clearFiltersText: { color: C.blue, fontSize: 12, fontWeight: '800' },
+  filterModalRoot: { flex: 1, justifyContent: 'flex-end' },
+  filterModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
+  filterSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 } },
+  filterSheetHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#D8DEE6', alignSelf: 'center', marginBottom: 16 },
+  filterPanelHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
+  filterPanelTitle: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.4 },
+  filterPanelSub: { color: C.muted, fontSize: 12, marginTop: 3 },
+  clearFiltersText: { color: C.blue, fontSize: 12, fontWeight: '800', paddingTop: 4 },
   filterSectionLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 11, marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.5 },
   filterOptionRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
   filterOption: { minHeight: 36, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', margin: 3 },
   filterOptionActive: { backgroundColor: C.navy2 },
   filterOptionText: { color: C.text, fontSize: 12, fontWeight: '700' },
   filterOptionTextActive: { color: C.white },
+  filterApplyButton: { height: 52, borderRadius: 15, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  filterApplyText: { color: C.white, fontSize: 15, fontWeight: '900' },
   mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
   mapCanvas: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E9EEF3' },
   realMarkerWrap: { alignItems: 'center' },
@@ -1772,6 +1851,25 @@ const styles = StyleSheet.create({
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
   mapResultsPill: { position: 'absolute', top: 14, right: 14, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapResultsText: { color: C.navy2, fontSize: 12, fontWeight: '800' },
+  mapPreviewCard: { position: 'absolute', left: 14, right: 14, bottom: 14, backgroundColor: C.white, borderRadius: 22, padding: 14, shadowColor: '#071B31', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, borderWidth: 1, borderColor: '#EEF1F5' },
+  mapPreviewClose: { position: 'absolute', right: 12, top: 12, zIndex: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3F5F8', alignItems: 'center', justifyContent: 'center' },
+  mapPreviewTop: { flexDirection: 'row', alignItems: 'center', paddingRight: 30 },
+  mapPreviewImage: { width: 58, height: 58, borderRadius: 18, marginRight: 12 },
+  mapPreviewMain: { flex: 1 },
+  mapPreviewNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  mapPreviewName: { color: C.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.25 },
+  mapPreviewRole: { color: C.muted, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  mapPreviewMeta: { color: C.text, fontSize: 11, marginTop: 5 },
+  mapPreviewInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  mapPreviewAvailable: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.greenSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  mapPreviewDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.green, marginRight: 6 },
+  mapPreviewAvailableText: { color: '#087A4E', fontSize: 10, fontWeight: '800' },
+  mapPreviewPrice: { color: C.text, fontSize: 11, fontWeight: '800' },
+  mapPreviewActions: { flexDirection: 'row', marginTop: 12, gap: 8 },
+  mapPreviewSecondary: { height: 44, paddingHorizontal: 16, borderRadius: 13, backgroundColor: '#F3F5F8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  mapPreviewSecondaryText: { color: C.navy2, fontSize: 12, fontWeight: '800' },
+  mapPreviewPrimary: { flex: 1, height: 44, borderRadius: 13, backgroundColor: C.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  mapPreviewPrimaryText: { color: C.white, fontSize: 12, fontWeight: '900' },
   mapMockCompact: { height: 320, minHeight: 320 },
   mapGridV1: { position: 'absolute', top: -40, bottom: -40, left: '22%', width: 30, backgroundColor: '#FFFFFF', transform: [{ rotate: '10deg' }] },
   mapGridV2: { position: 'absolute', top: -40, bottom: -40, left: '52%', width: 18, backgroundColor: '#FFFFFF', transform: [{ rotate: '-18deg' }] },
