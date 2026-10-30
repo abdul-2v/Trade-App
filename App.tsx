@@ -638,18 +638,66 @@ function MapScreen({
   navigate: (screen: CustomerScreen) => void;
 }) {
   const [listMode, setListMode] = useState(false);
-  const filtered = selectedCategory === 'All' ? trades : trades.filter(t => t.role === selectedCategory);
+  const [showFilters, setShowFilters] = useState(false);
+  const [maxDistance, setMaxDistance] = useState(5);
+  const [minRating, setMinRating] = useState(0);
+  const [availableOnly, setAvailableOnly] = useState(true);
+
+  const filtered = trades.filter(trade => {
+    if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
+    if (trade.distance > maxDistance) return false;
+    if (trade.rating < minRating) return false;
+    if (availableOnly && !trade.available) return false;
+    return true;
+  });
+
+  const activeFilterCount =
+    (maxDistance !== 5 ? 1 : 0) +
+    (minRating > 0 ? 1 : 0) +
+    (availableOnly ? 1 : 0);
+
+  const clearFilters = () => {
+    setMaxDistance(5);
+    setMinRating(0);
+    setAvailableOnly(true);
+  };
 
   return (
     <CustomerShell current="map" navigate={navigate}>
       <View style={styles.mapTop}>
         <View style={styles.mapSearchRow}>
           <View style={styles.mapSearch}>
-            <Text style={{ color: C.muted }}>⌕</Text>
+            <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={18} color={C.muted} />
             <Text style={styles.mapSearchText}>Search this area</Text>
           </View>
-          <Pressable style={styles.filterSquare} onPress={() => setListMode(v => !v)}>
-            <Text style={styles.filterIcon}>{listMode ? '⌖' : '☷'}</Text>
+
+          <Pressable
+            style={[styles.mapControlButton, showFilters && styles.mapControlButtonActive]}
+            onPress={() => setShowFilters(v => !v)}
+          >
+            <AppIcon
+              icon={{ ios: 'slider.horizontal.3', android: 'tune' }}
+              size={20}
+              color={showFilters ? C.white : C.navy2}
+            />
+            {activeFilterCount > 0 ? (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+
+          <Pressable
+            style={styles.mapControlButton}
+            onPress={() => setListMode(v => !v)}
+          >
+            <AppIcon
+              icon={listMode
+                ? { ios: 'map.fill', android: 'map' }
+                : { ios: 'list.bullet', android: 'view_list' }}
+              size={20}
+              color={C.navy2}
+            />
           </Pressable>
         </View>
 
@@ -659,20 +707,92 @@ function MapScreen({
           <Chip label="Electrician" active={selectedCategory === 'Electrician'} onPress={() => setSelectedCategory('Electrician')} />
           <Chip label="Builder" active={selectedCategory === 'Builder'} onPress={() => setSelectedCategory('Builder')} />
           <Chip label="Heating" active={selectedCategory === 'Heating'} onPress={() => setSelectedCategory('Heating')} />
+          <Chip label="Locksmith" active={selectedCategory === 'Locksmith'} onPress={() => setSelectedCategory('Locksmith')} />
+          <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
+          <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
+
+        {showFilters ? (
+          <View style={styles.filterPanel}>
+            <View style={styles.filterPanelHeader}>
+              <Text style={styles.filterPanelTitle}>Filters</Text>
+              <Pressable onPress={clearFilters}>
+                <Text style={styles.clearFiltersText}>Reset</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.filterSectionLabel}>Availability</Text>
+            <View style={styles.filterOptionRow}>
+              <Pressable
+                style={[styles.filterOption, availableOnly && styles.filterOptionActive]}
+                onPress={() => setAvailableOnly(true)}
+              >
+                <Text style={[styles.filterOptionText, availableOnly && styles.filterOptionTextActive]}>Available now</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.filterOption, !availableOnly && styles.filterOptionActive]}
+                onPress={() => setAvailableOnly(false)}
+              >
+                <Text style={[styles.filterOptionText, !availableOnly && styles.filterOptionTextActive]}>Any</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.filterSectionLabel}>Distance</Text>
+            <View style={styles.filterOptionRow}>
+              {[1, 3, 5, 10].map(distance => (
+                <Pressable
+                  key={distance}
+                  style={[styles.filterOption, maxDistance === distance && styles.filterOptionActive]}
+                  onPress={() => setMaxDistance(distance)}
+                >
+                  <Text style={[styles.filterOptionText, maxDistance === distance && styles.filterOptionTextActive]}>
+                    {distance} mi
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.filterSectionLabel}>Minimum rating</Text>
+            <View style={styles.filterOptionRow}>
+              {[
+                { label: 'Any', value: 0 },
+                { label: '4.0+', value: 4 },
+                { label: '4.5+', value: 4.5 },
+                { label: '4.8+', value: 4.8 },
+              ].map(item => (
+                <Pressable
+                  key={item.label}
+                  style={[styles.filterOption, minRating === item.value && styles.filterOptionActive]}
+                  onPress={() => setMinRating(item.value)}
+                >
+                  <Text style={[styles.filterOptionText, minRating === item.value && styles.filterOptionTextActive]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {listMode ? (
         <ScrollView style={styles.directoryList} contentContainerStyle={{ paddingBottom: 100 }}>
-          <Text style={styles.directoryTitle}>Nearby tradespeople <Text style={styles.directoryCount}>({filtered.length} active)</Text></Text>
-          {filtered.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)}
+          <View style={styles.directoryHeaderRow}>
+            <Text style={styles.directoryTitle}>Nearby tradespeople</Text>
+            <Text style={styles.directoryCount}>{filtered.length} found</Text>
+          </View>
+          {filtered.length ? (
+            filtered.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)
+          ) : (
+            <View style={styles.noResults}>
+              <Text style={styles.noResultsTitle}>No tradespeople match those filters</Text>
+              <Text style={styles.noResultsSub}>Try increasing the distance or lowering the minimum rating.</Text>
+            </View>
+          )}
         </ScrollView>
       ) : (
         <View style={{ flex: 1 }}>
-          <MapMock trades={filtered.length ? filtered : trades} onTrade={openTrade} />
-          <View style={styles.mapBottomCard}>
-            <TradeSummary trade={filtered[0] || trades[0]} onPress={() => openTrade(filtered[0] || trades[0])} />
-          </View>
+          <MapMock trades={filtered} onTrade={openTrade} />
         </View>
       )}
     </CustomerShell>
@@ -768,21 +888,36 @@ function MapMock({
 <style>
   html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#e9eef3; }
   body { overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-  .leaflet-control-attribution { font-size:8px !important; }
-  .trade-pin { display:flex; flex-direction:column; align-items:center; }
-  .trade-avatar {
-    width:48px; height:48px; border-radius:24px; object-fit:cover;
-    border:4px solid #0A7AFF; background:#fff;
-    box-shadow:0 3px 12px rgba(7,27,49,.25);
+  .leaflet-control-attribution {
+    font-size:7px !important;
+    opacity:.6;
+    background:rgba(255,255,255,.75) !important;
   }
-  .trade-label {
-    margin-top:3px; background:white; border-radius:10px; padding:4px 7px;
-    font-size:10px; font-weight:800; color:#0D1726; white-space:nowrap;
-    box-shadow:0 2px 8px rgba(7,27,49,.15);
+  .leaflet-control-zoom {
+    border:none !important;
+    box-shadow:0 6px 20px rgba(7,27,49,.14) !important;
+  }
+  .leaflet-control-zoom a {
+    width:36px !important;
+    height:36px !important;
+    line-height:36px !important;
+    border:none !important;
+    color:#0B2A49 !important;
+  }
+  .trade-pin { position:relative; display:flex; align-items:center; justify-content:center; }
+  .trade-avatar {
+    width:44px; height:44px; border-radius:22px; object-fit:cover;
+    border:3px solid #0A7AFF; background:#fff;
+    box-shadow:0 5px 18px rgba(7,27,49,.24);
+  }
+  .trade-online {
+    position:absolute; right:-1px; top:-1px;
+    width:12px; height:12px; border-radius:6px;
+    background:#10B981; border:2px solid #fff;
   }
   .dot {
-    width:14px; height:14px; border-radius:7px; background:#0A7AFF;
-    border:3px solid white; box-shadow:0 0 0 10px rgba(10,122,255,.15);
+    width:13px; height:13px; border-radius:7px; background:#0A7AFF;
+    border:3px solid white; box-shadow:0 0 0 9px rgba(10,122,255,.13);
   }
 </style>
 </head>
@@ -798,9 +933,10 @@ function MapMock({
     attributionControl: true
   }).setView(centre, ${compact ? 13 : 14});
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap &copy; CARTO'
   }).addTo(map);
 
   if (user.visible) {
@@ -816,10 +952,9 @@ function MapMock({
   markers.forEach((m) => {
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><img class="trade-avatar" src="' + m.image + '" /><div class="trade-label">' +
-        m.role + ' · ' + m.distance + ' mi</div></div>',
-      iconSize: [110,72],
-      iconAnchor: [55,36]
+      html: '<div class="trade-pin"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span></div>',
+      iconSize: [50,50],
+      iconAnchor: [25,25]
     });
 
     L.marker([m.lat, m.lng], { icon })
@@ -865,9 +1000,8 @@ function MapMock({
         </Text>
       </View>
 
-      <View style={styles.mapAvailabilityPill}>
-        <View style={styles.mapAvailabilityDot} />
-        <Text style={styles.mapAvailabilityText}>Available now</Text>
+      <View style={styles.mapResultsPill}>
+        <Text style={styles.mapResultsText}>{mapTrades.length} nearby</Text>
       </View>
     </View>
   );
@@ -1608,25 +1742,36 @@ const styles = StyleSheet.create({
   navIcon: { fontSize: 24, color: '#7C8795' },
   navLabel: { fontSize: 10, color: '#7C8795', marginTop: 3, fontWeight: '600' },
   navActive: { color: C.blue, fontWeight: '800' },
-  mapTop: { paddingHorizontal: 14, paddingTop: 10, backgroundColor: C.white, zIndex: 5 },
+  mapTop: { paddingHorizontal: 14, paddingTop: 10, backgroundColor: C.white, zIndex: 5, borderBottomWidth: 1, borderBottomColor: '#EEF1F5' },
   mapSearchRow: { flexDirection: 'row', alignItems: 'center' },
-  mapSearch: { flex: 1, height: 50, borderRadius: 15, backgroundColor: C.pale, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
-  mapSearchText: { marginLeft: 10, color: C.muted },
-  filterSquare: { width: 50, height: 50, marginLeft: 9, borderRadius: 15, backgroundColor: C.pale, alignItems: 'center', justifyContent: 'center' },
-  filterIcon: { fontSize: 22 },
-  chipRow: { paddingVertical: 11 },
-  chip: { backgroundColor: '#F2F5F8', borderRadius: 18, paddingHorizontal: 13, paddingVertical: 9, marginRight: 7 },
+  mapSearch: { flex: 1, height: 48, borderRadius: 16, backgroundColor: '#F4F6F9', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
+  mapSearchText: { marginLeft: 9, color: C.muted, fontSize: 15 },
+  mapControlButton: { width: 48, height: 48, marginLeft: 8, borderRadius: 16, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  mapControlButtonActive: { backgroundColor: C.navy2 },
+  filterBadge: { position: 'absolute', right: -3, top: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.blue, borderWidth: 2, borderColor: C.white, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  filterBadgeText: { color: C.white, fontSize: 9, fontWeight: '900' },
+  chipRow: { paddingVertical: 10 },
+  chip: { backgroundColor: '#F3F5F8', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, marginRight: 7 },
   chipActive: { backgroundColor: C.navy },
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
+  filterPanel: { backgroundColor: C.white, borderRadius: 18, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E8EDF3', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+  filterPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  filterPanelTitle: { fontSize: 17, fontWeight: '900', color: C.text },
+  clearFiltersText: { color: C.blue, fontSize: 12, fontWeight: '800' },
+  filterSectionLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 11, marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.5 },
+  filterOptionRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
+  filterOption: { minHeight: 36, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', margin: 3 },
+  filterOptionActive: { backgroundColor: C.navy2 },
+  filterOptionText: { color: C.text, fontSize: 12, fontWeight: '700' },
+  filterOptionTextActive: { color: C.white },
   mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
   mapCanvas: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E9EEF3' },
   realMarkerWrap: { alignItems: 'center' },
   mapLocationPill: { position: 'absolute', top: 14, left: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
-  mapAvailabilityPill: { position: 'absolute', top: 14, right: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  mapAvailabilityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.green, marginRight: 7 },
-  mapAvailabilityText: { color: C.text, fontSize: 12, fontWeight: '700' },
+  mapResultsPill: { position: 'absolute', top: 14, right: 14, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  mapResultsText: { color: C.navy2, fontSize: 12, fontWeight: '800' },
   mapMockCompact: { height: 320, minHeight: 320 },
   mapGridV1: { position: 'absolute', top: -40, bottom: -40, left: '22%', width: 30, backgroundColor: '#FFFFFF', transform: [{ rotate: '10deg' }] },
   mapGridV2: { position: 'absolute', top: -40, bottom: -40, left: '52%', width: 18, backgroundColor: '#FFFFFF', transform: [{ rotate: '-18deg' }] },
@@ -1646,7 +1791,6 @@ const styles = StyleSheet.create({
   markerRole: { fontSize: 10, fontWeight: '900', color: C.text },
   markerDistance: { fontSize: 9, color: C.muted },
   locationButton: { position: 'absolute', bottom: 20, right: 18, width: 48, height: 48, borderRadius: 24, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' },
-  mapBottomCard: { position: 'absolute', left: 14, right: 14, bottom: 92, backgroundColor: C.white, borderRadius: 20, padding: 12 },
   tradeSummary: { flexDirection: 'row', alignItems: 'center' },
   summaryImage: { width: 66, height: 66, borderRadius: 20, marginRight: 12 },
   summaryNameRow: { flexDirection: 'row', alignItems: 'center' },
@@ -1657,8 +1801,12 @@ const styles = StyleSheet.create({
   summaryPrice: { fontSize: 20, fontWeight: '900', color: C.text },
   summaryCallout: { fontSize: 10, color: C.muted },
   directoryList: { flex: 1, backgroundColor: C.white, paddingHorizontal: 16 },
-  directoryTitle: { fontSize: 24, fontWeight: '900', color: C.text, marginTop: 12, marginBottom: 8 },
-  directoryCount: { color: C.muted, fontSize: 14, fontWeight: '500' },
+  directoryHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 7 },
+  directoryTitle: { fontSize: 21, fontWeight: '900', color: C.text },
+  directoryCount: { color: C.muted, fontSize: 12, fontWeight: '700' },
+  noResults: { paddingVertical: 54, paddingHorizontal: 24, alignItems: 'center' },
+  noResultsTitle: { color: C.text, fontSize: 17, fontWeight: '900', textAlign: 'center' },
+  noResultsSub: { color: C.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 7 },
   directoryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.line },
   directoryAvatar: { width: 56, height: 56, borderRadius: 28, marginRight: 12 },
   directoryName: { fontWeight: '900', fontSize: 15, color: C.text },
