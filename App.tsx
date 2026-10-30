@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as Updates from 'expo-updates';
+import { SymbolView } from 'expo-symbols';
 import {
   Image,
   Linking,
@@ -192,16 +193,39 @@ const trades: Trade[] = [
   },
 ];
 
-const categories: { icon: string; label: TradeCategory | 'More' }[] = [
-  { icon: '💧', label: 'Plumber' },
-  { icon: '⚡', label: 'Electrician' },
-  { icon: '🧱', label: 'Builder' },
-  { icon: '🔥', label: 'Heating' },
-  { icon: '🔒', label: 'Locksmith' },
-  { icon: '🛠', label: 'Carpenter' },
-  { icon: '🏠', label: 'Roofer' },
-  { icon: '•••', label: 'More' },
+type AppSymbol = {
+  ios: string;
+  android: string;
+};
+
+const categories: { icon: AppSymbol; label: TradeCategory | 'More' }[] = [
+  { icon: { ios: 'wrench.and.screwdriver.fill', android: 'plumbing' }, label: 'Plumber' },
+  { icon: { ios: 'bolt.fill', android: 'electrical_services' }, label: 'Electrician' },
+  { icon: { ios: 'hammer.fill', android: 'construction' }, label: 'Builder' },
+  { icon: { ios: 'flame.fill', android: 'local_fire_department' }, label: 'Heating' },
+  { icon: { ios: 'lock.fill', android: 'lock' }, label: 'Locksmith' },
+  { icon: { ios: 'wrench.adjustable.fill', android: 'carpenter' }, label: 'Carpenter' },
+  { icon: { ios: 'house.fill', android: 'roofing' }, label: 'Roofer' },
+  { icon: { ios: 'ellipsis', android: 'more_horiz' }, label: 'More' },
 ];
+
+function AppIcon({
+  icon,
+  size = 22,
+  color = C.text,
+}: {
+  icon: AppSymbol;
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <SymbolView
+      name={{ ios: icon.ios, android: icon.android, web: icon.android } as any}
+      tintColor={color}
+      size={size}
+    />
+  );
+}
 
 export default function App() {
   useEffect(() => {
@@ -360,12 +384,37 @@ function CustomerNav({
   current: CustomerScreen;
   navigate: (screen: CustomerScreen) => void;
 }) {
-  const items: { icon: string; label: string; route: CustomerScreen }[] = [
-    { icon: '⌂', label: 'Home', route: 'home' },
-    { icon: '⌖', label: 'Map', route: 'map' },
-    { icon: '◷', label: 'Requests', route: 'requests' },
-    { icon: '◌', label: 'Messages', route: 'messages' },
-    { icon: '♙', label: 'Profile', route: 'customerProfile' },
+  const items: { icon: AppSymbol; activeIcon: AppSymbol; label: string; route: CustomerScreen }[] = [
+    {
+      icon: { ios: 'house', android: 'home' },
+      activeIcon: { ios: 'house.fill', android: 'home' },
+      label: 'Home',
+      route: 'home',
+    },
+    {
+      icon: { ios: 'map', android: 'map' },
+      activeIcon: { ios: 'map.fill', android: 'map' },
+      label: 'Map',
+      route: 'map',
+    },
+    {
+      icon: { ios: 'clock', android: 'history' },
+      activeIcon: { ios: 'clock.fill', android: 'history' },
+      label: 'Requests',
+      route: 'requests',
+    },
+    {
+      icon: { ios: 'message', android: 'chat_bubble' },
+      activeIcon: { ios: 'message.fill', android: 'chat_bubble' },
+      label: 'Messages',
+      route: 'messages',
+    },
+    {
+      icon: { ios: 'person', android: 'person' },
+      activeIcon: { ios: 'person.fill', android: 'person' },
+      label: 'Profile',
+      route: 'customerProfile',
+    },
   ];
 
   return (
@@ -373,8 +422,18 @@ function CustomerNav({
       {items.map(item => {
         const active = current === item.route || (current === 'profile' && item.route === 'map');
         return (
-          <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}>
-            <Text style={[styles.navIcon, active && styles.navActive]}>{item.icon}</Text>
+          <Pressable
+            key={item.route}
+            style={styles.navItem}
+            onPress={() => navigate(item.route)}
+          >
+            <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>
+              <AppIcon
+                icon={active ? item.activeIcon : item.icon}
+                size={22}
+                color={active ? C.blue : '#7C8795'}
+              />
+            </View>
             <Text style={[styles.navLabel, active && styles.navActive]}>{item.label}</Text>
           </Pressable>
         );
@@ -401,19 +460,27 @@ function HomeScreen({
       <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
         <View style={styles.brandRow}>
           <View style={styles.logoBubble}>
-            <Text style={styles.logoMark}>⚒</Text>
+            <AppIcon icon={{ ios: 'hammer.fill', android: 'construction' }} size={23} color={C.white} />
           </View>
           <Text style={styles.brandWhite}>Trade<Text style={{ color: C.blue }}>Hub</Text></Text>
-          <View style={styles.settingsBubble}><Text style={styles.settingsIcon}>⚙</Text></View>
+          <Pressable style={styles.settingsBubble} onPress={() => navigate('customerProfile')}>
+            <AppIcon icon={{ ios: 'gearshape.fill', android: 'settings' }} size={23} color={C.white} />
+          </Pressable>
         </View>
 
-        <Text style={styles.hero}>Find trusted{"\\n"}tradespeople{"\\n"}<Text style={{ color: C.cyan }}>near you.</Text></Text>
-        <Text style={styles.heroSub}>Local. Verified. Available.</Text>
+        <View style={styles.heroBlock}>
+          <Text style={styles.hero}>Find trusted</Text>
+          <Text style={styles.hero}>tradespeople</Text>
+          <Text style={[styles.hero, styles.heroAccent]}>near you.</Text>
+        </View>
+        <Text style={styles.heroSub}>Trusted local professionals, ready when you need them.</Text>
 
         <Pressable style={styles.searchBox} onPress={() => navigate('map')}>
-          <Text style={styles.searchIcon}>⌕</Text>
+          <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={20} color={C.text} />
           <Text style={styles.searchPlaceholder}>What trade do you need?</Text>
-          <View style={styles.searchButton}><Text style={styles.searchButtonText}>⌕</Text></View>
+          <View style={styles.searchButton}>
+            <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={19} color={C.white} />
+          </View>
         </Pressable>
 
         <View style={styles.categoryPanel}>
@@ -429,19 +496,25 @@ function HomeScreen({
                 setSelectedCategory(selectedCategory === item.label ? 'All' : item.label);
               }}
             >
-              <Text style={styles.categoryIcon}>{item.icon}</Text>
+              <View style={styles.categoryIconWrap}>
+                <AppIcon icon={item.icon} size={25} color={selectedCategory === item.label ? C.blue : C.navy2} />
+              </View>
               <Text style={styles.categoryLabel}>{item.label}</Text>
             </Pressable>
           ))}
         </View>
 
         <Pressable style={styles.urgentBanner} onPress={() => navigate('urgent')}>
-          <View style={styles.urgentCircle}><Text style={styles.urgentBolt}>⚡</Text></View>
+          <View style={styles.urgentCircle}>
+            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={28} color={C.white} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.urgentTitle}>Need someone now?</Text>
             <Text style={styles.urgentSub}>Get available tradespeople nearby for urgent jobs.</Text>
           </View>
-          <View style={styles.urgentArrow}><Text style={styles.urgentArrowText}>→</Text></View>
+          <View style={styles.urgentArrow}>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={21} color={C.white} />
+          </View>
         </Pressable>
 
         <View style={styles.sectionHeader}>
@@ -961,12 +1034,12 @@ function TradeShell({
   current: TradeScreen;
   navigate: (screen: TradeScreen) => void;
 }) {
-  const items: { label: string; icon: string; route: TradeScreen }[] = [
-    { label: 'Home', icon: '⌂', route: 'tradeHome' },
-    { label: 'Jobs', icon: '▤', route: 'tradeJobs' },
-    { label: 'Map', icon: '⌖', route: 'tradeMap' },
-    { label: 'Messages', icon: '◌', route: 'tradeMessages' },
-    { label: 'Profile', icon: '♙', route: 'tradeProfile' },
+  const items: { label: string; icon: AppSymbol; route: TradeScreen }[] = [
+    { label: 'Home', icon: { ios: 'house.fill', android: 'home' }, route: 'tradeHome' },
+    { label: 'Jobs', icon: { ios: 'briefcase.fill', android: 'work' }, route: 'tradeJobs' },
+    { label: 'Map', icon: { ios: 'map.fill', android: 'map' }, route: 'tradeMap' },
+    { label: 'Messages', icon: { ios: 'message.fill', android: 'chat_bubble' }, route: 'tradeMessages' },
+    { label: 'Profile', icon: { ios: 'person.fill', android: 'person' }, route: 'tradeProfile' },
   ];
 
   return (
@@ -976,7 +1049,9 @@ function TradeShell({
       <View style={styles.tradeNav}>
         {items.map(item => (
           <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}>
-            <Text style={[styles.navIcon, { color: item.route === current ? C.cyan : '#8EA5B7' }]}>{item.icon}</Text>
+            <View style={styles.navIconWrap}>
+              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.cyan : '#8EA5B7'} />
+            </View>
             <Text style={[styles.navLabel, { color: item.route === current ? C.cyan : '#8EA5B7' }]}>{item.label}</Text>
           </Pressable>
         ))}
@@ -1248,31 +1323,36 @@ function TradeSummary({ trade, onPress }: { trade: Trade; onPress: () => void })
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.white },
   screen: { flex: 1, backgroundColor: C.white },
-  homeContent: { padding: 18, paddingTop: 8 },
+  homeContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
   brandRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  logoBubble: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#0C2D4D', alignItems: 'center', justifyContent: 'center' },
+  heroBlock: { marginTop: 28 },
+  heroAccent: { color: C.cyan },
+  categoryIconWrap: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  navIconWrap: { height: 26, alignItems: 'center', justifyContent: 'center' },
+  navIconWrapActive: { transform: [{ scale: 1.03 }] },
+  logoBubble: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#0C2D4D', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#17466F' },
   logoMark: { fontSize: 23 },
-  brandWhite: { color: C.white, fontSize: 28, fontWeight: '900', marginLeft: 10 },
-  settingsBubble: { marginLeft: 'auto', width: 54, height: 54, borderRadius: 27, backgroundColor: C.blue, borderWidth: 5, borderColor: '#154C7A', alignItems: 'center', justifyContent: 'center' },
+  brandWhite: { color: C.white, fontSize: 29, fontWeight: '800', marginLeft: 11, letterSpacing: -0.7 },
+  settingsBubble: { marginLeft: 'auto', width: 46, height: 46, borderRadius: 23, backgroundColor: '#0E3C68', borderWidth: 1, borderColor: '#1B5583', alignItems: 'center', justifyContent: 'center' },
   settingsIcon: { fontSize: 25, color: C.white },
-  hero: { color: C.white, fontSize: 44, lineHeight: 50, fontWeight: '900', marginTop: 25 },
-  heroSub: { color: '#C8D4E2', fontSize: 18, marginTop: 14, marginBottom: 22 },
-  searchBox: { backgroundColor: C.white, minHeight: 64, borderRadius: 18, flexDirection: 'row', alignItems: 'center', paddingLeft: 18 },
+  hero: { color: C.white, fontSize: 42, lineHeight: 45, fontWeight: '800', letterSpacing: -1.5 },
+  heroSub: { color: '#B9C9D8', fontSize: 15, lineHeight: 21, marginTop: 14, marginBottom: 22 },
+  searchBox: { backgroundColor: C.white, minHeight: 60, borderRadius: 18, flexDirection: 'row', alignItems: 'center', paddingLeft: 18, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
   searchIcon: { fontSize: 24, color: C.text },
-  searchPlaceholder: { flex: 1, color: '#929BA9', fontSize: 18, marginLeft: 12 },
-  searchButton: { width: 62, alignSelf: 'stretch', margin: 7, backgroundColor: C.navy2, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  searchPlaceholder: { flex: 1, color: '#8B97A6', fontSize: 16, marginLeft: 11 },
+  searchButton: { width: 50, alignSelf: 'stretch', margin: 6, backgroundColor: C.navy2, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   searchButtonText: { color: C.white, fontSize: 22 },
-  categoryPanel: { backgroundColor: C.white, borderRadius: 22, padding: 10, marginTop: 24, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  categoryTile: { width: '24%', aspectRatio: 0.9, marginVertical: 4, borderRadius: 18, backgroundColor: '#F7F8FC', alignItems: 'center', justifyContent: 'center' },
+  categoryPanel: { backgroundColor: C.white, borderRadius: 22, paddingHorizontal: 10, paddingVertical: 12, marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  categoryTile: { width: '24%', height: 88, marginVertical: 4, borderRadius: 17, backgroundColor: '#F6F8FB', alignItems: 'center', justifyContent: 'center' },
   categoryTileSelected: { backgroundColor: '#E8F2FF', borderWidth: 1, borderColor: '#B5D6FF' },
   categoryIcon: { fontSize: 27 },
-  categoryLabel: { fontSize: 12, fontWeight: '800', color: C.text, marginTop: 8 },
-  urgentBanner: { backgroundColor: '#0E3C68', borderRadius: 22, padding: 15, flexDirection: 'row', alignItems: 'center', marginTop: 18 },
-  urgentCircle: { width: 61, height: 61, borderRadius: 31, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  categoryLabel: { fontSize: 11, fontWeight: '700', color: C.text, marginTop: 8 },
+  urgentBanner: { backgroundColor: '#0E3C68', borderRadius: 20, padding: 14, flexDirection: 'row', alignItems: 'center', marginTop: 18, borderWidth: 1, borderColor: '#174E7A' },
+  urgentCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   urgentBolt: { fontSize: 30 },
-  urgentTitle: { color: C.white, fontSize: 21, fontWeight: '900' },
-  urgentSub: { color: '#D4E0EC', fontSize: 12, lineHeight: 17, marginTop: 4 },
-  urgentArrow: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' },
+  urgentTitle: { color: C.white, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  urgentSub: { color: '#C3D3E1', fontSize: 11, lineHeight: 16, marginTop: 3 },
+  urgentArrow: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' },
   urgentArrowText: { color: C.white, fontSize: 27 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 10 },
   darkSectionTitle: { color: C.white, fontSize: 19, fontWeight: '900', flex: 1 },
@@ -1286,12 +1366,12 @@ const styles = StyleSheet.create({
   miniDistance: { color: C.muted, fontSize: 11, marginTop: 5 },
   availablePill: { alignSelf: 'flex-start', backgroundColor: C.greenSoft, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, marginTop: 6 },
   availableText: { color: '#087A4E', fontSize: 10, fontWeight: '800' },
-  nav: { height: 80, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, flexDirection: 'row', paddingBottom: 8 },
+  nav: { height: 78, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: '#E9EDF2', flexDirection: 'row', paddingBottom: 7, paddingTop: 5, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -5 } },
   tradeNav: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80, backgroundColor: '#061626', borderTopWidth: 1, borderTopColor: '#173A56', flexDirection: 'row', paddingBottom: 8 },
-  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 54 },
   navIcon: { fontSize: 24, color: '#7C8795' },
-  navLabel: { fontSize: 10, color: '#7C8795', marginTop: 3 },
-  navActive: { color: C.blue, fontWeight: '900' },
+  navLabel: { fontSize: 10, color: '#7C8795', marginTop: 3, fontWeight: '600' },
+  navActive: { color: C.blue, fontWeight: '800' },
   mapTop: { paddingHorizontal: 14, paddingTop: 10, backgroundColor: C.white, zIndex: 5 },
   mapSearchRow: { flexDirection: 'row', alignItems: 'center' },
   mapSearch: { flex: 1, height: 50, borderRadius: 15, backgroundColor: C.pale, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
