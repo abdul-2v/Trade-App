@@ -407,9 +407,7 @@ function HomeScreen({
           <View style={styles.settingsBubble}><Text style={styles.settingsIcon}>⚙</Text></View>
         </View>
 
-        <Text style={styles.hero}>Find trusted{'
-'}tradespeople{'
-'}<Text style={{ color: C.cyan }}>near you.</Text></Text>
+        <Text style={styles.hero}>Find trusted{"\\n"}tradespeople{"\\n"}<Text style={{ color: C.cyan }}>near you.</Text></Text>
         <Text style={styles.heroSub}>Local. Verified. Available.</Text>
 
         <Pressable style={styles.searchBox} onPress={() => navigate('map')}>
