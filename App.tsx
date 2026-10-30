@@ -619,6 +619,7 @@ function MapMock({
     latitudeDelta: compact ? 0.035 : 0.055,
     longitudeDelta: compact ? 0.035 : 0.055,
   });
+  const [tradeAnchor, setTradeAnchor] = useState(fallback);
   const [locationStatus, setLocationStatus] = useState<'loading' | 'ready' | 'denied'>('loading');
 
   useEffect(() => {
@@ -639,9 +640,14 @@ function MapMock({
 
         if (!mounted) return;
 
-        setRegion({
+        const current = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+        };
+
+        setTradeAnchor(current);
+        setRegion({
+          ...current,
           latitudeDelta: compact ? 0.035 : 0.055,
           longitudeDelta: compact ? 0.035 : 0.055,
         });
@@ -683,11 +689,10 @@ function MapMock({
             <Marker
               key={trade.id}
               coordinate={{
-                latitude: region.latitude + offset.lat,
-                longitude: region.longitude + offset.lng,
+                latitude: tradeAnchor.latitude + offset.lat,
+                longitude: tradeAnchor.longitude + offset.lng,
               }}
               onPress={() => onTrade(trade)}
-              tracksViewChanges={false}
             >
               <View style={styles.realMarkerWrap}>
                 <View style={[styles.markerRing, { borderColor: trade.accent }]}>
