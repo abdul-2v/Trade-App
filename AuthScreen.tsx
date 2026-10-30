@@ -18,7 +18,7 @@ type AccountType = 'customer' | 'tradesperson';
 const trades = ['Plumber', 'Electrician', 'Builder', 'Heating', 'Locksmith', 'Carpenter', 'Roofer'];
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signup');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'verify'>('signup');
   const [accountType, setAccountType] = useState<AccountType>('customer');
   const [primaryTrade, setPrimaryTrade] = useState('Plumber');
   const [firstName, setFirstName] = useState('');
@@ -27,6 +27,8 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
 
   const signUp = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim() || password.length < 6) {
@@ -56,13 +58,51 @@ export default function AuthScreen() {
     }
 
     if (!data.session) {
-      Alert.alert(
-        'Check your email',
-        'Your account was created. Verify your email, then come back and sign in.'
-      );
-      setMode('signin');
+      setPendingEmail(email.trim().toLowerCase());
+      setVerificationCode('');
+      setMode('verify');
       return;
     }
+  };
+
+
+  const verifyEmailCode = async () => {
+    const token = verificationCode.replace(/\D/g, '');
+
+    if (token.length !== 6) {
+      Alert.alert('Enter the code', 'Enter the 6-digit verification code from your email.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: pendingEmail,
+      token,
+      type: 'signup',
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Code not accepted', error.message);
+    }
+  };
+
+  const resendVerificationCode = async () => {
+    if (!pendingEmail) return;
+
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: pendingEmail,
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Could not resend code', error.message);
+      return;
+    }
+
+    Alert.alert('Code sent', 'We sent you a new verification code.');
   };
 
   const signIn = async () => {
@@ -96,15 +136,51 @@ export default function AuthScreen() {
           </View>
 
           <Text style={styles.title}>
-            {mode === 'signup' ? 'Create your account' : 'Welcome back'}
+            {mode === 'signup'
+              ? 'Create your account'
+              : mode === 'verify'
+                ? 'Verify your email'
+                : 'Welcome back'}
           </Text>
           <Text style={styles.sub}>
             {mode === 'signup'
               ? 'Join as a customer or tradesperson.'
-              : 'Sign in to continue to TradeHub.'}
+              : mode === 'verify'
+                ? `Enter the 6-digit code sent to ${pendingEmail}.`
+                : 'Sign in to continue to TradeHub.'}
           </Text>
 
-          {mode === 'signup' ? (
+          {mode === 'verify' ? (
+            <>
+              <Text style={styles.label}>Verification code</Text>
+              <TextInput
+                value={verificationCode}
+                onChangeText={value => setVerificationCode(value.replace(/\D/g, '').slice(0, 6))}
+                style={[styles.input, styles.codeInput]}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+              />
+
+              <Pressable
+                style={[styles.primaryButton, loading && styles.disabled]}
+                disabled={loading}
+                onPress={verifyEmailCode}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {loading ? 'Checking…' : 'Verify email'}
+                </Text>
+              </Pressable>
+
+              <Pressable style={styles.switchButton} onPress={resendVerificationCode} disabled={loading}>
+                <Text style={styles.switchText}>Resend code</Text>
+              </Pressable>
+
+              <Pressable style={styles.switchButton} onPress={() => setMode('signup')}>
+                <Text style={styles.switchText}>Use a different email</Text>
+              </Pressable>
+            </>
+          ) : mode === 'signup' ? (
             <>
               <Text style={styles.label}>I am joining as</Text>
               <View style={styles.segment}>
@@ -166,43 +242,47 @@ export default function AuthScreen() {
             </>
           ) : null}
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            style={styles.input}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          {mode !== 'verify' ? (
+            <>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                style={styles.input}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            style={styles.input}
-            secureTextEntry
-            autoCapitalize="none"
-          />
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                style={styles.input}
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
-          <Pressable
-            style={[styles.primaryButton, loading && styles.disabled]}
-            disabled={loading}
-            onPress={mode === 'signup' ? signUp : signIn}
-          >
-            <Text style={styles.primaryButtonText}>
-              {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
-            </Text>
-          </Pressable>
+              <Pressable
+                style={[styles.primaryButton, loading && styles.disabled]}
+                disabled={loading}
+                onPress={mode === 'signup' ? signUp : signIn}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+                </Text>
+              </Pressable>
 
-          <Pressable
-            style={styles.switchButton}
-            onPress={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
-          >
-            <Text style={styles.switchText}>
-              {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
-            </Text>
-          </Pressable>
+              <Pressable
+                style={styles.switchButton}
+                onPress={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
+              >
+                <Text style={styles.switchText}>
+                  {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -238,4 +318,5 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.6 },
   switchButton: { paddingVertical: 18, alignItems: 'center' },
   switchText: { color: '#8DC6FF', fontWeight: '800', fontSize: 13 },
+  codeInput: { textAlign: 'center', fontSize: 27, fontWeight: '900', letterSpacing: 10 },
 });
