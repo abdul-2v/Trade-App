@@ -1926,25 +1926,261 @@ function TradeSettingsScreen({
   switchToCustomer: () => void;
   signOut: () => void;
 }) {
+  const [displayName, setDisplayName] = useState('Your trade profile');
+  const [primaryTrade, setPrimaryTrade] = useState('Tradesperson');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
+  const [workAreaSaved, setWorkAreaSaved] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTradeProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) return;
+
+      const [{ data: profile }, { data: availability }] = await Promise.all([
+        supabase
+          .from('tradesperson_profiles')
+          .select('display_name, primary_trade, avatar_url')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('trade_availability')
+          .select('location_mode, work_area_latitude, work_area_longitude')
+          .eq('user_id', user.id)
+          .single(),
+      ]);
+
+      if (!active) return;
+
+      if (profile) {
+        setDisplayName(profile.display_name || 'Your trade profile');
+        setPrimaryTrade(profile.primary_trade || 'Tradesperson');
+        setAvatarUrl(profile.avatar_url || null);
+      }
+
+      if (availability) {
+        setLocationMode(availability.location_mode === 'live' ? 'live' : 'work_area');
+        setWorkAreaSaved(
+          typeof availability.work_area_latitude === 'number' &&
+          typeof availability.work_area_longitude === 'number'
+        );
+      }
+    };
+
+    loadTradeProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const setModeOnly = async (mode: 'work_area' | 'live') => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    setLocationMode(mode);
+
+    await supabase
+      .from('trade_availability')
+      .update({
+        location_mode: mode,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id);
+  };
+
+  const saveCurrentPosition = async (mode: 'work_area' | 'live') => {
+    setSavingLocation(true);
+
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+
+      if (permission.status !== 'granted') {
+        setSavingLocation(false);
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setSavingLocation(false);
+        return;
+      }
+
+      const exactLatitude = position.coords.latitude;
+      const exactLongitude = position.coords.longitude;
+
+      // Public browsing uses a softened position. Exact GPS remains private.
+      const publicLatitude = Number(exactLatitude.toFixed(mode === 'live' ? 3 : 2));
+      const publicLongitude = Number(exactLongitude.toFixed(mode === 'live' ? 3 : 2));
+      const now = new Date().toISOString();
+
+      if (mode === 'live') {
+        await supabase.from('trade_locations').upsert({
+          user_id: user.id,
+          latitude: exactLatitude,
+          longitude: exactLongitude,
+          accuracy_meters: position.coords.accuracy,
+          updated_at: now,
+        });
+
+        await supabase
+          .from('trade_availability')
+          .update({
+            location_mode: 'live',
+            updated_at: now,
+          })
+          .eq('user_id', user.id);
+      } else {
+        await supabase
+          .from('trade_availability')
+          .update({
+            location_mode: 'work_area',
+            work_area_label: 'Saved work area',
+            work_area_latitude: publicLatitude,
+            work_area_longitude: publicLongitude,
+            updated_at: now,
+          })
+          .eq('user_id', user.id);
+
+        setWorkAreaSaved(true);
+      }
+
+      await supabase.from('trade_map_presence').upsert({
+        user_id: user.id,
+        latitude: publicLatitude,
+        longitude: publicLongitude,
+        source_mode: mode,
+        updated_at: now,
+      });
+
+      setLocationMode(mode);
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   return (
     <TradeShell current="tradeProfile" navigate={navigate}>
       <ScrollView contentContainerStyle={styles.tradePage}>
         <Text style={styles.tradePageTitle}>Trade profile</Text>
+
         <View style={styles.proProfile}>
-          <Image source={{ uri: trades[0].image }} style={styles.proProfileImage} />
-          <View>
-            <Text style={styles.proName}>James Carter</Text>
-            <Text style={styles.proRole}>Plumber · Heating Engineer</Text>
-            <Text style={styles.proVerify}>✓ Verified · Gas Safe</Text>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.proProfileImage} />
+          ) : (
+            <View style={styles.proProfileFallback}>
+              <Text style={styles.proProfileFallbackText}>{displayName.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proName}>{displayName}</Text>
+            <Text style={styles.proRole}>{primaryTrade}</Text>
+            <Text style={styles.proVerify}>Profile linked to your TradeHub account</Text>
           </View>
         </View>
 
+        <View style={styles.locationSettingsCard}>
+          <View style={styles.locationSettingsHeader}>
+            <View style={styles.locationSettingsIcon}>
+              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={20} color={C.cyan} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationSettingsTitle}>Map location</Text>
+              <Text style={styles.locationSettingsSub}>Choose how customers discover where you work.</Text>
+            </View>
+          </View>
+
+          <Pressable
+            style={[styles.locationChoice, locationMode === 'work_area' && styles.locationChoiceActive]}
+            onPress={() => setModeOnly('work_area')}
+          >
+            <View style={styles.locationChoiceRadio}>
+              {locationMode === 'work_area' ? <View style={styles.locationChoiceRadioInner} /> : null}
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.locationChoiceTitleRow}>
+                <Text style={styles.locationChoiceTitle}>Work area</Text>
+                <View style={styles.recommendedPill}><Text style={styles.recommendedText}>Recommended</Text></View>
+              </View>
+              <Text style={styles.locationChoiceText}>
+                Show customers a general area you work in instead of your exact position.
+              </Text>
+            </View>
+          </Pressable>
+
+          {locationMode === 'work_area' ? (
+            <Pressable
+              style={styles.locationSaveButton}
+              onPress={() => saveCurrentPosition('work_area')}
+              disabled={savingLocation}
+            >
+              <Text style={styles.locationSaveButtonText}>
+                {savingLocation ? 'Saving…' : workAreaSaved ? 'Update my work area' : 'Set my current area as work area'}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            style={[styles.locationChoice, locationMode === 'live' && styles.locationChoiceActive, { marginTop: 10 }]}
+            onPress={() => setModeOnly('live')}
+          >
+            <View style={styles.locationChoiceRadio}>
+              {locationMode === 'live' ? <View style={styles.locationChoiceRadioInner} /> : null}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationChoiceTitle}>Live location while available</Text>
+              <Text style={styles.locationChoiceText}>
+                Use your current position while you are available. Browsing customers still see a softened position; exact tracking can be shared after a job is accepted.
+              </Text>
+            </View>
+          </Pressable>
+
+          {locationMode === 'live' ? (
+            <Pressable
+              style={styles.locationSaveButton}
+              onPress={() => saveCurrentPosition('live')}
+              disabled={savingLocation}
+            >
+              <Text style={styles.locationSaveButtonText}>
+                {savingLocation ? 'Updating…' : 'Update live position now'}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <Text style={styles.locationPrivacyNote}>
+            Your exact GPS location is kept separate from the public map.
+          </Text>
+        </View>
+
         {['Business details', 'Services & prices', 'Verification', 'Availability defaults', 'Notifications', 'Payouts'].map(item => (
-          <View key={item} style={styles.darkSettingsRow}><Text style={styles.darkSettingsLabel}>{item}</Text><Text style={styles.darkChevron}>›</Text></View>
+          <View key={item} style={styles.darkSettingsRow}>
+            <Text style={styles.darkSettingsLabel}>{item}</Text>
+            <Text style={styles.darkChevron}>›</Text>
+          </View>
         ))}
 
-        <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}><Text style={styles.backCustomerText}>Switch to customer app</Text></Pressable>
-        <Pressable style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></Pressable>
+        <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}>
+          <Text style={styles.backCustomerText}>Switch to customer app</Text>
+        </Pressable>
+        <Pressable style={styles.signOutButton} onPress={signOut}>
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
       </ScrollView>
     </TradeShell>
   );
@@ -2435,6 +2671,26 @@ const styles = StyleSheet.create({
   darkMessageTime: { color: '#718A9D', fontSize: 10 },
   proProfile: { backgroundColor: '#0D2A43', borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 10 },
   proProfileImage: { width: 65, height: 65, borderRadius: 33, marginRight: 12 },
+  proProfileFallback: { width: 65, height: 65, borderRadius: 33, marginRight: 12, backgroundColor: '#123B5B', alignItems: 'center', justifyContent: 'center' },
+  proProfileFallbackText: { color: C.cyan, fontSize: 24, fontWeight: '900' },
+  locationSettingsCard: { backgroundColor: '#0C2B45', borderRadius: 18, padding: 15, marginTop: 14, marginBottom: 12, borderWidth: 1, borderColor: '#173F5F' },
+  locationSettingsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  locationSettingsIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#123B5B', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  locationSettingsTitle: { color: C.white, fontSize: 17, fontWeight: '900' },
+  locationSettingsSub: { color: '#96ADBF', fontSize: 11, marginTop: 3, lineHeight: 16 },
+  locationChoice: { flexDirection: 'row', alignItems: 'flex-start', padding: 12, borderRadius: 14, backgroundColor: '#102E47', borderWidth: 1, borderColor: '#173F5F' },
+  locationChoiceActive: { borderColor: C.blue, backgroundColor: '#123756' },
+  locationChoiceRadio: { width: 19, height: 19, borderRadius: 10, borderWidth: 2, borderColor: '#5D7890', alignItems: 'center', justifyContent: 'center', marginRight: 10, marginTop: 1 },
+  locationChoiceRadioInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.blue },
+  locationChoiceTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  locationChoiceTitle: { color: C.white, fontSize: 13, fontWeight: '900' },
+  locationChoiceText: { color: '#A8BDCC', fontSize: 11, lineHeight: 16, marginTop: 5 },
+  recommendedPill: { marginLeft: 7, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8, backgroundColor: '#0D6B50' },
+  recommendedText: { color: '#B7F4DC', fontSize: 8, fontWeight: '900' },
+  locationSaveButton: { minHeight: 42, borderRadius: 12, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 9 },
+  locationSaveButtonText: { color: C.white, fontSize: 11, fontWeight: '900' },
+  locationPrivacyNote: { color: '#7893A8', fontSize: 9, lineHeight: 14, marginTop: 10 },
+
   proName: { color: C.white, fontWeight: '900', fontSize: 18 },
   proRole: { color: '#9EB2C1', marginTop: 3 },
   proVerify: { color: C.green, fontSize: 11, marginTop: 5 },
