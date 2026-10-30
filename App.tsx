@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
+import * as Location from 'expo-location';
+import MapView, { Marker, Region } from 'react-native-maps';
 import {
   Image,
   Linking,
@@ -606,42 +608,119 @@ function MapMock({
   onTrade: (trade: Trade) => void;
   compact?: boolean;
 }) {
-  const positions = [
-    { top: '19%', left: '48%' },
-    { top: '38%', left: '16%' },
-    { top: '50%', left: '70%' },
-    { top: '68%', left: '27%' },
-    { top: '66%', left: '62%' },
-  ] as const;
+  const fallback = {
+    latitude: 52.6369,
+    longitude: -1.1398,
+  };
+
+  const [region, setRegion] = useState<Region>({
+    latitude: fallback.latitude,
+    longitude: fallback.longitude,
+    latitudeDelta: compact ? 0.035 : 0.055,
+    longitudeDelta: compact ? 0.035 : 0.055,
+  });
+  const [locationStatus, setLocationStatus] = useState<'loading' | 'ready' | 'denied'>('loading');
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadLocation = async () => {
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+
+        if (permission.status !== 'granted') {
+          if (mounted) setLocationStatus('denied');
+          return;
+        }
+
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        if (!mounted) return;
+
+        setRegion({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          latitudeDelta: compact ? 0.035 : 0.055,
+          longitudeDelta: compact ? 0.035 : 0.055,
+        });
+        setLocationStatus('ready');
+      } catch {
+        if (mounted) setLocationStatus('denied');
+      }
+    };
+
+    loadLocation();
+
+    return () => {
+      mounted = false;
+    };
+  }, [compact]);
+
+  const offsets = [
+    { lat: 0.006, lng: -0.004 },
+    { lat: -0.004, lng: -0.006 },
+    { lat: 0.003, lng: 0.007 },
+    { lat: -0.007, lng: 0.004 },
+    { lat: 0.008, lng: 0.005 },
+  ];
 
   return (
     <View style={[styles.mapMock, compact && styles.mapMockCompact]}>
-      <View style={styles.mapGridV1} /><View style={styles.mapGridV2} /><View style={styles.mapGridV3} />
-      <View style={styles.mapGridH1} /><View style={styles.mapGridH2} /><View style={styles.mapGridH3} />
-      <View style={styles.parkBlob} />
-      <Text style={styles.mapPlace}>Leicester</Text>
-      <View style={styles.youPulseOuter}><View style={styles.youPulseInner} /></View>
+      <MapView
+        style={styles.mapCanvas}
+        region={region}
+        onRegionChangeComplete={setRegion}
+        showsUserLocation={locationStatus === 'ready'}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        toolbarEnabled={false}
+      >
+        {mapTrades.slice(0, 5).map((trade, index) => {
+          const offset = offsets[index] ?? { lat: 0, lng: 0 };
+          return (
+            <Marker
+              key={trade.id}
+              coordinate={{
+                latitude: region.latitude + offset.lat,
+                longitude: region.longitude + offset.lng,
+              }}
+              onPress={() => onTrade(trade)}
+              tracksViewChanges={false}
+            >
+              <View style={styles.realMarkerWrap}>
+                <View style={[styles.markerRing, { borderColor: trade.accent }]}>
+                  <Image source={{ uri: trade.image }} style={styles.markerImage} />
+                  <View style={styles.markerOnline} />
+                </View>
+                {!compact || index < 3 ? (
+                  <View style={styles.markerLabel}>
+                    <Text style={styles.markerRole}>{trade.role}</Text>
+                    <Text style={styles.markerDistance}>{trade.distance} mi</Text>
+                  </View>
+                ) : null}
+              </View>
+            </Marker>
+          );
+        })}
+      </MapView>
 
-      {mapTrades.slice(0, 5).map((trade, index) => (
-        <Pressable
-          key={trade.id}
-          style={[styles.mapMarker, positions[index]]}
-          onPress={() => onTrade(trade)}
-        >
-          <View style={[styles.markerRing, { borderColor: trade.accent }]}>
-            <Image source={{ uri: trade.image }} style={styles.markerImage} />
-            <View style={styles.markerOnline} />
-          </View>
-          {!compact || index < 3 ? (
-            <View style={styles.markerLabel}>
-              <Text style={styles.markerRole}>{trade.role}</Text>
-              <Text style={styles.markerDistance}>{trade.distance} mi</Text>
-            </View>
-          ) : null}
-        </Pressable>
-      ))}
+      <View style={styles.mapLocationPill}>
+        <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={14} color={C.navy2} />
+        <Text style={styles.mapLocationText}>
+          {locationStatus === 'ready'
+            ? 'Your location'
+            : locationStatus === 'loading'
+              ? 'Finding your location…'
+              : 'Location unavailable'}
+        </Text>
+      </View>
 
-      <View style={styles.locationButton}><Text style={{ fontSize: 22 }}>➤</Text></View>
+      <View style={styles.mapAvailabilityPill}>
+        <View style={styles.mapAvailabilityDot} />
+        <Text style={styles.mapAvailabilityText}>Available now</Text>
+      </View>
     </View>
   );
 }
@@ -1383,7 +1462,14 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: C.navy },
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
-  mapMock: { flex: 1, minHeight: 420, backgroundColor: '#EDF4F0', overflow: 'hidden', position: 'relative' },
+  mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', overflow: 'hidden', position: 'relative', borderRadius: 22 },
+  mapCanvas: { ...StyleSheet.absoluteFillObject },
+  realMarkerWrap: { alignItems: 'center' },
+  mapLocationPill: { position: 'absolute', top: 14, left: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
+  mapAvailabilityPill: { position: 'absolute', top: 14, right: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  mapAvailabilityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.green, marginRight: 7 },
+  mapAvailabilityText: { color: C.text, fontSize: 12, fontWeight: '700' },
   mapMockCompact: { height: 320, minHeight: 320, borderRadius: 22 },
   mapGridV1: { position: 'absolute', top: -40, bottom: -40, left: '22%', width: 30, backgroundColor: '#FFFFFF', transform: [{ rotate: '10deg' }] },
   mapGridV2: { position: 'absolute', top: -40, bottom: -40, left: '52%', width: 18, backgroundColor: '#FFFFFF', transform: [{ rotate: '-18deg' }] },
