@@ -1,14 +1,39 @@
-name: Publish TradeHub preview update
+name: TradeHub automatic preview delivery
 
 on:
   push:
-    branches:
-      - main
+    branches: ['main']
 
 jobs:
-  publish_update:
+  fingerprint:
+    name: Check native compatibility
+    type: fingerprint
+    environment: preview
+
+  get_ios_build:
+    name: Find compatible iOS preview build
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: preview
+
+  build_ios:
+    name: Build iOS preview if native code changed
+    needs: [get_ios_build]
+    if: ${{ !needs.get_ios_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: preview
+
+  update_ios:
+    name: Publish iOS OTA update
+    needs: [get_ios_build]
+    if: ${{ needs.get_ios_build.outputs.build_id }}
     type: update
+    environment: preview
     params:
       channel: preview
-      platform: all
-      message: "Automatic update from GitHub main"
+      platform: ios
+      message: "Automatic TradeHub update from GitHub main"
