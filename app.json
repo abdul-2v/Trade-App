@@ -2,9 +2,21 @@
   "expo": {
     "name": "TradeHub",
     "slug": "trade-app",
+    "owner": "abzgetzit",
     "version": "0.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/554f9986-4268-42dd-920a-86f765cef9e4"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "554f9986-4268-42dd-920a-86f765cef9e4"
+      }
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.tradehub.app"
