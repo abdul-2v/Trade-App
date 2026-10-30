@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import * as Updates from 'expo-updates';
 import {
   Image,
   Linking,
@@ -203,6 +204,22 @@ const categories: { icon: string; label: TradeCategory | 'More' }[] = [
 ];
 
 export default function App() {
+  useEffect(() => {
+    const applyLatestUpdate = async () => {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch {
+        // expo-updates is unavailable in Expo Go/development mode.
+      }
+    };
+
+    applyLatestUpdate();
+  }, []);
+
   const [mode, setMode] = useState<Mode>('customer');
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
