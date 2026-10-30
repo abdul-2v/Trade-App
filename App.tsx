@@ -759,7 +759,7 @@ function MapMock({
     visible: locationStatus === 'ready',
   });
 
-  const html = \`
+  const html = `
 <!doctype html>
 <html>
 <head>
@@ -790,13 +790,13 @@ function MapMock({
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const centre = \${JSON.stringify([centre.latitude, centre.longitude])};
-  const markers = \${escapedMarkers};
-  const user = \${userPosition};
+  const centre = ${JSON.stringify([centre.latitude, centre.longitude])};
+  const markers = ${escapedMarkers};
+  const user = ${userPosition};
   const map = L.map('map', {
-    zoomControl: \${compact ? "false" : "true"},
+    zoomControl: ${compact ? "false" : "true"},
     attributionControl: true
-  }).setView(centre, \${compact ? 13 : 14});
+  }).setView(centre, ${compact ? 13 : 14});
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -830,12 +830,12 @@ function MapMock({
   });
 </script>
 </body>
-</html>\`;
+</html>`;
 
   return (
     <View style={[styles.mapMock, compact && styles.mapMockCompact]}>
       <WebView
-        key={\`\${centre.latitude.toFixed(4)}-\${centre.longitude.toFixed(4)}-\${mapTrades.map(t => t.id).join('-')}\`}
+        key={`${centre.latitude.toFixed(4)}-${centre.longitude.toFixed(4)}-${mapTrades.map(t => t.id).join('-')}`}
         style={styles.mapCanvas}
         originWhitelist={['*']}
         source={{ html }}
