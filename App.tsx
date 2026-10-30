@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import AuthScreen from './AuthScreen';
+import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
 import * as Location from 'expo-location';
@@ -230,6 +233,70 @@ function AppIcon({
 }
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [accountType, setAccountType] = useState<'customer' | 'tradesperson'>('customer');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!active) return;
+      setSession(data.session);
+
+      if (data.session?.user.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('account_type')
+          .eq('id', data.session.user.id)
+          .single();
+
+        if (profile?.account_type === 'tradesperson') {
+          setAccountType('tradesperson');
+          setMode('tradesperson');
+        } else {
+          setAccountType('customer');
+          setMode('customer');
+        }
+      }
+
+      setAuthLoading(false);
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (!active) return;
+      setSession(nextSession);
+
+      if (nextSession?.user.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('account_type')
+          .eq('id', nextSession.user.id)
+          .single();
+
+        if (profile?.account_type === 'tradesperson') {
+          setAccountType('tradesperson');
+          setMode('tradesperson');
+        } else {
+          setAccountType('customer');
+          setMode('customer');
+        }
+      }
+
+      setAuthLoading(false);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     const applyLatestUpdate = async () => {
       try {
@@ -257,6 +324,18 @@ export default function App() {
     setSelectedTrade(trade);
     setCustomerScreen('profile');
   };
+
+  if (authLoading) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ color: C.white, fontSize: 18, fontWeight: '800' }}>Loading TradeHub…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen />;
+  }
 
   if (mode === 'tradesperson') {
     const tradeProps = {
