@@ -414,7 +414,7 @@ export default function App() {
   }
 
   if (customerScreen === 'messages') {
-    return <MessagesScreen trade={selectedTrade} navigate={setCustomerScreen} />;
+    return <MessagesScreen navigate={setCustomerScreen} />;
   }
 
   if (customerScreen === 'customerProfile') {
@@ -1375,47 +1375,284 @@ function RequestsScreen({ requests, navigate }: { requests: RequestItem[]; navig
   );
 }
 
-function MessagesScreen({ trade, navigate }: { trade: Trade; navigate: (screen: CustomerScreen) => void }) {
+function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => void }) {
+  type InboxConversation = {
+    id: string;
+    tradespersonId: string;
+    name: string;
+    trade: string;
+    avatar: string | null;
+    lastMessage: string;
+    updatedAt: string;
+  };
+
+  type LiveMessage = {
+    id: number;
+    sender_id: string;
+    body: string;
+    created_at: string;
+  };
+
+  const [conversations, setConversations] = useState<InboxConversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<InboxConversation | null>(null);
+  const [thread, setThread] = useState<LiveMessage[]>([]);
   const [message, setMessage] = useState('');
-  const [sent, setSent] = useState<string[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [loadingInbox, setLoadingInbox] = useState(true);
+  const [loadingThread, setLoadingThread] = useState(false);
+
+  const loadInbox = async () => {
+    setLoadingInbox(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoadingInbox(false);
+      return;
+    }
+
+    setCurrentUserId(user.id);
+
+    const { data: rows, error } = await supabase
+      .from('conversations')
+      .select('id, tradesperson_id, updated_at')
+      .eq('customer_id', user.id)
+      .order('updated_at', { ascending: false });
+
+    if (error || !rows?.length) {
+      setConversations([]);
+      setLoadingInbox(false);
+      return;
+    }
+
+    const tradeIds = Array.from(new Set(rows.map(row => row.tradesperson_id)));
+    const conversationIds = rows.map(row => row.id);
+
+    const [{ data: profiles }, { data: latestMessages }] = await Promise.all([
+      supabase
+        .from('tradesperson_profiles')
+        .select('user_id, display_name, primary_trade, avatar_url')
+        .in('user_id', tradeIds),
+      supabase
+        .from('messages')
+        .select('conversation_id, body, created_at')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    const profileMap = new Map((profiles ?? []).map(profile => [profile.user_id, profile]));
+    const latestByConversation = new Map<string, { body: string; created_at: string }>();
+
+    for (const item of latestMessages ?? []) {
+      if (!latestByConversation.has(item.conversation_id)) {
+        latestByConversation.set(item.conversation_id, item);
+      }
+    }
+
+    setConversations(
+      rows.map(row => {
+        const profile = profileMap.get(row.tradesperson_id);
+        const latest = latestByConversation.get(row.id);
+
+        return {
+          id: row.id,
+          tradespersonId: row.tradesperson_id,
+          name: profile?.display_name || 'Tradesperson',
+          trade: profile?.primary_trade || 'Trade professional',
+          avatar: profile?.avatar_url || null,
+          lastMessage: latest?.body || 'Conversation started',
+          updatedAt: latest?.created_at || row.updated_at,
+        };
+      })
+    );
+
+    setLoadingInbox(false);
+  };
+
+  useEffect(() => {
+    loadInbox();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedConversation) {
+      setThread([]);
+      return;
+    }
+
+    let active = true;
+    setLoadingThread(true);
+
+    supabase
+      .from('messages')
+      .select('id, sender_id, body, created_at')
+      .eq('conversation_id', selectedConversation.id)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (!active) return;
+        setThread((data as LiveMessage[]) ?? []);
+        setLoadingThread(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedConversation?.id]);
+
+  const sendMessage = async () => {
+    const body = message.trim();
+    if (!body || !selectedConversation || !currentUserId) return;
+
+    setMessage('');
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: selectedConversation.id,
+        sender_id: currentUserId,
+        body,
+      })
+      .select('id, sender_id, body, created_at')
+      .single();
+
+    if (error || !data) {
+      setMessage(body);
+      return;
+    }
+
+    setThread(prev => [...prev, data as LiveMessage]);
+
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', selectedConversation.id);
+
+    loadInbox();
+  };
+
+  if (selectedConversation) {
+    return (
+      <CustomerShell current="messages" navigate={navigate}>
+        <View style={styles.liveChatHeader}>
+          <Pressable style={styles.liveChatBack} onPress={() => setSelectedConversation(null)}>
+            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={20} color={C.navy2} />
+          </Pressable>
+          {selectedConversation.avatar ? (
+            <Image source={{ uri: selectedConversation.avatar }} style={styles.liveChatAvatar} />
+          ) : (
+            <View style={styles.liveChatAvatarFallback}>
+              <Text style={styles.liveChatAvatarText}>{selectedConversation.name.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.liveChatName}>{selectedConversation.name}</Text>
+            <Text style={styles.liveChatRole}>{selectedConversation.trade}</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          style={styles.liveChatBody}
+          contentContainerStyle={styles.liveChatContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {loadingThread ? (
+            <Text style={styles.messagesMuted}>Loading conversation…</Text>
+          ) : thread.length ? (
+            thread.map(item => {
+              const mine = item.sender_id === currentUserId;
+              return (
+                <View key={item.id} style={[styles.liveBubble, mine ? styles.liveBubbleMine : styles.liveBubbleTheirs]}>
+                  <Text style={[styles.liveBubbleText, mine && styles.liveBubbleTextMine]}>{item.body}</Text>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.threadEmpty}>
+              <Text style={styles.threadEmptyTitle}>Start the conversation</Text>
+              <Text style={styles.threadEmptySub}>Send a message about the job you need doing.</Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.liveComposer}>
+          <TextInput
+            value={message}
+            onChangeText={setMessage}
+            style={styles.liveComposerInput}
+            placeholder="Type a message…"
+            placeholderTextColor="#9AA6B3"
+            multiline
+          />
+          <Pressable
+            style={[styles.liveSendButton, !message.trim() && styles.liveSendButtonDisabled]}
+            onPress={sendMessage}
+            disabled={!message.trim()}
+          >
+            <AppIcon icon={{ ios: 'arrow.up', android: 'arrow_upward' }} size={19} color={C.white} />
+          </Pressable>
+        </View>
+      </CustomerShell>
+    );
+  }
 
   return (
     <CustomerShell current="messages" navigate={navigate}>
-      <View style={styles.chatHeader}>
-        <Image source={{ uri: trade.image }} style={styles.chatAvatar} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.chatName}>{trade.name}</Text>
-          <Text style={styles.onlineText}>● Online now</Text>
+      <View style={styles.messagesPage}>
+        <View style={styles.messagesTitleRow}>
+          <View>
+            <Text style={styles.messagesTitle}>Messages</Text>
+            <Text style={styles.messagesSub}>Your conversations with tradespeople.</Text>
+          </View>
         </View>
-        <Pressable onPress={() => Linking.openURL('tel:' + trade.phone)}><Text style={styles.chatCall}>☎</Text></Pressable>
-      </View>
 
-      <ScrollView style={styles.chatBody} contentContainerStyle={{ paddingBottom: 100 }}>
-        <View style={styles.myBubble}><Text style={styles.myBubbleText}>Hi, I have a leak under my kitchen sink. Are you available to take a look today?</Text></View>
-        <View style={styles.theirRow}>
-          <Image source={{ uri: trade.image }} style={styles.bubbleAvatar} />
-          <View style={styles.theirBubble}><Text style={styles.theirBubbleText}>Hi, yes I can. I'm about {trade.eta} minutes away. Can you send a photo?</Text></View>
-        </View>
-        <View style={styles.photoBubble}><Text style={{ fontSize: 70 }}>🚰</Text></View>
-        <View style={styles.theirRow}>
-          <Image source={{ uri: trade.image }} style={styles.bubbleAvatar} />
-          <View style={styles.theirBubble}><Text style={styles.theirBubbleText}>No problem, I'll be there in around {trade.eta} minutes.</Text></View>
-        </View>
-        {sent.map((text, i) => <View key={i} style={styles.myBubble}><Text style={styles.myBubbleText}>{text}</Text></View>)}
-      </ScrollView>
-
-      <View style={styles.composer}>
-        <TextInput value={message} onChangeText={setMessage} style={styles.composerInput} placeholder="Type a message..." />
-        <Pressable
-          style={styles.sendButton}
-          onPress={() => {
-            if (!message.trim()) return;
-            setSent(prev => [...prev, message.trim()]);
-            setMessage('');
-          }}
-        >
-          <Text style={styles.sendText}>↑</Text>
-        </Pressable>
+        {loadingInbox ? (
+          <View style={styles.messagesLoading}>
+            <Text style={styles.messagesMuted}>Loading messages…</Text>
+          </View>
+        ) : conversations.length ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {conversations.map(item => (
+              <Pressable
+                key={item.id}
+                style={styles.inboxRow}
+                onPress={() => setSelectedConversation(item)}
+              >
+                {item.avatar ? (
+                  <Image source={{ uri: item.avatar }} style={styles.inboxAvatar} />
+                ) : (
+                  <View style={styles.inboxAvatarFallback}>
+                    <Text style={styles.inboxAvatarFallbackText}>{item.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={styles.inboxMain}>
+                  <View style={styles.inboxNameRow}>
+                    <Text style={styles.inboxName}>{item.name}</Text>
+                    <Text style={styles.inboxTime}>
+                      {new Date(item.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                    </Text>
+                  </View>
+                  <Text style={styles.inboxTrade}>{item.trade}</Text>
+                  <Text style={styles.inboxLast} numberOfLines={1}>{item.lastMessage}</Text>
+                </View>
+                <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color="#A5AFBA" />
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={styles.messagesEmpty}>
+            <View style={styles.messagesEmptyIcon}>
+              <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={30} color={C.blue} />
+            </View>
+            <Text style={styles.messagesEmptyTitle}>No messages yet</Text>
+            <Text style={styles.messagesEmptySub}>
+              When you contact a tradesperson, the conversation will appear here.
+            </Text>
+            <Pressable style={styles.messagesBrowseButton} onPress={() => navigate('map')}>
+              <Text style={styles.messagesBrowseText}>Find a tradesperson</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </CustomerShell>
   );
@@ -2038,6 +2275,49 @@ const styles = StyleSheet.create({
   composerInput: { flex: 1, height: 45, borderRadius: 22, backgroundColor: C.pale, paddingHorizontal: 16 },
   sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   sendText: { color: C.white, fontSize: 23, fontWeight: '900' },
+  messagesPage: { flex: 1, backgroundColor: C.white, paddingHorizontal: 18, paddingTop: 14 },
+  messagesTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  messagesTitle: { color: C.text, fontSize: 28, fontWeight: '900', letterSpacing: -0.6 },
+  messagesSub: { color: C.muted, fontSize: 13, marginTop: 4 },
+  messagesLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  messagesMuted: { color: C.muted, fontSize: 13 },
+  inboxRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#EEF1F4', paddingVertical: 11 },
+  inboxAvatar: { width: 52, height: 52, borderRadius: 18, marginRight: 12 },
+  inboxAvatarFallback: { width: 52, height: 52, borderRadius: 18, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  inboxAvatarFallbackText: { color: C.blue, fontSize: 20, fontWeight: '900' },
+  inboxMain: { flex: 1, paddingRight: 8 },
+  inboxNameRow: { flexDirection: 'row', alignItems: 'center' },
+  inboxName: { flex: 1, color: C.text, fontSize: 15, fontWeight: '900' },
+  inboxTime: { color: '#9AA5B1', fontSize: 10, fontWeight: '700' },
+  inboxTrade: { color: C.blue, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  inboxLast: { color: C.muted, fontSize: 12, marginTop: 4 },
+  messagesEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34, paddingBottom: 80 },
+  messagesEmptyIcon: { width: 72, height: 72, borderRadius: 25, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  messagesEmptyTitle: { color: C.text, fontSize: 20, fontWeight: '900' },
+  messagesEmptySub: { color: C.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 7, maxWidth: 280 },
+  messagesBrowseButton: { height: 48, borderRadius: 14, backgroundColor: C.blue, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  messagesBrowseText: { color: C.white, fontSize: 13, fontWeight: '900' },
+  liveChatHeader: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#EEF1F4', backgroundColor: C.white },
+  liveChatBack: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', marginRight: 9 },
+  liveChatAvatar: { width: 44, height: 44, borderRadius: 15, marginRight: 10 },
+  liveChatAvatarFallback: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  liveChatAvatarText: { color: C.blue, fontWeight: '900', fontSize: 17 },
+  liveChatName: { color: C.text, fontSize: 15, fontWeight: '900' },
+  liveChatRole: { color: C.muted, fontSize: 11, marginTop: 2 },
+  liveChatBody: { flex: 1, backgroundColor: '#F6F8FB' },
+  liveChatContent: { padding: 14, paddingBottom: 24 },
+  liveBubble: { maxWidth: '80%', paddingHorizontal: 13, paddingVertical: 10, borderRadius: 17, marginBottom: 8 },
+  liveBubbleMine: { alignSelf: 'flex-end', backgroundColor: C.blue, borderBottomRightRadius: 5 },
+  liveBubbleTheirs: { alignSelf: 'flex-start', backgroundColor: C.white, borderBottomLeftRadius: 5, borderWidth: 1, borderColor: '#EDF0F4' },
+  liveBubbleText: { color: C.text, fontSize: 14, lineHeight: 19 },
+  liveBubbleTextMine: { color: C.white },
+  threadEmpty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 30 },
+  threadEmptyTitle: { color: C.text, fontSize: 17, fontWeight: '900' },
+  threadEmptySub: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 5 },
+  liveComposer: { minHeight: 68, flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingTop: 9, paddingBottom: 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: '#EEF1F4' },
+  liveComposerInput: { flex: 1, minHeight: 44, maxHeight: 100, borderRadius: 20, backgroundColor: '#F3F5F8', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, color: C.text, fontSize: 14 },
+  liveSendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  liveSendButtonDisabled: { opacity: 0.35 },
   customerProfileCard: { backgroundColor: C.pale, borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 12 },
   customerAvatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   customerAvatarText: { color: C.white, fontWeight: '900', fontSize: 25 },
