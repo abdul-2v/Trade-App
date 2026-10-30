@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import { supabase } from './lib/supabase';
@@ -693,12 +693,7 @@ function MapMock({
     longitude: -1.1398,
   };
 
-  const [region, setRegion] = useState<Region>({
-    latitude: fallback.latitude,
-    longitude: fallback.longitude,
-    latitudeDelta: compact ? 0.035 : 0.055,
-    longitudeDelta: compact ? 0.035 : 0.055,
-  });
+  const mapRef = useRef<MapView | null>(null);
   const [tradeAnchor, setTradeAnchor] = useState(fallback);
   const [locationStatus, setLocationStatus] = useState<'loading' | 'ready' | 'denied'>('loading');
 
@@ -726,12 +721,16 @@ function MapMock({
         };
 
         setTradeAnchor(current);
-        setRegion({
-          ...current,
-          latitudeDelta: compact ? 0.035 : 0.055,
-          longitudeDelta: compact ? 0.035 : 0.055,
-        });
         setLocationStatus('ready');
+
+        mapRef.current?.animateToRegion(
+          {
+            ...current,
+            latitudeDelta: compact ? 0.035 : 0.055,
+            longitudeDelta: compact ? 0.035 : 0.055,
+          },
+          350
+        );
       } catch {
         if (mounted) setLocationStatus('denied');
       }
@@ -755,12 +754,19 @@ function MapMock({
   return (
     <View style={[styles.mapMock, compact && styles.mapMockCompact]}>
       <MapView
+        ref={mapRef}
         style={styles.mapCanvas}
-        region={region}
-        onRegionChangeComplete={setRegion}
+        initialRegion={{
+          ...fallback,
+          latitudeDelta: compact ? 0.035 : 0.055,
+          longitudeDelta: compact ? 0.035 : 0.055,
+        }}
+        mapType="standard"
+        loadingEnabled
         showsUserLocation={locationStatus === 'ready'}
         showsMyLocationButton={false}
-        showsCompass={false}
+        showsCompass
+        showsBuildings
         toolbarEnabled={false}
       >
         {mapTrades.slice(0, 5).map((trade, index) => {
@@ -772,21 +778,11 @@ function MapMock({
                 latitude: tradeAnchor.latitude + offset.lat,
                 longitude: tradeAnchor.longitude + offset.lng,
               }}
+              title={trade.name}
+              description={`${trade.role} · ${trade.distance} miles away`}
               onPress={() => onTrade(trade)}
-            >
-              <View style={styles.realMarkerWrap}>
-                <View style={[styles.markerRing, { borderColor: trade.accent }]}>
-                  <Image source={{ uri: trade.image }} style={styles.markerImage} />
-                  <View style={styles.markerOnline} />
-                </View>
-                {!compact || index < 3 ? (
-                  <View style={styles.markerLabel}>
-                    <Text style={styles.markerRole}>{trade.role}</Text>
-                    <Text style={styles.markerDistance}>{trade.distance} mi</Text>
-                  </View>
-                ) : null}
-              </View>
-            </Marker>
+              pinColor={trade.accent}
+            />
           );
         })}
       </MapView>
@@ -1556,7 +1552,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: C.navy },
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
-  mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', overflow: 'hidden', position: 'relative', borderRadius: 22 },
+  mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
   mapCanvas: { ...StyleSheet.absoluteFillObject },
   realMarkerWrap: { alignItems: 'center' },
   mapLocationPill: { position: 'absolute', top: 14, left: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
@@ -1564,7 +1560,7 @@ const styles = StyleSheet.create({
   mapAvailabilityPill: { position: 'absolute', top: 14, right: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapAvailabilityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.green, marginRight: 7 },
   mapAvailabilityText: { color: C.text, fontSize: 12, fontWeight: '700' },
-  mapMockCompact: { height: 320, minHeight: 320, borderRadius: 22 },
+  mapMockCompact: { height: 320, minHeight: 320 },
   mapGridV1: { position: 'absolute', top: -40, bottom: -40, left: '22%', width: 30, backgroundColor: '#FFFFFF', transform: [{ rotate: '10deg' }] },
   mapGridV2: { position: 'absolute', top: -40, bottom: -40, left: '52%', width: 18, backgroundColor: '#FFFFFF', transform: [{ rotate: '-18deg' }] },
   mapGridV3: { position: 'absolute', top: -40, bottom: -40, left: '78%', width: 24, backgroundColor: '#FFFFFF', transform: [{ rotate: '8deg' }] },
