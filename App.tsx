@@ -4,8 +4,8 @@ import AuthScreen from './AuthScreen';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import MapView, { Marker, Region } from 'react-native-maps';
 import {
   Image,
   Linking,
@@ -693,8 +693,7 @@ function MapMock({
     longitude: -1.1398,
   };
 
-  const mapRef = useRef<MapView | null>(null);
-  const [tradeAnchor, setTradeAnchor] = useState(fallback);
+  const [centre, setCentre] = useState(fallback);
   const [locationStatus, setLocationStatus] = useState<'loading' | 'ready' | 'denied'>('loading');
 
   useEffect(() => {
@@ -715,22 +714,11 @@ function MapMock({
 
         if (!mounted) return;
 
-        const current = {
+        setCentre({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        };
-
-        setTradeAnchor(current);
+        });
         setLocationStatus('ready');
-
-        mapRef.current?.animateToRegion(
-          {
-            ...current,
-            latitudeDelta: compact ? 0.035 : 0.055,
-            longitudeDelta: compact ? 0.035 : 0.055,
-          },
-          350
-        );
       } catch {
         if (mounted) setLocationStatus('denied');
       }
@@ -741,7 +729,7 @@ function MapMock({
     return () => {
       mounted = false;
     };
-  }, [compact]);
+  }, []);
 
   const offsets = [
     { lat: 0.006, lng: -0.004 },
@@ -751,41 +739,120 @@ function MapMock({
     { lat: 0.008, lng: 0.005 },
   ];
 
+  const markers = mapTrades.slice(0, 5).map((trade, index) => {
+    const offset = offsets[index] ?? { lat: 0, lng: 0 };
+    return {
+      id: trade.id,
+      name: trade.name,
+      role: trade.role,
+      distance: trade.distance,
+      image: trade.image,
+      lat: centre.latitude + offset.lat,
+      lng: centre.longitude + offset.lng,
+    };
+  });
+
+  const escapedMarkers = JSON.stringify(markers).replace(/</g, '\\u003c');
+  const userPosition = JSON.stringify({
+    lat: centre.latitude,
+    lng: centre.longitude,
+    visible: locationStatus === 'ready',
+  });
+
+  const html = \`
+<!doctype html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#e9eef3; }
+  body { overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .leaflet-control-attribution { font-size:8px !important; }
+  .trade-pin { display:flex; flex-direction:column; align-items:center; }
+  .trade-avatar {
+    width:48px; height:48px; border-radius:24px; object-fit:cover;
+    border:4px solid #0A7AFF; background:#fff;
+    box-shadow:0 3px 12px rgba(7,27,49,.25);
+  }
+  .trade-label {
+    margin-top:3px; background:white; border-radius:10px; padding:4px 7px;
+    font-size:10px; font-weight:800; color:#0D1726; white-space:nowrap;
+    box-shadow:0 2px 8px rgba(7,27,49,.15);
+  }
+  .dot {
+    width:14px; height:14px; border-radius:7px; background:#0A7AFF;
+    border:3px solid white; box-shadow:0 0 0 10px rgba(10,122,255,.15);
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const centre = \${JSON.stringify([centre.latitude, centre.longitude])};
+  const markers = \${escapedMarkers};
+  const user = \${userPosition};
+  const map = L.map('map', {
+    zoomControl: \${compact ? "false" : "true"},
+    attributionControl: true
+  }).setView(centre, \${compact ? 13 : 14});
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  if (user.visible) {
+    const userIcon = L.divIcon({
+      className: '',
+      html: '<div class="dot"></div>',
+      iconSize: [34,34],
+      iconAnchor: [17,17]
+    });
+    L.marker([user.lat, user.lng], { icon:userIcon, interactive:false }).addTo(map);
+  }
+
+  markers.forEach((m) => {
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="trade-pin"><img class="trade-avatar" src="' + m.image + '" /><div class="trade-label">' +
+        m.role + ' · ' + m.distance + ' mi</div></div>',
+      iconSize: [110,72],
+      iconAnchor: [55,36]
+    });
+
+    L.marker([m.lat, m.lng], { icon })
+      .addTo(map)
+      .on('click', () => {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:m.id }));
+      });
+  });
+</script>
+</body>
+</html>\`;
+
   return (
     <View style={[styles.mapMock, compact && styles.mapMockCompact]}>
-      <MapView
-        ref={mapRef}
+      <WebView
+        key={\`\${centre.latitude.toFixed(4)}-\${centre.longitude.toFixed(4)}-\${mapTrades.map(t => t.id).join('-')}\`}
         style={styles.mapCanvas}
-        initialRegion={{
-          ...fallback,
-          latitudeDelta: compact ? 0.035 : 0.055,
-          longitudeDelta: compact ? 0.035 : 0.055,
+        originWhitelist={['*']}
+        source={{ html }}
+        javaScriptEnabled
+        domStorageEnabled
+        onMessage={event => {
+          try {
+            const message = JSON.parse(event.nativeEvent.data);
+            if (message.type === 'trade') {
+              const trade = mapTrades.find(item => item.id === message.id);
+              if (trade) onTrade(trade);
+            }
+          } catch {
+            // Ignore invalid map messages.
+          }
         }}
-        mapType="standard"
-        loadingEnabled
-        showsUserLocation={locationStatus === 'ready'}
-        showsMyLocationButton={false}
-        showsCompass
-        showsBuildings
-        toolbarEnabled={false}
-      >
-        {mapTrades.slice(0, 5).map((trade, index) => {
-          const offset = offsets[index] ?? { lat: 0, lng: 0 };
-          return (
-            <Marker
-              key={trade.id}
-              coordinate={{
-                latitude: tradeAnchor.latitude + offset.lat,
-                longitude: tradeAnchor.longitude + offset.lng,
-              }}
-              title={trade.name}
-              description={`${trade.role} · ${trade.distance} miles away`}
-              onPress={() => onTrade(trade)}
-              pinColor={trade.accent}
-            />
-          );
-        })}
-      </MapView>
+      />
 
       <View style={styles.mapLocationPill}>
         <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={14} color={C.navy2} />
@@ -1553,7 +1620,7 @@ const styles = StyleSheet.create({
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
   mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
-  mapCanvas: { ...StyleSheet.absoluteFillObject },
+  mapCanvas: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E9EEF3' },
   realMarkerWrap: { alignItems: 'center' },
   mapLocationPill: { position: 'absolute', top: 14, left: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
