@@ -38,7 +38,6 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
 
@@ -128,35 +127,29 @@ export default function AuthScreen() {
     }
 
     setPendingEmail(cleanEmail);
-    setVerificationCode('');
     setMode('verify');
     startResendCooldown();
   };
 
-  const verifyEmailCode = async () => {
-    const token = verificationCode.replace(/\D/g, '');
-
-    if (token.length !== 6) {
-      Alert.alert('Enter the code', 'Enter the 6-digit verification code from your email.');
-      return;
-    }
-
+  const continueAfterVerification = async () => {
     setLoading(true);
 
-    const { error } = await supabase.auth.verifyOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: pendingEmail,
-      token,
-      type: 'email',
+      password,
     });
 
     setLoading(false);
 
     if (error) {
-      Alert.alert('Code not accepted', error.message);
-      return;
+      const notConfirmed = error.message.toLowerCase().includes('email not confirmed');
+      Alert.alert(
+        notConfirmed ? 'Email not verified yet' : 'Could not sign in',
+        notConfirmed
+          ? 'Open the verification email, tap the confirmation link, then come back and try again.'
+          : error.message
+      );
     }
-
-    setVerificationCode('');
   };
 
   const resendVerificationCode = async () => {
@@ -177,7 +170,7 @@ export default function AuthScreen() {
     }
 
     startResendCooldown();
-    Alert.alert('Code sent', 'A new verification code has been sent to your email.');
+    Alert.alert('Code sent', 'A new verification email has been sent.');
   };
 
   const signIn = async () => {
@@ -229,37 +222,26 @@ export default function AuthScreen() {
             {mode === 'signup'
               ? 'Find trusted tradespeople or join as a trade professional.'
               : mode === 'verify'
-                ? `Enter the 6-digit code sent to ${pendingEmail}.`
+                ? `Confirm the verification email sent to ${pendingEmail}.`
                 : 'Sign in to continue to TradeHub.'}
           </Text>
 
           {mode === 'verify' ? (
             <>
               <View style={styles.verifyCard}>
-                <Text style={styles.verifyCardTitle}>Check your inbox</Text>
+                <Text style={styles.verifyCardTitle}>Check your email</Text>
                 <Text style={styles.verifyCardText}>
-                  We use email verification to keep TradeHub accounts genuine and secure.
+                  We sent a verification link to {pendingEmail}. Open it, confirm your email, then return to TradeHub.
                 </Text>
               </View>
 
-              <Text style={styles.label}>Verification code</Text>
-              <TextInput
-                value={verificationCode}
-                onChangeText={value => setVerificationCode(value.replace(/\D/g, '').slice(0, 6))}
-                style={[styles.input, styles.codeInput]}
-                keyboardType="number-pad"
-                maxLength={6}
-                autoFocus
-                textContentType="oneTimeCode"
-              />
-
               <Pressable
-                style={[styles.primaryButton, (loading || verificationCode.length !== 6) && styles.disabled]}
-                disabled={loading || verificationCode.length !== 6}
-                onPress={verifyEmailCode}
+                style={[styles.primaryButton, loading && styles.disabled]}
+                disabled={loading}
+                onPress={continueAfterVerification}
               >
                 <Text style={styles.primaryButtonText}>
-                  {loading ? 'Checking…' : 'Verify email'}
+                  {loading ? 'Checking…' : "I've verified my email"}
                 </Text>
               </Pressable>
 
@@ -269,16 +251,13 @@ export default function AuthScreen() {
                 disabled={loading || resendSeconds > 0}
               >
                 <Text style={[styles.switchText, resendSeconds > 0 && styles.switchTextDisabled]}>
-                  {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
+                  {resendSeconds > 0 ? `Resend email in ${resendSeconds}s` : 'Resend verification email'}
                 </Text>
               </Pressable>
 
               <Pressable
                 style={styles.switchButton}
-                onPress={() => {
-                  setMode('signup');
-                  setVerificationCode('');
-                }}
+                onPress={() => setMode('signup')}
               >
                 <Text style={styles.switchText}>Use a different email</Text>
               </Pressable>
@@ -474,7 +453,6 @@ const styles = StyleSheet.create({
   switchButton: { paddingVertical: 14, alignItems: 'center' },
   switchText: { color: '#8DC6FF', fontWeight: '800', fontSize: 13 },
   switchTextDisabled: { color: '#69849C' },
-  codeInput: { textAlign: 'center', fontSize: 27, fontWeight: '900', letterSpacing: 10 },
   verifyCard: { backgroundColor: '#0D2D4C', borderRadius: 16, padding: 14, marginBottom: 8 },
   verifyCardTitle: { color: '#fff', fontSize: 15, fontWeight: '900' },
   verifyCardText: { color: '#AFC0CF', fontSize: 12, lineHeight: 17, marginTop: 4 },
