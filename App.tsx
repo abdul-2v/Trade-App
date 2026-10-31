@@ -941,11 +941,6 @@ function MapMock({
       distance: trade.distance,
       image: trade.image,
       accent: trade.accent,
-      badge: trade.role === 'Electrician'
-        ? 'E'
-        : trade.role === 'Locksmith'
-          ? 'L'
-          : trade.role.charAt(0).toUpperCase(),
       lat: centre.latitude + offset.lat + Math.floor(index / offsets.length) * 0.0014,
       lng: centre.longitude + offset.lng - Math.floor(index / offsets.length) * 0.0011,
     };
@@ -984,39 +979,65 @@ function MapMock({
     border:none !important;
     color:#0B2A49 !important;
   }
-  .trade-pin { position:relative; display:flex; align-items:center; justify-content:center; }
+  .trade-pin {
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-width:78px;
+  }
+  .trade-avatar-wrap {
+    position:relative;
+    width:48px;
+    height:48px;
+    border-radius:24px;
+    background:#fff;
+    border:2.5px solid #FFFFFF;
+    box-shadow:0 3px 12px rgba(7,27,49,.20);
+  }
   .trade-avatar {
-    width:44px; height:44px; border-radius:22px; object-fit:cover;
-    border:3px solid var(--accent); background:#fff;
-    box-shadow:0 5px 18px rgba(7,27,49,.22);
+    width:44px;
+    height:44px;
+    border-radius:22px;
+    object-fit:cover;
+    display:block;
   }
   .trade-online {
-    position:absolute; right:-1px; top:-1px;
-    width:11px; height:11px; border-radius:6px;
-    background:#10B981; border:2px solid #fff;
+    position:absolute;
+    right:-1px;
+    top:-1px;
+    width:10px;
+    height:10px;
+    border-radius:5px;
+    background:#16B981;
+    border:2px solid #fff;
   }
-  .trade-badge {
-    position:absolute; left:-3px; bottom:-3px;
-    min-width:17px; height:17px; border-radius:9px;
-    padding:0 4px;
-    display:flex; align-items:center; justify-content:center;
-    background:var(--accent); color:white; border:2px solid white;
-    font-size:8px; line-height:13px; font-weight:900;
-    box-shadow:0 2px 7px rgba(7,27,49,.18);
+  .trade-label {
+    margin-top:4px;
+    padding:4px 8px;
+    border-radius:9px;
+    background:rgba(255,255,255,.96);
+    color:#132033;
+    font-size:10px;
+    line-height:12px;
+    font-weight:800;
+    white-space:nowrap;
+    box-shadow:0 2px 7px rgba(7,27,49,.13);
   }
   .trade-cluster { background:transparent !important; border:none !important; }
   .cluster-bubble {
-    width:48px; height:48px; border-radius:24px;
+    width:46px; height:46px; border-radius:23px;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    background:#08243F; color:#fff;
-    border:3px solid rgba(255,255,255,.95);
-    box-shadow:0 6px 20px rgba(7,27,49,.25);
+    background:#FFFFFF; color:#0B2A49;
+    border:3px solid #1684F8;
+    box-shadow:0 4px 14px rgba(7,27,49,.20);
   }
-  .cluster-count { font-size:15px; line-height:16px; font-weight:900; }
-  .cluster-label { margin-top:1px; font-size:7px; line-height:8px; font-weight:700; opacity:.78; text-transform:uppercase; letter-spacing:.35px; }
+  .cluster-count { font-size:14px; line-height:15px; font-weight:900; }
+  .cluster-label { margin-top:1px; font-size:7px; line-height:8px; font-weight:800; color:#718196; text-transform:uppercase; letter-spacing:.25px; }
   .dot {
-    width:13px; height:13px; border-radius:7px; background:#0A7AFF;
-    border:3px solid white; box-shadow:0 0 0 9px rgba(10,122,255,.13);
+    width:17px; height:17px; border-radius:9px; background:#087CF0;
+    border:3px solid white; box-shadow:0 2px 9px rgba(8,124,240,.30);
   }
 </style>
 </head>
@@ -1039,6 +1060,16 @@ function MapMock({
   }).addTo(map);
 
   if (user.visible) {
+    L.circle([user.lat, user.lng], {
+      radius: 420,
+      color: '#68B3FF',
+      weight: 1,
+      opacity: 0.25,
+      fillColor: '#60AFFF',
+      fillOpacity: 0.14,
+      interactive: false
+    }).addTo(map);
+
     const userIcon = L.divIcon({
       className: '',
       html: '<div class="dot"></div>',
@@ -1059,7 +1090,7 @@ function MapMock({
       if (zoom <= 13) return 58;
       return 46;
     },
-    disableClusteringAtZoom: 16,
+    disableClusteringAtZoom: 15,
     iconCreateFunction: function(cluster) {
       const count = cluster.getChildCount();
       return L.divIcon({
@@ -1074,9 +1105,9 @@ function MapMock({
   markers.forEach((m) => {
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin" style="--accent:' + m.accent + '"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span><span class="trade-badge">' + m.badge + '</span></div>',
-      iconSize: [50,50],
-      iconAnchor: [25,25]
+      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span></div><div class="trade-label">' + m.role + '</div></div>',
+      iconSize: [82,70],
+      iconAnchor: [41,35]
     });
 
     const marker = L.marker([m.lat, m.lng], { icon })
@@ -1114,19 +1145,8 @@ function MapMock({
         }}
       />
 
-      <View style={styles.mapLocationPill}>
-        <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={14} color={C.navy2} />
-        <Text style={styles.mapLocationText}>
-          {locationStatus === 'ready'
-            ? 'Your location'
-            : locationStatus === 'loading'
-              ? 'Finding your location…'
-              : 'Location unavailable'}
-        </Text>
-      </View>
-
-      <View style={styles.mapResultsPill}>
-        <Text style={styles.mapResultsText}>{mapTrades.length} nearby</Text>
+      <View style={styles.mapReferenceLocationButton}>
+        <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={20} color={C.navy2} />
       </View>
     </View>
   );
@@ -2376,6 +2396,7 @@ const styles = StyleSheet.create({
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
   mapResultsPill: { position: 'absolute', top: 14, right: 14, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapResultsText: { color: C.navy2, fontSize: 12, fontWeight: '800' },
+  mapReferenceLocationButton: { position: 'absolute', right: 14, bottom: 16, width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFFFFF2', alignItems: 'center', justifyContent: 'center', shadowColor: '#071B31', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
   mapPreviewCard: { position: 'absolute', left: 14, right: 14, bottom: 14, backgroundColor: C.white, borderRadius: 22, padding: 14, shadowColor: '#071B31', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, borderWidth: 1, borderColor: '#EEF1F5' },
   mapPreviewClose: { position: 'absolute', right: 12, top: 12, zIndex: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3F5F8', alignItems: 'center', justifyContent: 'center' },
   mapPreviewTop: { flexDirection: 'row', alignItems: 'center', paddingRight: 30 },
