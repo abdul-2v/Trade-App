@@ -15,6 +15,7 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Switch,
@@ -1197,6 +1198,7 @@ function TradeProfileScreen({
   book: () => void;
 }) {
   const [tab, setTab] = useState<'About' | 'Services' | 'Reviews' | 'Gallery'>('About');
+  const [saved, setSaved] = useState(false);
 
   return (
     <CustomerShell>
@@ -1205,8 +1207,25 @@ function TradeProfileScreen({
           <Image source={{ uri: trade.image }} style={styles.profileHeroImage} />
           <Pressable style={styles.backCircle} onPress={back}><Text style={styles.backText}>‹</Text></Pressable>
           <View style={styles.profileHeroActions}>
-            <View style={styles.smallCircle}><Text>♡</Text></View>
-            <View style={styles.smallCircle}><Text>↗</Text></View>
+            <Pressable
+              style={styles.smallCircle}
+              onPress={() => {
+                setSaved(value => !value);
+                Alert.alert(saved ? 'Removed from saved' : 'Saved', saved ? 'Removed from your saved tradespeople.' : 'Added to your saved tradespeople for this session.');
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>{saved ? '♥' : '♡'}</Text>
+            </Pressable>
+            <Pressable
+              style={styles.smallCircle}
+              onPress={() =>
+                Share.share({
+                  message: `${trade.name} — ${trade.role} on TradeHub. Rating ${trade.rating}/5, around ${trade.distance} miles away.`,
+                })
+              }
+            >
+              <Text style={{ fontSize: 17 }}>↗</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -1469,6 +1488,10 @@ function UrgentScreen({
 
 function BookingScreen({ trade, back, complete }: { trade: Trade; back: () => void; complete: () => void }) {
   const [service, setService] = useState(trade.services[0]);
+  const dates = ['Today', 'Tomorrow', 'This weekend'];
+  const times = ['08:00–10:00', '10:00–12:00', '14:00–16:00', 'Flexible'];
+  const [dateIndex, setDateIndex] = useState(1);
+  const [timeIndex, setTimeIndex] = useState(1);
 
   return (
     <CustomerShell>
@@ -1494,8 +1517,22 @@ function BookingScreen({ trade, back, complete }: { trade: Trade; back: () => vo
 
         <Text style={styles.contentHeading}>When?</Text>
         <View style={styles.twoCol}>
-          <View style={styles.pickCard}><Text style={styles.pickLabel}>Date</Text><Text style={styles.pickValue}>Tomorrow</Text></View>
-          <View style={styles.pickCard}><Text style={styles.pickLabel}>Time</Text><Text style={styles.pickValue}>10:00–12:00</Text></View>
+          <Pressable
+            style={styles.pickCard}
+            onPress={() => setDateIndex(index => (index + 1) % dates.length)}
+          >
+            <Text style={styles.pickLabel}>Date</Text>
+            <Text style={styles.pickValue}>{dates[dateIndex]}</Text>
+            <Text style={styles.pickHint}>Tap to change</Text>
+          </Pressable>
+          <Pressable
+            style={styles.pickCard}
+            onPress={() => setTimeIndex(index => (index + 1) % times.length)}
+          >
+            <Text style={styles.pickLabel}>Time</Text>
+            <Text style={styles.pickValue}>{times[timeIndex]}</Text>
+            <Text style={styles.pickHint}>Tap to change</Text>
+          </Pressable>
         </View>
 
         <Pressable style={styles.largeBlueButton} onPress={complete}><Text style={styles.largeBlueText}>Send booking request</Text></Pressable>
@@ -2767,7 +2804,7 @@ function TradeSettingsScreen({
         {['Business details', 'Services & prices', 'Verification', 'Availability defaults', 'Notifications', 'Payouts'].map(item => (
           <View key={item} style={styles.darkSettingsRow}>
             <Text style={styles.darkSettingsLabel}>{item}</Text>
-            <Text style={styles.darkChevron}>›</Text>
+            <Text style={styles.darkSettingsStatus}>Setup later</Text>
           </View>
         ))}
 
@@ -3133,6 +3170,7 @@ const styles = StyleSheet.create({
   pickCard: { flex: 1, backgroundColor: C.pale, borderRadius: 13, padding: 14 },
   pickLabel: { color: C.muted, fontSize: 11 },
   pickValue: { color: C.text, fontWeight: '900', marginTop: 4 },
+  pickHint: { color: C.muted, fontSize: 9, marginTop: 5 },
   largeBlueButton: { minHeight: 55, borderRadius: 13, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 22 },
   largeBlueText: { color: C.white, fontWeight: '900' },
   pageTitle: { color: C.text, fontWeight: '900', fontSize: 28 },
