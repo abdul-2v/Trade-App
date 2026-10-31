@@ -2286,11 +2286,12 @@ function TradeJobsScreen({ navigate }: { screen: TradeScreen; navigate: (screen:
     <TradeShell current="tradeJobs" navigate={navigate}>
       <ScrollView contentContainerStyle={styles.tradePage}>
         <Text style={styles.tradePageTitle}>Jobs nearby</Text>
-        <Text style={styles.tradePageSub}>Customers looking for plumbers within your travel radius.</Text>
-        <Opportunity title="Burst pipe — urgent" distance="0.6 miles" time="2 mins ago" price="£80–£140" />
-        <Opportunity title="Leaking kitchen tap" distance="1.0 miles" time="7 mins ago" price="£50–£80" />
-        <Opportunity title="Radiator cold" distance="1.8 miles" time="11 mins ago" price="£70–£110" />
-        <Opportunity title="Replace toilet fill valve" distance="2.3 miles" time="18 mins ago" price="£60–£100" />
+        <Text style={styles.tradePageSub}>Customer requests matching your trade and travel radius will appear here.</Text>
+        <View style={styles.tradeEmptyLarge}>
+          <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={30} color={C.cyan} />
+          <Text style={styles.tradeEmptyLargeTitle}>No open jobs yet</Text>
+          <Text style={styles.tradeEmptyLargeText}>Keep your availability on. When a real customer request matches you, it will appear here.</Text>
+        </View>
       </ScrollView>
     </TradeShell>
   );
@@ -2300,37 +2301,212 @@ function TradeMapScreen({ navigate }: { screen: TradeScreen; navigate: (screen: 
   return (
     <TradeShell current="tradeMap" navigate={navigate}>
       <View style={styles.tradeMapStatus}>
-        <Text style={styles.tradeMapStatusTitle}>● You're visible</Text>
-        <Text style={styles.tradeMapStatusSub}>Customers within 10 miles can discover your profile.</Text>
+        <Text style={styles.tradeMapStatusTitle}>Your work map</Text>
+        <Text style={styles.tradeMapStatusSub}>Use Profile → Map location to choose your work area or live-location mode.</Text>
       </View>
-      <View style={{ flex: 1, padding: 12, paddingBottom: 90 }}>
-        <MapMock trades={trades} onTrade={() => {}} />
-        <View style={styles.customerJobPin}><Text style={styles.customerJobPinIcon}>💧</Text><Text style={styles.customerJobPinText}>Leak job · 0.8 mi</Text></View>
+      <View style={{ flex: 1, paddingBottom: 90 }}>
+        <MapMock trades={[]} onTrade={() => {}} />
       </View>
     </TradeShell>
   );
 }
 
 function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (screen: TradeScreen) => void; switchToCustomer: () => void }) {
+  type TradeConversation = {
+    id: string;
+    customerId: string;
+    customerName: string;
+    lastMessage: string;
+    updatedAt: string;
+  };
+
+  type TradeLiveMessage = {
+    id: number;
+    sender_id: string;
+    body: string;
+    created_at: string;
+  };
+
+  const [conversations, setConversations] = useState<TradeConversation[]>([]);
+  const [selected, setSelected] = useState<TradeConversation | null>(null);
+  const [thread, setThread] = useState<TradeLiveMessage[]>([]);
+  const [message, setMessage] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadInbox = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    const { data: rows } = await supabase
+      .from('conversations')
+      .select('id, customer_id, updated_at')
+      .eq('tradesperson_id', user.id)
+      .order('updated_at', { ascending: false });
+
+    if (!rows?.length) {
+      setConversations([]);
+      setLoading(false);
+      return;
+    }
+
+    const customerIds = Array.from(new Set(rows.map(row => row.customer_id)));
+    const conversationIds = rows.map(row => row.id);
+
+    const [{ data: customers }, { data: latestMessages }] = await Promise.all([
+      supabase.from('profiles').select('id, first_name, last_name').in('id', customerIds),
+      supabase
+        .from('messages')
+        .select('conversation_id, body, created_at')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    const customerMap = new Map((customers ?? []).map(person => [person.id, person]));
+    const latestMap = new Map<string, { body: string; created_at: string }>();
+
+    for (const item of latestMessages ?? []) {
+      if (!latestMap.has(item.conversation_id)) latestMap.set(item.conversation_id, item);
+    }
+
+    setConversations(
+      rows.map(row => {
+        const person = customerMap.get(row.customer_id);
+        const latest = latestMap.get(row.id);
+        const name = [person?.first_name, person?.last_name].filter(Boolean).join(' ') || 'Customer';
+        return {
+          id: row.id,
+          customerId: row.customer_id,
+          customerName: name,
+          lastMessage: latest?.body || 'Conversation started',
+          updatedAt: latest?.created_at || row.updated_at,
+        };
+      })
+    );
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadInbox();
+  }, []);
+
+  useEffect(() => {
+    if (!selected) {
+      setThread([]);
+      return;
+    }
+
+    supabase
+      .from('messages')
+      .select('id, sender_id, body, created_at')
+      .eq('conversation_id', selected.id)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setThread((data as TradeLiveMessage[]) ?? []));
+  }, [selected?.id]);
+
+  const send = async () => {
+    const body = message.trim();
+    if (!body || !selected || !userId) return;
+
+    setMessage('');
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: selected.id, sender_id: userId, body })
+      .select('id, sender_id, body, created_at')
+      .single();
+
+    if (error || !data) {
+      setMessage(body);
+      Alert.alert('Could not send message', error?.message || 'Try again.');
+      return;
+    }
+
+    setThread(current => [...current, data as TradeLiveMessage]);
+
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', selected.id);
+
+    loadInbox();
+  };
+
+  if (selected) {
+    return (
+      <TradeShell current="tradeMessages" navigate={navigate}>
+        <View style={styles.tradeChatHeader}>
+          <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack}>
+            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={19} color={C.white} />
+          </Pressable>
+          <View>
+            <Text style={styles.tradeChatName}>{selected.customerName}</Text>
+            <Text style={styles.tradeChatSub}>Customer conversation</Text>
+          </View>
+        </View>
+
+        <ScrollView style={styles.tradeChatBody} contentContainerStyle={styles.tradeChatContent}>
+          {thread.map(item => {
+            const mine = item.sender_id === userId;
+            return (
+              <View key={item.id} style={[styles.tradeChatBubble, mine ? styles.tradeChatMine : styles.tradeChatTheirs]}>
+                <Text style={[styles.tradeChatBubbleText, mine && { color: C.white }]}>{item.body}</Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.tradeChatComposer}>
+          <TextInput
+            value={message}
+            onChangeText={setMessage}
+            style={styles.tradeChatInput}
+            placeholder="Type a message…"
+            placeholderTextColor="#7890A4"
+          />
+          <Pressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()}>
+            <AppIcon icon={{ ios: 'arrow.up', android: 'arrow_upward' }} size={18} color={C.white} />
+          </Pressable>
+        </View>
+      </TradeShell>
+    );
+  }
+
   return (
     <TradeShell current="tradeMessages" navigate={navigate}>
       <ScrollView contentContainerStyle={styles.tradePage}>
         <Text style={styles.tradePageTitle}>Messages</Text>
-        {[
-          ['Sarah P.', 'Leak under kitchen sink', 'Can you come this evening?', '2m'],
-          ['Michael T.', 'Boiler repair', 'Thanks, see you at 10.', '1h'],
-          ['Emma R.', 'Bathroom tap', 'I have sent a photo.', '3h'],
-        ].map(([name, job, last, time]) => (
-          <View key={name} style={styles.darkMessageRow}>
-            <View style={styles.darkAvatar}><Text style={styles.darkAvatarText}>{name[0]}</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.darkMessageName}>{name}</Text>
-              <Text style={styles.darkMessageJob}>{job}</Text>
-              <Text style={styles.darkMessageLast}>{last}</Text>
-            </View>
-            <Text style={styles.darkMessageTime}>{time}</Text>
+        <Text style={styles.tradePageSub}>Real customer conversations will appear here.</Text>
+
+        {loading ? (
+          <Text style={styles.darkMessageLast}>Loading messages…</Text>
+        ) : conversations.length ? (
+          conversations.map(item => (
+            <Pressable key={item.id} style={styles.darkMessageRow} onPress={() => setSelected(item)}>
+              <View style={styles.darkAvatar}><Text style={styles.darkAvatarText}>{item.customerName.charAt(0).toUpperCase()}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.darkMessageName}>{item.customerName}</Text>
+                <Text style={styles.darkMessageLast} numberOfLines={1}>{item.lastMessage}</Text>
+              </View>
+              <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#7890A4" />
+            </Pressable>
+          ))
+        ) : (
+          <View style={styles.tradeEmptyLarge}>
+            <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={30} color={C.cyan} />
+            <Text style={styles.tradeEmptyLargeTitle}>No messages yet</Text>
+            <Text style={styles.tradeEmptyLargeText}>When a customer starts a conversation with your real profile, it will show here.</Text>
           </View>
-        ))}
+        )}
       </ScrollView>
     </TradeShell>
   );
@@ -3052,6 +3228,23 @@ const styles = StyleSheet.create({
   proSwitchSub: { color: '#B9CAD9', fontSize: 12, lineHeight: 17, marginTop: 4, maxWidth: 260 },
   proSwitchArrow: { color: C.cyan, fontSize: 30, marginLeft: 'auto' },
   tradePage: { padding: 18, paddingBottom: 100 },
+  tradeEmptyLarge: { marginTop: 24, backgroundColor: '#0C2B45', borderRadius: 18, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#173F5F' },
+  tradeEmptyLargeTitle: { color: C.white, fontSize: 17, fontWeight: '900', marginTop: 12 },
+  tradeEmptyLargeText: { color: '#9FB5C7', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 6, maxWidth: 290 },
+  tradeChatHeader: { height: 68, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, backgroundColor: C.navy, borderBottomWidth: 1, borderBottomColor: '#173F5F' },
+  tradeChatBack: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#123B5B', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  tradeChatName: { color: C.white, fontSize: 15, fontWeight: '900' },
+  tradeChatSub: { color: '#7890A4', fontSize: 10, marginTop: 2 },
+  tradeChatBody: { flex: 1, backgroundColor: '#081D31' },
+  tradeChatContent: { padding: 14, paddingBottom: 24 },
+  tradeChatBubble: { maxWidth: '80%', borderRadius: 16, paddingHorizontal: 13, paddingVertical: 10, marginBottom: 8 },
+  tradeChatMine: { alignSelf: 'flex-end', backgroundColor: C.blue, borderBottomRightRadius: 5 },
+  tradeChatTheirs: { alignSelf: 'flex-start', backgroundColor: '#123B5B', borderBottomLeftRadius: 5 },
+  tradeChatBubbleText: { color: '#DCE6EF', fontSize: 13, lineHeight: 18 },
+  tradeChatComposer: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, backgroundColor: C.navy, borderTopWidth: 1, borderTopColor: '#173F5F' },
+  tradeChatInput: { flex: 1, minHeight: 43, borderRadius: 18, backgroundColor: '#102E47', color: C.white, paddingHorizontal: 14, fontSize: 13 },
+  tradeChatSend: { width: 43, height: 43, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+
   tradeHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
   tradeBrand: { color: C.white, fontSize: 24, fontWeight: '900' },
   tradeHello: { color: '#9FB5C7', marginTop: 4 },
