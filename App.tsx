@@ -1027,6 +1027,7 @@ function MapMock({
       distance: trade.distance,
       image: trade.image,
       accent: trade.accent,
+      available: trade.available,
       lat: trade.mapLatitude ?? centre.latitude + offset.lat + Math.floor(index / offsets.length) * 0.0014,
       lng: trade.mapLongitude ?? centre.longitude + offset.lng - Math.floor(index / offsets.length) * 0.0011,
     };
@@ -1103,6 +1104,16 @@ function MapMock({
     background:#16B981;
     border:2px solid #fff;
   }
+  .trade-offline {
+    position:absolute;
+    right:-1px;
+    top:-1px;
+    width:9px;
+    height:9px;
+    border-radius:5px;
+    background:#9AA6B2;
+    border:2px solid #fff;
+  }
   .trade-label {
     margin-top:4px;
     padding:3px 7px;
@@ -1147,7 +1158,7 @@ function MapMock({
     zoomSnap: 0.25,
     zoomDelta: 0.5,
     preferCanvas: true
-  }).setView(centre, ${compact ? 13.5 : 14.75});
+  }).setView(centre, ${compact ? 13.5 : mapTrades.length > 20 ? 12.35 : 14.75});
 
   L.maplibreGL({
     style: 'https://tiles.openfreemap.org/styles/liberty'
@@ -1202,7 +1213,7 @@ function MapMock({
   markers.forEach((m) => {
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span></div><div class="trade-label">' + m.role + '</div></div>',
+      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" src="' + m.image + '" /><span class="' + (m.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + m.role + '</div></div>',
       iconSize: [70,62],
       iconAnchor: [35,31]
     });
