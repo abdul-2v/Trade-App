@@ -2108,9 +2108,100 @@ function TradeHomeScreen({
   navigate: (screen: TradeScreen) => void;
   switchToCustomer: () => void;
 }) {
-  const [available, setAvailable] = useState(true);
-  const [duration, setDuration] = useState('1 hour');
+  const [available, setAvailable] = useState(false);
+  const [duration, setDuration] = useState('2 hours');
   const [radius, setRadius] = useState(10);
+  const [firstName, setFirstName] = useState('there');
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) return;
+
+      const [{ data: person }, { data: availability }] = await Promise.all([
+        supabase.from('profiles').select('first_name').eq('id', user.id).single(),
+        supabase
+          .from('trade_availability')
+          .select('is_available, radius_miles, available_until')
+          .eq('user_id', user.id)
+          .single(),
+      ]);
+
+      if (!active) return;
+
+      if (person?.first_name) setFirstName(person.first_name);
+      if (availability) {
+        setAvailable(Boolean(availability.is_available));
+        setRadius(Number(availability.radius_miles) || 10);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const durationToUntil = (value: string) => {
+    const now = new Date();
+    if (value === '1 hour') return new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+    if (value === '2 hours') return new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
+    if (value === '4 hours') return new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString();
+
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return end.toISOString();
+  };
+
+  const saveAvailability = async (nextAvailable: boolean, nextDuration = duration, nextRadius = radius) => {
+    setSavingAvailability(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSavingAvailability(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('trade_availability')
+      .update({
+        is_available: nextAvailable,
+        radius_miles: nextRadius,
+        available_until: nextAvailable ? durationToUntil(nextDuration) : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id);
+
+    setSavingAvailability(false);
+
+    if (error) {
+      Alert.alert('Could not update availability', error.message);
+    }
+  };
+
+  const changeAvailable = async (value: boolean) => {
+    setAvailable(value);
+    await saveAvailability(value);
+  };
+
+  const changeDuration = async (value: string) => {
+    setDuration(value);
+    if (available) await saveAvailability(true, value, radius);
+  };
+
+  const changeRadius = async (value: number) => {
+    setRadius(value);
+    await saveAvailability(available, duration, value);
+  };
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
@@ -2118,23 +2209,35 @@ function TradeHomeScreen({
         <View style={styles.tradeHeaderRow}>
           <View>
             <Text style={styles.tradeBrand}>TradeHub <Text style={{ color: C.cyan }}>Pro</Text></Text>
-            <Text style={styles.tradeHello}>Good evening, James</Text>
+            <Text style={styles.tradeHello}>Hi {firstName}</Text>
           </View>
-          <Pressable style={styles.customerMini} onPress={switchToCustomer}><Text style={styles.customerMiniText}>Customer app</Text></Pressable>
+          <Pressable style={styles.customerMini} onPress={switchToCustomer}>
+            <Text style={styles.customerMiniText}>Customer app</Text>
+          </Pressable>
         </View>
 
         <View style={styles.availablePanel}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.availablePanelTitle}>Go available</Text>
-            <Text style={styles.availablePanelSub}>{available ? "You're visible on the map" : "You're hidden from customers"}</Text>
+            <Text style={styles.availablePanelTitle}>{available ? 'Available now' : 'Go available'}</Text>
+            <Text style={styles.availablePanelSub}>
+              {savingAvailability
+                ? 'Saving…'
+                : available
+                  ? "You're visible to nearby customers"
+                  : "You're hidden from new nearby searches"}
+            </Text>
           </View>
-          <Switch value={available} onValueChange={setAvailable} trackColor={{ true: C.green }} />
+          <Switch value={available} onValueChange={changeAvailable} trackColor={{ true: C.green }} disabled={savingAvailability} />
         </View>
 
         <Text style={styles.tradeLabel}>Availability duration</Text>
         <View style={styles.tradeChipWrap}>
-          {['1 hour', '2 hours', '4 hours', 'All day', 'Custom'].map(item => (
-            <Pressable key={item} style={[styles.tradeChip, duration === item && styles.tradeChipActive]} onPress={() => setDuration(item)}>
+          {['1 hour', '2 hours', '4 hours', 'All day'].map(item => (
+            <Pressable
+              key={item}
+              style={[styles.tradeChip, duration === item && styles.tradeChipActive]}
+              onPress={() => changeDuration(item)}
+            >
               <Text style={[styles.tradeChipText, duration === item && { color: C.white }]}>{item}</Text>
             </Pressable>
           ))}
@@ -2146,16 +2249,20 @@ function TradeHomeScreen({
         </View>
         <View style={styles.radiusOptions}>
           {[5, 10, 15, 25].map(value => (
-            <Pressable key={value} onPress={() => setRadius(value)} style={[styles.radiusDot, radius === value && styles.radiusDotActive]}>
+            <Pressable
+              key={value}
+              onPress={() => changeRadius(value)}
+              style={[styles.radiusDot, radius === value && styles.radiusDotActive]}
+            >
               <Text style={[styles.radiusDotText, radius === value && { color: C.white }]}>{value}</Text>
             </Pressable>
           ))}
         </View>
 
         <View style={styles.tradeStats}>
-          <TradeStat number="4" label="Profile views" />
-          <TradeStat number="2" label="Messages" />
-          <TradeStat number="1" label="Bookings" />
+          <TradeStat number="—" label="Profile views" />
+          <TradeStat number="—" label="Messages" />
+          <TradeStat number="—" label="Bookings" />
         </View>
 
         <View style={styles.tradeSectionHeader}>
@@ -2163,9 +2270,11 @@ function TradeHomeScreen({
           <Pressable onPress={() => navigate('tradeJobs')}><Text style={styles.tradeLink}>View all</Text></Pressable>
         </View>
 
-        <Opportunity title="Leak under sink" distance="0.8 miles" time="5 mins ago" price="£50–£90" />
-        <Opportunity title="Boiler not working" distance="1.2 miles" time="12 mins ago" price="£80–£150" />
-        <Opportunity title="General plumbing" distance="1.5 miles" time="20 mins ago" price="£60–£120" />
+        <View style={styles.tradeEmptyCard}>
+          <Text style={styles.tradeEmptyTitle}>No live opportunities yet</Text>
+          <Text style={styles.tradeEmptyText}>New customer requests matching your trade and travel radius will appear here.</Text>
+        </View>
+
         <View style={{ height: 90 }} />
       </ScrollView>
     </TradeShell>
