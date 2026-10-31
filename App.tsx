@@ -432,6 +432,7 @@ export default function App() {
           setTradeScreen('tradeHome');
         }}
         signOut={() => supabase.auth.signOut()}
+        accountType={accountType}
       />
     );
   }
@@ -1766,41 +1767,245 @@ function CustomerProfileScreen({
   navigate,
   switchToTrade,
   signOut,
+  accountType,
 }: {
   navigate: (screen: CustomerScreen) => void;
   switchToTrade: () => void;
   signOut: () => void;
+  accountType: 'customer' | 'tradesperson';
 }) {
+  const [profile, setProfile] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    default_address: '',
+    notifications_enabled: true,
+  });
+  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const loadProfile = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, phone, default_address, notifications_enabled')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      setProfile({
+        first_name: data.first_name || '',
+        last_name: data.last_name || '',
+        phone: data.phone || '',
+        default_address: data.default_address || '',
+        notifications_enabled: data.notifications_enabled !== false,
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const saveProfile = async () => {
+    setSaving(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        first_name: profile.first_name.trim(),
+        last_name: profile.last_name.trim(),
+        phone: profile.phone.trim(),
+        default_address: profile.default_address.trim() || null,
+        notifications_enabled: profile.notifications_enabled,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+
+    setSaving(false);
+
+    if (error) {
+      Alert.alert('Could not save', error.message);
+      return;
+    }
+
+    setEditMode(null);
+  };
+
+  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Your account';
+  const initial = (profile.first_name || profile.last_name || 'T').charAt(0).toUpperCase();
+
   return (
     <CustomerShell current="customerProfile" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.plainPage, { paddingBottom: 100 }]}>
         <Text style={styles.pageTitle}>Profile</Text>
+
         <View style={styles.customerProfileCard}>
-          <View style={styles.customerAvatar}><Text style={styles.customerAvatarText}>A</Text></View>
-          <View>
-            <Text style={styles.customerName}>Abz</Text>
-            <Text style={styles.muted}>Customer account</Text>
+          <View style={styles.customerAvatar}><Text style={styles.customerAvatarText}>{initial}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.customerName}>{fullName}</Text>
+            <Text style={styles.muted}>{accountType === 'tradesperson' ? 'Tradesperson account' : 'Customer account'}</Text>
           </View>
         </View>
 
-        {['Personal details', 'Saved tradespeople', 'Addresses', 'Notifications', 'Help & support'].map(item => (
-          <View key={item} style={styles.settingsRow}>
-            <Text style={styles.settingsLabel}>{item}</Text><Text style={styles.settingsChevron}>›</Text>
+        <Pressable style={styles.settingsRow} onPress={() => setEditMode('details')}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.settingsLabel}>Personal details</Text>
+            <Text style={styles.settingsSubText}>{profile.phone || 'Add your phone number'}</Text>
           </View>
-        ))}
-
-        <Pressable style={styles.proSwitchCard} onPress={switchToTrade}>
-          <View>
-            <Text style={styles.proSwitchTitle}>Are you a tradesperson?</Text>
-            <Text style={styles.proSwitchSub}>Open TradeHub Pro to manage availability and nearby work.</Text>
-          </View>
-          <Text style={styles.proSwitchArrow}>→</Text>
+          <Text style={styles.settingsChevron}>›</Text>
         </Pressable>
+
+        <Pressable
+          style={styles.settingsRow}
+          onPress={() => Alert.alert('Saved tradespeople', 'You have not saved any tradespeople yet.')}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.settingsLabel}>Saved tradespeople</Text>
+            <Text style={styles.settingsSubText}>Your favourites will appear here</Text>
+          </View>
+          <Text style={styles.settingsChevron}>›</Text>
+        </Pressable>
+
+        <Pressable style={styles.settingsRow} onPress={() => setEditMode('address')}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.settingsLabel}>Address</Text>
+            <Text style={styles.settingsSubText} numberOfLines={1}>
+              {profile.default_address || 'Add your default job address'}
+            </Text>
+          </View>
+          <Text style={styles.settingsChevron}>›</Text>
+        </Pressable>
+
+        <Pressable style={styles.settingsRow} onPress={() => setEditMode('notifications')}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.settingsLabel}>Notifications</Text>
+            <Text style={styles.settingsSubText}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
+          </View>
+          <Text style={styles.settingsChevron}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.settingsRow}
+          onPress={() => Alert.alert('Help & support', 'Support chat and help articles will be added before public launch.')}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.settingsLabel}>Help & support</Text>
+            <Text style={styles.settingsSubText}>Get help with TradeHub</Text>
+          </View>
+          <Text style={styles.settingsChevron}>›</Text>
+        </Pressable>
+
+        {accountType === 'tradesperson' ? (
+          <Pressable style={styles.proSwitchCard} onPress={switchToTrade}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.proSwitchTitle}>Open TradeHub Pro</Text>
+              <Text style={styles.proSwitchSub}>Manage availability, work area and incoming jobs.</Text>
+            </View>
+            <Text style={styles.proSwitchArrow}>→</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.proSwitchCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.proSwitchTitle}>Tradesperson accounts</Text>
+              <Text style={styles.proSwitchSub}>Create a tradesperson account to appear on the map and receive jobs.</Text>
+            </View>
+          </View>
+        )}
 
         <Pressable style={styles.signOutButton} onPress={signOut}>
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={editMode !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditMode(null)}
+      >
+        <View style={styles.profileModalRoot}>
+          <Pressable style={styles.profileModalBackdrop} onPress={() => setEditMode(null)} />
+          <View style={styles.profileModalSheet}>
+            <View style={styles.filterSheetHandle} />
+
+            {editMode === 'details' ? (
+              <>
+                <Text style={styles.profileModalTitle}>Personal details</Text>
+                <Text style={styles.profileFieldLabel}>First name</Text>
+                <TextInput
+                  style={styles.profileField}
+                  value={profile.first_name}
+                  onChangeText={value => setProfile(current => ({ ...current, first_name: value }))}
+                  autoCapitalize="words"
+                />
+                <Text style={styles.profileFieldLabel}>Last name</Text>
+                <TextInput
+                  style={styles.profileField}
+                  value={profile.last_name}
+                  onChangeText={value => setProfile(current => ({ ...current, last_name: value }))}
+                  autoCapitalize="words"
+                />
+                <Text style={styles.profileFieldLabel}>Mobile number</Text>
+                <TextInput
+                  style={styles.profileField}
+                  value={profile.phone}
+                  onChangeText={value => setProfile(current => ({ ...current, phone: value.replace(/\D/g, '').slice(0, 11) }))}
+                  keyboardType="phone-pad"
+                />
+              </>
+            ) : null}
+
+            {editMode === 'address' ? (
+              <>
+                <Text style={styles.profileModalTitle}>Default address</Text>
+                <Text style={styles.profileModalHint}>Used to pre-fill job requests. You can change it for each job.</Text>
+                <TextInput
+                  style={[styles.profileField, styles.profileAddressField]}
+                  value={profile.default_address}
+                  onChangeText={value => setProfile(current => ({ ...current, default_address: value }))}
+                  placeholder="House number, street, town, postcode"
+                  placeholderTextColor="#98A4B2"
+                  multiline
+                />
+              </>
+            ) : null}
+
+            {editMode === 'notifications' ? (
+              <>
+                <Text style={styles.profileModalTitle}>Notifications</Text>
+                <View style={styles.notificationSettingRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsLabel}>TradeHub notifications</Text>
+                    <Text style={styles.settingsSubText}>Messages, booking updates and job responses</Text>
+                  </View>
+                  <Switch
+                    value={profile.notifications_enabled}
+                    onValueChange={value => setProfile(current => ({ ...current, notifications_enabled: value }))}
+                  />
+                </View>
+              </>
+            ) : null}
+
+            <Pressable style={[styles.largeBlueButton, saving && { opacity: 0.5 }]} onPress={saveProfile} disabled={saving}>
+              <Text style={styles.largeBlueText}>{saving ? 'Saving…' : 'Save changes'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </CustomerShell>
   );
 }
@@ -2664,6 +2869,17 @@ const styles = StyleSheet.create({
   customerAvatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   customerAvatarText: { color: C.white, fontWeight: '900', fontSize: 25 },
   customerName: { fontSize: 19, fontWeight: '900', color: C.text },
+  settingsSubText: { color: C.muted, fontSize: 11, marginTop: 3, maxWidth: 260 },
+  profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
+  profileModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,27,49,0.35)' },
+  profileModalSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
+  profileModalTitle: { color: C.text, fontSize: 21, fontWeight: '900', marginBottom: 10 },
+  profileModalHint: { color: C.muted, fontSize: 12, lineHeight: 17, marginBottom: 12 },
+  profileFieldLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 10, marginBottom: 6 },
+  profileField: { minHeight: 48, borderRadius: 13, backgroundColor: '#F3F5F8', color: C.text, paddingHorizontal: 13, fontSize: 14 },
+  profileAddressField: { minHeight: 88, paddingTop: 12, textAlignVertical: 'top' },
+  notificationSettingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
+
   settingsRow: { height: 58, borderBottomWidth: 1, borderBottomColor: C.line, flexDirection: 'row', alignItems: 'center' },
   settingsLabel: { flex: 1, fontWeight: '700', color: C.text },
   settingsChevron: { fontSize: 25, color: '#8995A5' },
