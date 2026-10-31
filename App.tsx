@@ -3365,5 +3365,11 @@ const styles = StyleSheet.create({
   backCustomerText: { color: C.cyan, fontWeight: '900' },
   signOutButton: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: '#D5DCE5', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   signOutText: { color: C.red, fontWeight: '900' },
+
+  photoPicked: { width: 120, height: 105, borderRadius: 15 },
+  tradeEmptyCard: { backgroundColor: '#0C2B45', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#173F5F' },
+  tradeEmptyTitle: { color: C.white, fontSize: 14, fontWeight: '900' },
+  tradeEmptyText: { color: '#9FB5C7', fontSize: 11, lineHeight: 17, marginTop: 5 },
+  darkSettingsStatus: { color: '#7890A4', fontSize: 10, fontWeight: '700' },
 });
 
