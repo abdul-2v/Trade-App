@@ -6,6 +6,7 @@ import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
   Image,
@@ -1311,10 +1312,51 @@ function UrgentScreen({
   const [issue, setIssue] = useState('Leaking pipe under kitchen sink');
   const [urgency, setUrgency] = useState('ASAP');
   const [matched, setMatched] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [jobLocation, setJobLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locating, setLocating] = useState(false);
 
   const matches = trades.filter(t => t.role === trade).length ? trades.filter(t => t.role === trade) : trades;
 
+  const choosePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.75,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Location permission needed', 'Allow location access so nearby tradespeople can be matched to your job.');
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setJobLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+    } catch {
+      Alert.alert('Location unavailable', 'We could not get your location. Try again.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const find = () => {
+    if (!issue.trim()) {
+      Alert.alert('Tell us what happened', 'Add a short description of the job before searching.');
+      return;
+    }
+
     addRequest({
       id: String(Date.now()),
       trade,
@@ -1378,13 +1420,26 @@ function UrgentScreen({
 
           <FormStep number="4" title="Add a photo (optional)">
             <View style={styles.photoRow}>
-              <View style={styles.photoDemo}><Text style={{ fontSize: 40 }}>🚰</Text></View>
-              <View style={styles.addPhoto}><Text style={styles.plus}>＋</Text><Text style={styles.addPhotoText}>Add photo</Text></View>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.photoPicked} />
+              ) : (
+                <View style={styles.photoDemo}><Text style={{ fontSize: 40 }}>🚰</Text></View>
+              )}
+              <Pressable style={styles.addPhoto} onPress={choosePhoto}>
+                <Text style={styles.plus}>{photoUri ? '↻' : '＋'}</Text>
+                <Text style={styles.addPhotoText}>{photoUri ? 'Change photo' : 'Add photo'}</Text>
+              </Pressable>
             </View>
           </FormStep>
 
           <FormStep number="5" title="Your location">
-            <View style={styles.locationField}><Text>📍</Text><Text style={styles.locationFieldText}>Use my current location</Text><Text>⌄</Text></View>
+            <Pressable style={styles.locationField} onPress={useCurrentLocation} disabled={locating}>
+              <Text>📍</Text>
+              <Text style={styles.locationFieldText}>
+                {locating ? 'Finding your location…' : jobLocation ? 'Current location ready' : 'Use my current location'}
+              </Text>
+              <Text>{jobLocation ? '✓' : '›'}</Text>
+            </Pressable>
           </FormStep>
 
           <Pressable style={styles.findButton} onPress={find}>
