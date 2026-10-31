@@ -990,6 +990,7 @@ function MapMock({
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.1.0/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
   html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#F3F5F7; }
   body { overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
@@ -998,8 +999,8 @@ function MapMock({
     opacity:.42;
     background:rgba(255,255,255,.62) !important;
   }
-  .leaflet-tile-pane {
-    filter:saturate(.72) contrast(.96) brightness(1.035);
+  .maplibregl-canvas {
+    filter:saturate(.88) contrast(.98) brightness(1.02);
   }
   .leaflet-control-zoom {
     border:none !important;
@@ -1078,6 +1079,8 @@ function MapMock({
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.1.0/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
 <script>
   const centre = ${JSON.stringify([centre.latitude, centre.longitude])};
   const markers = ${escapedMarkers};
@@ -1090,11 +1093,12 @@ function MapMock({
     preferCanvas: true
   }).setView(centre, ${compact ? 13.5 : 14.75});
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
-    maxZoom: 20,
-    attribution: '&copy; OpenStreetMap &copy; CARTO'
+  L.maplibreGL({
+    style: 'https://tiles.openfreemap.org/styles/liberty'
   }).addTo(map);
+
+  map.attributionControl.setPrefix('');
+  map.attributionControl.addAttribution('OpenFreeMap © OpenMapTiles · Data from OpenStreetMap');
 
   if (user.visible) {
     L.circle([user.lat, user.lng], {
