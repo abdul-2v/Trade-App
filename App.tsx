@@ -991,12 +991,15 @@ function MapMock({
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.1.0/dist/MarkerCluster.css" />
 <style>
-  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#e9eef3; }
+  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#F3F5F7; }
   body { overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
   .leaflet-control-attribution {
-    font-size:7px !important;
-    opacity:.6;
-    background:rgba(255,255,255,.75) !important;
+    font-size:6px !important;
+    opacity:.42;
+    background:rgba(255,255,255,.62) !important;
+  }
+  .leaflet-tile-pane {
+    filter:saturate(.72) contrast(.96) brightness(1.035);
   }
   .leaflet-control-zoom {
     border:none !important;
@@ -1015,21 +1018,21 @@ function MapMock({
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    min-width:78px;
+    min-width:66px;
   }
   .trade-avatar-wrap {
     position:relative;
-    width:48px;
-    height:48px;
-    border-radius:24px;
+    width:42px;
+    height:42px;
+    border-radius:21px;
     background:#fff;
-    border:2.5px solid #FFFFFF;
+    border:2px solid #FFFFFF;
     box-shadow:0 3px 12px rgba(7,27,49,.20);
   }
   .trade-avatar {
-    width:44px;
-    height:44px;
-    border-radius:22px;
+    width:38px;
+    height:38px;
+    border-radius:19px;
     object-fit:cover;
     display:block;
   }
@@ -1037,20 +1040,20 @@ function MapMock({
     position:absolute;
     right:-1px;
     top:-1px;
-    width:10px;
-    height:10px;
+    width:9px;
+    height:9px;
     border-radius:5px;
     background:#16B981;
     border:2px solid #fff;
   }
   .trade-label {
     margin-top:4px;
-    padding:4px 8px;
-    border-radius:9px;
+    padding:3px 7px;
+    border-radius:8px;
     background:rgba(255,255,255,.96);
     color:#132033;
-    font-size:10px;
-    line-height:12px;
+    font-size:9px;
+    line-height:11px;
     font-weight:800;
     white-space:nowrap;
     box-shadow:0 2px 7px rgba(7,27,49,.13);
@@ -1066,8 +1069,8 @@ function MapMock({
   .cluster-count { font-size:14px; line-height:15px; font-weight:900; }
   .cluster-label { margin-top:1px; font-size:7px; line-height:8px; font-weight:800; color:#718196; text-transform:uppercase; letter-spacing:.25px; }
   .dot {
-    width:17px; height:17px; border-radius:9px; background:#087CF0;
-    border:3px solid white; box-shadow:0 2px 9px rgba(8,124,240,.30);
+    width:15px; height:15px; border-radius:8px; background:#1684F8;
+    border:3px solid white; box-shadow:0 2px 8px rgba(22,132,248,.28);
   }
 </style>
 </head>
@@ -1080,23 +1083,27 @@ function MapMock({
   const markers = ${escapedMarkers};
   const user = ${userPosition};
   const map = L.map('map', {
-    zoomControl: ${compact ? "false" : "true"},
-    attributionControl: true
-  }).setView(centre, ${compact ? 13 : 14});
+    zoomControl: false,
+    attributionControl: true,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5,
+    preferCanvas: true
+  }).setView(centre, ${compact ? 13.5 : 14.75});
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap &copy; CARTO'
   }).addTo(map);
 
   if (user.visible) {
     L.circle([user.lat, user.lng], {
-      radius: 420,
-      color: '#68B3FF',
+      radius: 180,
+      color: '#83BFFF',
       weight: 1,
-      opacity: 0.25,
-      fillColor: '#60AFFF',
-      fillOpacity: 0.14,
+      opacity: 0.34,
+      fillColor: '#78B8FF',
+      fillOpacity: 0.13,
       interactive: false
     }).addTo(map);
 
@@ -1136,8 +1143,8 @@ function MapMock({
     const icon = L.divIcon({
       className: '',
       html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" src="' + m.image + '" /><span class="trade-online"></span></div><div class="trade-label">' + m.role + '</div></div>',
-      iconSize: [82,70],
-      iconAnchor: [41,35]
+      iconSize: [70,62],
+      iconAnchor: [35,31]
     });
 
     const marker = L.marker([m.lat, m.lng], { icon })
@@ -3243,11 +3250,10 @@ const styles = StyleSheet.create({
   liveComposerInput: { flex: 1, minHeight: 44, maxHeight: 100, borderRadius: 20, backgroundColor: '#F3F5F8', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, color: C.text, fontSize: 14 },
   liveSendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   liveSendButtonDisabled: { opacity: 0.35 },
-  customerProfileCard: { backgroundColor: C.pale, borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 12 },
+  customerProfileCard: { backgroundColor: C.pale, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 14 },
   customerAvatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   customerAvatarText: { color: C.white, fontWeight: '900', fontSize: 25 },
   customerName: { fontSize: 19, fontWeight: '900', color: C.text },
-  settingsSubText: { color: C.muted, fontSize: 11, marginTop: 3, maxWidth: 260 },
   profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
   profileModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,27,49,0.35)' },
   profileModalSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
@@ -3258,9 +3264,17 @@ const styles = StyleSheet.create({
   profileAddressField: { minHeight: 88, paddingTop: 12, textAlignVertical: 'top' },
   notificationSettingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
 
-  settingsRow: { height: 58, borderBottomWidth: 1, borderBottomColor: C.line, flexDirection: 'row', alignItems: 'center' },
-  settingsLabel: { flex: 1, fontWeight: '700', color: C.text },
-  settingsChevron: { fontSize: 25, color: '#8995A5' },
+  settingsRow: {
+    minHeight: 72,
+    borderBottomWidth: 1,
+    borderBottomColor: C.line,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  settingsLabel: { fontWeight: '800', color: C.text, fontSize: 14, lineHeight: 18 },
+  settingsSubText: { color: C.muted, fontSize: 11, lineHeight: 15, marginTop: 4, maxWidth: 270 },
+  settingsChevron: { fontSize: 24, color: '#8995A5', marginLeft: 12 },
   proSwitchCard: { backgroundColor: C.navy, borderRadius: 18, padding: 18, marginTop: 25, flexDirection: 'row', alignItems: 'center' },
   proSwitchTitle: { color: C.white, fontSize: 17, fontWeight: '900' },
   proSwitchSub: { color: '#B9CAD9', fontSize: 12, lineHeight: 17, marginTop: 4, maxWidth: 260 },
