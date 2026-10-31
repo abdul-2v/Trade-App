@@ -7,6 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import {
+  Alert,
   Image,
   Linking,
   Modal,
@@ -371,7 +372,12 @@ export default function App() {
       <TradeProfileScreen
         trade={selectedTrade}
         back={() => setCustomerScreen('home')}
-        message={() => setCustomerScreen('messages')}
+        message={() => {
+          Alert.alert(
+            'Demo profile',
+            'This profile is sample data. Messaging is enabled automatically for real tradesperson accounts.'
+          );
+        }}
         book={() => setCustomerScreen('booking')}
       />
     );
@@ -575,7 +581,11 @@ function HomeScreen({
                 selectedCategory === item.label && item.label !== 'More' && styles.categoryTileSelected,
               ]}
               onPress={() => {
-                if (item.label === 'More') return;
+                if (item.label === 'More') {
+                  setSelectedCategory('All');
+                  navigate('map');
+                  return;
+                }
                 setSelectedCategory(selectedCategory === item.label ? 'All' : item.label);
               }}
             >
@@ -644,8 +654,11 @@ function MapScreen({
   const [minRating, setMinRating] = useState(0);
   const [availableOnly, setAvailableOnly] = useState(true);
   const [selectedMapTrade, setSelectedMapTrade] = useState<Trade | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filtered = trades.filter(trade => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query && !trade.name.toLowerCase().includes(query) && !trade.role.toLowerCase().includes(query)) return false;
     if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
     if (trade.distance > maxDistance) return false;
     if (trade.rating < minRating) return false;
@@ -676,7 +689,20 @@ function MapScreen({
         <View style={styles.mapSearchRow}>
           <View style={styles.mapSearch}>
             <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={18} color={C.muted} />
-            <Text style={styles.mapSearchText}>Search trade or area</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              style={styles.mapSearchInput}
+              placeholder="Search trade or name"
+              placeholderTextColor="#7F8A98"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchQuery ? (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <AppIcon icon={{ ios: 'xmark.circle.fill', android: 'cancel' }} size={17} color="#A3ADB8" />
+              </Pressable>
+            ) : null}
           </View>
 
           <Pressable
@@ -888,6 +914,7 @@ function MapMock({
 
   const [centre, setCentre] = useState(fallback);
   const [locationStatus, setLocationStatus] = useState<'loading' | 'ready' | 'denied'>('loading');
+  const [recenterNonce, setRecenterNonce] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -1126,7 +1153,7 @@ function MapMock({
   return (
     <View style={[styles.mapMock, compact && styles.mapMockCompact]}>
       <WebView
-        key={`${centre.latitude.toFixed(4)}-${centre.longitude.toFixed(4)}-${mapTrades.map(t => t.id).join('-')}`}
+        key={`${centre.latitude.toFixed(4)}-${centre.longitude.toFixed(4)}-${recenterNonce}-${mapTrades.map(t => t.id).join('-')}`}
         style={styles.mapCanvas}
         originWhitelist={['*']}
         source={{ html }}
@@ -1145,9 +1172,13 @@ function MapMock({
         }}
       />
 
-      <View style={styles.mapReferenceLocationButton}>
+      <Pressable
+        style={styles.mapReferenceLocationButton}
+        onPress={() => setRecenterNonce(value => value + 1)}
+        accessibilityLabel="Recenter map on my location"
+      >
         <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={20} color={C.navy2} />
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -2364,6 +2395,7 @@ const styles = StyleSheet.create({
   mapSearchRow: { flexDirection: 'row', alignItems: 'center' },
   mapSearch: { flex: 1, height: 48, borderRadius: 16, backgroundColor: '#F4F6F9', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
   mapSearchText: { marginLeft: 9, color: C.muted, fontSize: 15 },
+  mapSearchInput: { flex: 1, marginLeft: 9, color: C.text, fontSize: 15, paddingVertical: 0 },
   mapControlButton: { width: 48, height: 48, marginLeft: 8, borderRadius: 16, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   mapControlButtonActive: { backgroundColor: C.navy2 },
   filterBadge: { position: 'absolute', right: -3, top: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.blue, borderWidth: 2, borderColor: C.white, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
