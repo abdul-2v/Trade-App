@@ -852,8 +852,20 @@ function MapScreen({
 
               <View style={styles.mapPreviewInfoRow}>
                 <View style={styles.mapPreviewAvailable}>
-                  <View style={styles.mapPreviewDot} />
-                  <Text style={styles.mapPreviewAvailableText}>Available now</Text>
+                  <View
+                    style={[
+                      styles.mapPreviewDot,
+                      !selectedMapTrade.available && { backgroundColor: '#9AA6B2' },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.mapPreviewAvailableText,
+                      !selectedMapTrade.available && { color: C.muted },
+                    ]}
+                  >
+                    {selectedMapTrade.available ? 'Available now' : 'Not currently available'}
+                  </Text>
                 </View>
                 <Text style={styles.mapPreviewPrice}>From £{selectedMapTrade.callout} call-out</Text>
               </View>
