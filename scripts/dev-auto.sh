@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 echo "TradeHub auto-dev is starting..."
 echo "Keep this Terminal window open while testing in Expo Go."
-echo "Mac and iPhone must be on the same Wi-Fi for LAN mode."
+echo "Using Expo Tunnel mode so the iPhone does not depend on LAN/router access."
 echo "GitHub main will be checked every 8 seconds."
 
 git fetch origin main >/dev/null 2>&1 || true
@@ -45,4 +45,4 @@ npm install
 PULL_PID=$!
 trap 'kill "$PULL_PID" 2>/dev/null || true' EXIT INT TERM
 
-npx expo start --lan
+npx expo start --tunnel
