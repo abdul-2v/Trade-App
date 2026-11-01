@@ -1791,7 +1791,7 @@ function UrgentScreen({
         .eq('user_id', userId)
         .single(),
       supabase
-        .from('trade_map_presence')
+        .from('trade_locations')
         .select('latitude, longitude')
         .eq('user_id', userId)
         .limit(1),
@@ -1884,6 +1884,46 @@ function UrgentScreen({
       supabase.removeChannel(channel);
     };
   }, [requestId, matchedTradeUserId]);
+
+  useEffect(() => {
+    if (!matchedTradeUserId || demoMode || !jobLocation || stage !== 'matched') return;
+
+    const channel = supabase
+      .channel('urgent-live-location-' + matchedTradeUserId)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'trade_locations',
+          filter: 'user_id=eq.' + matchedTradeUserId,
+        },
+        payload => {
+          const row = payload.new as any;
+          const latitude = Number(row.latitude);
+          const longitude = Number(row.longitude);
+          const distance = distanceMilesBetween(jobLocation, { latitude, longitude });
+          const eta = estimatedDispatchEta(distance);
+
+          setMatchedTrade(previous =>
+            previous
+              ? {
+                  ...previous,
+                  mapLatitude: latitude,
+                  mapLongitude: longitude,
+                  distance: Number(distance.toFixed(1)),
+                  eta,
+                }
+              : previous
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [matchedTradeUserId, demoMode, jobLocation, stage]);
 
   const find = async () => {
     if (!issue.trim()) {
@@ -2157,6 +2197,16 @@ function UrgentScreen({
                 </Text>
               </View>
             ))}
+          </View>
+
+          <View style={styles.dispatchTrackingMapWrap}>
+            <View style={styles.dispatchTrackingLabelRow}>
+              <View style={styles.dispatchTrackingDot} />
+              <Text style={styles.dispatchTrackingLabel}>
+                ${demoMode ? 'Demo position' : 'Live tradesperson location'}
+              </Text>
+            </View>
+            <MapMock trades={[matchedTrade]} onTrade={() => openTrade(matchedTrade)} compact />
           </View>
 
           <View style={styles.dispatchMatchCard}>
@@ -3111,6 +3161,7 @@ function TradeHomeScreen({
   const [radius, setRadius] = useState(10);
   const [firstName, setFirstName] = useState('there');
   const [savingAvailability, setSavingAvailability] = useState(false);
+  const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
 
   useEffect(() => {
     let active = true;
@@ -3126,7 +3177,7 @@ function TradeHomeScreen({
         supabase.from('profiles').select('first_name').eq('id', user.id).single(),
         supabase
           .from('trade_availability')
-          .select('is_available, radius_miles, available_until')
+          .select('is_available, radius_miles, available_until, location_mode')
           .eq('user_id', user.id)
           .single(),
       ]);
@@ -3137,6 +3188,7 @@ function TradeHomeScreen({
       if (availability) {
         setAvailable(Boolean(availability.is_available));
         setRadius(Number(availability.radius_miles) || 10);
+        setLocationMode(availability.location_mode === 'live' ? 'live' : 'work_area');
       }
     };
 
@@ -3145,6 +3197,65 @@ function TradeHomeScreen({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!available || locationMode !== 'live') return;
+
+    let active = true;
+    let subscription: Location.LocationSubscription | null = null;
+
+    const startTracking = async () => {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== 'granted' || !active) return;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) return;
+
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 30,
+          timeInterval: 10000,
+        },
+        async position => {
+          if (!active) return;
+
+          const exactLatitude = position.coords.latitude;
+          const exactLongitude = position.coords.longitude;
+          const publicLatitude = Number(exactLatitude.toFixed(3));
+          const publicLongitude = Number(exactLongitude.toFixed(3));
+          const now = new Date().toISOString();
+
+          await Promise.all([
+            supabase.from('trade_locations').upsert({
+              user_id: user.id,
+              latitude: exactLatitude,
+              longitude: exactLongitude,
+              accuracy_meters: position.coords.accuracy,
+              updated_at: now,
+            }),
+            supabase.from('trade_map_presence').upsert({
+              user_id: user.id,
+              latitude: publicLatitude,
+              longitude: publicLongitude,
+              source_mode: 'live',
+              updated_at: now,
+            }),
+          ]);
+        }
+      );
+    };
+
+    startTracking();
+
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [available, locationMode]);
 
   const durationToUntil = (value: string) => {
     const now = new Date();
@@ -4763,7 +4874,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.pale,
   },
   dispatchInfoRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  dispatchInfoTitle: { fontSize: 13, fontWeight: '850', color: C.navy2 },
+  dispatchInfoTitle: { fontSize: 13, fontWeight: '800', color: C.navy2 },
   dispatchInfoSub: { marginTop: 3, fontSize: 11, lineHeight: 16, color: C.muted },
   dispatchDivider: { height: 1, backgroundColor: C.line, marginVertical: 14 },
   dispatchCancelButton: {
@@ -4942,6 +5053,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dispatchTradeAdvanceText: { fontSize: 11, fontWeight: '900', color: C.white },
+
+  dispatchTrackingMapWrap: {
+    marginTop: 2,
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: C.pale,
+  },
+  dispatchTrackingLabelRow: {
+    height: 36,
+    paddingHorizontal: 13,
+    backgroundColor: C.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: C.line,
+  },
+  dispatchTrackingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.green,
+  },
+  dispatchTrackingLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: C.navy2,
+  },
 
 });
 
