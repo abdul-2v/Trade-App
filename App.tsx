@@ -1393,6 +1393,7 @@ function MapMock({
 
     groups.forEach((group) => {
       const showIndividual =
+        markers.length === 1 ||
         zoom >= 15 ||
         (zoom >= 14.35 && group.members.length === 1);
 
@@ -1995,6 +1996,9 @@ function UrgentScreen({
         return;
       }
 
+      const approximateLatitude = Number(coords.latitude.toFixed(2));
+      const approximateLongitude = Number(coords.longitude.toFixed(2));
+
       const { data: request, error: requestError } = await supabase
         .from('urgent_requests')
         .insert({
@@ -2002,9 +2006,9 @@ function UrgentScreen({
           trade,
           issue: issue.trim(),
           urgency,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          location_label: 'Current location',
+          latitude: approximateLatitude,
+          longitude: approximateLongitude,
+          location_label: 'Approximate job area',
           photo_url: null,
           search_radius_miles: searchRadius,
           status: 'searching',
@@ -2013,6 +2017,23 @@ function UrgentScreen({
         .single();
 
       if (requestError || !request) throw requestError || new Error('Could not create request');
+
+      const { error: exactLocationError } = await supabase
+        .from('urgent_request_locations')
+        .insert({
+          request_id: request.id,
+          customer_id: user.id,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+
+      if (exactLocationError) {
+        await supabase
+          .from('urgent_requests')
+          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .eq('id', request.id);
+        throw exactLocationError;
+      }
 
       setRequestId(request.id);
 
@@ -3443,14 +3464,35 @@ function TradeJobsScreen({
 
     const requestIds = Array.from(new Set(offerRows.map(row => row.request_id)));
 
-    const { data: requestRows } = await supabase
-      .from('urgent_requests')
-      .select(
-        'id, trade, issue, urgency, latitude, longitude, status, customer_id, created_at, accepted_tradesperson_id, estimated_arrival_minutes'
-      )
-      .in('id', requestIds);
+    const [{ data: requestRows }, { data: exactLocationRows }] = await Promise.all([
+      supabase
+        .from('urgent_requests')
+        .select(
+          'id, trade, issue, urgency, latitude, longitude, status, customer_id, created_at, accepted_tradesperson_id, estimated_arrival_minutes'
+        )
+        .in('id', requestIds),
+      supabase
+        .from('urgent_request_locations')
+        .select('request_id, latitude, longitude')
+        .in('request_id', requestIds),
+    ]);
 
-    const requestMap = new Map((requestRows ?? []).map(row => [row.id, row]));
+    const exactMap = new Map(
+      (exactLocationRows ?? []).map(row => [
+        row.request_id,
+        { latitude: Number(row.latitude), longitude: Number(row.longitude) },
+      ])
+    );
+
+    const requestMap = new Map(
+      (requestRows ?? []).map(row => [
+        row.id,
+        {
+          ...row,
+          exactLocation: exactMap.get(row.id) || null,
+        },
+      ])
+    );
 
     setJobs(
       offerRows
@@ -3523,6 +3565,79 @@ function TradeJobsScreen({
     };
   }, []);
 
+  useEffect(() => {
+    const hasActiveTrackingJob = jobs.some(
+      job =>
+        job.offerStatus === 'accepted' &&
+        ['matched', 'en_route', 'arrived'].includes(job.request.status)
+    );
+
+    if (!hasActiveTrackingJob) return;
+
+    let active = true;
+    let subscription: Location.LocationSubscription | null = null;
+
+    const startTracking = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) return;
+
+      const { data: availability } = await supabase
+        .from('trade_availability')
+        .select('location_mode')
+        .eq('user_id', user.id)
+        .single();
+
+      if (availability?.location_mode !== 'live') return;
+
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== 'granted' || !active) return;
+
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 20,
+          timeInterval: 8000,
+        },
+        async position => {
+          if (!active) return;
+
+          const exactLatitude = position.coords.latitude;
+          const exactLongitude = position.coords.longitude;
+          const publicLatitude = Number(exactLatitude.toFixed(3));
+          const publicLongitude = Number(exactLongitude.toFixed(3));
+          const now = new Date().toISOString();
+
+          await Promise.all([
+            supabase.from('trade_locations').upsert({
+              user_id: user.id,
+              latitude: exactLatitude,
+              longitude: exactLongitude,
+              accuracy_meters: position.coords.accuracy,
+              updated_at: now,
+            }),
+            supabase.from('trade_map_presence').upsert({
+              user_id: user.id,
+              latitude: publicLatitude,
+              longitude: publicLongitude,
+              source_mode: 'live',
+              updated_at: now,
+            }),
+          ]);
+        }
+      );
+    };
+
+    startTracking();
+
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [jobs]);
+
   const respondToOffer = async (job: OfferJob, response: 'accepted' | 'declined') => {
     setBusyId(job.offerId);
 
@@ -3581,9 +3696,15 @@ function TradeJobsScreen({
   };
 
   const openDirections = (job: OfferJob) => {
-    const lat = job.request.latitude;
-    const lng = job.request.longitude;
-    Linking.openURL('https://maps.google.com/?daddr=' + lat + ',' + lng);
+    const location = job.request.exactLocation;
+    if (!location) {
+      Alert.alert('Exact location unavailable', 'The exact job location becomes available after the request is accepted.');
+      return;
+    }
+
+    Linking.openURL(
+      'https://maps.google.com/?daddr=' + location.latitude + ',' + location.longitude
+    );
   };
 
   const active = jobs.filter(job => job.offerStatus === 'accepted');
