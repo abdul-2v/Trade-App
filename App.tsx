@@ -1059,6 +1059,9 @@ function MapMock({
   .maplibregl-canvas {
     filter:saturate(.88) contrast(.98) brightness(1.02);
   }
+  .leaflet-marker-pane { z-index: 650 !important; }
+  .leaflet-tooltip-pane { z-index: 660 !important; }
+  .leaflet-popup-pane { z-index: 670 !important; }
   .leaflet-control-zoom {
     border:none !important;
     box-shadow:0 6px 20px rgba(7,27,49,.14) !important;
@@ -1187,28 +1190,32 @@ function MapMock({
     L.marker([user.lat, user.lng], { icon:userIcon, interactive:false }).addTo(map);
   }
 
-  const tradeLayer = L.markerClusterGroup({
-    showCoverageOnHover: false,
-    zoomToBoundsOnClick: true,
-    spiderfyOnMaxZoom: true,
-    removeOutsideVisibleBounds: true,
-    chunkedLoading: true,
-    maxClusterRadius: function(zoom) {
-      if (zoom <= 11) return 72;
-      if (zoom <= 13) return 58;
-      return 46;
-    },
-    disableClusteringAtZoom: 15,
-    iconCreateFunction: function(cluster) {
-      const count = cluster.getChildCount();
-      return L.divIcon({
-        className: 'trade-cluster',
-        html: '<div class="cluster-bubble"><div class="cluster-count">' + count + '</div><div class="cluster-label">nearby</div></div>',
-        iconSize: [48,48],
-        iconAnchor: [24,24]
-      });
-    }
-  });
+  const useClusters = markers.length > 60 && typeof L.markerClusterGroup === 'function';
+
+  const tradeLayer = useClusters
+    ? L.markerClusterGroup({
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        spiderfyOnMaxZoom: true,
+        removeOutsideVisibleBounds: false,
+        chunkedLoading: true,
+        maxClusterRadius: function(zoom) {
+          if (zoom <= 11) return 72;
+          if (zoom <= 13) return 58;
+          return 46;
+        },
+        disableClusteringAtZoom: 15,
+        iconCreateFunction: function(cluster) {
+          const count = cluster.getChildCount();
+          return L.divIcon({
+            className: 'trade-cluster',
+            html: '<div class="cluster-bubble"><div class="cluster-count">' + count + '</div><div class="cluster-label">nearby</div></div>',
+            iconSize: [48,48],
+            iconAnchor: [24,24]
+          });
+        }
+      })
+    : L.layerGroup();
 
   markers.forEach((m) => {
     const icon = L.divIcon({
@@ -1218,15 +1225,28 @@ function MapMock({
       iconAnchor: [35,31]
     });
 
-    const marker = L.marker([m.lat, m.lng], { icon })
-      .on('click', () => {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:m.id }));
-      });
+    const marker = L.marker([m.lat, m.lng], {
+      icon: icon,
+      riseOnHover: true,
+      keyboard: false
+    }).on('click', () => {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:m.id }));
+    });
 
     tradeLayer.addLayer(marker);
   });
 
   map.addLayer(tradeLayer);
+
+  if (markers.length > 0) {
+    const markerBounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
+    if (user.visible) markerBounds.extend([user.lat, user.lng]);
+    map.fitBounds(markerBounds.pad(0.08), {
+      padding: [24, 24],
+      maxZoom: markers.length > 20 ? 12.8 : 14.75,
+      animate: false
+    });
+  }
 </script>
 </body>
 </html>`;
