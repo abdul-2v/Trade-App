@@ -1060,6 +1060,7 @@ function MapMock({
     filter:saturate(.88) contrast(.98) brightness(1.02);
   }
   .leaflet-marker-pane { z-index: 650 !important; }
+  .leaflet-marker-pane .trade-cluster { z-index: 655 !important; }
   .leaflet-tooltip-pane { z-index: 660 !important; }
   .leaflet-popup-pane { z-index: 670 !important; }
   .leaflet-control-zoom {
@@ -1079,21 +1080,22 @@ function MapMock({
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    min-width:66px;
+    min-width:52px;
+    transform:translateZ(0);
   }
   .trade-avatar-wrap {
     position:relative;
-    width:42px;
-    height:42px;
-    border-radius:21px;
+    width:40px;
+    height:40px;
+    border-radius:20px;
     background:#fff;
     border:2px solid #FFFFFF;
-    box-shadow:0 3px 12px rgba(7,27,49,.20);
+    box-shadow:0 3px 10px rgba(7,27,49,.18);
   }
   .trade-avatar {
-    width:38px;
-    height:38px;
-    border-radius:19px;
+    width:36px;
+    height:36px;
+    border-radius:18px;
     object-fit:cover;
     display:block;
   }
@@ -1118,27 +1120,59 @@ function MapMock({
     border:2px solid #fff;
   }
   .trade-label {
+    display:none;
     margin-top:4px;
     padding:3px 7px;
     border-radius:8px;
-    background:rgba(255,255,255,.96);
+    background:rgba(255,255,255,.97);
     color:#132033;
     font-size:9px;
     line-height:11px;
     font-weight:800;
     white-space:nowrap;
-    box-shadow:0 2px 7px rgba(7,27,49,.13);
+    box-shadow:0 2px 7px rgba(7,27,49,.12);
   }
-  .trade-cluster { background:transparent !important; border:none !important; }
+  body.show-trade-labels .trade-label {
+    display:block;
+  }
+  .trade-cluster {
+    background:transparent !important;
+    border:none !important;
+  }
   .cluster-bubble {
-    width:46px; height:46px; border-radius:23px;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    background:#FFFFFF; color:#0B2A49;
-    border:3px solid #1684F8;
-    box-shadow:0 4px 14px rgba(7,27,49,.20);
+    min-width:58px;
+    height:42px;
+    padding:0 11px;
+    border-radius:21px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    background:rgba(255,255,255,.98);
+    color:#0B2A49;
+    border:2px solid #1684F8;
+    box-shadow:0 5px 15px rgba(7,27,49,.18);
+    transform:translateZ(0);
   }
-  .cluster-count { font-size:14px; line-height:15px; font-weight:900; }
-  .cluster-label { margin-top:1px; font-size:7px; line-height:8px; font-weight:800; color:#718196; text-transform:uppercase; letter-spacing:.25px; }
+  .cluster-count {
+    font-size:15px;
+    line-height:16px;
+    font-weight:900;
+  }
+  .cluster-label {
+    font-size:9px;
+    line-height:10px;
+    font-weight:800;
+    color:#607286;
+    text-transform:lowercase;
+    white-space:nowrap;
+  }
+  .cluster-bubble.large {
+    min-width:64px;
+    height:46px;
+    border-radius:23px;
+    border-width:2.5px;
+  }
   .dot {
     width:15px; height:15px; border-radius:8px; background:#1684F8;
     border:3px solid white; box-shadow:0 2px 8px rgba(22,132,248,.28);
@@ -1190,28 +1224,35 @@ function MapMock({
     L.marker([user.lat, user.lng], { icon:userIcon, interactive:false }).addTo(map);
   }
 
-  const useClusters = markers.length > 60 && typeof L.markerClusterGroup === 'function';
+  const canCluster = typeof L.markerClusterGroup === 'function';
 
-  const tradeLayer = useClusters
+  const tradeLayer = canCluster
     ? L.markerClusterGroup({
         showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
+        zoomToBoundsOnClick: false,
         spiderfyOnMaxZoom: true,
-        removeOutsideVisibleBounds: false,
+        removeOutsideVisibleBounds: true,
         chunkedLoading: true,
+        chunkInterval: 120,
+        chunkDelay: 30,
+        animate: false,
+        animateAddingMarkers: false,
         maxClusterRadius: function(zoom) {
-          if (zoom <= 11) return 72;
-          if (zoom <= 13) return 58;
-          return 46;
+          if (zoom <= 11) return 92;
+          if (zoom <= 12) return 80;
+          if (zoom <= 13) return 66;
+          if (zoom <= 14) return 50;
+          return 38;
         },
         disableClusteringAtZoom: 15,
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
+          const large = count >= 10 ? ' large' : '';
           return L.divIcon({
             className: 'trade-cluster',
-            html: '<div class="cluster-bubble"><div class="cluster-count">' + count + '</div><div class="cluster-label">nearby</div></div>',
-            iconSize: [48,48],
-            iconAnchor: [24,24]
+            html: '<div class="cluster-bubble' + large + '"><span class="cluster-count">' + count + '</span><span class="cluster-label">nearby</span></div>',
+            iconSize: count >= 10 ? [68,46] : [62,42],
+            iconAnchor: count >= 10 ? [34,23] : [31,21]
           });
         }
       })
@@ -1220,9 +1261,9 @@ function MapMock({
   markers.forEach((m) => {
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" src="' + m.image + '" /><span class="' + (m.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + m.role + '</div></div>',
-      iconSize: [70,62],
-      iconAnchor: [35,31]
+      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" loading="lazy" src="' + m.image + '" /><span class="' + (m.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + m.role + '</div></div>',
+      iconSize: [56,58],
+      iconAnchor: [28,29]
     });
 
     const marker = L.marker([m.lat, m.lng], {
@@ -1238,12 +1279,31 @@ function MapMock({
 
   map.addLayer(tradeLayer);
 
+  if (canCluster) {
+    tradeLayer.on('clusterclick', function(event) {
+      const bounds = event.layer.getBounds();
+      map.flyToBounds(bounds, {
+        padding: [48, 48],
+        maxZoom: 14.5,
+        duration: 0.32
+      });
+    });
+  }
+
+  const updateZoomUI = () => {
+    const zoom = map.getZoom();
+    document.body.classList.toggle('show-trade-labels', zoom >= 15);
+  };
+
+  map.on('zoomend', updateZoomUI);
+  updateZoomUI();
+
   if (markers.length > 0) {
     const markerBounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
     if (user.visible) markerBounds.extend([user.lat, user.lng]);
     map.fitBounds(markerBounds.pad(0.08), {
       padding: [24, 24],
-      maxZoom: markers.length > 20 ? 12.8 : 14.75,
+      maxZoom: markers.length > 20 ? 12.35 : 14.25,
       animate: false
     });
   }
