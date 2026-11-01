@@ -2591,7 +2591,6 @@ function RequestsScreen({
                 <Badge
                   text={item.status}
                   green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked'].includes(item.status)}
-                  blue={item.status === 'Searching'}
                 />
               </View>
               <Text style={styles.requestIssue}>{item.issue}</Text>
