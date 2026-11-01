@@ -1058,7 +1058,6 @@ function MapMock({
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.1.0/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
   html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#F3F5F7; }
@@ -1152,9 +1151,9 @@ function MapMock({
     border:none !important;
   }
   .cluster-bubble {
-    min-width:58px;
+    min-width:60px;
     height:42px;
-    padding:0 11px;
+    padding:0 10px;
     border-radius:21px;
     display:flex;
     align-items:center;
@@ -1165,6 +1164,7 @@ function MapMock({
     border:2px solid #1684F8;
     box-shadow:0 5px 15px rgba(7,27,49,.18);
     transform:translateZ(0);
+    box-sizing:border-box;
   }
   .cluster-count {
     font-size:15px;
@@ -1194,7 +1194,6 @@ function MapMock({
 <body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.1.0/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
 <script>
@@ -1236,80 +1235,140 @@ function MapMock({
     L.marker([user.lat, user.lng], { icon:userIcon, interactive:false }).addTo(map);
   }
 
-  const canCluster = typeof L.markerClusterGroup === 'function';
+  const tradeLayer = L.layerGroup().addTo(map);
+  let renderFrame = null;
 
-  const tradeLayer = canCluster
-    ? L.markerClusterGroup({
-        showCoverageOnHover: false,
-        zoomToBoundsOnClick: false,
-        spiderfyOnMaxZoom: true,
-        removeOutsideVisibleBounds: true,
-        chunkedLoading: true,
-        chunkInterval: 120,
-        chunkDelay: 30,
-        animate: false,
-        animateAddingMarkers: false,
-        maxClusterRadius: function(zoom) {
-          if (zoom <= 11) return 92;
-          if (zoom <= 12) return 80;
-          if (zoom <= 13) return 66;
-          if (zoom <= 14) return 50;
-          return 38;
-        },
-        disableClusteringAtZoom: 15,
-        iconCreateFunction: function(cluster) {
-          const count = cluster.getChildCount();
-          const large = count >= 10 ? ' large' : '';
-          return L.divIcon({
-            className: 'trade-cluster',
-            html: '<div class="cluster-bubble' + large + '"><span class="cluster-count">' + count + '</span><span class="cluster-label">nearby</span></div>',
-            iconSize: count >= 10 ? [68,46] : [62,42],
-            iconAnchor: count >= 10 ? [34,23] : [31,21]
-          });
-        }
-      })
-    : L.layerGroup();
+  const cellSizeForZoom = (zoom) => {
+    if (zoom <= 10.75) return 170;
+    if (zoom <= 11.75) return 145;
+    if (zoom <= 12.75) return 118;
+    if (zoom <= 13.75) return 92;
+    if (zoom <= 14.5) return 68;
+    return 48;
+  };
 
-  markers.forEach((m) => {
+  const visibleMarkers = () => {
+    const padded = map.getBounds().pad(0.18);
+    return markers.filter((marker) => padded.contains([marker.lat, marker.lng]));
+  };
+
+  const clusterMarkers = (items, zoom) => {
+    if (zoom >= 15) {
+      return items.map((marker) => ({
+        members: [marker],
+        lat: marker.lat,
+        lng: marker.lng,
+      }));
+    }
+
+    const cellSize = cellSizeForZoom(zoom);
+    const buckets = new Map();
+
+    items.forEach((marker) => {
+      const point = map.latLngToContainerPoint([marker.lat, marker.lng]);
+      const key = Math.floor(point.x / cellSize) + ':' + Math.floor(point.y / cellSize);
+
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(marker);
+    });
+
+    return Array.from(buckets.values()).map((members) => {
+      const lat = members.reduce((sum, marker) => sum + marker.lat, 0) / members.length;
+      const lng = members.reduce((sum, marker) => sum + marker.lng, 0) / members.length;
+      return { members, lat, lng };
+    });
+  };
+
+  const addTradeMarker = (marker) => {
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" loading="lazy" src="' + m.image + '" /><span class="' + (m.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + m.role + '</div></div>',
+      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" loading="lazy" src="' + marker.image + '" /><span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + marker.role + '</div></div>',
       iconSize: [56,58],
       iconAnchor: [28,29]
     });
 
-    const marker = L.marker([m.lat, m.lng], {
-      icon: icon,
+    L.marker([marker.lat, marker.lng], {
+      icon,
       riseOnHover: true,
-      keyboard: false
-    }).on('click', () => {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:m.id }));
-    });
-
-    tradeLayer.addLayer(marker);
-  });
-
-  map.addLayer(tradeLayer);
-
-  if (canCluster) {
-    tradeLayer.on('clusterclick', function(event) {
-      const bounds = event.layer.getBounds();
-      map.flyToBounds(bounds, {
-        padding: [48, 48],
-        maxZoom: 14.5,
-        duration: 0.32
-      });
-    });
-  }
-
-  const updateZoomUI = () => {
-    const zoom = map.getZoom();
-    document.body.classList.toggle('show-trade-labels', zoom >= 15);
+      keyboard: false,
+      autoPanOnFocus: false,
+    })
+      .on('click', () => {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:marker.id }));
+      })
+      .addTo(tradeLayer);
   };
 
-  map.on('zoomend', updateZoomUI);
-  updateZoomUI();
+  const addClusterMarker = (group) => {
+    const count = group.members.length;
+    const large = count >= 10 ? ' large' : '';
+    const width = count >= 10 ? 76 : 68;
 
+    const icon = L.divIcon({
+      className: 'trade-cluster',
+      html: '<div class="cluster-bubble' + large + '"><span class="cluster-count">' + count + '</span><span class="cluster-label">nearby</span></div>',
+      iconSize: [width,46],
+      iconAnchor: [width / 2,23]
+    });
+
+    L.marker([group.lat, group.lng], {
+      icon,
+      keyboard: false,
+      riseOnHover: true,
+      autoPanOnFocus: false,
+    })
+      .on('click', () => {
+        if (group.members.length <= 1) {
+          const only = group.members[0];
+          if (only) {
+            map.flyTo([only.lat, only.lng], Math.min(15, map.getZoom() + 2), {
+              duration: 0.28
+            });
+          }
+          return;
+        }
+
+        const bounds = L.latLngBounds(group.members.map((marker) => [marker.lat, marker.lng]));
+        const nextZoom = Math.min(14.75, Math.max(map.getZoom() + 1.35, map.getBoundsZoom(bounds, false, [70,70])));
+
+        map.flyTo([group.lat, group.lng], nextZoom, {
+          duration: 0.32
+        });
+      })
+      .addTo(tradeLayer);
+  };
+
+  const renderTrades = () => {
+    tradeLayer.clearLayers();
+
+    const zoom = map.getZoom();
+    document.body.classList.toggle('show-trade-labels', zoom >= 15);
+
+    const visible = visibleMarkers();
+    const groups = clusterMarkers(visible, zoom);
+
+    groups.forEach((group) => {
+      const showIndividual =
+        zoom >= 15 ||
+        (zoom >= 14.35 && group.members.length === 1);
+
+      if (showIndividual) {
+        addTradeMarker(group.members[0]);
+      } else {
+        addClusterMarker(group);
+      }
+    });
+  };
+
+  const scheduleTradeRender = () => {
+    if (renderFrame !== null) cancelAnimationFrame(renderFrame);
+    renderFrame = requestAnimationFrame(() => {
+      renderFrame = null;
+      renderTrades();
+    });
+  };
+
+  map.on('zoomend moveend resize', scheduleTradeRender);
   if (markers.length > 0) {
     const markerBounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
     if (user.visible) markerBounds.extend([user.lat, user.lng]);
@@ -1319,6 +1378,8 @@ function MapMock({
       animate: false
     });
   }
+
+  map.whenReady(scheduleTradeRender);
 </script>
 </body>
 </html>`;
