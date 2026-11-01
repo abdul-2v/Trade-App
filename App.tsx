@@ -8,6 +8,7 @@ import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Linking,
@@ -77,6 +78,48 @@ type RequestItem = {
   issue: string;
   urgency: string;
   status: string;
+};
+
+type DispatchStage = 'form' | 'searching' | 'matched';
+
+type LiveDispatchCandidate = {
+  userId: string;
+  trade: Trade;
+  distance: number;
+  eta: number;
+};
+
+const distanceMilesBetween = (
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number }
+) => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMiles = 3958.8;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+
+  return earthRadiusMiles * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+};
+
+const estimatedDispatchEta = (distanceMiles: number) =>
+  Math.max(8, Math.min(60, Math.round(7 + distanceMiles * 4)));
+
+const dispatchStatusLabel = (status: string) => {
+  if (status === 'matched') return 'Matched';
+  if (status === 'en_route') return 'On the way';
+  if (status === 'arrived') return 'Arrived';
+  if (status === 'completed') return 'Completed';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'expired') return 'Expired';
+  return 'Searching';
 };
 
 const C = {
@@ -447,6 +490,7 @@ export default function App() {
         back={() => setCustomerScreen('home')}
         openTrade={openTrade}
         addRequest={request => setRequests(prev => [request, ...prev])}
+        navigate={setCustomerScreen}
       />
     );
   }
@@ -1553,20 +1597,45 @@ function UrgentScreen({
   back,
   openTrade,
   addRequest,
+  navigate,
 }: {
   back: () => void;
   openTrade: (trade: Trade) => void;
   addRequest: (request: RequestItem) => void;
+  navigate: (screen: CustomerScreen) => void;
 }) {
   const [trade, setTrade] = useState<TradeCategory>('Plumber');
   const [issue, setIssue] = useState('Leaking pipe under kitchen sink');
   const [urgency, setUrgency] = useState('ASAP');
-  const [matched, setMatched] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [jobLocation, setJobLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [stage, setStage] = useState<DispatchStage>('form');
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [candidateCount, setCandidateCount] = useState(0);
+  const [searchNote, setSearchNote] = useState('');
+  const [matchedTrade, setMatchedTrade] = useState<Trade | null>(null);
+  const [matchedTradeUserId, setMatchedTradeUserId] = useState<string | null>(null);
+  const [matchStatus, setMatchStatus] = useState('searching');
+  const [demoMode, setDemoMode] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const matches = trades.filter(t => t.role === trade).length ? trades.filter(t => t.role === trade) : trades;
+  const demoMatches = useMemo(
+    () =>
+      trades
+        .filter(item => item.role === trade && item.available)
+        .sort((a, b) => a.eta - b.eta),
+    [trade]
+  );
+
+  const demoCalloutRange = useMemo(() => {
+    const prices = demoMatches.map(item => item.callout).filter(Boolean);
+    if (!prices.length) return null;
+    return {
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+    };
+  }, [demoMatches]);
 
   const choosePhoto = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -1580,59 +1649,621 @@ function UrgentScreen({
     }
   };
 
-  const useCurrentLocation = async () => {
+  const resolveCurrentLocation = async () => {
     setLocating(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        Alert.alert('Location permission needed', 'Allow location access so nearby tradespeople can be matched to your job.');
-        return;
+        Alert.alert(
+          'Location permission needed',
+          'Instant matching needs your job location so TradeHub can contact nearby available tradespeople.'
+        );
+        return null;
       }
 
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setJobLocation({
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const next = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
-      });
+      };
+
+      setJobLocation(next);
+      return next;
     } catch {
       Alert.alert('Location unavailable', 'We could not get your location. Try again.');
+      return null;
     } finally {
       setLocating(false);
     }
   };
 
-  const find = () => {
+  const loadLiveCandidates = async (
+    coords: { latitude: number; longitude: number },
+    searchRadius: number
+  ): Promise<LiveDispatchCandidate[]> => {
+    const { data: profileRows, error: profileError } = await supabase
+      .from('tradesperson_profiles')
+      .select(
+        'user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'
+      )
+      .eq('primary_trade', trade);
+
+    if (profileError) throw profileError;
+    if (!profileRows?.length) return [];
+
+    const ids = profileRows.map(row => row.user_id);
+
+    const [{ data: availabilityRows, error: availabilityError }, { data: presenceRows, error: presenceError }] =
+      await Promise.all([
+        supabase
+          .from('trade_availability')
+          .select('user_id, is_available, radius_miles, available_until')
+          .in('user_id', ids)
+          .eq('is_available', true),
+        supabase
+          .from('trade_map_presence')
+          .select('user_id, latitude, longitude, source_mode, updated_at')
+          .in('user_id', ids),
+      ]);
+
+    if (availabilityError) throw availabilityError;
+    if (presenceError) throw presenceError;
+
+    const availabilityMap = new Map((availabilityRows ?? []).map(row => [row.user_id, row]));
+    const presenceMap = new Map((presenceRows ?? []).map(row => [row.user_id, row]));
+    const now = Date.now();
+
+    return profileRows
+      .map(profile => {
+        const availability = availabilityMap.get(profile.user_id);
+        const presence = presenceMap.get(profile.user_id);
+
+        if (!availability?.is_available || !presence) return null;
+
+        if (
+          availability.available_until &&
+          new Date(availability.available_until).getTime() <= now
+        ) {
+          return null;
+        }
+
+        if (
+          presence.source_mode === 'live' &&
+          presence.updated_at &&
+          now - new Date(presence.updated_at).getTime() > 15 * 60 * 1000
+        ) {
+          return null;
+        }
+
+        const distance = distanceMilesBetween(coords, {
+          latitude: Number(presence.latitude),
+          longitude: Number(presence.longitude),
+        });
+
+        const tradeRadius = Number(availability.radius_miles) || 10;
+        if (distance > Math.min(searchRadius, tradeRadius)) return null;
+
+        const eta = estimatedDispatchEta(distance);
+        const liveTrade: Trade = {
+          id: 'live-' + profile.user_id,
+          name: profile.display_name || 'Local tradesperson',
+          role: trade,
+          distance: Number(distance.toFixed(1)),
+          eta,
+          rating: Number(profile.rating) || 0,
+          reviews: Number(profile.review_count) || 0,
+          image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + profile.user_id,
+          accent: C.blue,
+          callout: 0,
+          available: true,
+          verified: Boolean(profile.is_verified),
+          insured: Boolean(profile.is_insured),
+          response: eta,
+          years: 0,
+          phone: profile.public_phone || '',
+          about: profile.bio || 'Available nearby for urgent work.',
+          services: ['Urgent call-out'],
+          mapLatitude: Number(presence.latitude),
+          mapLongitude: Number(presence.longitude),
+        };
+
+        return {
+          userId: profile.user_id,
+          trade: liveTrade,
+          distance,
+          eta,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a as LiveDispatchCandidate).distance - (b as LiveDispatchCandidate).distance) as LiveDispatchCandidate[];
+  };
+
+  const loadAcceptedTrade = async (userId: string, etaMinutes?: number | null) => {
+    const [{ data: profile }, { data: presenceRows }, { data: offerRows }] = await Promise.all([
+      supabase
+        .from('tradesperson_profiles')
+        .select(
+          'user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'
+        )
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('trade_map_presence')
+        .select('latitude, longitude')
+        .eq('user_id', userId)
+        .limit(1),
+      requestId
+        ? supabase
+            .from('urgent_request_offers')
+            .select('distance_miles, eta_minutes')
+            .eq('request_id', requestId)
+            .eq('tradesperson_id', userId)
+            .limit(1)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    if (!profile) return;
+
+    const presence = presenceRows?.[0];
+    const offer = offerRows?.[0];
+    const distance = Number(offer?.distance_miles) || 0;
+    const eta = Number(etaMinutes || offer?.eta_minutes) || estimatedDispatchEta(distance);
+
+    setMatchedTradeUserId(userId);
+    setMatchedTrade({
+      id: 'live-' + userId,
+      name: profile.display_name || 'Local tradesperson',
+      role: (profile.primary_trade || trade) as TradeCategory,
+      distance: Number(distance.toFixed(1)),
+      eta,
+      rating: Number(profile.rating) || 0,
+      reviews: Number(profile.review_count) || 0,
+      image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + userId,
+      accent: C.blue,
+      callout: 0,
+      available: true,
+      verified: Boolean(profile.is_verified),
+      insured: Boolean(profile.is_insured),
+      response: eta,
+      years: 0,
+      phone: profile.public_phone || '',
+      about: profile.bio || 'Available nearby for urgent work.',
+      services: ['Urgent call-out'],
+      mapLatitude: presence ? Number(presence.latitude) : undefined,
+      mapLongitude: presence ? Number(presence.longitude) : undefined,
+    });
+    setDemoMode(false);
+    setStage('matched');
+  };
+
+  useEffect(() => {
+    if (!requestId) return;
+
+    const channel = supabase
+      .channel('urgent-request-' + requestId)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'urgent_requests',
+          filter: 'id=eq.' + requestId,
+        },
+        async payload => {
+          const row = payload.new as any;
+          setMatchStatus(row.status || 'searching');
+
+          if (
+            row.accepted_tradesperson_id &&
+            ['matched', 'en_route', 'arrived', 'completed'].includes(row.status)
+          ) {
+            if (!matchedTradeUserId || matchedTradeUserId !== row.accepted_tradesperson_id) {
+              await loadAcceptedTrade(
+                row.accepted_tradesperson_id,
+                row.estimated_arrival_minutes
+              );
+            } else {
+              setStage('matched');
+            }
+          }
+
+          if (row.status === 'cancelled' || row.status === 'expired') {
+            setStage('form');
+            setRequestId(null);
+            setMatchedTrade(null);
+            setMatchedTradeUserId(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [requestId, matchedTradeUserId]);
+
+  const find = async () => {
     if (!issue.trim()) {
       Alert.alert('Tell us what happened', 'Add a short description of the job before searching.');
       return;
     }
 
-    addRequest({
-      id: String(Date.now()),
-      trade,
-      issue,
-      urgency,
-      status: 'Searching',
-    });
-    setMatched(true);
+    setSubmitting(true);
+
+    try {
+      const coords = jobLocation ?? (await resolveCurrentLocation());
+      if (!coords) return;
+
+      const searchRadius = urgency === 'ASAP' ? 10 : urgency === 'Today' ? 15 : 20;
+      let liveCandidates: LiveDispatchCandidate[] = [];
+
+      try {
+        liveCandidates = await loadLiveCandidates(coords, searchRadius);
+      } catch {
+        liveCandidates = [];
+      }
+
+      setStage('searching');
+      setMatchStatus('searching');
+      setMatchedTrade(null);
+      setMatchedTradeUserId(null);
+
+      if (!liveCandidates.length) {
+        const demoPool = demoMatches.length ? demoMatches : trades.filter(item => item.available);
+        setCandidateCount(demoPool.length);
+        setSearchNote(
+          'Demo preview — there are no real available tradesperson accounts in this test project yet.'
+        );
+        setDemoMode(true);
+
+        setTimeout(() => {
+          const person = demoPool[0];
+          if (!person) return;
+          setMatchedTrade(person);
+          setMatchStatus('matched');
+          setStage('matched');
+          addRequest({
+            id: 'demo-' + Date.now(),
+            trade,
+            issue: issue.trim(),
+            urgency,
+            status: 'Matched (demo)',
+          });
+        }, 1800);
+
+        return;
+      }
+
+      setCandidateCount(liveCandidates.length);
+      setSearchNote(
+        'Request sent to the closest available ' +
+          trade.toLowerCase() +
+          (liveCandidates.length === 1 ? '.' : 's first.')
+      );
+      setDemoMode(false);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert('Sign in required', 'Please sign in again to send an urgent request.');
+        setStage('form');
+        return;
+      }
+
+      const { data: request, error: requestError } = await supabase
+        .from('urgent_requests')
+        .insert({
+          customer_id: user.id,
+          trade,
+          issue: issue.trim(),
+          urgency,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          location_label: 'Current location',
+          photo_url: null,
+          search_radius_miles: searchRadius,
+          status: 'searching',
+        })
+        .select('id')
+        .single();
+
+      if (requestError || !request) throw requestError || new Error('Could not create request');
+
+      setRequestId(request.id);
+
+      const offerRows = liveCandidates.slice(0, 8).map(candidate => ({
+        request_id: request.id,
+        tradesperson_id: candidate.userId,
+        distance_miles: Number(candidate.distance.toFixed(2)),
+        eta_minutes: candidate.eta,
+        status: 'offered',
+      }));
+
+      const { error: offerError } = await supabase
+        .from('urgent_request_offers')
+        .insert(offerRows);
+
+      if (offerError) throw offerError;
+
+      addRequest({
+        id: request.id,
+        trade,
+        issue: issue.trim(),
+        urgency,
+        status: 'Searching',
+      });
+    } catch (error: any) {
+      setStage('form');
+      Alert.alert(
+        'Could not start the search',
+        error?.message || 'Something went wrong while contacting nearby tradespeople.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const cancelSearch = async () => {
+    if (requestId) {
+      await supabase
+        .from('urgent_requests')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+    }
+
+    setRequestId(null);
+    setMatchedTrade(null);
+    setMatchedTradeUserId(null);
+    setDemoMode(false);
+    setStage('form');
+  };
+
+  const messageMatchedTrade = async () => {
+    if (!matchedTradeUserId) {
+      Alert.alert(
+        'Demo preview',
+        'This is a fake tradesperson used to test the instant-match experience. Real matches will open a live chat here.'
+      );
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('tradesperson_id', matchedTradeUserId)
+      .limit(1);
+
+    if (!existing?.length) {
+      const { error } = await supabase.from('conversations').insert({
+        customer_id: user.id,
+        tradesperson_id: matchedTradeUserId,
+      });
+
+      if (error) {
+        Alert.alert('Could not open chat', error.message);
+        return;
+      }
+    }
+
+    navigate('messages');
+  };
+
+  if (stage === 'searching') {
+    return (
+      <CustomerShell>
+        <View style={styles.dispatchSearchingPage}>
+          <View style={styles.dispatchTopBar}>
+            <Pressable style={styles.dispatchBackButton} onPress={cancelSearch}>
+              <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
+            </Pressable>
+            <Text style={styles.dispatchTopTitle}>Finding someone now</Text>
+            <View style={{ width: 42 }} />
+          </View>
+
+          <View style={styles.dispatchRadar}>
+            <View style={styles.dispatchRadarRingLarge} />
+            <View style={styles.dispatchRadarRingMedium} />
+            <View style={styles.dispatchRadarRingSmall} />
+            <View style={styles.dispatchRadarCentre}>
+              <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={30} color={C.white} />
+            </View>
+          </View>
+
+          <ActivityIndicator size="large" color={C.blue} />
+          <Text style={styles.dispatchSearchingTitle}>
+            Searching nearby {trade.toLowerCase()}s
+          </Text>
+          <Text style={styles.dispatchSearchingSub}>
+            {candidateCount
+              ? 'Contacting ' + Math.min(candidateCount, 8) + ' available professional' + (candidateCount === 1 ? '' : 's') + ' near your job.'
+              : 'Checking who is available near your job.'}
+          </Text>
+
+          <View style={styles.dispatchSearchInfoCard}>
+            <View style={styles.dispatchInfoRow}>
+              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={18} color={C.blue} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dispatchInfoTitle}>Job location confirmed</Text>
+                <Text style={styles.dispatchInfoSub}>Your exact location is only shared with tradespeople offered this job.</Text>
+              </View>
+            </View>
+            <View style={styles.dispatchDivider} />
+            <View style={styles.dispatchInfoRow}>
+              <AppIcon icon={{ ios: 'clock.fill', android: 'schedule' }} size={18} color={C.green} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dispatchInfoTitle}>Looking for the quickest response</Text>
+                <Text style={styles.dispatchInfoSub}>{searchNote || 'Nearest available professionals are contacted first.'}</Text>
+              </View>
+            </View>
+          </View>
+
+          <Pressable style={styles.dispatchCancelButton} onPress={cancelSearch}>
+            <Text style={styles.dispatchCancelText}>Cancel request</Text>
+          </Pressable>
+        </View>
+      </CustomerShell>
+    );
+  }
+
+  if (stage === 'matched' && matchedTrade) {
+    const progress = ['matched', 'en_route', 'arrived', 'completed'];
+    const progressIndex = Math.max(0, progress.indexOf(matchStatus));
+
+    return (
+      <CustomerShell>
+        <ScrollView contentContainerStyle={styles.dispatchMatchedPage} showsVerticalScrollIndicator={false}>
+          <View style={styles.dispatchTopBar}>
+            <Pressable style={styles.dispatchBackButton} onPress={back}>
+              <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
+            </Pressable>
+            <Text style={styles.dispatchTopTitle}>Your urgent request</Text>
+            <View style={{ width: 42 }} />
+          </View>
+
+          <View style={styles.dispatchSuccessIcon}>
+            <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={28} color={C.white} />
+          </View>
+          <Text style={styles.dispatchMatchedTitle}>
+            {matchStatus === 'completed' ? 'Job completed' : matchStatus === 'arrived' ? 'Your tradesperson has arrived' : matchStatus === 'en_route' ? 'Your tradesperson is on the way' : 'Someone can help'}
+          </Text>
+          <Text style={styles.dispatchMatchedSub}>
+            {demoMode
+              ? 'Demo match using one of the Leicester test profiles.'
+              : 'Your request has been accepted. You can track the job status here.'}
+          </Text>
+
+          <View style={styles.dispatchProgress}>
+            {progress.map((item, index) => (
+              <View key={item} style={styles.dispatchProgressItem}>
+                <View style={[styles.dispatchProgressDot, index <= progressIndex && styles.dispatchProgressDotActive]}>
+                  {index < progressIndex ? (
+                    <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={11} color={C.white} />
+                  ) : null}
+                </View>
+                <Text style={[styles.dispatchProgressText, index <= progressIndex && styles.dispatchProgressTextActive]}>
+                  {dispatchStatusLabel(item)}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.dispatchMatchCard}>
+            <View style={styles.dispatchMatchTop}>
+              <Image source={{ uri: matchedTrade.image }} style={styles.dispatchAvatar} />
+              <View style={{ flex: 1 }}>
+                <View style={styles.dispatchNameRow}>
+                  <Text style={styles.dispatchName}>{matchedTrade.name}</Text>
+                  {matchedTrade.verified ? (
+                    <AppIcon icon={{ ios: 'checkmark.seal.fill', android: 'verified' }} size={18} color={C.blue} />
+                  ) : null}
+                </View>
+                <Text style={styles.dispatchRole}>{matchedTrade.role}</Text>
+                <Text style={styles.dispatchRating}>
+                  ⭐ {matchedTrade.rating || 'New'} {matchedTrade.reviews ? '(' + matchedTrade.reviews + ')' : ''}
+                </Text>
+              </View>
+              <View style={styles.dispatchEtaBox}>
+                <Text style={styles.dispatchEtaNumber}>~{matchedTrade.eta}</Text>
+                <Text style={styles.dispatchEtaLabel}>min ETA</Text>
+              </View>
+            </View>
+
+            <View style={styles.dispatchTrustRow}>
+              {matchedTrade.verified ? <Badge text="Verified" blue /> : null}
+              {matchedTrade.insured ? <Badge text="Insured" green /> : null}
+              <Badge text={matchedTrade.distance + ' mi away'} />
+            </View>
+
+            <Text style={styles.dispatchAgreementNote}>
+              Agree the final price and scope with the tradesperson before work starts.
+            </Text>
+
+            <View style={styles.dispatchActionRow}>
+              <Pressable
+                style={styles.dispatchSecondaryAction}
+                onPress={() => {
+                  if (demoMode) {
+                    Alert.alert('Demo preview', 'Calling is disabled for fake test profiles.');
+                    return;
+                  }
+                  if (matchedTrade.phone) Linking.openURL('tel:' + matchedTrade.phone);
+                }}
+              >
+                <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={18} color={C.navy2} />
+                <Text style={styles.dispatchSecondaryText}>Call</Text>
+              </Pressable>
+              <Pressable style={styles.dispatchSecondaryAction} onPress={messageMatchedTrade}>
+                <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={18} color={C.navy2} />
+                <Text style={styles.dispatchSecondaryText}>Message</Text>
+              </Pressable>
+              <Pressable style={styles.dispatchPrimaryAction} onPress={() => openTrade(matchedTrade)}>
+                <Text style={styles.dispatchPrimaryText}>View profile</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.dispatchJobSummary}>
+            <Text style={styles.dispatchSummaryTitle}>Job details</Text>
+            <Text style={styles.dispatchSummaryTrade}>{trade} · {urgency}</Text>
+            <Text style={styles.dispatchSummaryIssue}>{issue}</Text>
+          </View>
+
+          {matchStatus !== 'completed' ? (
+            <Pressable style={styles.dispatchCancelOutline} onPress={cancelSearch}>
+              <Text style={styles.dispatchCancelOutlineText}>Cancel request</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.findButton} onPress={back}>
+              <Text style={styles.findButtonText}>Back to TradeHub</Text>
+            </Pressable>
+          )}
+        </ScrollView>
+      </CustomerShell>
+    );
+  }
 
   return (
     <CustomerShell>
       <ScrollView contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <View style={styles.urgentHeader}>
           <Pressable onPress={back}><Text style={styles.urgentBack}>‹</Text></Pressable>
-          <View style={styles.greenBoltCircle}><Text style={{ fontSize: 30 }}>⚡</Text></View>
+          <View style={styles.greenBoltCircle}>
+            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color={C.white} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.urgentScreenTitle}>Need someone now?</Text>
-            <Text style={styles.urgentScreenSub}>Get matched with available tradespeople near you for urgent jobs.</Text>
+            <Text style={styles.urgentScreenSub}>
+              Send one urgent request to nearby available tradespeople. The first suitable professional to accept gets the job.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.dispatchPromiseCard}>
+          <View style={styles.dispatchPromiseIcon}>
+            <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={18} color={C.blue} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dispatchPromiseTitle}>Instant local dispatch</Text>
+            <Text style={styles.dispatchPromiseText}>Nearest available professionals are contacted first. You stay in control and can cancel while searching.</Text>
           </View>
         </View>
 
         <View style={styles.formCard}>
           <FormStep number="1" title="What trade do you need?">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {(['Plumber', 'Electrician', 'Builder', 'Heating', 'Locksmith'] as TradeCategory[]).map(item => (
+              {(['Plumber', 'Electrician', 'Builder', 'Heating', 'Locksmith', 'Carpenter', 'Roofer'] as TradeCategory[]).map(item => (
                 <Chip key={item} label={item} active={trade === item} onPress={() => setTrade(item)} />
               ))}
             </ScrollView>
@@ -1648,19 +2279,19 @@ function UrgentScreen({
             />
           </FormStep>
 
-          <FormStep number="3" title="How urgent is it?">
+          <FormStep number="3" title="When do you need help?">
             <View style={styles.urgencyRow}>
               {[
-                ['ASAP', 'Within 2 hours', '⚡'],
-                ['Today', 'Same day', '▣'],
-                ['This week', 'Flexible', '▣'],
-              ].map(([name, sub, icon]) => (
+                ['ASAP', 'Closest available now', 'bolt.fill', 'bolt'],
+                ['Today', 'Same day', 'clock.fill', 'schedule'],
+                ['This week', 'Flexible', 'calendar', 'calendar_today'],
+              ].map(([name, sub, ios, android]) => (
                 <Pressable
                   key={name}
                   style={[styles.urgencyCard, urgency === name && styles.urgencyCardActive]}
                   onPress={() => setUrgency(name)}
                 >
-                  <Text style={styles.urgencyIcon}>{icon}</Text>
+                  <AppIcon icon={{ ios, android }} size={19} color={urgency === name ? '#087A4E' : C.navy2} />
                   <Text style={[styles.urgencyName, urgency === name && { color: '#087A4E' }]}>{name}</Text>
                   <Text style={styles.urgencySub}>{sub}</Text>
                 </Pressable>
@@ -1673,7 +2304,9 @@ function UrgentScreen({
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.photoPicked} />
               ) : (
-                <View style={styles.photoDemo}><Text style={{ fontSize: 40 }}>🚰</Text></View>
+                <View style={styles.photoDemo}>
+                  <AppIcon icon={{ ios: 'camera.fill', android: 'photo_camera' }} size={30} color={C.navy2} />
+                </View>
               )}
               <Pressable style={styles.addPhoto} onPress={choosePhoto}>
                 <Text style={styles.plus}>{photoUri ? '↻' : '＋'}</Text>
@@ -1682,36 +2315,43 @@ function UrgentScreen({
             </View>
           </FormStep>
 
-          <FormStep number="5" title="Your location">
-            <Pressable style={styles.locationField} onPress={useCurrentLocation} disabled={locating}>
-              <Text>📍</Text>
-              <Text style={styles.locationFieldText}>
-                {locating ? 'Finding your location…' : jobLocation ? 'Current location ready' : 'Use my current location'}
-              </Text>
-              <Text>{jobLocation ? '✓' : '›'}</Text>
+          <FormStep number="5" title="Confirm the job location">
+            <Pressable style={styles.locationField} onPress={resolveCurrentLocation} disabled={locating}>
+              <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={18} color={jobLocation ? C.green : C.blue} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locationFieldText}>
+                  {locating ? 'Finding your location…' : jobLocation ? 'Current location confirmed' : 'Use my current location'}
+                </Text>
+                <Text style={styles.locationPrivacyText}>
+                  Only tradespeople offered this urgent job can see the exact location.
+                </Text>
+              </View>
+              <Text style={{ color: jobLocation ? C.green : C.muted }}>{jobLocation ? '✓' : '›'}</Text>
             </Pressable>
           </FormStep>
 
-          <Pressable style={styles.findButton} onPress={find}>
-            <Text style={styles.findButtonText}>Find available tradespeople →</Text>
+          {demoCalloutRange ? (
+            <View style={styles.dispatchEstimate}>
+              <View>
+                <Text style={styles.dispatchEstimateLabel}>Typical test call-out range</Text>
+                <Text style={styles.dispatchEstimatePrice}>£{demoCalloutRange.min}–£{demoCalloutRange.max}</Text>
+              </View>
+              <Text style={styles.dispatchEstimateNote}>Final price agreed before work starts</Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            style={[styles.findButton, submitting && { opacity: 0.65 }]}
+            onPress={find}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color={C.white} />
+            ) : (
+              <Text style={styles.findButtonText}>Find someone now →</Text>
+            )}
           </Pressable>
         </View>
-
-        {matched ? (
-          <View style={styles.resultsSection}>
-            <Text style={styles.resultsTitle}>{matches.length} {trade.toLowerCase()}{matches.length === 1 ? '' : 's'} available now</Text>
-            <Text style={styles.resultsSub}>Choose who you want to contact</Text>
-            {matches.map(person => (
-              <View key={person.id} style={styles.matchCard}>
-                <TradeSummary trade={person} onPress={() => openTrade(person)} />
-                <View style={styles.matchButtons}>
-                  <Pressable style={styles.viewButton} onPress={() => openTrade(person)}><Text style={styles.viewButtonText}>View</Text></Pressable>
-                  <Pressable style={styles.contactButton} onPress={() => Linking.openURL('tel:' + person.phone)}><Text style={styles.contactButtonText}>Contact</Text></Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : null}
       </ScrollView>
     </CustomerShell>
   );
@@ -1772,26 +2412,116 @@ function BookingScreen({ trade, back, complete }: { trade: Trade; back: () => vo
   );
 }
 
-function RequestsScreen({ requests, navigate }: { requests: RequestItem[]; navigate: (screen: CustomerScreen) => void }) {
+function RequestsScreen({
+  requests,
+  navigate,
+}: {
+  requests: RequestItem[];
+  navigate: (screen: CustomerScreen) => void;
+}) {
+  const [liveRequests, setLiveRequests] = useState<RequestItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadLiveRequests = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from('urgent_requests')
+      .select('id, trade, issue, urgency, status, created_at')
+      .eq('customer_id', user.id)
+      .order('created_at', { ascending: false });
+
+    setLiveRequests(
+      (data ?? []).map(row => ({
+        id: row.id,
+        trade: row.trade,
+        issue: row.issue,
+        urgency: row.urgency,
+        status: dispatchStatusLabel(row.status),
+      }))
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let channel: any = null;
+
+    const start = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      await loadLiveRequests();
+
+      channel = supabase
+        .channel('customer-urgent-requests-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'urgent_requests',
+            filter: 'customer_id=eq.' + user.id,
+          },
+          loadLiveRequests
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const combined = [
+    ...liveRequests,
+    ...requests.filter(local => !liveRequests.some(live => live.id === local.id)),
+  ];
+
   return (
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.plainPage, { paddingBottom: 100 }]}>
         <Text style={styles.pageTitle}>Your requests</Text>
         <Text style={styles.pageSub}>Urgent searches and scheduled bookings.</Text>
 
-        {requests.length === 0 ? (
+        {loading ? (
+          <View style={styles.emptyCard}>
+            <ActivityIndicator color={C.blue} />
+            <Text style={styles.emptyBody}>Loading your requests…</Text>
+          </View>
+        ) : combined.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyIcon}>◷</Text>
             <Text style={styles.emptyTitle}>No requests yet</Text>
             <Text style={styles.emptyBody}>When you request or book a tradesperson, it will appear here.</Text>
-            <Pressable style={styles.largeBlueButton} onPress={() => navigate('urgent')}><Text style={styles.largeBlueText}>Need someone now?</Text></Pressable>
+            <Pressable style={styles.largeBlueButton} onPress={() => navigate('urgent')}>
+              <Text style={styles.largeBlueText}>Need someone now?</Text>
+            </Pressable>
           </View>
         ) : (
-          requests.map(item => (
+          combined.map(item => (
             <View key={item.id} style={styles.requestCard}>
               <View style={styles.requestTop}>
                 <Text style={styles.requestTrade}>{item.trade}</Text>
-                <Badge text={item.status} green />
+                <Badge
+                  text={item.status}
+                  green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked'].includes(item.status)}
+                  blue={item.status === 'Searching'}
+                />
               </View>
               <Text style={styles.requestIssue}>{item.issue}</Text>
               <Text style={styles.muted}>{item.urgency}</Text>
@@ -2549,17 +3279,326 @@ function TradeHomeScreen({
   );
 }
 
-function TradeJobsScreen({ navigate }: { screen: TradeScreen; navigate: (screen: TradeScreen) => void; switchToCustomer: () => void }) {
+function TradeJobsScreen({
+  navigate,
+}: {
+  screen: TradeScreen;
+  navigate: (screen: TradeScreen) => void;
+  switchToCustomer: () => void;
+}) {
+  type OfferJob = {
+    offerId: string;
+    offerStatus: string;
+    distance: number;
+    eta: number;
+    request: any;
+  };
+
+  const [jobs, setJobs] = useState<OfferJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const loadJobs = async (knownUserId?: string) => {
+    setLoading(true);
+
+    const userId =
+      knownUserId ||
+      (
+        await supabase.auth.getUser()
+      ).data.user?.id ||
+      null;
+
+    if (!userId) {
+      setJobs([]);
+      setLoading(false);
+      return;
+    }
+
+    setCurrentUserId(userId);
+
+    const { data: offerRows, error: offerError } = await supabase
+      .from('urgent_request_offers')
+      .select('id, request_id, status, distance_miles, eta_minutes, offered_at')
+      .eq('tradesperson_id', userId)
+      .in('status', ['offered', 'accepted'])
+      .order('offered_at', { ascending: false });
+
+    if (offerError || !offerRows?.length) {
+      setJobs([]);
+      setLoading(false);
+      return;
+    }
+
+    const requestIds = Array.from(new Set(offerRows.map(row => row.request_id)));
+
+    const { data: requestRows } = await supabase
+      .from('urgent_requests')
+      .select(
+        'id, trade, issue, urgency, latitude, longitude, status, customer_id, created_at, accepted_tradesperson_id, estimated_arrival_minutes'
+      )
+      .in('id', requestIds);
+
+    const requestMap = new Map((requestRows ?? []).map(row => [row.id, row]));
+
+    setJobs(
+      offerRows
+        .map(row => ({
+          offerId: row.id,
+          offerStatus: row.status,
+          distance: Number(row.distance_miles),
+          eta: Number(row.eta_minutes),
+          request: requestMap.get(row.request_id),
+        }))
+        .filter(item => item.request)
+    );
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let offerChannel: any = null;
+    let requestChannel: any = null;
+    let mounted = true;
+
+    const start = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !mounted) {
+        setLoading(false);
+        return;
+      }
+
+      setCurrentUserId(user.id);
+      await loadJobs(user.id);
+
+      offerChannel = supabase
+        .channel('urgent-offers-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'urgent_request_offers',
+            filter: 'tradesperson_id=eq.' + user.id,
+          },
+          () => loadJobs(user.id)
+        )
+        .subscribe();
+
+      requestChannel = supabase
+        .channel('urgent-jobs-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'urgent_requests',
+            filter: 'accepted_tradesperson_id=eq.' + user.id,
+          },
+          () => loadJobs(user.id)
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      mounted = false;
+      if (offerChannel) supabase.removeChannel(offerChannel);
+      if (requestChannel) supabase.removeChannel(requestChannel);
+    };
+  }, []);
+
+  const respondToOffer = async (job: OfferJob, response: 'accepted' | 'declined') => {
+    setBusyId(job.offerId);
+
+    const { error } = await supabase
+      .from('urgent_request_offers')
+      .update({
+        status: response,
+        responded_at: new Date().toISOString(),
+      })
+      .eq('id', job.offerId)
+      .eq('status', 'offered');
+
+    setBusyId(null);
+
+    if (error) {
+      Alert.alert(
+        response === 'accepted' ? 'Job no longer available' : 'Could not decline',
+        response === 'accepted'
+          ? 'Another tradesperson may have accepted this job first.'
+          : error.message
+      );
+      await loadJobs(currentUserId || undefined);
+      return;
+    }
+
+    await loadJobs(currentUserId || undefined);
+  };
+
+  const advanceJob = async (job: OfferJob) => {
+    const current = job.request.status;
+    const next =
+      current === 'matched'
+        ? 'en_route'
+        : current === 'en_route'
+          ? 'arrived'
+          : current === 'arrived'
+            ? 'completed'
+            : null;
+
+    if (!next) return;
+
+    setBusyId(job.offerId);
+    const { error } = await supabase
+      .from('urgent_requests')
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq('id', job.request.id);
+
+    setBusyId(null);
+
+    if (error) {
+      Alert.alert('Could not update job', error.message);
+      return;
+    }
+
+    await loadJobs(currentUserId || undefined);
+  };
+
+  const openDirections = (job: OfferJob) => {
+    const lat = job.request.latitude;
+    const lng = job.request.longitude;
+    Linking.openURL('https://maps.google.com/?daddr=' + lat + ',' + lng);
+  };
+
+  const active = jobs.filter(job => job.offerStatus === 'accepted');
+  const offered = jobs.filter(job => job.offerStatus === 'offered');
+
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage}>
+      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
         <Text style={styles.tradePageTitle}>Jobs nearby</Text>
-        <Text style={styles.tradePageSub}>Customer requests matching your trade and travel radius will appear here.</Text>
-        <View style={styles.tradeEmptyLarge}>
-          <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={30} color={C.cyan} />
-          <Text style={styles.tradeEmptyLargeTitle}>No open jobs yet</Text>
-          <Text style={styles.tradeEmptyLargeText}>Keep your availability on. When a real customer request matches you, it will appear here.</Text>
-        </View>
+        <Text style={styles.tradePageSub}>
+          Urgent requests are offered to nearby available tradespeople. The first suitable professional to accept gets the job.
+        </Text>
+
+        {active.length ? (
+          <>
+            <Text style={styles.dispatchTradeSectionTitle}>Active job</Text>
+            {active.map(job => (
+              <View key={job.offerId} style={styles.dispatchTradeActiveCard}>
+                <View style={styles.dispatchTradeTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dispatchTradeUrgency}>{job.request.urgency} request</Text>
+                    <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
+                  </View>
+                  <Badge text={dispatchStatusLabel(job.request.status)} green />
+                </View>
+
+                <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+
+                <View style={styles.dispatchTradeMetaRow}>
+                  <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                  <Text style={styles.dispatchTradeMeta}>~{job.eta} min ETA</Text>
+                </View>
+
+                <View style={styles.dispatchTradeActionRow}>
+                  <Pressable style={styles.dispatchTradeDirections} onPress={() => openDirections(job)}>
+                    <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={17} color={C.navy2} />
+                    <Text style={styles.dispatchTradeDirectionsText}>Directions</Text>
+                  </Pressable>
+
+                  {job.request.status !== 'completed' ? (
+                    <Pressable
+                      style={[styles.dispatchTradeAdvance, busyId === job.offerId && { opacity: 0.6 }]}
+                      onPress={() => advanceJob(job)}
+                      disabled={busyId === job.offerId}
+                    >
+                      <Text style={styles.dispatchTradeAdvanceText}>
+                        {job.request.status === 'matched'
+                          ? 'Start journey'
+                          : job.request.status === 'en_route'
+                            ? "I've arrived"
+                            : job.request.status === 'arrived'
+                              ? 'Complete job'
+                              : 'Update'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
+
+        {loading ? (
+          <View style={styles.tradeEmptyLarge}>
+            <ActivityIndicator color={C.cyan} />
+            <Text style={styles.tradeEmptyLargeText}>Checking for nearby requests…</Text>
+          </View>
+        ) : offered.length ? (
+          offered.map(job => (
+            <View key={job.offerId} style={styles.dispatchTradeOfferCard}>
+              <View style={styles.dispatchTradeTopRow}>
+                <View style={styles.dispatchTradeUrgentIcon}>
+                  <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={18} color={C.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dispatchTradeUrgency}>Urgent · {job.request.urgency}</Text>
+                  <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
+                </View>
+                <View style={styles.dispatchTradeEtaPill}>
+                  <Text style={styles.dispatchTradeEtaValue}>~{job.eta} min</Text>
+                  <Text style={styles.dispatchTradeEtaSmall}>estimated</Text>
+                </View>
+              </View>
+
+              <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+
+              <View style={styles.dispatchTradeMetaRow}>
+                <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                <Text style={styles.dispatchTradeMeta}>Location shown after acceptance</Text>
+              </View>
+
+              <View style={styles.dispatchTradeDecisionRow}>
+                <Pressable
+                  style={styles.dispatchTradeDecline}
+                  onPress={() => respondToOffer(job, 'declined')}
+                  disabled={busyId === job.offerId}
+                >
+                  <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.dispatchTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
+                  onPress={() => respondToOffer(job, 'accepted')}
+                  disabled={busyId === job.offerId}
+                >
+                  {busyId === job.offerId ? (
+                    <ActivityIndicator color={C.white} />
+                  ) : (
+                    <Text style={styles.dispatchTradeAcceptText}>Accept job</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.tradeEmptyLarge}>
+            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={30} color={C.cyan} />
+            <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
+            <Text style={styles.tradeEmptyLargeText}>
+              Keep your availability on. Matching requests inside your travel radius will appear here automatically.
+            </Text>
+          </View>
+        )}
+
+        <View style={{ height: 90 }} />
       </ScrollView>
     </TradeShell>
   );
@@ -3609,5 +4648,300 @@ const styles = StyleSheet.create({
   tradeEmptyTitle: { color: C.white, fontSize: 14, fontWeight: '900' },
   tradeEmptyText: { color: '#9FB5C7', fontSize: 11, lineHeight: 17, marginTop: 5 },
   darkSettingsStatus: { color: '#7890A4', fontSize: 10, fontWeight: '700' },
+  dispatchPromiseCard: {
+    marginHorizontal: 18,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#EEF6FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dispatchPromiseIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: C.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchPromiseTitle: { fontSize: 14, fontWeight: '900', color: C.navy2 },
+  dispatchPromiseText: { marginTop: 3, fontSize: 11, lineHeight: 16, color: C.muted },
+  locationPrivacyText: { marginTop: 3, fontSize: 10, lineHeight: 14, color: C.muted },
+  dispatchEstimate: {
+    marginTop: 6,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: C.pale,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  dispatchEstimateLabel: { fontSize: 10, fontWeight: '700', color: C.muted },
+  dispatchEstimatePrice: { marginTop: 2, fontSize: 20, fontWeight: '900', color: C.navy2 },
+  dispatchEstimateNote: { maxWidth: 130, fontSize: 10, lineHeight: 14, textAlign: 'right', color: C.muted },
+  dispatchSearchingPage: {
+    flex: 1,
+    backgroundColor: C.white,
+    paddingHorizontal: 22,
+    paddingBottom: 30,
+    alignItems: 'center',
+  },
+  dispatchTopBar: {
+    width: '100%',
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dispatchBackButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: C.pale,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTopTitle: { fontSize: 16, fontWeight: '900', color: C.navy2 },
+  dispatchRadar: {
+    width: 230,
+    height: 230,
+    marginTop: 34,
+    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchRadarRingLarge: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 1,
+    borderColor: '#DCEBFA',
+    backgroundColor: '#F8FBFF',
+  },
+  dispatchRadarRingMedium: {
+    position: 'absolute',
+    width: 154,
+    height: 154,
+    borderRadius: 77,
+    borderWidth: 1,
+    borderColor: '#C7E2FF',
+    backgroundColor: '#F1F8FF',
+  },
+  dispatchRadarRingSmall: {
+    position: 'absolute',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 1,
+    borderColor: '#A8D3FF',
+    backgroundColor: '#EAF5FF',
+  },
+  dispatchRadarCentre: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: C.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: C.blue,
+    shadowOpacity: 0.24,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  dispatchSearchingTitle: { marginTop: 16, fontSize: 24, fontWeight: '900', color: C.navy2, textAlign: 'center' },
+  dispatchSearchingSub: { marginTop: 8, maxWidth: 340, fontSize: 13, lineHeight: 19, color: C.muted, textAlign: 'center' },
+  dispatchSearchInfoCard: {
+    width: '100%',
+    marginTop: 28,
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: C.pale,
+  },
+  dispatchInfoRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  dispatchInfoTitle: { fontSize: 13, fontWeight: '850', color: C.navy2 },
+  dispatchInfoSub: { marginTop: 3, fontSize: 11, lineHeight: 16, color: C.muted },
+  dispatchDivider: { height: 1, backgroundColor: C.line, marginVertical: 14 },
+  dispatchCancelButton: {
+    marginTop: 'auto',
+    width: '100%',
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D9E0E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchCancelText: { fontSize: 14, fontWeight: '800', color: C.red },
+  dispatchMatchedPage: { paddingHorizontal: 20, paddingBottom: 36, backgroundColor: C.white },
+  dispatchSuccessIcon: {
+    alignSelf: 'center',
+    marginTop: 18,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: C.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchMatchedTitle: { marginTop: 14, fontSize: 25, fontWeight: '900', color: C.navy2, textAlign: 'center' },
+  dispatchMatchedSub: { marginTop: 7, fontSize: 12, lineHeight: 17, color: C.muted, textAlign: 'center' },
+  dispatchProgress: {
+    marginTop: 24,
+    marginBottom: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dispatchProgressItem: { alignItems: 'center', width: '24%' },
+  dispatchProgressDot: {
+    width: 23,
+    height: 23,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#CBD4DE',
+    backgroundColor: C.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchProgressDotActive: { borderColor: C.blue, backgroundColor: C.blue },
+  dispatchProgressText: { marginTop: 5, fontSize: 9, fontWeight: '700', color: '#96A0AC', textAlign: 'center' },
+  dispatchProgressTextActive: { color: C.navy2 },
+  dispatchMatchCard: {
+    padding: 17,
+    borderRadius: 22,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    shadowColor: '#0B2745',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+  },
+  dispatchMatchTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dispatchAvatar: { width: 64, height: 64, borderRadius: 20, backgroundColor: C.pale },
+  dispatchNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dispatchName: { fontSize: 17, fontWeight: '900', color: C.navy2, flexShrink: 1 },
+  dispatchRole: { marginTop: 2, fontSize: 12, fontWeight: '700', color: C.muted },
+  dispatchRating: { marginTop: 4, fontSize: 11, color: C.text },
+  dispatchEtaBox: { alignItems: 'flex-end' },
+  dispatchEtaNumber: { fontSize: 18, fontWeight: '900', color: C.navy2 },
+  dispatchEtaLabel: { fontSize: 9, color: C.muted },
+  dispatchTrustRow: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  dispatchAgreementNote: { marginTop: 14, fontSize: 10, lineHeight: 15, color: C.muted },
+  dispatchActionRow: { marginTop: 16, flexDirection: 'row', gap: 8 },
+  dispatchSecondaryAction: {
+    height: 46,
+    paddingHorizontal: 13,
+    borderRadius: 14,
+    backgroundColor: C.pale,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dispatchSecondaryText: { fontSize: 12, fontWeight: '800', color: C.navy2 },
+  dispatchPrimaryAction: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: C.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchPrimaryText: { fontSize: 12, fontWeight: '900', color: C.white },
+  dispatchJobSummary: { marginTop: 16, padding: 16, borderRadius: 18, backgroundColor: C.pale },
+  dispatchSummaryTitle: { fontSize: 12, fontWeight: '900', color: C.navy2 },
+  dispatchSummaryTrade: { marginTop: 8, fontSize: 11, fontWeight: '800', color: C.blue },
+  dispatchSummaryIssue: { marginTop: 5, fontSize: 13, lineHeight: 19, color: C.text },
+  dispatchCancelOutline: {
+    marginTop: 16,
+    height: 50,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#D9E0E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchCancelOutlineText: { fontSize: 13, fontWeight: '800', color: C.red },
+  dispatchTradeSectionTitle: { marginTop: 22, marginBottom: 10, fontSize: 14, fontWeight: '900', color: C.white },
+  dispatchTradeActiveCard: {
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: '#0E355A',
+    borderWidth: 1,
+    borderColor: '#1E4A72',
+    marginBottom: 12,
+  },
+  dispatchTradeOfferCard: {
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: '#0D2D4B',
+    borderWidth: 1,
+    borderColor: '#1A4165',
+    marginBottom: 12,
+  },
+  dispatchTradeTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dispatchTradeUrgentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: C.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTradeUrgency: { fontSize: 10, fontWeight: '800', color: C.cyan },
+  dispatchTradeJobTitle: { marginTop: 2, fontSize: 19, fontWeight: '900', color: C.white },
+  dispatchTradeIssue: { marginTop: 13, fontSize: 13, lineHeight: 19, color: '#E7EEF6' },
+  dispatchTradeMetaRow: { marginTop: 13, flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  dispatchTradeMeta: { flexShrink: 1, fontSize: 10, color: '#AFC0D2' },
+  dispatchTradeEtaPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 13, backgroundColor: '#123C61', alignItems: 'center' },
+  dispatchTradeEtaValue: { fontSize: 12, fontWeight: '900', color: C.white },
+  dispatchTradeEtaSmall: { fontSize: 8, color: '#9FB3C7' },
+  dispatchTradeDecisionRow: { marginTop: 16, flexDirection: 'row', gap: 9 },
+  dispatchTradeDecline: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#355575',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTradeDeclineText: { fontSize: 12, fontWeight: '800', color: '#D7E2ED' },
+  dispatchTradeAccept: {
+    flex: 1.5,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: C.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTradeAcceptText: { fontSize: 12, fontWeight: '900', color: C.white },
+  dispatchTradeActionRow: { marginTop: 16, flexDirection: 'row', gap: 9 },
+  dispatchTradeDirections: {
+    flex: 1,
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: '#EAF3FC',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dispatchTradeDirectionsText: { fontSize: 11, fontWeight: '800', color: C.navy2 },
+  dispatchTradeAdvance: {
+    flex: 1.4,
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: C.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTradeAdvanceText: { fontSize: 11, fontWeight: '900', color: C.white },
+
 });
 
