@@ -66,6 +66,7 @@ type CustomerScreen =
   | 'urgent'
   | 'booking'
   | 'requests'
+  | 'requestDetail'
   | 'messages'
   | 'customerProfile';
 
@@ -422,6 +423,7 @@ export default function App() {
   const [selectedTrade, setSelectedTrade] = useState<Trade>(trades[0]);
   const [selectedCategory, setSelectedCategory] = useState<TradeCategory | 'All'>('All');
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
 
   const openTrade = (trade: Trade) => {
     setSelectedTrade(trade);
@@ -517,8 +519,27 @@ export default function App() {
     );
   }
 
+  if (customerScreen === 'requestDetail' && selectedRequest) {
+    return (
+      <RequestDetailScreen
+        request={selectedRequest}
+        navigate={setCustomerScreen}
+        openTrade={openTrade}
+      />
+    );
+  }
+
   if (customerScreen === 'requests') {
-    return <RequestsScreen requests={requests} navigate={setCustomerScreen} />;
+    return (
+      <RequestsScreen
+        requests={requests}
+        navigate={setCustomerScreen}
+        openRequest={request => {
+          setSelectedRequest(request);
+          setCustomerScreen('requestDetail');
+        }}
+      />
+    );
   }
 
   if (customerScreen === 'messages') {
@@ -2486,9 +2507,11 @@ function BookingScreen({ trade, back, complete }: { trade: Trade; back: () => vo
 function RequestsScreen({
   requests,
   navigate,
+  openRequest,
 }: {
   requests: RequestItem[];
   navigate: (screen: CustomerScreen) => void;
+  openRequest: (request: RequestItem) => void;
 }) {
   const [liveRequests, setLiveRequests] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2585,18 +2608,386 @@ function RequestsScreen({
           </View>
         ) : (
           combined.map(item => (
-            <View key={item.id} style={styles.requestCard}>
+            <Pressable
+              key={item.id}
+              style={({ pressed }) => [
+                styles.requestCard,
+                styles.requestCardPressable,
+                pressed && styles.requestCardPressed,
+              ]}
+              onPress={() => openRequest(item)}
+            >
               <View style={styles.requestTop}>
                 <Text style={styles.requestTrade}>{item.trade}</Text>
-                <Badge
-                  text={item.status}
-                  green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked'].includes(item.status)}
-                />
+                <View style={styles.requestStatusRow}>
+                  <Badge
+                    text={item.status}
+                    green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked'].includes(item.status)}
+                  />
+                  <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color="#9AA6B3" />
+                </View>
               </View>
               <Text style={styles.requestIssue}>{item.issue}</Text>
               <Text style={styles.muted}>{item.urgency}</Text>
-            </View>
+              <Text style={styles.requestTapHint}>Tap to view request</Text>
+            </Pressable>
           ))
+        )}
+      </ScrollView>
+    </CustomerShell>
+  );
+}
+
+function RequestDetailScreen({
+  request,
+  navigate,
+  openTrade,
+}: {
+  request: RequestItem;
+  navigate: (screen: CustomerScreen) => void;
+  openTrade: (trade: Trade) => void;
+}) {
+  const isDemo = request.id.startsWith('demo-');
+  const [loading, setLoading] = useState(!isDemo);
+  const [liveStatus, setLiveStatus] = useState(request.status);
+  const [details, setDetails] = useState<any>(null);
+  const [matchedTrade, setMatchedTrade] = useState<Trade | null>(() => {
+    if (!isDemo) return null;
+    return (
+      trades
+        .filter(item => item.role === request.trade && item.available)
+        .sort((a, b) => a.eta - b.eta)[0] || null
+    );
+  });
+
+  const buildMatchedTrade = async (row: any) => {
+    if (!row?.accepted_tradesperson_id) {
+      setMatchedTrade(null);
+      return;
+    }
+
+    const userId = row.accepted_tradesperson_id;
+    const [{ data: profile }, { data: locationRows }, { data: offerRows }] = await Promise.all([
+      supabase
+        .from('tradesperson_profiles')
+        .select(
+          'user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'
+        )
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('trade_locations')
+        .select('latitude, longitude')
+        .eq('user_id', userId)
+        .limit(1),
+      supabase
+        .from('urgent_request_offers')
+        .select('distance_miles, eta_minutes')
+        .eq('request_id', request.id)
+        .eq('tradesperson_id', userId)
+        .limit(1),
+    ]);
+
+    if (!profile) return;
+
+    const location = locationRows?.[0];
+    const offer = offerRows?.[0];
+
+    setMatchedTrade({
+      id: 'live-' + userId,
+      name: profile.display_name || 'Local tradesperson',
+      role: (profile.primary_trade || request.trade) as TradeCategory,
+      distance: Number(offer?.distance_miles) || 0,
+      eta: Number(row.estimated_arrival_minutes || offer?.eta_minutes) || 10,
+      rating: Number(profile.rating) || 0,
+      reviews: Number(profile.review_count) || 0,
+      image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + userId,
+      accent: C.blue,
+      callout: 0,
+      available: true,
+      verified: Boolean(profile.is_verified),
+      insured: Boolean(profile.is_insured),
+      response: Number(row.estimated_arrival_minutes || offer?.eta_minutes) || 10,
+      years: 0,
+      phone: profile.public_phone || '',
+      about: profile.bio || 'Available for your urgent request.',
+      services: ['Urgent call-out'],
+      mapLatitude: location ? Number(location.latitude) : undefined,
+      mapLongitude: location ? Number(location.longitude) : undefined,
+    });
+  };
+
+  const loadRequest = async () => {
+    if (isDemo) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from('urgent_requests')
+      .select(
+        'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at'
+      )
+      .eq('id', request.id)
+      .single();
+
+    if (error || !data) {
+      setLoading(false);
+      Alert.alert('Request unavailable', 'We could not load this request.');
+      return;
+    }
+
+    setDetails(data);
+    setLiveStatus(dispatchStatusLabel(data.status));
+    await buildMatchedTrade(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadRequest();
+
+    if (isDemo) return;
+
+    const channel = supabase
+      .channel('request-detail-' + request.id)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'urgent_requests',
+          filter: 'id=eq.' + request.id,
+        },
+        async payload => {
+          const row = payload.new as any;
+          setDetails(row);
+          setLiveStatus(dispatchStatusLabel(row.status));
+          await buildMatchedTrade(row);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [request.id]);
+
+  useEffect(() => {
+    if (isDemo || !matchedTrade?.id.startsWith('live-')) return;
+
+    const userId = matchedTrade.id.replace('live-', '');
+    const channel = supabase
+      .channel('request-detail-location-' + userId)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'trade_locations',
+          filter: 'user_id=eq.' + userId,
+        },
+        payload => {
+          const row = payload.new as any;
+          setMatchedTrade(previous =>
+            previous
+              ? {
+                  ...previous,
+                  mapLatitude: Number(row.latitude),
+                  mapLongitude: Number(row.longitude),
+                }
+              : previous
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [matchedTrade?.id, isDemo]);
+
+  const cancelRequest = async () => {
+    if (isDemo) {
+      setLiveStatus('Cancelled');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('urgent_requests')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', request.id);
+
+    if (error) {
+      Alert.alert('Could not cancel request', error.message);
+      return;
+    }
+
+    setLiveStatus('Cancelled');
+  };
+
+  const messageTrade = async () => {
+    if (!matchedTrade || isDemo) {
+      Alert.alert(
+        'Demo request',
+        'This is a fake matched request for testing. Real matched requests open a live conversation here.'
+      );
+      return;
+    }
+
+    const tradeUserId = matchedTrade.id.replace('live-', '');
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('tradesperson_id', tradeUserId)
+      .limit(1);
+
+    if (!existing?.length) {
+      const { error } = await supabase.from('conversations').insert({
+        customer_id: user.id,
+        tradesperson_id: tradeUserId,
+      });
+
+      if (error) {
+        Alert.alert('Could not open chat', error.message);
+        return;
+      }
+    }
+
+    navigate('messages');
+  };
+
+  const displayIssue = details?.issue || request.issue;
+  const displayUrgency = details?.urgency || request.urgency;
+  const rawStatus = details?.status || (isDemo ? 'matched' : 'searching');
+  const canCancel = !['completed', 'cancelled', 'expired'].includes(rawStatus);
+
+  return (
+    <CustomerShell current="requests" navigate={navigate}>
+      <ScrollView contentContainerStyle={styles.requestDetailPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.requestDetailHeader}>
+          <Pressable style={styles.dispatchBackButton} onPress={() => navigate('requests')}>
+            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
+          </Pressable>
+          <Text style={styles.requestDetailHeaderTitle}>Request details</Text>
+          <View style={{ width: 42 }} />
+        </View>
+
+        {loading ? (
+          <View style={styles.requestDetailLoading}>
+            <ActivityIndicator color={C.blue} size="large" />
+            <Text style={styles.messagesMuted}>Loading your request…</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.requestDetailStatusCard}>
+              <View style={styles.requestDetailStatusTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.requestDetailTrade}>{details?.trade || request.trade}</Text>
+                  <Text style={styles.requestDetailUrgency}>{displayUrgency}</Text>
+                </View>
+                <Badge
+                  text={isDemo ? 'Matched (demo)' : liveStatus}
+                  green={['Matched', 'On the way', 'Arrived', 'Completed'].includes(liveStatus)}
+                />
+              </View>
+              <Text style={styles.requestDetailIssue}>{displayIssue}</Text>
+            </View>
+
+            {isDemo ? (
+              <View style={styles.requestDemoNotice}>
+                <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={17} color={C.blue} />
+                <Text style={styles.requestDemoNoticeText}>
+                  This is a demo request because there were no real available tradesperson accounts when you sent it.
+                </Text>
+              </View>
+            ) : null}
+
+            {matchedTrade ? (
+              <>
+                <Text style={styles.requestDetailSectionTitle}>
+                  {liveStatus === 'Completed' ? 'Tradesperson' : 'Matched tradesperson'}
+                </Text>
+
+                {matchedTrade.mapLatitude && matchedTrade.mapLongitude ? (
+                  <View style={styles.requestDetailMap}>
+                    <MapMock trades={[matchedTrade]} onTrade={() => openTrade(matchedTrade)} compact />
+                  </View>
+                ) : null}
+
+                <View style={styles.requestDetailTradeCard}>
+                  <Image source={{ uri: matchedTrade.image }} style={styles.requestDetailAvatar} />
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.dispatchNameRow}>
+                      <Text style={styles.requestDetailName}>{matchedTrade.name}</Text>
+                      {matchedTrade.verified ? (
+                        <AppIcon icon={{ ios: 'checkmark.seal.fill', android: 'verified' }} size={17} color={C.blue} />
+                      ) : null}
+                    </View>
+                    <Text style={styles.requestDetailRole}>{matchedTrade.role}</Text>
+                    <Text style={styles.requestDetailMeta}>
+                      {matchedTrade.rating ? '⭐ ' + matchedTrade.rating + ' · ' : ''}
+                      {matchedTrade.distance ? matchedTrade.distance.toFixed(1) + ' mi · ' : ''}
+                      ~{matchedTrade.eta} min ETA
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.requestDetailActions}>
+                  <Pressable
+                    style={styles.requestDetailSecondary}
+                    onPress={() => {
+                      if (isDemo) {
+                        Alert.alert('Demo request', 'Calling is disabled for fake test profiles.');
+                        return;
+                      }
+                      if (matchedTrade.phone) Linking.openURL('tel:' + matchedTrade.phone);
+                    }}
+                  >
+                    <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={18} color={C.navy2} />
+                    <Text style={styles.requestDetailSecondaryText}>Call</Text>
+                  </Pressable>
+
+                  <Pressable style={styles.requestDetailSecondary} onPress={messageTrade}>
+                    <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={18} color={C.navy2} />
+                    <Text style={styles.requestDetailSecondaryText}>Message</Text>
+                  </Pressable>
+
+                  <Pressable style={styles.requestDetailPrimary} onPress={() => openTrade(matchedTrade)}>
+                    <Text style={styles.requestDetailPrimaryText}>Profile</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <View style={styles.requestDetailSearchingCard}>
+                <ActivityIndicator color={C.blue} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.requestDetailSearchingTitle}>
+                    {liveStatus === 'Cancelled' ? 'Request cancelled' : 'Still searching'}
+                  </Text>
+                  <Text style={styles.requestDetailSearchingText}>
+                    {liveStatus === 'Cancelled'
+                      ? 'This request is no longer being sent to tradespeople.'
+                      : 'TradeHub is waiting for one of the nearby available tradespeople to accept.'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {canCancel && liveStatus !== 'Cancelled' ? (
+              <Pressable style={styles.requestDetailCancel} onPress={cancelRequest}>
+                <Text style={styles.requestDetailCancelText}>Cancel request</Text>
+              </Pressable>
+            ) : null}
+          </>
         )}
       </ScrollView>
     </CustomerShell>
@@ -5201,6 +5592,205 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: C.navy2,
+  },
+
+  requestCardPressable: {
+    borderWidth: 1,
+    borderColor: C.line,
+  },
+  requestCardPressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.995 }],
+  },
+  requestStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  requestTapHint: {
+    marginTop: 12,
+    fontSize: 10,
+    fontWeight: '800',
+    color: C.blue,
+  },
+  requestDetailPage: {
+    paddingHorizontal: 20,
+    paddingBottom: 110,
+    backgroundColor: C.white,
+  },
+  requestDetailHeader: {
+    minHeight: 66,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  requestDetailHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: C.navy2,
+  },
+  requestDetailLoading: {
+    minHeight: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  requestDetailStatusCard: {
+    marginTop: 8,
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: C.pale,
+  },
+  requestDetailStatusTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  requestDetailTrade: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: C.navy2,
+  },
+  requestDetailUrgency: {
+    marginTop: 3,
+    fontSize: 11,
+    fontWeight: '800',
+    color: C.blue,
+  },
+  requestDetailIssue: {
+    marginTop: 16,
+    fontSize: 15,
+    lineHeight: 22,
+    color: C.text,
+  },
+  requestDemoNotice: {
+    marginTop: 12,
+    padding: 13,
+    borderRadius: 15,
+    backgroundColor: '#EEF6FF',
+    flexDirection: 'row',
+    gap: 9,
+    alignItems: 'flex-start',
+  },
+  requestDemoNoticeText: {
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 15,
+    color: C.muted,
+  },
+  requestDetailSectionTitle: {
+    marginTop: 22,
+    marginBottom: 10,
+    fontSize: 14,
+    fontWeight: '900',
+    color: C.navy2,
+  },
+  requestDetailMap: {
+    height: 210,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: C.pale,
+  },
+  requestDetailTradeCard: {
+    padding: 15,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  requestDetailAvatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: C.pale,
+  },
+  requestDetailName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: C.navy2,
+    flexShrink: 1,
+  },
+  requestDetailRole: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '700',
+    color: C.muted,
+  },
+  requestDetailMeta: {
+    marginTop: 5,
+    fontSize: 10,
+    color: C.text,
+  },
+  requestDetailActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  requestDetailSecondary: {
+    height: 46,
+    paddingHorizontal: 13,
+    borderRadius: 14,
+    backgroundColor: C.pale,
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestDetailSecondaryText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: C.navy2,
+  },
+  requestDetailPrimary: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: C.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestDetailPrimaryText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: C.white,
+  },
+  requestDetailSearchingCard: {
+    marginTop: 18,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: '#F5F9FD',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  requestDetailSearchingTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: C.navy2,
+  },
+  requestDetailSearchingText: {
+    marginTop: 3,
+    fontSize: 10,
+    lineHeight: 15,
+    color: C.muted,
+  },
+  requestDetailCancel: {
+    marginTop: 18,
+    height: 50,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#D9E0E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestDetailCancelText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: C.red,
   },
 
 });
