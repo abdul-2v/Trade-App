@@ -3457,6 +3457,9 @@ function CustomerProfileScreen({
         </View>
 
         <Pressable style={styles.settingsRow} onPress={() => setEditMode('details')}>
+          <View style={styles.v2SettingIcon}>
+            <AppIcon icon={{ ios: 'person.text.rectangle', android: 'badge' }} size={19} color={C.blue} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingsLabel}>Personal details</Text>
             <Text style={styles.settingsSubText}>{profile.phone || 'Add your phone number'}</Text>
@@ -3468,6 +3471,9 @@ function CustomerProfileScreen({
           style={styles.settingsRow}
           onPress={() => Alert.alert('Saved tradespeople', 'You have not saved any tradespeople yet.')}
         >
+          <View style={styles.v2SettingIcon}>
+            <AppIcon icon={{ ios: 'heart', android: 'favorite_border' }} size={19} color={C.blue} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingsLabel}>Saved tradespeople</Text>
             <Text style={styles.settingsSubText}>Your favourites will appear here</Text>
@@ -3476,6 +3482,9 @@ function CustomerProfileScreen({
         </Pressable>
 
         <Pressable style={styles.settingsRow} onPress={() => setEditMode('address')}>
+          <View style={styles.v2SettingIcon}>
+            <AppIcon icon={{ ios: 'house', android: 'home' }} size={19} color={C.blue} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingsLabel}>Address</Text>
             <Text style={styles.settingsSubText} numberOfLines={1}>
@@ -3486,6 +3495,9 @@ function CustomerProfileScreen({
         </Pressable>
 
         <Pressable style={styles.settingsRow} onPress={() => setEditMode('notifications')}>
+          <View style={styles.v2SettingIcon}>
+            <AppIcon icon={{ ios: 'bell', android: 'notifications_none' }} size={19} color={C.blue} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingsLabel}>Notifications</Text>
             <Text style={styles.settingsSubText}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
@@ -3497,6 +3509,9 @@ function CustomerProfileScreen({
           style={styles.settingsRow}
           onPress={() => Alert.alert('Help & support', 'Support chat and help articles will be added before public launch.')}
         >
+          <View style={styles.v2SettingIcon}>
+            <AppIcon icon={{ ios: 'questionmark.circle', android: 'help_outline' }} size={19} color={C.blue} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingsLabel}>Help & support</Text>
             <Text style={styles.settingsSubText}>Get help with TradeHub</Text>
@@ -6324,6 +6339,16 @@ const styles = StyleSheet.create({
   v2NavLabelActive: {
     color: C.navy,
     fontWeight: '800',
+  },
+
+  v2SettingIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: C.pale,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
 
 });
