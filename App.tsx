@@ -713,8 +713,8 @@ function HomeScreen({
             </View>
           </View>
 
-          <Text style={styles.v2HeroTitle}>Get the job done{'
-'}without the runaround.</Text>
+          <Text style={styles.v2HeroTitle}>Get the job done</Text>
+          <Text style={[styles.v2HeroTitle, { marginTop: 0 }]}>without the runaround.</Text>
           <Text style={styles.v2HeroBody}>
             Find trusted tradespeople nearby, compare who is available and get help when you actually need it.
           </Text>
