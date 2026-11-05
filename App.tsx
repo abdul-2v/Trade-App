@@ -13,6 +13,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -124,22 +125,28 @@ const dispatchStatusLabel = (status: string) => {
 };
 
 const C = {
-  navy: '#071B31',
-  navy2: '#0B2A49',
-  navy3: '#102F50',
-  blue: '#0A7AFF',
-  cyan: '#29C0FF',
-  green: '#10B981',
-  greenSoft: '#DCFCE7',
-  text: '#0D1726',
-  muted: '#6D7888',
-  line: '#E5EAF0',
-  pale: '#F4F7FB',
-  white: '#FFFFFF',
-  gold: '#F5B301',
-  orange: '#F97316',
-  red: '#EF4444',
+  navy: '#181B17',
+  navy2: '#232821',
+  navy3: '#30362D',
+  blue: '#355B46',
+  cyan: '#D7EF72',
+  green: '#2F8A67',
+  greenSoft: '#E7F2EA',
+  text: '#1A1D19',
+  muted: '#74786F',
+  line: '#DDDACE',
+  pale: '#F0EEE6',
+  white: '#FFFDF8',
+  gold: '#D89B32',
+  orange: '#E5744C',
+  red: '#C94E3E',
+  canvas: '#F6F4ED',
+  stone: '#E9E5D9',
+  clay: '#E5744C',
+  lime: '#D7EF72',
 };
+
+const DISPLAY_FONT = Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif';
 
 const demoTradeBase = {
   available: true,
@@ -631,23 +638,23 @@ function CustomerNav({
   ];
 
   return (
-    <View style={styles.nav}>
+    <View style={styles.v2Nav}>
       {items.map(item => {
         const active = current === item.route || (current === 'profile' && item.route === 'map');
         return (
           <Pressable
             key={item.route}
-            style={styles.navItem}
+            style={styles.v2NavItem}
             onPress={() => navigate(item.route)}
           >
-            <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>
+            <View style={[styles.v2NavIconWrap, active && styles.v2NavIconWrapActive]}>
               <AppIcon
                 icon={active ? item.activeIcon : item.icon}
-                size={22}
-                color={active ? C.blue : '#7C8795'}
+                size={20}
+                color={active ? C.navy : '#858980'}
               />
             </View>
-            <Text style={[styles.navLabel, active && styles.navActive]}>{item.label}</Text>
+            <Text style={[styles.v2NavLabel, active && styles.v2NavLabelActive]}>{item.label}</Text>
           </Pressable>
         );
       })}
@@ -667,95 +674,169 @@ function HomeScreen({
   navigate: (screen: CustomerScreen) => void;
 }) {
   const visible = selectedCategory === 'All' ? trades : trades.filter(t => t.role === selectedCategory);
+  const nearby = visible.slice(0, 4);
 
   return (
-    <CustomerShell current="home" navigate={navigate} dark>
-      <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.brandRow}>
-          <View style={styles.logoBubble}>
-            <AppIcon icon={{ ios: 'hammer.fill', android: 'construction' }} size={23} color={C.white} />
+    <CustomerShell current="home" navigate={navigate}>
+      <ScrollView
+        style={styles.v2HomeScreen}
+        contentContainerStyle={styles.v2HomeContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.v2TopBar}>
+          <View style={styles.v2BrandLockup}>
+            <View style={styles.v2BrandMark}>
+              <AppIcon icon={{ ios: 'hammer.fill', android: 'construction' }} size={18} color={C.navy} />
+            </View>
+            <View>
+              <Text style={styles.v2Brand}>TradeHub</Text>
+              <Text style={styles.v2BrandSub}>Local trades, made simple</Text>
+            </View>
           </View>
-          <Text style={styles.brandWhite}>Trade<Text style={{ color: C.blue }}>Hub</Text></Text>
-          <Pressable style={styles.settingsBubble} onPress={() => navigate('customerProfile')}>
-            <AppIcon icon={{ ios: 'gearshape.fill', android: 'settings' }} size={23} color={C.white} />
+
+          <Pressable style={styles.v2LocationPill} onPress={() => navigate('map')}>
+            <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={14} color={C.blue} />
+            <Text style={styles.v2LocationText}>Near you</Text>
           </Pressable>
         </View>
 
-        <View style={styles.heroBlock}>
-          <Text style={styles.hero}>Find trusted</Text>
-          <Text style={styles.hero}>tradespeople</Text>
-          <Text style={[styles.hero, styles.heroAccent]}>near you.</Text>
-        </View>
-        <Text style={styles.heroSub}>Trusted local professionals, ready when you need them.</Text>
+        <View style={styles.v2HeroCard}>
+          <View style={styles.v2HeroTopRow}>
+            <View style={styles.v2Eyebrow}>
+              <View style={styles.v2EyebrowDot} />
+              <Text style={styles.v2EyebrowText}>VERIFIED LOCAL PROS</Text>
+            </View>
+            <View style={styles.v2HeroMiniMark}>
+              <View style={styles.v2HeroMiniLine} />
+              <View style={[styles.v2HeroMiniLine, { width: 17 }]} />
+              <View style={[styles.v2HeroMiniLine, { width: 10 }]} />
+            </View>
+          </View>
 
-        <Pressable style={styles.searchBox} onPress={() => navigate('map')}>
-          <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={20} color={C.text} />
-          <Text style={styles.searchPlaceholder}>What trade do you need?</Text>
-          <View style={styles.searchButton}>
-            <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={19} color={C.white} />
+          <Text style={styles.v2HeroTitle}>Get the job done{'
+'}without the runaround.</Text>
+          <Text style={styles.v2HeroBody}>
+            Find trusted tradespeople nearby, compare who is available and get help when you actually need it.
+          </Text>
+
+          <Pressable style={styles.v2Search} onPress={() => navigate('map')}>
+            <View style={styles.v2SearchIcon}>
+              <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={19} color={C.navy2} />
+            </View>
+            <Text style={styles.v2SearchText}>What do you need doing?</Text>
+            <View style={styles.v2SearchGo}>
+              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color={C.navy} />
+            </View>
+          </Pressable>
+
+          <View style={styles.v2TrustRow}>
+            <View style={styles.v2TrustItem}>
+              <Text style={styles.v2TrustValue}>4.8+</Text>
+              <Text style={styles.v2TrustLabel}>top-rated local pros</Text>
+            </View>
+            <View style={styles.v2TrustDivider} />
+            <View style={styles.v2TrustItem}>
+              <Text style={styles.v2TrustValue}>Live</Text>
+              <Text style={styles.v2TrustLabel}>availability & location</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.v2SectionHead}>
+          <View>
+            <Text style={styles.v2SectionEyebrow}>START HERE</Text>
+            <Text style={styles.v2SectionTitle}>What do you need?</Text>
+          </View>
+          <Pressable onPress={() => navigate('map')}>
+            <Text style={styles.v2SectionLink}>See all</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.v2CategoryGrid}>
+          {categories.map(item => {
+            const active = selectedCategory === item.label && item.label !== 'More';
+            return (
+              <Pressable
+                key={item.label}
+                style={[styles.v2CategoryTile, active && styles.v2CategoryTileActive]}
+                onPress={() => {
+                  if (item.label === 'More') {
+                    setSelectedCategory('All');
+                    navigate('map');
+                    return;
+                  }
+                  setSelectedCategory(active ? 'All' : item.label);
+                }}
+              >
+                <View style={[styles.v2CategoryIcon, active && styles.v2CategoryIconActive]}>
+                  <AppIcon icon={item.icon} size={21} color={active ? C.navy : C.blue} />
+                </View>
+                <Text style={styles.v2CategoryLabel}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable style={styles.v2UrgentCard} onPress={() => navigate('urgent')}>
+          <View style={styles.v2UrgentLeft}>
+            <View style={styles.v2UrgentTag}>
+              <View style={styles.v2UrgentTagDot} />
+              <Text style={styles.v2UrgentTagText}>URGENT DISPATCH</Text>
+            </View>
+            <Text style={styles.v2UrgentTitle}>Need someone today?</Text>
+            <Text style={styles.v2UrgentBody}>
+              Send the job to nearby available tradespeople and match with the first suitable pro.
+            </Text>
+          </View>
+          <View style={styles.v2UrgentAction}>
+            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={22} color={C.navy} />
           </View>
         </Pressable>
 
-        <View style={styles.categoryPanel}>
-          {categories.map(item => (
-            <Pressable
-              key={item.label}
-              style={[
-                styles.categoryTile,
-                selectedCategory === item.label && item.label !== 'More' && styles.categoryTileSelected,
-              ]}
-              onPress={() => {
-                if (item.label === 'More') {
-                  setSelectedCategory('All');
-                  navigate('map');
-                  return;
-                }
-                setSelectedCategory(selectedCategory === item.label ? 'All' : item.label);
-              }}
-            >
-              <View style={styles.categoryIconWrap}>
-                <AppIcon icon={item.icon} size={25} color={selectedCategory === item.label ? C.blue : C.navy2} />
+        <View style={styles.v2SectionHead}>
+          <View>
+            <Text style={styles.v2SectionEyebrow}>AVAILABLE NOW</Text>
+            <Text style={styles.v2SectionTitle}>Nearby professionals</Text>
+          </View>
+          <Pressable onPress={() => navigate('map')}>
+            <Text style={styles.v2SectionLink}>Map</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.v2NearbyRow}>
+          {nearby.map(trade => (
+            <Pressable key={trade.id} style={styles.v2NearbyCard} onPress={() => openTrade(trade)}>
+              <View style={styles.v2NearbyImageWrap}>
+                <Image source={{ uri: trade.image }} style={styles.v2NearbyImage} />
+                <View style={styles.v2OnlineDot} />
               </View>
-              <Text style={styles.categoryLabel}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Pressable style={styles.urgentBanner} onPress={() => navigate('urgent')}>
-          <View style={styles.urgentCircle}>
-            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={28} color={C.white} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.urgentTitle}>Need someone now?</Text>
-            <Text style={styles.urgentSub}>Get available tradespeople nearby for urgent jobs.</Text>
-          </View>
-          <View style={styles.urgentArrow}>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={21} color={C.white} />
-          </View>
-        </Pressable>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.darkSectionTitle}>Live near you</Text>
-          <Pressable onPress={() => navigate('map')}><Text style={styles.seeAll}>View all</Text></Pressable>
-        </View>
-
-        <MapMock trades={visible.length ? visible : trades} onTrade={openTrade} compact />
-
-        <Text style={[styles.darkSectionTitle, { marginTop: 20, marginBottom: 10 }]}>Nearest to you</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {visible.map(trade => (
-            <Pressable key={trade.id} style={styles.miniTradeCard} onPress={() => openTrade(trade)}>
-              <Image source={{ uri: trade.image }} style={styles.miniImage} />
-              <Text style={styles.miniName}>{trade.name}</Text>
-              <Text style={styles.miniRole}>{trade.role}</Text>
-              <Text style={styles.miniRating}>⭐ {trade.rating} <Text style={styles.miniReviews}>({trade.reviews})</Text></Text>
-              <View style={styles.availablePill}><Text style={styles.availableText}>● Available now</Text></View>
-              <Text style={styles.miniDistance}>{trade.distance} mi</Text>
+              <Text style={styles.v2NearbyName} numberOfLines={1}>{trade.name}</Text>
+              <Text style={styles.v2NearbyRole}>{trade.role}</Text>
+              <View style={styles.v2NearbyMetaRow}>
+                <Text style={styles.v2NearbyRating}>★ {trade.rating}</Text>
+                <Text style={styles.v2NearbyDotText}>•</Text>
+                <Text style={styles.v2NearbyDistance}>{trade.distance} mi</Text>
+              </View>
+              <View style={styles.v2NearbyFooter}>
+                <Text style={styles.v2NearbyEta}>~{trade.eta} min</Text>
+                <View style={styles.v2NearbyArrow}>
+                  <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={15} color={C.navy} />
+                </View>
+              </View>
             </Pressable>
           ))}
         </ScrollView>
 
-        <View style={{ height: 95 }} />
+        <Pressable style={styles.v2MapCallout} onPress={() => navigate('map')}>
+          <View style={styles.v2MapGlyph}>
+            <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={21} color={C.blue} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.v2MapCalloutTitle}>Explore your area</Text>
+            <Text style={styles.v2MapCalloutSub}>See available tradespeople grouped neatly on the live map.</Text>
+          </View>
+          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color={C.muted} />
+        </Pressable>
       </ScrollView>
     </CustomerShell>
   );
@@ -3371,7 +3452,7 @@ function CustomerProfileScreen({
           <View style={styles.customerAvatar}><Text style={styles.customerAvatarText}>{initial}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.customerName}>{fullName}</Text>
-            <Text style={styles.muted}>{accountType === 'tradesperson' ? 'Tradesperson account' : 'Customer account'}</Text>
+            <Text style={styles.customerAccountType}>{accountType === 'tradesperson' ? 'Tradesperson account' : 'Customer account'}</Text>
           </View>
         </View>
 
@@ -4814,8 +4895,8 @@ function TradeSummary({ trade, onPress }: { trade: Trade; onPress: () => void })
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.white },
-  screen: { flex: 1, backgroundColor: C.white },
+  safe: { flex: 1, backgroundColor: C.canvas },
+  screen: { flex: 1, backgroundColor: C.canvas },
   homeContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
   brandRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   heroBlock: { marginTop: 28 },
@@ -5044,7 +5125,7 @@ const styles = StyleSheet.create({
   viewButtonText: { color: C.text, fontWeight: '800' },
   contactButton: { flex: 1, backgroundColor: C.blue, borderRadius: 10, height: 42, alignItems: 'center', justifyContent: 'center' },
   contactButtonText: { color: C.white, fontWeight: '900' },
-  plainPage: { padding: 18 },
+  plainPage: { paddingHorizontal: 20, paddingTop: 22, backgroundColor: C.canvas },
   headerBack: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   backPlain: { fontSize: 36, color: C.text },
   headerBackTitle: { fontSize: 22, fontWeight: '900', color: C.text },
@@ -5063,18 +5144,18 @@ const styles = StyleSheet.create({
   pickLabel: { color: C.muted, fontSize: 11 },
   pickValue: { color: C.text, fontWeight: '900', marginTop: 4 },
   pickHint: { color: C.muted, fontSize: 9, marginTop: 5 },
-  largeBlueButton: { minHeight: 55, borderRadius: 13, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 22 },
-  largeBlueText: { color: C.white, fontWeight: '900' },
-  pageTitle: { color: C.text, fontWeight: '900', fontSize: 28 },
-  pageSub: { color: C.muted, marginTop: 4, marginBottom: 16 },
-  emptyCard: { backgroundColor: C.pale, borderRadius: 18, padding: 22, alignItems: 'center', marginTop: 35 },
-  emptyIcon: { fontSize: 44 },
-  emptyTitle: { fontSize: 19, fontWeight: '900', color: C.text, marginTop: 9 },
-  emptyBody: { color: C.muted, textAlign: 'center', lineHeight: 20, marginTop: 7 },
-  requestCard: { borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 15, marginBottom: 10 },
+  largeBlueButton: { minHeight: 52, borderRadius: 16, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center', marginTop: 22, paddingHorizontal: 20 },
+  largeBlueText: { color: C.white, fontSize: 13, fontWeight: '800', letterSpacing: 0.1 },
+  pageTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontWeight: '800', fontSize: 32, letterSpacing: -1.1 },
+  pageSub: { color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 5, marginBottom: 22 },
+  emptyCard: { backgroundColor: C.white, borderRadius: 24, paddingHorizontal: 26, paddingVertical: 34, alignItems: 'center', marginTop: 24, borderWidth: 1, borderColor: C.line, shadowColor: '#27291F', shadowOpacity: 0.04, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
+  emptyIcon: { fontSize: 34, color: C.blue },
+  emptyTitle: { fontFamily: DISPLAY_FONT, fontSize: 21, fontWeight: '800', color: C.text, marginTop: 12, letterSpacing: -0.45 },
+  emptyBody: { color: C.muted, fontSize: 13, textAlign: 'center', lineHeight: 20, marginTop: 7, maxWidth: 270 },
+  requestCard: { borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 18, marginBottom: 12, shadowColor: '#22241E', shadowOpacity: 0.035, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
   requestTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  requestTrade: { fontWeight: '900', color: C.text, fontSize: 16 },
-  requestIssue: { color: C.text, marginTop: 7, marginBottom: 4 },
+  requestTrade: { fontFamily: DISPLAY_FONT, fontWeight: '800', color: C.text, fontSize: 17, letterSpacing: -0.3 },
+  requestIssue: { color: C.text, fontSize: 14, lineHeight: 20, marginTop: 11, marginBottom: 5 },
   chatHeader: { height: 68, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.line },
   chatAvatar: { width: 44, height: 44, borderRadius: 22, marginRight: 10 },
   chatName: { fontWeight: '900', color: C.text },
@@ -5092,10 +5173,10 @@ const styles = StyleSheet.create({
   composerInput: { flex: 1, height: 45, borderRadius: 22, backgroundColor: C.pale, paddingHorizontal: 16 },
   sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   sendText: { color: C.white, fontSize: 23, fontWeight: '900' },
-  messagesPage: { flex: 1, backgroundColor: C.white, paddingHorizontal: 18, paddingTop: 14 },
+  messagesPage: { flex: 1, backgroundColor: C.canvas, paddingHorizontal: 20, paddingTop: 22 },
   messagesTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  messagesTitle: { color: C.text, fontSize: 28, fontWeight: '900', letterSpacing: -0.6 },
-  messagesSub: { color: C.muted, fontSize: 13, marginTop: 4 },
+  messagesTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 32, fontWeight: '800', letterSpacing: -1.1 },
+  messagesSub: { color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
   messagesLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   messagesMuted: { color: C.muted, fontSize: 13 },
   inboxRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#EEF1F4', paddingVertical: 11 },
@@ -5109,10 +5190,10 @@ const styles = StyleSheet.create({
   inboxTrade: { color: C.blue, fontSize: 11, fontWeight: '700', marginTop: 2 },
   inboxLast: { color: C.muted, fontSize: 12, marginTop: 4 },
   messagesEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34, paddingBottom: 80 },
-  messagesEmptyIcon: { width: 72, height: 72, borderRadius: 25, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  messagesEmptyTitle: { color: C.text, fontSize: 20, fontWeight: '900' },
+  messagesEmptyIcon: { width: 66, height: 66, borderRadius: 22, backgroundColor: C.cyan, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  messagesEmptyTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
   messagesEmptySub: { color: C.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 7, maxWidth: 280 },
-  messagesBrowseButton: { height: 48, borderRadius: 14, backgroundColor: C.blue, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  messagesBrowseButton: { height: 50, borderRadius: 16, backgroundColor: C.navy, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center', marginTop: 22 },
   messagesBrowseText: { color: C.white, fontSize: 13, fontWeight: '900' },
   liveChatHeader: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#EEF1F4', backgroundColor: C.white },
   liveChatBack: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', marginRight: 9 },
@@ -5135,10 +5216,10 @@ const styles = StyleSheet.create({
   liveComposerInput: { flex: 1, minHeight: 44, maxHeight: 100, borderRadius: 20, backgroundColor: '#F3F5F8', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, color: C.text, fontSize: 14 },
   liveSendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   liveSendButtonDisabled: { opacity: 0.35 },
-  customerProfileCard: { backgroundColor: C.pale, borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 14 },
-  customerAvatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  customerAvatarText: { color: C.white, fontWeight: '900', fontSize: 25 },
-  customerName: { fontSize: 19, fontWeight: '900', color: C.text },
+  customerProfileCard: { backgroundColor: C.navy, borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 18, shadowColor: '#22241E', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
+  customerAvatar: { width: 58, height: 58, borderRadius: 20, backgroundColor: C.cyan, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  customerAvatarText: { color: C.navy, fontFamily: DISPLAY_FONT, fontWeight: '900', fontSize: 23 },
+  customerName: { fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', color: C.white, letterSpacing: -0.4 },
   profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
   profileModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,27,49,0.35)' },
   profileModalSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
@@ -5150,19 +5231,23 @@ const styles = StyleSheet.create({
   notificationSettingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
 
   settingsRow: {
-    minHeight: 72,
-    borderBottomWidth: 1,
-    borderBottomColor: C.line,
+    minHeight: 74,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    marginBottom: 10,
   },
-  settingsLabel: { fontWeight: '800', color: C.text, fontSize: 14, lineHeight: 18 },
-  settingsSubText: { color: C.muted, fontSize: 11, lineHeight: 15, marginTop: 4, maxWidth: 270 },
-  settingsChevron: { fontSize: 24, color: '#8995A5', marginLeft: 12 },
-  proSwitchCard: { backgroundColor: C.navy, borderRadius: 18, padding: 18, marginTop: 25, flexDirection: 'row', alignItems: 'center' },
-  proSwitchTitle: { color: C.white, fontSize: 17, fontWeight: '900' },
-  proSwitchSub: { color: '#B9CAD9', fontSize: 12, lineHeight: 17, marginTop: 4, maxWidth: 260 },
+  settingsLabel: { fontFamily: DISPLAY_FONT, fontWeight: '700', color: C.text, fontSize: 14, lineHeight: 18 },
+  settingsSubText: { color: C.muted, fontSize: 11, lineHeight: 16, marginTop: 4, maxWidth: 270 },
+  settingsChevron: { fontSize: 23, color: '#96998F', marginLeft: 12 },
+  proSwitchCard: { backgroundColor: C.navy2, borderRadius: 22, padding: 20, marginTop: 22, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#394234' },
+  proSwitchTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  proSwitchSub: { color: '#C3C9BC', fontSize: 12, lineHeight: 18, marginTop: 5, maxWidth: 260 },
   proSwitchArrow: { color: C.cyan, fontSize: 30, marginLeft: 'auto' },
   tradePage: { padding: 18, paddingBottom: 100 },
   tradeEmptyLarge: { marginTop: 24, backgroundColor: '#0C2B45', borderRadius: 18, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#173F5F' },
@@ -5262,7 +5347,7 @@ const styles = StyleSheet.create({
   darkChevron: { color: '#8FA4B5', fontSize: 26 },
   backCustomerButton: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: C.cyan, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   backCustomerText: { color: C.cyan, fontWeight: '900' },
-  signOutButton: { height: 50, borderRadius: 12, borderWidth: 1, borderColor: '#D5DCE5', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  signOutButton: { height: 50, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   signOutText: { color: C.red, fontWeight: '900' },
 
   photoPicked: { width: 120, height: 105, borderRadius: 15 },
@@ -5791,6 +5876,454 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: C.red,
+  },
+
+  customerAccountType: {
+    color: '#C6CBBF',
+    fontSize: 12,
+    marginTop: 3,
+  },
+  v2HomeScreen: {
+    flex: 1,
+    backgroundColor: C.canvas,
+  },
+  v2HomeContent: {
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 34,
+  },
+  v2TopBar: {
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  v2BrandLockup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  v2BrandMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: C.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  v2Brand: {
+    color: C.text,
+    fontFamily: DISPLAY_FONT,
+    fontSize: 19,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  v2BrandSub: {
+    color: C.muted,
+    fontSize: 9,
+    marginTop: 1,
+  },
+  v2LocationPill: {
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  v2LocationText: {
+    color: C.text,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  v2HeroCard: {
+    backgroundColor: C.navy,
+    borderRadius: 28,
+    paddingHorizontal: 21,
+    paddingTop: 20,
+    paddingBottom: 18,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  v2HeroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  v2Eyebrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  v2EyebrowDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: C.cyan,
+  },
+  v2EyebrowText: {
+    color: '#CFD4C8',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  v2HeroMiniMark: {
+    width: 34,
+    height: 28,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  v2HeroMiniLine: {
+    width: 25,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#5B6255',
+  },
+  v2HeroTitle: {
+    color: C.white,
+    fontFamily: DISPLAY_FONT,
+    fontSize: 34,
+    lineHeight: 38,
+    fontWeight: '800',
+    letterSpacing: -1.25,
+    marginTop: 18,
+  },
+  v2HeroBody: {
+    color: '#BFC5B8',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 12,
+    maxWidth: 315,
+  },
+  v2Search: {
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    marginTop: 20,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  v2SearchIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: C.pale,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2SearchText: {
+    flex: 1,
+    marginLeft: 11,
+    color: '#676C63',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  v2SearchGo: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: C.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2TrustRow: {
+    marginTop: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  v2TrustItem: {
+    flex: 1,
+  },
+  v2TrustValue: {
+    color: C.cyan,
+    fontFamily: DISPLAY_FONT,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  v2TrustLabel: {
+    color: '#9FA79A',
+    fontSize: 9,
+    marginTop: 2,
+  },
+  v2TrustDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#3B4037',
+    marginHorizontal: 14,
+  },
+  v2SectionHead: {
+    marginTop: 27,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  v2SectionEyebrow: {
+    color: C.blue,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    marginBottom: 3,
+  },
+  v2SectionTitle: {
+    color: C.text,
+    fontFamily: DISPLAY_FONT,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.65,
+  },
+  v2SectionLink: {
+    color: C.blue,
+    fontSize: 11,
+    fontWeight: '800',
+    paddingBottom: 2,
+  },
+  v2CategoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  v2CategoryTile: {
+    width: '25%',
+    paddingHorizontal: 4,
+    marginBottom: 9,
+    alignItems: 'center',
+  },
+  v2CategoryTileActive: {},
+  v2CategoryIcon: {
+    width: '100%',
+    height: 61,
+    borderRadius: 17,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2CategoryIconActive: {
+    backgroundColor: C.cyan,
+    borderColor: C.cyan,
+  },
+  v2CategoryLabel: {
+    color: C.text,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 7,
+  },
+  v2UrgentCard: {
+    marginTop: 13,
+    borderRadius: 24,
+    backgroundColor: C.clay,
+    padding: 19,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  v2UrgentLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  v2UrgentTag: {
+    alignSelf: 'flex-start',
+    minHeight: 23,
+    borderRadius: 12,
+    backgroundColor: 'rgba(24,27,23,0.13)',
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  v2UrgentTagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.navy,
+  },
+  v2UrgentTagText: {
+    color: C.navy,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.9,
+  },
+  v2UrgentTitle: {
+    color: '#201A17',
+    fontFamily: DISPLAY_FONT,
+    fontSize: 21,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginTop: 10,
+  },
+  v2UrgentBody: {
+    color: '#56352A',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+    maxWidth: 275,
+  },
+  v2UrgentAction: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: C.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2NearbyRow: {
+    paddingRight: 8,
+    paddingBottom: 4,
+  },
+  v2NearbyCard: {
+    width: 168,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 22,
+    padding: 12,
+    marginRight: 10,
+  },
+  v2NearbyImageWrap: {
+    position: 'relative',
+    marginBottom: 11,
+  },
+  v2NearbyImage: {
+    width: '100%',
+    height: 112,
+    borderRadius: 16,
+    backgroundColor: C.pale,
+  },
+  v2OnlineDot: {
+    position: 'absolute',
+    right: 7,
+    bottom: 7,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: C.green,
+    borderWidth: 2,
+    borderColor: C.white,
+  },
+  v2NearbyName: {
+    color: C.text,
+    fontFamily: DISPLAY_FONT,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.25,
+  },
+  v2NearbyRole: {
+    color: C.muted,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  v2NearbyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 7,
+  },
+  v2NearbyRating: {
+    color: C.text,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  v2NearbyDotText: {
+    color: '#AAA99F',
+    marginHorizontal: 5,
+    fontSize: 9,
+  },
+  v2NearbyDistance: {
+    color: C.muted,
+    fontSize: 10,
+  },
+  v2NearbyFooter: {
+    marginTop: 11,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  v2NearbyEta: {
+    color: C.blue,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  v2NearbyArrow: {
+    width: 29,
+    height: 29,
+    borderRadius: 10,
+    backgroundColor: C.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2MapCallout: {
+    marginTop: 18,
+    minHeight: 78,
+    borderRadius: 20,
+    backgroundColor: C.stone,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  v2MapGlyph: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: C.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  v2MapCalloutTitle: {
+    color: C.text,
+    fontFamily: DISPLAY_FONT,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  v2MapCalloutSub: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 3,
+    maxWidth: 240,
+  },
+  v2Nav: {
+    minHeight: 76,
+    backgroundColor: '#FFFDF9',
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+    flexDirection: 'row',
+    paddingTop: 7,
+    paddingBottom: 6,
+  },
+  v2NavItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2NavIconWrap: {
+    width: 34,
+    height: 31,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  v2NavIconWrapActive: {
+    backgroundColor: C.cyan,
+  },
+  v2NavLabel: {
+    color: '#858980',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  v2NavLabelActive: {
+    color: C.navy,
+    fontWeight: '800',
   },
 
 });
