@@ -504,6 +504,7 @@ export default function App() {
         setSelectedCategory={setSelectedCategory}
         openTrade={openTrade}
         navigate={setCustomerScreen}
+        intent={serviceIntent}
       />
     );
   }
@@ -1193,11 +1194,13 @@ function MapScreen({
   setSelectedCategory,
   openTrade,
   navigate,
+  intent,
 }: {
   selectedCategory: TradeCategory | 'All';
   setSelectedCategory: (category: TradeCategory | 'All') => void;
   openTrade: (trade: Trade) => void;
   navigate: (screen: CustomerScreen) => void;
+  intent?: { trade: TradeCategory; service: string; timing: string } | null;
 }) {
   const [listMode, setListMode] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -1299,6 +1302,20 @@ function MapScreen({
           <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
+        {intent ? (
+          <View style={styles.mapIntentCard}>
+            <View style={styles.mapIntentIcon}>
+              <AppIcon icon={{ ios: 'sparkles', android: 'auto_awesome' }} size={16} color={C.orange} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.mapIntentLabel}>MATCHING FOR</Text>
+              <Text style={styles.mapIntentText} numberOfLines={1}>{intent.service}</Text>
+            </View>
+            <View style={styles.mapIntentTiming}>
+              <Text style={styles.mapIntentTimingText}>{intent.timing}</Text>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {listMode ? (
@@ -3030,8 +3047,8 @@ function RequestsScreen({
   return (
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.plainPage, { paddingBottom: 100 }]}>
-        <Text style={styles.pageTitle}>Your requests</Text>
-        <Text style={styles.pageSub}>Urgent searches and scheduled bookings.</Text>
+        <Text style={styles.pageTitle}>Activity</Text>
+        <Text style={styles.pageSub}>Requests, bookings and jobs you have in progress.</Text>
 
         {loading ? (
           <View style={styles.emptyCard}>
@@ -3041,8 +3058,8 @@ function RequestsScreen({
         ) : combined.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyIcon}>◷</Text>
-            <Text style={styles.emptyTitle}>No requests yet</Text>
-            <Text style={styles.emptyBody}>When you request or book a tradesperson, it will appear here.</Text>
+            <Text style={styles.emptyTitle}>Nothing here yet</Text>
+            <Text style={styles.emptyBody}>Your urgent requests and scheduled jobs will stay organised here.</Text>
             <Pressable style={styles.largeBlueButton} onPress={() => navigate('urgent')}>
               <Text style={styles.largeBlueText}>Need someone now?</Text>
             </Pressable>
@@ -3662,7 +3679,7 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
         <View style={styles.messagesTitleRow}>
           <View>
             <Text style={styles.messagesTitle}>Messages</Text>
-            <Text style={styles.messagesSub}>Your conversations with tradespeople.</Text>
+            <Text style={styles.messagesSub}>Quotes, updates and conversations with tradespeople.</Text>
           </View>
         </View>
 
@@ -3806,7 +3823,7 @@ function CustomerProfileScreen({
   return (
     <CustomerShell current="customerProfile" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.plainPage, { paddingBottom: 100 }]}>
-        <Text style={styles.pageTitle}>Profile</Text>
+        <Text style={styles.pageTitle}>Account</Text>
 
         <View style={styles.customerProfileCard}>
           <View style={styles.customerAvatar}><Text style={styles.customerAvatarText}>{initial}</Text></View>
@@ -4275,17 +4292,16 @@ function TradeHomeScreen({
             <Text style={styles.proV3ControlValue}>{duration}</Text>
           </View>
           <View style={styles.tradeChipWrap}>
-        <View style={styles.tradeChipWrap}>
-          {['1 hour', '2 hours', '4 hours', 'All day'].map(item => (
-            <Pressable
-              key={item}
-              style={[styles.tradeChip, duration === item && styles.tradeChipActive]}
-              onPress={() => changeDuration(item)}
-            >
-              <Text style={[styles.tradeChipText, duration === item && { color: C.white }]}>{item}</Text>
-            </Pressable>
-          ))}
-        </View>
+            {['1 hour', '2 hours', '4 hours', 'All day'].map(item => (
+              <Pressable
+                key={item}
+                style={[styles.tradeChip, duration === item && styles.tradeChipActive]}
+                onPress={() => changeDuration(item)}
+              >
+                <Text style={[styles.tradeChipText, duration === item && { color: C.white }]}>{item}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.proV3ControlCard}>
@@ -4296,19 +4312,17 @@ function TradeHomeScreen({
             </View>
             <Text style={styles.proV3ControlValue}>{radius} mi</Text>
           </View>
-          <Text style={styles.radiusValue}>{radius} miles</Text>
-        </View>
-        <View style={styles.radiusOptions}>
-          {[5, 10, 15, 25].map(value => (
-            <Pressable
-              key={value}
-              onPress={() => changeRadius(value)}
-              style={[styles.radiusDot, radius === value && styles.radiusDotActive]}
-            >
-              <Text style={[styles.radiusDotText, radius === value && { color: C.white }]}>{value}</Text>
-            </Pressable>
-          ))}
-        </View>
+          <View style={styles.radiusOptions}>
+            {[5, 10, 15, 25].map(value => (
+              <Pressable
+                key={value}
+                onPress={() => changeRadius(value)}
+                style={[styles.radiusDot, radius === value && styles.radiusDotActive]}
+              >
+                <Text style={[styles.radiusDotText, radius === value && { color: C.white }]}>{value}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.proV3QuickGrid}>
@@ -5685,8 +5699,8 @@ const styles = StyleSheet.create({
   liveComposerInput: { flex: 1, minHeight: 44, maxHeight: 100, borderRadius: 20, backgroundColor: '#F3F5F8', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, color: C.text, fontSize: 14 },
   liveSendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   liveSendButtonDisabled: { opacity: 0.35 },
-  customerProfileCard: { backgroundColor: C.navy, borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 18, shadowColor: '#22241E', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },
-  customerAvatar: { width: 58, height: 58, borderRadius: 20, backgroundColor: C.cyan, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  customerProfileCard: { backgroundColor: '#12362C', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 18, borderWidth: 1, borderColor: '#275044' },
+  customerAvatar: { width: 58, height: 58, borderRadius: 20, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   customerAvatarText: { color: C.navy, fontFamily: DISPLAY_FONT, fontWeight: '900', fontSize: 23 },
   customerName: { fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', color: C.white, letterSpacing: -0.4 },
   profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
@@ -5701,15 +5715,15 @@ const styles = StyleSheet.create({
 
   settingsRow: {
     minHeight: 74,
-    backgroundColor: C.white,
+    backgroundColor: '#FFFDF8',
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 18,
+    borderColor: '#E2DED2',
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 13,
-    marginBottom: 10,
+    marginBottom: 9,
   },
   settingsLabel: { fontFamily: DISPLAY_FONT, fontWeight: '700', color: C.text, fontSize: 14, lineHeight: 18 },
   settingsSubText: { color: C.muted, fontSize: 11, lineHeight: 16, marginTop: 4, maxWidth: 270 },
@@ -6920,6 +6934,13 @@ const styles = StyleSheet.create({
   proV3QuickIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E6E1D5', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   proV3QuickValue: { color: C.text, fontSize: 15, fontWeight: '900' },
   proV3QuickLabel: { color: C.muted, fontSize: 8, lineHeight: 11, marginTop: 3 },
+
+  mapIntentCard: { minHeight: 58, borderRadius: 17, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: '#E1DCCF', marginBottom: 10, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
+  mapIntentIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#FFE4D8', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  mapIntentLabel: { color: C.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  mapIntentText: { color: C.text, fontSize: 13, fontWeight: '800', marginTop: 2, maxWidth: 210 },
+  mapIntentTiming: { borderRadius: 10, backgroundColor: '#E7EFE7', paddingHorizontal: 8, paddingVertical: 6 },
+  mapIntentTimingText: { color: C.blue, fontSize: 9, fontWeight: '900' },
 
 });
 
