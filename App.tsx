@@ -325,6 +325,36 @@ const categories: { icon: AppSymbol; label: TradeCategory | 'More' }[] = [
   { icon: { ios: 'ellipsis', android: 'more_horiz' }, label: 'More' },
 ];
 
+const customerCategoryOrder: TradeCategory[] = [
+  'Plumber',
+  'Electrician',
+  'Builder',
+  'Heating',
+  'Carpenter',
+  'Locksmith',
+  'Roofer',
+];
+
+const categoryDescriptions: Record<TradeCategory, string> = {
+  Plumber: 'Leaks, taps, toilets & pipework',
+  Electrician: 'Power, sockets, lighting & faults',
+  Builder: 'Repairs, brickwork & renovations',
+  Heating: 'Boilers, radiators & heating faults',
+  Locksmith: 'Lockouts, locks & home security',
+  Carpenter: 'Doors, joinery & fitted storage',
+  Roofer: 'Leaks, tiles, gutters & roof repairs',
+};
+
+const serviceCatalog: Record<TradeCategory, string[]> = {
+  Plumber: ['Emergency leak', 'Blocked drain', 'Toilet repair', 'Taps & pipework', 'Bathroom plumbing', 'Other plumbing job'],
+  Electrician: ['Power fault', 'Sockets & switches', 'Lighting', 'Consumer unit', 'Electrical testing', 'Other electrical job'],
+  Builder: ['General repair', 'Brickwork', 'Plastering', 'Renovation', 'Extension work', 'Other building job'],
+  Heating: ['No heating', 'Boiler fault', 'Boiler service', 'Radiator issue', 'Central heating', 'Other heating job'],
+  Locksmith: ['Locked out', 'Replace a lock', 'UPVC lock repair', 'Security upgrade', 'Key or access issue', 'Other locksmith job'],
+  Carpenter: ['Door repair', 'Fitted storage', 'Shelving', 'Joinery repair', 'Furniture work', 'Other carpentry job'],
+  Roofer: ['Roof leak', 'Broken tiles', 'Guttering', 'Flat roof', 'Roof inspection', 'Other roofing job'],
+};
+
 function AppIcon({
   icon,
   size = 22,
@@ -429,6 +459,7 @@ export default function App() {
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
   const [selectedTrade, setSelectedTrade] = useState<Trade>(trades[0]);
   const [selectedCategory, setSelectedCategory] = useState<TradeCategory | 'All'>('All');
+  const [serviceIntent, setServiceIntent] = useState<{ trade: TradeCategory; service: string; timing: string } | null>(null);
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
 
@@ -500,6 +531,8 @@ export default function App() {
         openTrade={openTrade}
         addRequest={request => setRequests(prev => [request, ...prev])}
         navigate={setCustomerScreen}
+        initialTrade={serviceIntent?.trade || (selectedCategory === 'All' ? 'Plumber' : selectedCategory)}
+        initialIssue={serviceIntent?.service}
       />
     );
   }
@@ -508,6 +541,7 @@ export default function App() {
     return (
       <BookingScreen
         trade={selectedTrade}
+        initialService={serviceIntent?.service}
         back={() => setCustomerScreen('profile')}
         complete={() => {
           setRequests(prev => [
@@ -568,11 +602,16 @@ export default function App() {
   }
 
   return (
-    <HomeScreen
+    <MarketplaceHomeScreen
       selectedCategory={selectedCategory}
       setSelectedCategory={setSelectedCategory}
       openTrade={openTrade}
       navigate={setCustomerScreen}
+      onStartIntent={(trade, service, timing) => {
+        setSelectedCategory(trade);
+        setServiceIntent({ trade, service, timing });
+        setCustomerScreen(timing === 'Now' ? 'urgent' : 'map');
+      }}
     />
   );
 }
@@ -659,6 +698,313 @@ function CustomerNav({
         );
       })}
     </View>
+  );
+}
+
+
+function MarketplaceHomeScreen({
+  selectedCategory,
+  setSelectedCategory,
+  openTrade,
+  navigate,
+  onStartIntent,
+}: {
+  selectedCategory: TradeCategory | 'All';
+  setSelectedCategory: (category: TradeCategory | 'All') => void;
+  openTrade: (trade: Trade) => void;
+  navigate: (screen: CustomerScreen) => void;
+  onStartIntent: (trade: TradeCategory, service: string, timing: string) => void;
+}) {
+  const [firstName, setFirstName] = useState('');
+  const [address, setAddress] = useState('');
+  const [flowOpen, setFlowOpen] = useState(false);
+  const [flowStep, setFlowStep] = useState<1 | 2 | 3>(1);
+  const [flowTrade, setFlowTrade] = useState<TradeCategory | null>(null);
+  const [flowService, setFlowService] = useState('');
+  const [flowTiming, setFlowTiming] = useState('');
+  const featured = trades.filter(item => item.available).slice(0, 5);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('first_name, default_address')
+        .eq('id', user.id)
+        .single();
+      if (!active || !data) return;
+      setFirstName(data.first_name || '');
+      setAddress(data.default_address || '');
+    };
+    load();
+    return () => { active = false; };
+  }, []);
+
+  const beginFlow = (trade?: TradeCategory, urgent = false) => {
+    setFlowTrade(trade || null);
+    setFlowService('');
+    setFlowTiming(urgent ? 'Now' : '');
+    setFlowStep(trade ? 2 : 1);
+    setFlowOpen(true);
+  };
+
+  const chooseTrade = (trade: TradeCategory) => {
+    setFlowTrade(trade);
+    setFlowService('');
+    setFlowStep(2);
+  };
+
+  const chooseService = (service: string) => {
+    setFlowService(service);
+    setFlowStep(3);
+  };
+
+  const finishFlow = () => {
+    if (!flowTrade || !flowService || !flowTiming) return;
+    setSelectedCategory(flowTrade);
+    setFlowOpen(false);
+    onStartIntent(flowTrade, flowService, flowTiming);
+  };
+
+  return (
+    <CustomerShell current="home" navigate={navigate} dark>
+      <ScrollView
+        style={styles.marketHome}
+        contentContainerStyle={styles.marketHomeContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.marketHeader}>
+          <View>
+            <Text style={styles.marketGreeting}>{firstName ? 'Hi ' + firstName : 'TradeHub'}</Text>
+            <Text style={styles.marketGreetingSub}>What can we get sorted today?</Text>
+          </View>
+          <Pressable style={styles.marketAccountButton} onPress={() => navigate('customerProfile')}>
+            <AppIcon icon={{ ios: 'person.fill', android: 'person' }} size={18} color={C.white} />
+          </Pressable>
+        </View>
+
+        <Pressable style={styles.marketAddressCard} onPress={() => navigate('customerProfile')}>
+          <View style={styles.marketAddressIcon}>
+            <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={22} color={C.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.marketAddressEyebrow}>WHERE YOU NEED HELP</Text>
+            <Text style={styles.marketAddressText} numberOfLines={1}>
+              {address || 'Choose an address'}
+            </Text>
+          </View>
+          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#98A69E" />
+        </Pressable>
+
+        <Pressable style={styles.marketSearchCard} onPress={() => beginFlow()}>
+          <View style={styles.marketSearchIcon}>
+            <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={20} color={C.navy} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.marketSearchTitle}>Tell us what needs doing</Text>
+            <Text style={styles.marketSearchSub}>Trade, job and timing — we’ll narrow it down.</Text>
+          </View>
+          <View style={styles.marketSearchArrow}>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.marketUrgentCard} onPress={() => beginFlow(undefined, true)}>
+          <View style={styles.marketUrgentIcon}>
+            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={23} color={C.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.marketUrgentEyebrow}>URGENT DISPATCH</Text>
+            <Text style={styles.marketUrgentTitle}>Need someone now?</Text>
+            <Text style={styles.marketUrgentSub}>Send the job to nearby available tradespeople.</Text>
+          </View>
+          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color={C.white} />
+        </Pressable>
+
+        <View style={styles.marketSectionHead}>
+          <View>
+            <Text style={styles.marketSectionTitle}>What do you need?</Text>
+            <Text style={styles.marketSectionSub}>Pick a trade and we’ll ask only what matters.</Text>
+          </View>
+        </View>
+
+        <View style={styles.marketCategoryGrid}>
+          {customerCategoryOrder.slice(0, 6).map(category => {
+            const person = trades.find(item => item.role === category);
+            const meta = categories.find(item => item.label === category);
+            return (
+              <Pressable key={category} style={styles.marketCategoryCard} onPress={() => beginFlow(category)}>
+                <View style={styles.marketCategoryCopy}>
+                  <View style={styles.marketCategoryIcon}>
+                    {meta ? <AppIcon icon={meta.icon} size={18} color={C.orange} /> : null}
+                  </View>
+                  <Text style={styles.marketCategoryTitle}>{category}</Text>
+                  <Text style={styles.marketCategorySub}>{categoryDescriptions[category]}</Text>
+                </View>
+                {person ? <Image source={{ uri: person.image }} style={styles.marketCategoryImage} /> : null}
+                <View style={styles.marketCategoryGo}>
+                  <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={14} color={C.orange} />
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable style={styles.marketMoreServices} onPress={() => beginFlow()}>
+          <View style={styles.marketMoreIcon}>
+            <AppIcon icon={{ ios: 'square.grid.2x2.fill', android: 'apps' }} size={18} color={C.navy} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.marketMoreTitle}>More trades & services</Text>
+            <Text style={styles.marketMoreSub}>Roofing, specialist repairs and more</Text>
+          </View>
+          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#89978F" />
+        </Pressable>
+
+        <View style={styles.marketNearbyHeader}>
+          <View>
+            <Text style={styles.marketSectionTitle}>Available near you</Text>
+            <Text style={styles.marketSectionSub}>People who can currently take work.</Text>
+          </View>
+          <Pressable onPress={() => {
+            setSelectedCategory('All');
+            navigate('map');
+          }}>
+            <Text style={styles.marketSeeAll}>Explore</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marketNearbyRow}>
+          {featured.map(item => (
+            <Pressable key={item.id} style={styles.marketProCard} onPress={() => openTrade(item)}>
+              <Image source={{ uri: item.image }} style={styles.marketProImage} />
+              <View style={styles.marketProAvailable}>
+                <View style={styles.marketProDot} />
+                <Text style={styles.marketProAvailableText}>Available</Text>
+              </View>
+              <Text style={styles.marketProName} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.marketProRole}>{item.role}</Text>
+              <View style={styles.marketProMeta}>
+                <Text style={styles.marketProMetaStrong}>★ {item.rating}</Text>
+                <Text style={styles.marketProMetaText}>{item.distance} mi</Text>
+                <Text style={styles.marketProMetaText}>~{item.eta} min</Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <View style={styles.marketTrustCard}>
+          <View style={styles.marketTrustIcon}>
+            <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={20} color={C.green} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.marketTrustTitle}>Trust is part of the profile</Text>
+            <Text style={styles.marketTrustSub}>Verification, insurance, reviews and credentials stay visible before you contact anyone.</Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      <Modal visible={flowOpen} transparent animationType="slide" onRequestClose={() => setFlowOpen(false)}>
+        <View style={styles.marketFlowRoot}>
+          <Pressable style={styles.marketFlowBackdrop} onPress={() => setFlowOpen(false)} />
+          <View style={styles.marketFlowSheet}>
+            <View style={styles.marketFlowHandle} />
+            <View style={styles.marketFlowHeader}>
+              <View>
+                <Text style={styles.marketFlowStep}>STEP {flowStep} OF 3</Text>
+                <Text style={styles.marketFlowTitle}>
+                  {flowStep === 1 ? 'Choose a trade' : flowStep === 2 ? 'What needs doing?' : 'When do you need them?'}
+                </Text>
+              </View>
+              <Pressable style={styles.marketFlowClose} onPress={() => setFlowOpen(false)}>
+                <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={17} color={C.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.marketFlowProgress}>
+              {[1, 2, 3].map(step => (
+                <View key={step} style={[styles.marketFlowProgressBar, step <= flowStep && styles.marketFlowProgressBarActive]} />
+              ))}
+            </View>
+
+            {flowStep === 1 ? (
+              <ScrollView style={styles.marketFlowList} showsVerticalScrollIndicator={false}>
+                {customerCategoryOrder.map(category => {
+                  const meta = categories.find(item => item.label === category);
+                  return (
+                    <Pressable key={category} style={styles.marketFlowRow} onPress={() => chooseTrade(category)}>
+                      <View style={styles.marketFlowRowIcon}>
+                        {meta ? <AppIcon icon={meta.icon} size={19} color={C.blue} /> : null}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.marketFlowRowTitle}>{category}</Text>
+                        <Text style={styles.marketFlowRowSub}>{categoryDescriptions[category]}</Text>
+                      </View>
+                      <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={16} color="#969C95" />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
+
+            {flowStep === 2 && flowTrade ? (
+              <ScrollView style={styles.marketFlowList} showsVerticalScrollIndicator={false}>
+                <Pressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(1)}>
+                  <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={15} color={C.blue} />
+                  <Text style={styles.marketFlowBackText}>{flowTrade}</Text>
+                </Pressable>
+                {serviceCatalog[flowTrade].map(service => (
+                  <Pressable key={service} style={styles.marketFlowServiceRow} onPress={() => chooseService(service)}>
+                    <Text style={styles.marketFlowServiceText}>{service}</Text>
+                    <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={16} color="#969C95" />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+
+            {flowStep === 3 ? (
+              <View>
+                <Pressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(2)}>
+                  <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={15} color={C.blue} />
+                  <Text style={styles.marketFlowBackText}>{flowService}</Text>
+                </Pressable>
+                {[
+                  ['Now', 'Find someone available for an urgent job'],
+                  ['Today', 'Show tradespeople who can fit you in today'],
+                  ['Next few days', 'Compare nearby pros and arrange a time'],
+                  ['Flexible', 'Browse first and decide when you are ready'],
+                ].map(([timing, copy]) => (
+                  <Pressable
+                    key={timing}
+                    style={[styles.marketTimingRow, flowTiming === timing && styles.marketTimingRowActive]}
+                    onPress={() => setFlowTiming(timing)}
+                  >
+                    <View style={[styles.marketRadio, flowTiming === timing && styles.marketRadioActive]}>
+                      {flowTiming === timing ? <View style={styles.marketRadioDot} /> : null}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.marketTimingTitle}>{timing}</Text>
+                      <Text style={styles.marketTimingSub}>{copy}</Text>
+                    </View>
+                    {timing === 'Now' ? <View style={styles.marketUrgentMini}><Text style={styles.marketUrgentMiniText}>FAST</Text></View> : null}
+                  </Pressable>
+                ))}
+                <Pressable
+                  style={[styles.marketContinue, !flowTiming && styles.marketContinueDisabled]}
+                  onPress={finishFlow}
+                  disabled={!flowTiming}
+                >
+                  <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : 'Show matching tradespeople'}</Text>
+                  <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+    </CustomerShell>
   );
 }
 
@@ -1701,14 +2047,18 @@ function UrgentScreen({
   openTrade,
   addRequest,
   navigate,
+  initialTrade,
+  initialIssue,
 }: {
   back: () => void;
   openTrade: (trade: Trade) => void;
   addRequest: (request: RequestItem) => void;
   navigate: (screen: CustomerScreen) => void;
+  initialTrade?: TradeCategory;
+  initialIssue?: string;
 }) {
-  const [trade, setTrade] = useState<TradeCategory>('Plumber');
-  const [issue, setIssue] = useState('Leaking pipe under kitchen sink');
+  const [trade, setTrade] = useState<TradeCategory>(initialTrade || 'Plumber');
+  const [issue, setIssue] = useState(initialIssue || 'Leaking pipe under kitchen sink');
   const [urgency, setUrgency] = useState('ASAP');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [jobLocation, setJobLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -2530,8 +2880,18 @@ function UrgentScreen({
   );
 }
 
-function BookingScreen({ trade, back, complete }: { trade: Trade; back: () => void; complete: () => void }) {
-  const [service, setService] = useState(trade.services[0]);
+function BookingScreen({
+  trade,
+  back,
+  complete,
+  initialService,
+}: {
+  trade: Trade;
+  back: () => void;
+  complete: () => void;
+  initialService?: string | null;
+}) {
+  const [service, setService] = useState(initialService || trade.services[0]);
   const dates = ['Today', 'Tomorrow', 'This weekend'];
   const times = ['08:00–10:00', '10:00–12:00', '14:00–16:00', 'Flexible'];
   const [dateIndex, setDateIndex] = useState(1);
@@ -2552,7 +2912,7 @@ function BookingScreen({ trade, back, complete }: { trade: Trade; back: () => vo
         <Text style={styles.stepLine}>● Service   ○ Date & time   ○ Details</Text>
         <Text style={styles.contentHeading}>What service do you need?</Text>
 
-        {trade.services.concat(['Emergency call-out', 'Other']).map(item => (
+        {Array.from(new Set([...(initialService ? [initialService] : []), ...trade.services, 'Emergency call-out', 'Other'])).map(item => (
           <Pressable key={item} style={[styles.radioRow, service === item && styles.radioRowActive]} onPress={() => setService(item)}>
             <View style={[styles.radio, service === item && styles.radioActive]}>{service === item ? <View style={styles.radioDot} /> : null}</View>
             <Text style={styles.radioText}>{item}</Text>
@@ -6350,6 +6710,91 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
+
+  marketHome: { flex: 1, backgroundColor: '#071C16' },
+  marketHomeContent: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 28 },
+  marketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  marketGreeting: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '700', letterSpacing: -0.8 },
+  marketGreetingSub: { color: '#97A59D', fontSize: 13, marginTop: 3 },
+  marketAccountButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#28483E', backgroundColor: '#103027', alignItems: 'center', justifyContent: 'center' },
+  marketAddressCard: { minHeight: 78, borderRadius: 22, borderWidth: 1, borderColor: '#275044', backgroundColor: '#12362C', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 },
+  marketAddressIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#1A493B', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  marketAddressEyebrow: { color: '#8EA198', fontSize: 9, fontWeight: '800', letterSpacing: 1.4 },
+  marketAddressText: { color: C.white, fontSize: 17, fontWeight: '700', marginTop: 4, maxWidth: 245 },
+  marketSearchCard: { minHeight: 74, backgroundColor: '#F7F3E8', borderRadius: 22, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginBottom: 12 },
+  marketSearchIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#E7E1D2', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketSearchTitle: { color: C.text, fontSize: 15, fontWeight: '800' },
+  marketSearchSub: { color: C.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  marketSearchArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  marketUrgentCard: { minHeight: 100, borderRadius: 23, backgroundColor: C.orange, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 24 },
+  marketUrgentIcon: { width: 50, height: 50, borderRadius: 17, backgroundColor: 'rgba(24,27,23,0.18)', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  marketUrgentEyebrow: { color: '#FFE3D8', fontSize: 9, fontWeight: '900', letterSpacing: 1.4 },
+  marketUrgentTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', marginTop: 2 },
+  marketUrgentSub: { color: '#FFE6DC', fontSize: 11, lineHeight: 16, marginTop: 3, maxWidth: 230 },
+  marketSectionHead: { marginBottom: 12 },
+  marketSectionTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
+  marketSectionSub: { color: '#91A198', fontSize: 12, lineHeight: 17, marginTop: 3 },
+  marketCategoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  marketCategoryCard: { width: '48.5%', minHeight: 158, borderRadius: 23, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', marginBottom: 11, overflow: 'hidden', position: 'relative' },
+  marketCategoryCopy: { padding: 15, paddingRight: 46, zIndex: 2 },
+  marketCategoryIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#1C493D', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  marketCategoryTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 17, fontWeight: '700' },
+  marketCategorySub: { color: '#92A299', fontSize: 10, lineHeight: 14, marginTop: 4, maxWidth: 112 },
+  marketCategoryImage: { position: 'absolute', right: -20, bottom: -10, width: 105, height: 128, borderRadius: 40, opacity: 0.58 },
+  marketCategoryGo: { position: 'absolute', left: 14, bottom: 13, width: 30, height: 30, borderRadius: 15, backgroundColor: '#1D493D', alignItems: 'center', justifyContent: 'center', zIndex: 3 },
+  marketMoreServices: { minHeight: 72, borderRadius: 20, backgroundColor: '#E9E4D8', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginTop: 2 },
+  marketMoreIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketMoreTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
+  marketMoreSub: { color: C.muted, fontSize: 10, marginTop: 2 },
+  marketNearbyHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
+  marketSeeAll: { color: C.lime, fontSize: 12, fontWeight: '800', paddingBottom: 2 },
+  marketNearbyRow: { paddingRight: 18 },
+  marketProCard: { width: 166, borderRadius: 22, backgroundColor: '#F7F3E8', marginRight: 10, padding: 10, overflow: 'hidden' },
+  marketProImage: { width: '100%', height: 108, borderRadius: 16, marginBottom: 9 },
+  marketProAvailable: { position: 'absolute', top: 18, left: 17, borderRadius: 11, backgroundColor: '#E2F3E8', paddingHorizontal: 7, paddingVertical: 4, flexDirection: 'row', alignItems: 'center' },
+  marketProDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green, marginRight: 4 },
+  marketProAvailableText: { color: C.green, fontSize: 8, fontWeight: '900' },
+  marketProName: { color: C.text, fontSize: 14, fontWeight: '900' },
+  marketProRole: { color: C.muted, fontSize: 10, marginTop: 2 },
+  marketProMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  marketProMetaStrong: { color: C.text, fontSize: 10, fontWeight: '900', marginRight: 8 },
+  marketProMetaText: { color: C.muted, fontSize: 9, marginRight: 8 },
+  marketTrustCard: { minHeight: 88, borderRadius: 22, borderWidth: 1, borderColor: '#275044', backgroundColor: '#0E3026', marginTop: 22, padding: 14, flexDirection: 'row', alignItems: 'center' },
+  marketTrustIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: '#E2F1E5', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  marketTrustTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
+  marketTrustSub: { color: '#91A198', fontSize: 10, lineHeight: 15, marginTop: 3 },
+  marketFlowRoot: { flex: 1, justifyContent: 'flex-end' },
+  marketFlowBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,15,11,0.64)' },
+  marketFlowSheet: { maxHeight: '82%', minHeight: '58%', backgroundColor: '#F8F5ED', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 },
+  marketFlowHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#C9C5BA', alignSelf: 'center', marginBottom: 16 },
+  marketFlowHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  marketFlowStep: { color: C.orange, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
+  marketFlowTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 25, fontWeight: '800', letterSpacing: -0.7, marginTop: 3 },
+  marketFlowClose: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E9E5D9', alignItems: 'center', justifyContent: 'center' },
+  marketFlowProgress: { flexDirection: 'row', gap: 5, marginTop: 15, marginBottom: 14 },
+  marketFlowProgressBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#DDD8CB' },
+  marketFlowProgressBarActive: { backgroundColor: C.blue },
+  marketFlowList: { maxHeight: 520 },
+  marketFlowRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E4E0D6' },
+  marketFlowRowIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#E8EEE7', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketFlowRowTitle: { color: C.text, fontSize: 15, fontWeight: '800' },
+  marketFlowRowSub: { color: C.muted, fontSize: 10, marginTop: 2 },
+  marketFlowBackLink: { alignSelf: 'flex-start', minHeight: 36, borderRadius: 12, backgroundColor: '#E8EEE7', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, marginBottom: 5 },
+  marketFlowBackText: { color: C.blue, fontSize: 11, fontWeight: '800', marginLeft: 3 },
+  marketFlowServiceRow: { minHeight: 61, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E4E0D6' },
+  marketFlowServiceText: { flex: 1, color: C.text, fontSize: 15, fontWeight: '650' },
+  marketTimingRow: { minHeight: 75, borderRadius: 17, borderWidth: 1, borderColor: '#DDD8CC', backgroundColor: '#FFFDF8', paddingHorizontal: 13, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
+  marketTimingRowActive: { borderColor: C.blue, backgroundColor: '#ECF1E9' },
+  marketRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#A6A89F', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketRadioActive: { borderColor: C.blue },
+  marketRadioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: C.blue },
+  marketTimingTitle: { color: C.text, fontSize: 15, fontWeight: '800' },
+  marketTimingSub: { color: C.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  marketUrgentMini: { borderRadius: 9, backgroundColor: '#FFE0D4', paddingHorizontal: 7, paddingVertical: 4 },
+  marketUrgentMiniText: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  marketContinue: { minHeight: 55, borderRadius: 17, backgroundColor: C.lime, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  marketContinueDisabled: { opacity: 0.38 },
+  marketContinueText: { color: C.navy, fontSize: 13, fontWeight: '900' },
 
 });
 
