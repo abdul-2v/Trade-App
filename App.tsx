@@ -653,25 +653,25 @@ function CustomerNav({
     {
       icon: { ios: 'map', android: 'map' },
       activeIcon: { ios: 'map.fill', android: 'map' },
-      label: 'Map',
+      label: 'Explore',
       route: 'map',
     },
     {
       icon: { ios: 'clock', android: 'history' },
       activeIcon: { ios: 'clock.fill', android: 'history' },
-      label: 'Requests',
+      label: 'Activity',
       route: 'requests',
     },
     {
       icon: { ios: 'message', android: 'chat_bubble' },
       activeIcon: { ios: 'message.fill', android: 'chat_bubble' },
-      label: 'Messages',
+      label: 'Inbox',
       route: 'messages',
     },
     {
       icon: { ios: 'person', android: 'person' },
       activeIcon: { ios: 'person.fill', android: 'person' },
-      label: 'Profile',
+      label: 'Account',
       route: 'customerProfile',
     },
   ];
@@ -690,7 +690,7 @@ function CustomerNav({
               <AppIcon
                 icon={active ? item.activeIcon : item.icon}
                 size={20}
-                color={active ? C.navy : '#858980'}
+                color={active ? C.white : '#91A198'}
               />
             </View>
             <Text style={[styles.v2NavLabel, active && styles.v2NavLabelActive]}>{item.label}</Text>
@@ -4005,9 +4005,9 @@ function TradeShell({
         {items.map(item => (
           <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}>
             <View style={styles.navIconWrap}>
-              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.cyan : '#8EA5B7'} />
+              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.orange : '#91A198'} />
             </View>
-            <Text style={[styles.navLabel, { color: item.route === current ? C.cyan : '#8EA5B7' }]}>{item.label}</Text>
+            <Text style={[styles.navLabel, { color: item.route === current ? C.orange : '#91A198' }]}>{item.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -4029,6 +4029,10 @@ function TradeHomeScreen({
   const [firstName, setFirstName] = useState('there');
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
+  const [profileCompletion, setProfileCompletion] = useState(0);
+  const [profileTrade, setProfileTrade] = useState('Trade professional');
+  const [profileName, setProfileName] = useState('');
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -4040,11 +4044,16 @@ function TradeHomeScreen({
 
       if (!user || !active) return;
 
-      const [{ data: person }, { data: availability }] = await Promise.all([
+      const [{ data: person }, { data: availability }, { data: tradeProfile }] = await Promise.all([
         supabase.from('profiles').select('first_name').eq('id', user.id).single(),
         supabase
           .from('trade_availability')
           .select('is_available, radius_miles, available_until, location_mode')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('tradesperson_profiles')
+          .select('display_name, primary_trade, avatar_url, bio, public_phone, is_verified, is_insured')
           .eq('user_id', user.id)
           .single(),
       ]);
@@ -4056,6 +4065,22 @@ function TradeHomeScreen({
         setAvailable(Boolean(availability.is_available));
         setRadius(Number(availability.radius_miles) || 10);
         setLocationMode(availability.location_mode === 'live' ? 'live' : 'work_area');
+      }
+
+      if (tradeProfile) {
+        setProfileName(tradeProfile.display_name || person?.first_name || 'Your business');
+        setProfileTrade(tradeProfile.primary_trade || 'Trade professional');
+        setProfileAvatar(tradeProfile.avatar_url || null);
+        const checks = [
+          tradeProfile.display_name,
+          tradeProfile.primary_trade,
+          tradeProfile.avatar_url,
+          tradeProfile.bio,
+          tradeProfile.public_phone,
+          tradeProfile.is_verified,
+          tradeProfile.is_insured,
+        ];
+        setProfileCompletion(Math.round((checks.filter(Boolean).length / checks.length) * 100));
       }
     };
 
@@ -4181,32 +4206,75 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage}>
-        <View style={styles.tradeHeaderRow}>
+      <ScrollView contentContainerStyle={styles.tradePageV3} showsVerticalScrollIndicator={false}>
+        <View style={styles.proV3Header}>
           <View>
-            <Text style={styles.tradeBrand}>TradeHub <Text style={{ color: C.cyan }}>Pro</Text></Text>
-            <Text style={styles.tradeHello}>Hi {firstName}</Text>
+            <Text style={styles.proV3Eyebrow}>TRADEHUB PRO</Text>
+            <Text style={styles.proV3Hello}>Hi {firstName}</Text>
+            <Text style={styles.proV3Sub}>Control when and where new jobs can find you.</Text>
           </View>
-          <Pressable style={styles.customerMini} onPress={switchToCustomer}>
-            <Text style={styles.customerMiniText}>Customer app</Text>
+          <Pressable style={styles.proV3CustomerButton} onPress={switchToCustomer}>
+            <AppIcon icon={{ ios: 'person.2.fill', android: 'group' }} size={17} color={C.white} />
           </Pressable>
         </View>
 
-        <View style={styles.availablePanel}>
+        <Pressable style={styles.proV3ProfileCard} onPress={() => navigate('tradeProfile')}>
+          {profileAvatar ? (
+            <Image source={{ uri: profileAvatar }} style={styles.proV3Avatar} />
+          ) : (
+            <View style={styles.proV3AvatarFallback}>
+              <Text style={styles.proV3AvatarFallbackText}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.availablePanelTitle}>{available ? 'Available now' : 'Go available'}</Text>
-            <Text style={styles.availablePanelSub}>
+            <Text style={styles.proV3ProfileName}>{profileName || firstName || 'Your trade profile'}</Text>
+            <Text style={styles.proV3ProfileTrade}>{profileTrade}</Text>
+            <View style={styles.proV3ProgressTrack}>
+              <View style={[styles.proV3ProgressFill, { width: profileCompletion + '%' }]} />
+            </View>
+            <Text style={styles.proV3Completion}>{profileCompletion}% profile ready</Text>
+          </View>
+          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#91A198" />
+        </Pressable>
+
+        <View style={[styles.proV3Availability, available && styles.proV3AvailabilityLive]}>
+          <View style={styles.proV3AvailabilityIcon}>
+            <AppIcon
+              icon={{ ios: available ? 'bolt.fill' : 'moon.fill', android: available ? 'bolt' : 'bedtime' }}
+              size={22}
+              color={available ? C.navy : '#95A39B'}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.proV3AvailabilityTitle, available && { color: C.navy }]}>
+              {available ? 'You are available now' : 'You are currently offline'}
+            </Text>
+            <Text style={[styles.proV3AvailabilitySub, available && { color: '#506050' }]}>
               {savingAvailability
-                ? 'Saving…'
+                ? 'Saving availability…'
                 : available
-                  ? "You're visible to nearby customers"
-                  : "You're hidden from new nearby searches"}
+                  ? 'Nearby matching customers can send you urgent work.'
+                  : 'Turn this on when you are ready to receive new nearby work.'}
             </Text>
           </View>
-          <Switch value={available} onValueChange={changeAvailable} trackColor={{ true: C.green }} disabled={savingAvailability} />
+          <Switch
+            value={available}
+            onValueChange={changeAvailable}
+            trackColor={{ false: '#345047', true: C.green }}
+            thumbColor={available ? C.white : '#D9DED9'}
+            disabled={savingAvailability}
+          />
         </View>
 
-        <Text style={styles.tradeLabel}>Availability duration</Text>
+        <View style={styles.proV3ControlCard}>
+          <View style={styles.proV3ControlHeader}>
+            <View>
+              <Text style={styles.proV3ControlTitle}>Availability window</Text>
+              <Text style={styles.proV3ControlSub}>Automatically come off the live list later.</Text>
+            </View>
+            <Text style={styles.proV3ControlValue}>{duration}</Text>
+          </View>
+          <View style={styles.tradeChipWrap}>
         <View style={styles.tradeChipWrap}>
           {['1 hour', '2 hours', '4 hours', 'All day'].map(item => (
             <Pressable
@@ -4218,9 +4286,16 @@ function TradeHomeScreen({
             </Pressable>
           ))}
         </View>
+        </View>
 
-        <View style={styles.radiusRow}>
-          <Text style={styles.tradeLabel}>Max travel distance</Text>
+        <View style={styles.proV3ControlCard}>
+          <View style={styles.proV3ControlHeader}>
+            <View>
+              <Text style={styles.proV3ControlTitle}>Work radius</Text>
+              <Text style={styles.proV3ControlSub}>Only receive opportunities inside this distance.</Text>
+            </View>
+            <Text style={styles.proV3ControlValue}>{radius} mi</Text>
+          </View>
           <Text style={styles.radiusValue}>{radius} miles</Text>
         </View>
         <View style={styles.radiusOptions}>
@@ -4234,21 +4309,40 @@ function TradeHomeScreen({
             </Pressable>
           ))}
         </View>
+        </View>
 
-        <View style={styles.tradeStats}>
-          <TradeStat number="—" label="Profile views" />
-          <TradeStat number="—" label="Messages" />
-          <TradeStat number="—" label="Bookings" />
+        <View style={styles.proV3QuickGrid}>
+          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeJobs')}>
+            <View style={styles.proV3QuickIcon}>
+              <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={19} color={C.orange} />
+            </View>
+            <Text style={styles.proV3QuickValue}>Jobs</Text>
+            <Text style={styles.proV3QuickLabel}>Offers & active work</Text>
+          </Pressable>
+          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeMap')}>
+            <View style={styles.proV3QuickIcon}>
+              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={19} color={C.green} />
+            </View>
+            <Text style={styles.proV3QuickValue}>{radius} mi</Text>
+            <Text style={styles.proV3QuickLabel}>Current work radius</Text>
+          </Pressable>
+          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeProfile')}>
+            <View style={styles.proV3QuickIcon}>
+              <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={19} color={C.lime} />
+            </View>
+            <Text style={styles.proV3QuickValue}>{profileCompletion}%</Text>
+            <Text style={styles.proV3QuickLabel}>Profile readiness</Text>
+          </Pressable>
         </View>
 
         <View style={styles.tradeSectionHeader}>
-          <Text style={styles.tradeSectionTitle}>Nearby opportunities</Text>
+          <Text style={styles.tradeSectionTitle}>Incoming work</Text>
           <Pressable onPress={() => navigate('tradeJobs')}><Text style={styles.tradeLink}>View all</Text></Pressable>
         </View>
 
         <View style={styles.tradeEmptyCard}>
           <Text style={styles.tradeEmptyTitle}>No live opportunities yet</Text>
-          <Text style={styles.tradeEmptyText}>New customer requests matching your trade and travel radius will appear here.</Text>
+          <Text style={styles.tradeEmptyText}>Requests matching your trade, availability and work radius will appear here.</Text>
         </View>
 
         <View style={{ height: 90 }} />
@@ -5316,7 +5410,7 @@ const styles = StyleSheet.create({
   availablePill: { alignSelf: 'flex-start', backgroundColor: C.greenSoft, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, marginTop: 6 },
   availableText: { color: '#087A4E', fontSize: 10, fontWeight: '800' },
   nav: { height: 78, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: '#E9EDF2', flexDirection: 'row', paddingBottom: 7, paddingTop: 5, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -5 } },
-  tradeNav: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80, backgroundColor: '#061626', borderTopWidth: 1, borderTopColor: '#173A56', flexDirection: 'row', paddingBottom: 8 },
+  tradeNav: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80, backgroundColor: '#071C16', borderTopWidth: 1, borderTopColor: '#1D3B31', flexDirection: 'row', paddingBottom: 8 },
   navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 54 },
   navIcon: { fontSize: 24, color: '#7C8795' },
   navLabel: { fontSize: 10, color: '#7C8795', marginTop: 3, fontWeight: '600' },
@@ -6668,9 +6762,9 @@ const styles = StyleSheet.create({
   },
   v2Nav: {
     minHeight: 76,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: '#071C16',
     borderTopWidth: 1,
-    borderTopColor: C.line,
+    borderTopColor: '#1D3B31',
     flexDirection: 'row',
     paddingTop: 7,
     paddingBottom: 6,
@@ -6688,16 +6782,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   v2NavIconWrapActive: {
-    backgroundColor: C.cyan,
+    backgroundColor: C.orange,
   },
   v2NavLabel: {
-    color: '#858980',
+    color: '#91A198',
     fontSize: 9,
     fontWeight: '600',
     marginTop: 2,
   },
   v2NavLabelActive: {
-    color: C.navy,
+    color: C.white,
     fontWeight: '800',
   },
 
@@ -6782,7 +6876,7 @@ const styles = StyleSheet.create({
   marketFlowBackLink: { alignSelf: 'flex-start', minHeight: 36, borderRadius: 12, backgroundColor: '#E8EEE7', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, marginBottom: 5 },
   marketFlowBackText: { color: C.blue, fontSize: 11, fontWeight: '800', marginLeft: 3 },
   marketFlowServiceRow: { minHeight: 61, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E4E0D6' },
-  marketFlowServiceText: { flex: 1, color: C.text, fontSize: 15, fontWeight: '650' },
+  marketFlowServiceText: { flex: 1, color: C.text, fontSize: 15, fontWeight: '600' },
   marketTimingRow: { minHeight: 75, borderRadius: 17, borderWidth: 1, borderColor: '#DDD8CC', backgroundColor: '#FFFDF8', paddingHorizontal: 13, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
   marketTimingRowActive: { borderColor: C.blue, backgroundColor: '#ECF1E9' },
   marketRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#A6A89F', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
@@ -6795,6 +6889,37 @@ const styles = StyleSheet.create({
   marketContinue: { minHeight: 55, borderRadius: 17, backgroundColor: C.lime, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   marketContinueDisabled: { opacity: 0.38 },
   marketContinueText: { color: C.navy, fontSize: 13, fontWeight: '900' },
+
+  tradePageV3: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 110, backgroundColor: '#071C16' },
+  proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  proV3Eyebrow: { color: C.orange, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  proV3Hello: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 30, fontWeight: '700', letterSpacing: -0.8, marginTop: 2 },
+  proV3Sub: { color: '#91A198', fontSize: 11, marginTop: 3 },
+  proV3CustomerButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', alignItems: 'center', justifyContent: 'center' },
+  proV3ProfileCard: { minHeight: 96, borderRadius: 23, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
+  proV3Avatar: { width: 58, height: 58, borderRadius: 18, marginRight: 12 },
+  proV3AvatarFallback: { width: 58, height: 58, borderRadius: 18, backgroundColor: '#1D493D', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  proV3AvatarFallbackText: { color: C.white, fontSize: 22, fontWeight: '900' },
+  proV3ProfileName: { color: C.white, fontSize: 15, fontWeight: '900' },
+  proV3ProfileTrade: { color: '#93A49A', fontSize: 10, marginTop: 2 },
+  proV3ProgressTrack: { height: 5, borderRadius: 3, backgroundColor: '#28483E', marginTop: 9, overflow: 'hidden' },
+  proV3ProgressFill: { height: 5, borderRadius: 3, backgroundColor: C.lime },
+  proV3Completion: { color: '#A9B6AE', fontSize: 9, marginTop: 5, fontWeight: '700' },
+  proV3Availability: { minHeight: 94, borderRadius: 23, backgroundColor: '#102D25', borderWidth: 1, borderColor: '#28483E', padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  proV3AvailabilityLive: { backgroundColor: C.lime, borderColor: C.lime },
+  proV3AvailabilityIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  proV3AvailabilityTitle: { color: C.white, fontSize: 15, fontWeight: '900' },
+  proV3AvailabilitySub: { color: '#91A198', fontSize: 10, lineHeight: 14, marginTop: 3, paddingRight: 6 },
+  proV3ControlCard: { borderRadius: 22, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', padding: 14, marginBottom: 11 },
+  proV3ControlHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
+  proV3ControlTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
+  proV3ControlSub: { color: '#91A198', fontSize: 9, lineHeight: 13, marginTop: 2, maxWidth: 230 },
+  proV3ControlValue: { color: C.lime, fontSize: 12, fontWeight: '900' },
+  proV3QuickGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3, marginBottom: 20 },
+  proV3QuickCard: { width: '31.5%', minHeight: 110, borderRadius: 20, backgroundColor: '#F5F1E6', padding: 11 },
+  proV3QuickIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E6E1D5', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  proV3QuickValue: { color: C.text, fontSize: 15, fontWeight: '900' },
+  proV3QuickLabel: { color: C.muted, fontSize: 8, lineHeight: 11, marginTop: 3 },
 
 });
 
