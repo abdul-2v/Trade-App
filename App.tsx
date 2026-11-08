@@ -543,6 +543,7 @@ export default function App() {
       <BookingScreen
         trade={selectedTrade}
         initialService={serviceIntent?.service}
+        initialTiming={serviceIntent?.timing}
         back={() => setCustomerScreen('profile')}
         complete={() => {
           setRequests(prev => [
@@ -2902,17 +2903,19 @@ function BookingScreen({
   back,
   complete,
   initialService,
+  initialTiming,
 }: {
   trade: Trade;
   back: () => void;
   complete: () => void;
   initialService?: string | null;
+  initialTiming?: string | null;
 }) {
   const [service, setService] = useState(initialService || trade.services[0]);
   const dates = ['Today', 'Tomorrow', 'This weekend'];
   const times = ['08:00–10:00', '10:00–12:00', '14:00–16:00', 'Flexible'];
-  const [dateIndex, setDateIndex] = useState(1);
-  const [timeIndex, setTimeIndex] = useState(1);
+  const [dateIndex, setDateIndex] = useState(initialTiming === 'Today' ? 0 : 1);
+  const [timeIndex, setTimeIndex] = useState(initialTiming === 'Flexible' ? 3 : 1);
 
   return (
     <CustomerShell>
@@ -4247,7 +4250,7 @@ function TradeHomeScreen({
             <Text style={styles.proV3ProfileName}>{profileName || firstName || 'Your trade profile'}</Text>
             <Text style={styles.proV3ProfileTrade}>{profileTrade}</Text>
             <View style={styles.proV3ProgressTrack}>
-              <View style={[styles.proV3ProgressFill, { width: profileCompletion + '%' }]} />
+              <View style={[styles.proV3ProgressFill, { width: (profileCompletion + '%') as any }]} />
             </View>
             <Text style={styles.proV3Completion}>{profileCompletion}% profile ready</Text>
           </View>
