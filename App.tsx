@@ -4319,6 +4319,7 @@ function TradeHomeScreen({
   const [profileTrade, setProfileTrade] = useState('Trade professional');
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+  const [radarBusy, setRadarBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -4490,6 +4491,47 @@ function TradeHomeScreen({
     await saveAvailability(available, duration, value);
   };
 
+  const demandAreas = [
+    { name: 'LE5 · Evington / Hamilton', jobs: 14, flexible: 9, urgent: 3, earning: 410, lat: 52.637, lng: -1.075 },
+    { name: 'LE2 · Oadby / Stoneygate', jobs: 11, flexible: 7, urgent: 2, earning: 335, lat: 52.607, lng: -1.087 },
+    { name: 'LE4 · Belgrave / Birstall', jobs: 8, flexible: 6, urgent: 1, earning: 260, lat: 52.670, lng: -1.120 },
+  ];
+
+  const workDemandArea = async (area: (typeof demandAreas)[number]) => {
+    setRadarBusy(area.name);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      setRadarBusy(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('trade_availability')
+      .update({
+        is_available: true,
+        location_mode: 'work_area',
+        work_area_label: area.name,
+        work_area_latitude: area.lat,
+        work_area_longitude: area.lng,
+        radius_miles: Math.max(radius, 5),
+        available_until: durationToUntil(duration),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id);
+
+    setRadarBusy(null);
+
+    if (error) {
+      Alert.alert('Could not move work area', error.message);
+      return;
+    }
+
+    setAvailable(true);
+    setLocationMode('work_area');
+    Alert.alert('Demand area selected', 'New matching jobs can now find you around ' + area.name + '.');
+  };
+
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
       <ScrollView contentContainerStyle={styles.tradePageV3} showsVerticalScrollIndicator={false}>
@@ -4615,6 +4657,72 @@ function TradeHomeScreen({
             </View>
             <Text style={styles.proV3QuickValue}>{profileCompletion}%</Text>
             <Text style={styles.proV3QuickLabel}>Profile readiness</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.radarCard}>
+          <View style={styles.radarTopRow}>
+            <View>
+              <Text style={styles.radarEyebrow}>DEMAND RADAR</Text>
+              <Text style={styles.radarTitle}>Go where the work is building.</Text>
+              <Text style={styles.radarSub}>Private demand clusters — exact customer addresses stay hidden.</Text>
+            </View>
+            <View style={styles.radarPulse}><View style={styles.radarPulseDot} /></View>
+          </View>
+
+          {demandAreas.map((area, index) => (
+            <Pressable
+              key={area.name}
+              style={[styles.radarArea, index === demandAreas.length - 1 && { marginBottom: 0 }]}
+              onPress={() => workDemandArea(area)}
+              disabled={radarBusy === area.name}
+            >
+              <View style={styles.radarAreaCount}>
+                <Text style={styles.radarAreaCountValue}>{area.jobs}</Text>
+                <Text style={styles.radarAreaCountLabel}>jobs</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.radarAreaName}>{area.name}</Text>
+                <Text style={styles.radarAreaMeta}>{area.flexible} flexible · {area.urgent} urgent · ~£{area.earning} demand</Text>
+              </View>
+              <View style={styles.radarAreaAction}>
+                {radarBusy === area.name
+                  ? <ActivityIndicator size="small" color={C.navy} />
+                  : <Text style={styles.radarAreaActionText}>Work here</Text>}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.routeFillCard}>
+          <View style={styles.routeFillHeader}>
+            <View style={styles.routeFillIcon}>
+              <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={20} color={C.orange} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.routeFillEyebrow}>ROUTE FILL</Text>
+              <Text style={styles.routeFillTitle}>Turn gaps into paid stops.</Text>
+            </View>
+          </View>
+          <Text style={styles.routeFillText}>
+            Flexible customer jobs can be inserted between booked work when the detour is small enough.
+          </Text>
+          {[
+            { time: '12:40', job: 'Leaking kitchen tap', detour: '+3 min', pay: '£52' },
+            { time: '15:10', job: 'Replace radiator valve', detour: '+5 min', pay: '£68' },
+          ].map(item => (
+            <View key={item.time} style={styles.routeFillRow}>
+              <View style={styles.routeFillTime}><Text style={styles.routeFillTimeText}>{item.time}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.routeFillJob}>{item.job}</Text>
+                <Text style={styles.routeFillMeta}>{item.detour} from route</Text>
+              </View>
+              <Text style={styles.routeFillPay}>{item.pay}</Text>
+            </View>
+          ))}
+          <Pressable style={styles.routeFillButton} onPress={() => navigate('tradeJobs')}>
+            <Text style={styles.routeFillButtonText}>Open route opportunities</Text>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={15} color={C.navy} />
           </Pressable>
         </View>
 
@@ -7291,6 +7399,37 @@ const styles = StyleSheet.create({
   relayOptions: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, gap: 6 },
   relayOption: { minHeight: 36, borderRadius: 13, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#285044', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   relayOptionText: { color: C.white, fontSize: 9, fontWeight: '800' },
+
+  radarCard: { borderRadius: 23, backgroundColor: '#F7F3E8', padding: 14, marginBottom: 12 },
+  radarTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
+  radarEyebrow: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
+  radarTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 18, fontWeight: '800', marginTop: 3 },
+  radarSub: { color: C.muted, fontSize: 9, lineHeight: 13, marginTop: 3, maxWidth: 255 },
+  radarPulse: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#E2EFDE', alignItems: 'center', justifyContent: 'center' },
+  radarPulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.green },
+  radarArea: { minHeight: 67, borderRadius: 17, backgroundColor: C.white, borderWidth: 1, borderColor: '#E1DCCF', flexDirection: 'row', alignItems: 'center', padding: 9, marginBottom: 7 },
+  radarAreaCount: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E8EEE7', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  radarAreaCountValue: { color: C.blue, fontSize: 16, fontWeight: '900' },
+  radarAreaCountLabel: { color: C.muted, fontSize: 7, fontWeight: '700' },
+  radarAreaName: { color: C.text, fontSize: 11, fontWeight: '900' },
+  radarAreaMeta: { color: C.muted, fontSize: 8, marginTop: 3 },
+  radarAreaAction: { minWidth: 61, minHeight: 32, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  radarAreaActionText: { color: C.navy, fontSize: 8, fontWeight: '900' },
+
+  routeFillCard: { borderRadius: 23, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', padding: 14, marginBottom: 18 },
+  routeFillHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  routeFillIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#1D493D', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  routeFillEyebrow: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  routeFillTitle: { color: C.white, fontSize: 16, fontWeight: '900', marginTop: 2 },
+  routeFillText: { color: '#91A198', fontSize: 9, lineHeight: 14, marginBottom: 10 },
+  routeFillRow: { minHeight: 55, borderTopWidth: 1, borderTopColor: '#285044', flexDirection: 'row', alignItems: 'center' },
+  routeFillTime: { width: 48 },
+  routeFillTimeText: { color: C.lime, fontSize: 10, fontWeight: '900' },
+  routeFillJob: { color: C.white, fontSize: 10, fontWeight: '800' },
+  routeFillMeta: { color: '#8FA299', fontSize: 8, marginTop: 2 },
+  routeFillPay: { color: C.white, fontSize: 14, fontWeight: '900' },
+  routeFillButton: { minHeight: 45, borderRadius: 14, backgroundColor: C.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10 },
+  routeFillButtonText: { color: C.navy, fontSize: 10, fontWeight: '900' },
 
 });
 
