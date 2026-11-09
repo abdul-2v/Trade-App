@@ -65,6 +65,7 @@ type CustomerScreen =
   | 'map'
   | 'profile'
   | 'urgent'
+  | 'route'
   | 'booking'
   | 'requests'
   | 'requestDetail'
@@ -538,6 +539,18 @@ export default function App() {
     );
   }
 
+  if (customerScreen === 'route') {
+    return (
+      <RouteSaverScreen
+        initialTrade={serviceIntent?.trade || (selectedCategory === 'All' ? 'Plumber' : selectedCategory)}
+        initialService={serviceIntent?.service}
+        back={() => setCustomerScreen('home')}
+        navigate={setCustomerScreen}
+        addRequest={request => setRequests(prev => [request, ...prev])}
+      />
+    );
+  }
+
   if (customerScreen === 'booking') {
     return (
       <BookingScreen
@@ -568,6 +581,11 @@ export default function App() {
         request={selectedRequest}
         navigate={setCustomerScreen}
         openTrade={openTrade}
+        startRelay={(trade, issue) => {
+          setSelectedCategory(trade);
+          setServiceIntent({ trade, service: issue, timing: 'Next few days' });
+          setCustomerScreen('map');
+        }}
       />
     );
   }
@@ -609,10 +627,11 @@ export default function App() {
       setSelectedCategory={setSelectedCategory}
       openTrade={openTrade}
       navigate={setCustomerScreen}
+      onOpenRoute={() => setCustomerScreen('route')}
       onStartIntent={(trade, service, timing) => {
         setSelectedCategory(trade);
         setServiceIntent({ trade, service, timing });
-        setCustomerScreen(timing === 'Now' ? 'urgent' : 'map');
+        setCustomerScreen(timing === 'Now' ? 'urgent' : timing === 'Flexible' ? 'route' : 'map');
       }}
     />
   );
@@ -710,12 +729,14 @@ function MarketplaceHomeScreen({
   openTrade,
   navigate,
   onStartIntent,
+  onOpenRoute,
 }: {
   selectedCategory: TradeCategory | 'All';
   setSelectedCategory: (category: TradeCategory | 'All') => void;
   openTrade: (trade: Trade) => void;
   navigate: (screen: CustomerScreen) => void;
   onStartIntent: (trade: TradeCategory, service: string, timing: string) => void;
+  onOpenRoute: () => void;
 }) {
   const [firstName, setFirstName] = useState('');
   const [address, setAddress] = useState('');
@@ -810,6 +831,31 @@ function MarketplaceHomeScreen({
           </View>
           <View style={styles.marketSearchArrow}>
             <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+          </View>
+        </Pressable>
+
+        <Pressable style={styles.routeHomeCard} onPress={onOpenRoute}>
+          <View style={styles.routeHomeTop}>
+            <View style={styles.routeHomeBadge}>
+              <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={15} color={C.navy} />
+              <Text style={styles.routeHomeBadgeText}>ON MY WAY</Text>
+            </View>
+            <Text style={styles.routeHomeSaving}>SAVE 15–30%</Text>
+          </View>
+          <Text style={styles.routeHomeTitle}>Flexible? Let the job come to you.</Text>
+          <Text style={styles.routeHomeSub}>
+            We fit your job into a nearby tradesperson's existing route, so they drive less and you pay less.
+          </Text>
+          <View style={styles.routeHomeFooter}>
+            <View style={styles.routeMiniPath}>
+              <View style={styles.routeMiniDot} />
+              <View style={styles.routeMiniLine} />
+              <View style={[styles.routeMiniDot, { backgroundColor: C.orange }]} />
+              <View style={styles.routeMiniLine} />
+              <View style={styles.routeMiniDot} />
+            </View>
+            <Text style={styles.routeHomeAction}>Find a route slot</Text>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={C.navy} />
           </View>
         </Pressable>
 
@@ -976,7 +1022,7 @@ function MarketplaceHomeScreen({
                   ['Now', 'Find someone available for an urgent job'],
                   ['Today', 'Show tradespeople who can fit you in today'],
                   ['Next few days', 'Compare nearby pros and arrange a time'],
-                  ['Flexible', 'Browse first and decide when you are ready'],
+                  ['Flexible', 'Save by fitting your job into a nearby tradesperson route'],
                 ].map(([timing, copy]) => (
                   <Pressable
                     key={timing}
@@ -998,7 +1044,7 @@ function MarketplaceHomeScreen({
                   onPress={finishFlow}
                   disabled={!flowTiming}
                 >
-                  <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : 'Show matching tradespeople'}</Text>
+                  <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : flowTiming === 'Flexible' ? 'Find cheaper route slots' : 'Show matching tradespeople'}</Text>
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
                 </Pressable>
               </View>
@@ -1006,6 +1052,189 @@ function MarketplaceHomeScreen({
           </View>
         </View>
       </Modal>
+    </CustomerShell>
+  );
+}
+
+
+function RouteSaverScreen({
+  initialTrade,
+  initialService,
+  back,
+  navigate,
+  addRequest,
+}: {
+  initialTrade: TradeCategory;
+  initialService?: string | null;
+  back: () => void;
+  navigate: (screen: CustomerScreen) => void;
+  addRequest: (request: RequestItem) => void;
+}) {
+  const [trade, setTrade] = useState<TradeCategory>(initialTrade);
+  const [service, setService] = useState(initialService || serviceCatalog[initialTrade][0]);
+  const [deadline, setDeadline] = useState<'Today' | '48 hours' | 'This week'>('48 hours');
+  const [selectedSlot, setSelectedSlot] = useState(0);
+
+  useEffect(() => {
+    setService(initialService || serviceCatalog[trade][0]);
+    setSelectedSlot(0);
+  }, [trade, initialService]);
+
+  const candidates = trades
+    .filter(item => item.role === trade && item.available)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 3);
+
+  const dayLabel = deadline === 'Today' ? 'Today' : deadline === '48 hours' ? 'Tomorrow' : 'Thu';
+  const slots = candidates.map((item, index) => {
+    const standard = Math.max(item.callout, 55);
+    const saving = Math.max(12, Math.round(standard * (0.18 + index * 0.03)));
+    const routePrice = standard - saving;
+    const detour = Math.max(2, Math.round(item.distance * 2.2 + index));
+    const times = ['12:40–1:20pm', '3:10–4:00pm', '9:30–10:15am'];
+    return { item, standard, saving, routePrice, detour, slot: times[index] || 'Flexible slot' };
+  });
+
+  const reserve = () => {
+    const match = slots[selectedSlot];
+    if (!match) return;
+    addRequest({
+      id: 'route-' + Date.now(),
+      trade,
+      issue: service,
+      urgency: 'On My Way · ' + dayLabel + ' ' + match.slot,
+      status: 'Route slot held',
+    });
+    Alert.alert(
+      'Route slot held',
+      match.item.name + ' can fit this job into an existing route. You save £' + match.saving + ' if the slot is confirmed.'
+    );
+    navigate('requests');
+  };
+
+  return (
+    <CustomerShell current="home" navigate={navigate}>
+      <ScrollView style={styles.routeScreen} contentContainerStyle={styles.routeScreenContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.routeHeader}>
+          <Pressable style={styles.routeBack} onPress={back}>
+            <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={18} color={C.text} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.routeEyebrow}>TRADARR ROUTE</Text>
+            <Text style={styles.routeTitle}>On My Way</Text>
+          </View>
+          <View style={styles.routeSavePill}><Text style={styles.routeSavePillText}>SAVE</Text></View>
+        </View>
+
+        <View style={styles.routeExplainCard}>
+          <View style={styles.routeExplainIcon}>
+            <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={24} color={C.orange} />
+          </View>
+          <Text style={styles.routeExplainTitle}>Pay less when you can be flexible.</Text>
+          <Text style={styles.routeExplainText}>
+            We look for professionals already passing close to your area with a gap in their day. Less dead mileage means a cheaper slot for you.
+          </Text>
+          <View style={styles.routeExplainSteps}>
+            <Text style={styles.routeExplainStep}>1  Pick the job</Text>
+            <Text style={styles.routeExplainStep}>2  Pick a deadline</Text>
+            <Text style={styles.routeExplainStep}>3  Take a route slot</Text>
+          </View>
+        </View>
+
+        <Text style={styles.routeSectionLabel}>WHAT NEEDS DOING</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.routeTradeRow}>
+          {customerCategoryOrder.map(item => (
+            <Pressable
+              key={item}
+              style={[styles.routeTradeChip, trade === item && styles.routeTradeChipActive]}
+              onPress={() => setTrade(item)}
+            >
+              <Text style={[styles.routeTradeChipText, trade === item && styles.routeTradeChipTextActive]}>{item}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.routeServiceRow}>
+          {serviceCatalog[trade].map(item => (
+            <Pressable
+              key={item}
+              style={[styles.routeServiceChip, service === item && styles.routeServiceChipActive]}
+              onPress={() => setService(item)}
+            >
+              <Text style={[styles.routeServiceChipText, service === item && styles.routeServiceChipTextActive]}>{item}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <Text style={styles.routeSectionLabel}>HOW FLEXIBLE ARE YOU?</Text>
+        <View style={styles.routeDeadlineRow}>
+          {(['Today', '48 hours', 'This week'] as const).map(item => (
+            <Pressable
+              key={item}
+              style={[styles.routeDeadline, deadline === item && styles.routeDeadlineActive]}
+              onPress={() => setDeadline(item)}
+            >
+              <Text style={[styles.routeDeadlineText, deadline === item && styles.routeDeadlineTextActive]}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.routeMatchHeader}>
+          <View>
+            <Text style={styles.routeMatchTitle}>Best route matches</Text>
+            <Text style={styles.routeMatchSub}>Slots are based on nearby work already in their day.</Text>
+          </View>
+          <View style={styles.routeMatchCount}><Text style={styles.routeMatchCountText}>{slots.length}</Text></View>
+        </View>
+
+        {slots.length ? slots.map((match, index) => (
+          <Pressable
+            key={match.item.id}
+            style={[styles.routeSlotCard, selectedSlot === index && styles.routeSlotCardActive]}
+            onPress={() => setSelectedSlot(index)}
+          >
+            <View style={styles.routeSlotTop}>
+              <Image source={{ uri: match.item.image }} style={styles.routeSlotAvatar} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.routeSlotName}>{match.item.name}</Text>
+                <Text style={styles.routeSlotMeta}>★ {match.item.rating} · {match.item.distance.toFixed(1)} mi away</Text>
+              </View>
+              <View style={styles.routeSlotSaving}><Text style={styles.routeSlotSavingText}>SAVE £{match.saving}</Text></View>
+            </View>
+
+            <View style={styles.routeSlotJourney}>
+              <View style={styles.routeSlotJourneyItem}>
+                <Text style={styles.routeSlotJourneyLabel}>ROUTE SLOT</Text>
+                <Text style={styles.routeSlotJourneyValue}>{dayLabel} · {match.slot}</Text>
+              </View>
+              <View style={styles.routeSlotDivider} />
+              <View style={styles.routeSlotJourneyItem}>
+                <Text style={styles.routeSlotJourneyLabel}>EXTRA DETOUR</Text>
+                <Text style={styles.routeSlotJourneyValue}>+{match.detour} min</Text>
+              </View>
+            </View>
+
+            <View style={styles.routePriceRow}>
+              <Text style={styles.routeWasPrice}>Standard £{match.standard}</Text>
+              <Text style={styles.routePrice}>£{match.routePrice}</Text>
+            </View>
+          </Pressable>
+        )) : (
+          <View style={styles.routeNoMatch}>
+            <Text style={styles.routeNoMatchTitle}>No route slots yet</Text>
+            <Text style={styles.routeNoMatchText}>Try a wider deadline or another trade. Normal nearby professionals are still available in Explore.</Text>
+          </View>
+        )}
+
+        {slots.length ? (
+          <Pressable style={styles.routeReserveButton} onPress={reserve}>
+            <Text style={styles.routeReserveText}>Hold this route slot</Text>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+          </Pressable>
+        ) : null}
+
+        <Text style={styles.routeFootnote}>Route slots are confirmed only after the professional accepts the stop in their schedule.</Text>
+      </ScrollView>
     </CustomerShell>
   );
 }
@@ -3103,10 +3332,12 @@ function RequestDetailScreen({
   request,
   navigate,
   openTrade,
+  startRelay,
 }: {
   request: RequestItem;
   navigate: (screen: CustomerScreen) => void;
   openTrade: (trade: Trade) => void;
+  startRelay: (trade: TradeCategory, issue: string) => void;
 }) {
   const isDemo = request.id.startsWith('demo-');
   const [loading, setLoading] = useState(!isDemo);
@@ -3442,6 +3673,41 @@ function RequestDetailScreen({
                 </View>
               </View>
             )}
+
+            {liveStatus === 'Completed' ? (
+              <View style={styles.relayCard}>
+                <View style={styles.relayHeader}>
+                  <View style={styles.relayIcon}>
+                    <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={19} color={C.orange} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.relayEyebrow}>TRADARR RELAY</Text>
+                    <Text style={styles.relayTitle}>Does the problem need another trade?</Text>
+                  </View>
+                </View>
+                <Text style={styles.relayText}>
+                  Pass the job context on instead of starting again. Your issue and previous trade stay attached to the next step.
+                </Text>
+                <View style={styles.relayOptions}>
+                  {(
+                    request.trade === 'Plumber'
+                      ? (['Builder', 'Electrician', 'Carpenter'] as TradeCategory[])
+                      : request.trade === 'Heating'
+                        ? (['Electrician', 'Plumber', 'Builder'] as TradeCategory[])
+                        : (['Plumber', 'Electrician', 'Builder'] as TradeCategory[])
+                  ).map(nextTrade => (
+                    <Pressable
+                      key={nextTrade}
+                      style={styles.relayOption}
+                      onPress={() => startRelay(nextTrade, 'Follow-on work after ' + request.trade + ': ' + request.issue)}
+                    >
+                      <Text style={styles.relayOptionText}>{nextTrade}</Text>
+                      <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={13} color={C.orange} />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
 
             {canCancel && liveStatus !== 'Cancelled' ? (
               <Pressable style={styles.requestDetailCancel} onPress={cancelRequest}>
@@ -6944,6 +7210,87 @@ const styles = StyleSheet.create({
   mapIntentText: { color: C.text, fontSize: 13, fontWeight: '800', marginTop: 2, maxWidth: 210 },
   mapIntentTiming: { borderRadius: 10, backgroundColor: '#E7EFE7', paddingHorizontal: 8, paddingVertical: 6 },
   mapIntentTimingText: { color: C.blue, fontSize: 9, fontWeight: '900' },
+
+  routeHomeCard: { minHeight: 160, borderRadius: 24, backgroundColor: C.lime, padding: 16, marginBottom: 12, overflow: 'hidden' },
+  routeHomeTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  routeHomeBadge: { minHeight: 28, borderRadius: 14, backgroundColor: 'rgba(24,27,23,0.09)', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  routeHomeBadgeText: { color: C.navy, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
+  routeHomeSaving: { color: C.blue, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  routeHomeTitle: { color: C.navy, fontFamily: DISPLAY_FONT, fontSize: 22, fontWeight: '800', letterSpacing: -0.55, marginTop: 15, maxWidth: 300 },
+  routeHomeSub: { color: '#46513A', fontSize: 11, lineHeight: 16, marginTop: 5, maxWidth: 315 },
+  routeHomeFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
+  routeMiniPath: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
+  routeMiniDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.blue },
+  routeMiniLine: { width: 16, height: 1.5, backgroundColor: '#728054' },
+  routeHomeAction: { flex: 1, color: C.navy, fontSize: 11, fontWeight: '900' },
+
+  routeScreen: { flex: 1, backgroundColor: C.canvas },
+  routeScreenContent: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 35 },
+  routeHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  routeBack: { width: 40, height: 40, borderRadius: 14, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  routeEyebrow: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.4 },
+  routeTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '800', letterSpacing: -0.8 },
+  routeSavePill: { borderRadius: 14, backgroundColor: C.lime, paddingHorizontal: 10, paddingVertical: 7 },
+  routeSavePillText: { color: C.navy, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  routeExplainCard: { borderRadius: 24, backgroundColor: '#071C16', padding: 17, marginBottom: 22 },
+  routeExplainIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#12362C', alignItems: 'center', justifyContent: 'center', marginBottom: 13 },
+  routeExplainTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
+  routeExplainText: { color: '#9BA9A0', fontSize: 11, lineHeight: 16, marginTop: 6 },
+  routeExplainSteps: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15, paddingTop: 13, borderTopWidth: 1, borderTopColor: '#24473C' },
+  routeExplainStep: { color: '#C7D0C9', fontSize: 8, fontWeight: '700', maxWidth: '31%' },
+  routeSectionLabel: { color: C.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1.35, marginBottom: 9, marginTop: 2 },
+  routeTradeRow: { paddingRight: 10, paddingBottom: 9 },
+  routeTradeChip: { minHeight: 38, borderRadius: 19, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginRight: 7 },
+  routeTradeChipActive: { backgroundColor: C.navy, borderColor: C.navy },
+  routeTradeChipText: { color: C.text, fontSize: 10, fontWeight: '800' },
+  routeTradeChipTextActive: { color: C.white },
+  routeServiceRow: { paddingRight: 10, paddingBottom: 18 },
+  routeServiceChip: { minHeight: 34, borderRadius: 12, backgroundColor: '#EAE6DB', paddingHorizontal: 11, alignItems: 'center', justifyContent: 'center', marginRight: 7 },
+  routeServiceChipActive: { backgroundColor: '#DDE9DF' },
+  routeServiceChipText: { color: C.muted, fontSize: 9, fontWeight: '700' },
+  routeServiceChipTextActive: { color: C.blue, fontWeight: '900' },
+  routeDeadlineRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 23 },
+  routeDeadline: { width: '31.5%', minHeight: 52, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+  routeDeadlineActive: { backgroundColor: C.lime, borderColor: C.lime },
+  routeDeadlineText: { color: C.muted, fontSize: 10, fontWeight: '800' },
+  routeDeadlineTextActive: { color: C.navy },
+  routeMatchHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  routeMatchTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800' },
+  routeMatchSub: { color: C.muted, fontSize: 9, marginTop: 2 },
+  routeMatchCount: { width: 31, height: 31, borderRadius: 16, backgroundColor: '#E3EADD', alignItems: 'center', justifyContent: 'center' },
+  routeMatchCountText: { color: C.blue, fontSize: 11, fontWeight: '900' },
+  routeSlotCard: { borderRadius: 22, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 13, marginBottom: 10 },
+  routeSlotCardActive: { borderColor: C.green, borderWidth: 2, backgroundColor: '#FAFCF8' },
+  routeSlotTop: { flexDirection: 'row', alignItems: 'center' },
+  routeSlotAvatar: { width: 48, height: 48, borderRadius: 15, marginRight: 10 },
+  routeSlotName: { color: C.text, fontSize: 14, fontWeight: '900' },
+  routeSlotMeta: { color: C.muted, fontSize: 9, marginTop: 3 },
+  routeSlotSaving: { borderRadius: 10, backgroundColor: '#E6F5E8', paddingHorizontal: 7, paddingVertical: 5 },
+  routeSlotSavingText: { color: C.green, fontSize: 8, fontWeight: '900' },
+  routeSlotJourney: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1EEE5', borderRadius: 15, padding: 10, marginTop: 12 },
+  routeSlotJourneyItem: { flex: 1 },
+  routeSlotJourneyLabel: { color: C.muted, fontSize: 7, fontWeight: '900', letterSpacing: 0.8 },
+  routeSlotJourneyValue: { color: C.text, fontSize: 10, fontWeight: '800', marginTop: 2 },
+  routeSlotDivider: { width: 1, height: 28, backgroundColor: '#D9D4C8', marginHorizontal: 10 },
+  routePriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 },
+  routeWasPrice: { color: '#99998F', fontSize: 9, textDecorationLine: 'line-through', marginRight: 8 },
+  routePrice: { color: C.text, fontSize: 19, fontWeight: '900' },
+  routeReserveButton: { minHeight: 58, borderRadius: 18, backgroundColor: C.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 5 },
+  routeReserveText: { color: C.navy, fontSize: 12, fontWeight: '900' },
+  routeFootnote: { color: C.muted, fontSize: 8, lineHeight: 12, textAlign: 'center', marginTop: 10, paddingHorizontal: 20 },
+  routeNoMatch: { borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 18, alignItems: 'center' },
+  routeNoMatchTitle: { color: C.text, fontSize: 15, fontWeight: '900' },
+  routeNoMatchText: { color: C.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 4 },
+
+  relayCard: { borderRadius: 22, backgroundColor: '#071C16', padding: 15, marginTop: 14, marginBottom: 10 },
+  relayHeader: { flexDirection: 'row', alignItems: 'center' },
+  relayIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#12362C', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  relayEyebrow: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
+  relayTitle: { color: C.white, fontSize: 14, fontWeight: '900', marginTop: 2 },
+  relayText: { color: '#91A198', fontSize: 9, lineHeight: 14, marginTop: 10 },
+  relayOptions: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, gap: 6 },
+  relayOption: { minHeight: 36, borderRadius: 13, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#285044', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  relayOptionText: { color: C.white, fontSize: 9, fontWeight: '800' },
 
 });
 
