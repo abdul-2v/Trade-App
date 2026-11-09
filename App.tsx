@@ -1074,11 +1074,14 @@ function RouteSaverScreen({
   const [service, setService] = useState(initialService || serviceCatalog[initialTrade][0]);
   const [deadline, setDeadline] = useState<'Today' | '48 hours' | 'This week'>('48 hours');
   const [selectedSlot, setSelectedSlot] = useState(0);
+  const [streetRun, setStreetRun] = useState(false);
 
   useEffect(() => {
-    setService(initialService || serviceCatalog[trade][0]);
+    if (!serviceCatalog[trade].includes(service)) {
+      setService(serviceCatalog[trade][0]);
+    }
     setSelectedSlot(0);
-  }, [trade, initialService]);
+  }, [trade]);
 
   const candidates = trades
     .filter(item => item.role === trade && item.available)
@@ -1098,16 +1101,17 @@ function RouteSaverScreen({
   const reserve = () => {
     const match = slots[selectedSlot];
     if (!match) return;
+    const extraStreetSaving = streetRun ? 8 : 0;
     addRequest({
       id: 'route-' + Date.now(),
       trade,
       issue: service,
-      urgency: 'On My Way · ' + dayLabel + ' ' + match.slot,
+      urgency: (streetRun ? 'Street Run' : 'On My Way') + ' · ' + dayLabel + ' ' + match.slot,
       status: 'Route slot held',
     });
     Alert.alert(
-      'Route slot held',
-      match.item.name + ' can fit this job into an existing route. You save £' + match.saving + ' if the slot is confirmed.'
+      streetRun ? 'Street Run slot held' : 'Route slot held',
+      match.item.name + ' can fit this job into an existing route. You save £' + (match.saving + extraStreetSaving) + ' if the slot is confirmed.'
     );
     navigate('requests');
   };
@@ -1120,7 +1124,7 @@ function RouteSaverScreen({
             <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={18} color={C.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.routeEyebrow}>TRADARR ROUTE</Text>
+            <Text style={styles.routeEyebrow}>TRADEHUB ROUTE</Text>
             <Text style={styles.routeTitle}>On My Way</Text>
           </View>
           <View style={styles.routeSavePill}><Text style={styles.routeSavePillText}>SAVE</Text></View>
@@ -1179,6 +1183,28 @@ function RouteSaverScreen({
           ))}
         </View>
 
+        {deadline !== 'Today' ? (
+          <Pressable
+            style={[styles.streetRunCard, streetRun && styles.streetRunCardActive]}
+            onPress={() => setStreetRun(value => !value)}
+          >
+            <View style={styles.streetRunIcon}>
+              <AppIcon icon={{ ios: 'house.and.flag.fill', android: 'location_city' }} size={20} color={streetRun ? C.navy : C.orange} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.streetRunTitleRow}>
+                <Text style={styles.streetRunEyebrow}>STREET RUN</Text>
+                <View style={styles.streetRunSave}><Text style={styles.streetRunSaveText}>EXTRA £8 OFF</Text></View>
+              </View>
+              <Text style={styles.streetRunTitle}>Join nearby jobs on the same run.</Text>
+              <Text style={styles.streetRunText}>4 homes within about 1.2 miles are waiting for small jobs. Batch the route and everyone pays less.</Text>
+            </View>
+            <View style={[styles.streetRunCheck, streetRun && styles.streetRunCheckActive]}>
+              {streetRun ? <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={14} color={C.navy} /> : null}
+            </View>
+          </Pressable>
+        ) : null}
+
         <View style={styles.routeMatchHeader}>
           <View>
             <Text style={styles.routeMatchTitle}>Best route matches</Text>
@@ -1199,7 +1225,7 @@ function RouteSaverScreen({
                 <Text style={styles.routeSlotName}>{match.item.name}</Text>
                 <Text style={styles.routeSlotMeta}>★ {match.item.rating} · {match.item.distance.toFixed(1)} mi away</Text>
               </View>
-              <View style={styles.routeSlotSaving}><Text style={styles.routeSlotSavingText}>SAVE £{match.saving}</Text></View>
+              <View style={styles.routeSlotSaving}><Text style={styles.routeSlotSavingText}>SAVE £{match.saving + (streetRun ? 8 : 0)}</Text></View>
             </View>
 
             <View style={styles.routeSlotJourney}>
@@ -1216,7 +1242,7 @@ function RouteSaverScreen({
 
             <View style={styles.routePriceRow}>
               <Text style={styles.routeWasPrice}>Standard £{match.standard}</Text>
-              <Text style={styles.routePrice}>£{match.routePrice}</Text>
+              <Text style={styles.routePrice}>£{Math.max(1, match.routePrice - (streetRun ? 8 : 0))}</Text>
             </View>
           </Pressable>
         )) : (
@@ -3312,7 +3338,7 @@ function RequestsScreen({
                 <View style={styles.requestStatusRow}>
                   <Badge
                     text={item.status}
-                    green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked'].includes(item.status)}
+                    green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked', 'Route slot held'].includes(item.status)}
                   />
                   <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color="#9AA6B3" />
                 </View>
@@ -3339,12 +3365,13 @@ function RequestDetailScreen({
   openTrade: (trade: Trade) => void;
   startRelay: (trade: TradeCategory, issue: string) => void;
 }) {
-  const isDemo = request.id.startsWith('demo-');
+  const isRoute = request.id.startsWith('route-');
+  const isDemo = request.id.startsWith('demo-') || isRoute || /^\d+$/.test(request.id);
   const [loading, setLoading] = useState(!isDemo);
   const [liveStatus, setLiveStatus] = useState(request.status);
   const [details, setDetails] = useState<any>(null);
   const [matchedTrade, setMatchedTrade] = useState<Trade | null>(() => {
-    if (!isDemo) return null;
+    if (!isDemo || isRoute) return null;
     return (
       trades
         .filter(item => item.role === request.trade && item.available)
@@ -3559,7 +3586,7 @@ function RequestDetailScreen({
 
   const displayIssue = details?.issue || request.issue;
   const displayUrgency = details?.urgency || request.urgency;
-  const rawStatus = details?.status || (isDemo ? 'matched' : 'searching');
+  const rawStatus = details?.status || (isRoute ? 'route_waiting' : isDemo ? 'matched' : 'searching');
   const canCancel = !['completed', 'cancelled', 'expired'].includes(rawStatus);
 
   return (
@@ -3587,14 +3614,14 @@ function RequestDetailScreen({
                   <Text style={styles.requestDetailUrgency}>{displayUrgency}</Text>
                 </View>
                 <Badge
-                  text={isDemo ? 'Matched (demo)' : liveStatus}
+                  text={isRoute ? liveStatus : isDemo ? 'Matched (demo)' : liveStatus}
                   green={['Matched', 'On the way', 'Arrived', 'Completed'].includes(liveStatus)}
                 />
               </View>
               <Text style={styles.requestDetailIssue}>{displayIssue}</Text>
             </View>
 
-            {isDemo ? (
+            {isDemo && !isRoute ? (
               <View style={styles.requestDemoNotice}>
                 <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={17} color={C.blue} />
                 <Text style={styles.requestDemoNoticeText}>
@@ -3663,12 +3690,14 @@ function RequestDetailScreen({
                 <ActivityIndicator color={C.blue} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.requestDetailSearchingTitle}>
-                    {liveStatus === 'Cancelled' ? 'Request cancelled' : 'Still searching'}
+                    {liveStatus === 'Cancelled' ? 'Request cancelled' : isRoute ? 'Route slot awaiting confirmation' : 'Still searching'}
                   </Text>
                   <Text style={styles.requestDetailSearchingText}>
                     {liveStatus === 'Cancelled'
                       ? 'This request is no longer being sent to tradespeople.'
-                      : 'TradeHub is waiting for one of the nearby available tradespeople to accept.'}
+                      : isRoute
+                        ? 'Your flexible slot is being held while the professional confirms it fits their existing route.'
+                        : 'TradeHub is waiting for one of the nearby available tradespeople to accept.'}
                   </Text>
                 </View>
               </View>
@@ -3681,7 +3710,7 @@ function RequestDetailScreen({
                     <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={19} color={C.orange} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.relayEyebrow}>TRADARR RELAY</Text>
+                    <Text style={styles.relayEyebrow}>TRADEHUB RELAY</Text>
                     <Text style={styles.relayTitle}>Does the problem need another trade?</Text>
                   </View>
                 </View>
@@ -7430,6 +7459,18 @@ const styles = StyleSheet.create({
   routeFillPay: { color: C.white, fontSize: 14, fontWeight: '900' },
   routeFillButton: { minHeight: 45, borderRadius: 14, backgroundColor: C.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10 },
   routeFillButtonText: { color: C.navy, fontSize: 10, fontWeight: '900' },
+
+  streetRunCard: { borderRadius: 20, backgroundColor: '#FFF3EA', borderWidth: 1, borderColor: '#F0D5C5', padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 17 },
+  streetRunCardActive: { backgroundColor: C.lime, borderColor: C.lime },
+  streetRunIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.58)', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  streetRunTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
+  streetRunEyebrow: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.1, marginRight: 7 },
+  streetRunSave: { borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.65)', paddingHorizontal: 6, paddingVertical: 3 },
+  streetRunSaveText: { color: C.green, fontSize: 7, fontWeight: '900' },
+  streetRunTitle: { color: C.text, fontSize: 13, fontWeight: '900' },
+  streetRunText: { color: '#696B64', fontSize: 9, lineHeight: 13, marginTop: 3, paddingRight: 5 },
+  streetRunCheck: { width: 25, height: 25, borderRadius: 13, borderWidth: 1.5, borderColor: '#B7B6AB', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  streetRunCheckActive: { backgroundColor: C.white, borderColor: C.white },
 
 });
 
