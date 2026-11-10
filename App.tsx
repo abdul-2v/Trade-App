@@ -4242,7 +4242,9 @@ function RequestDetailScreen({
   const displayIssue = details?.issue || request.issue;
   const displayUrgency = (isMarketJob ? details?.timing : details?.urgency) || request.urgency;
   const rawStatus = details?.status || (isDemo ? 'matched' : isMarketJob ? 'posted' : 'searching');
-  const canCancel = !['completed', 'cancelled', 'expired'].includes(rawStatus);
+  const canCancel = isMarketJob
+    ? ['posted', 'offered'].includes(rawStatus)
+    : !['completed', 'cancelled', 'expired'].includes(rawStatus);
 
   return (
     <CustomerShell current="requests" navigate={navigate}>
@@ -4270,7 +4272,7 @@ function RequestDetailScreen({
                 </View>
                 <Badge
                   text={isRoute ? liveStatus : isDemo ? 'Matched (demo)' : liveStatus}
-                  green={['Matched', 'On the way', 'Arrived', 'Completed'].includes(liveStatus)}
+                  green={['Matched', 'Accepted', 'On the way', 'Arrived', 'In progress', 'Completed'].includes(liveStatus)}
                 />
               </View>
               <Text style={styles.requestDetailIssue}>{displayIssue}</Text>
@@ -6122,66 +6124,31 @@ function TradeJobsScreen({
       return;
     }
 
-    if (response === 'declined') {
-      const { error } = await supabase
-        .from('job_offers')
-        .update({ status: 'declined', responded_at: new Date().toISOString() })
-        .eq('id', job.offerId)
-        .eq('tradesperson_id', user.id)
-        .eq('status', 'offered');
-
-      setBusyId(null);
-      if (error) Alert.alert('Could not decline', error.message);
-      await loadMarketJobs(user.id);
-      return;
-    }
-
-    const { data: claimed, error: claimError } = await supabase
-      .from('jobs')
+    const { data: updatedOffer, error } = await supabase
+      .from('job_offers')
       .update({
-        accepted_tradesperson_id: user.id,
-        accepted_at: new Date().toISOString(),
-        status: 'accepted',
-        updated_at: new Date().toISOString(),
+        status: response,
+        responded_at: new Date().toISOString(),
       })
-      .eq('id', job.request.id)
-      .in('status', ['posted', 'offered'])
-      .is('accepted_tradesperson_id', null)
-      .select('id')
+      .eq('id', job.offerId)
+      .eq('tradesperson_id', user.id)
+      .eq('status', 'offered')
+      .select('id, status')
       .maybeSingle();
 
-    if (claimError || !claimed) {
-      setBusyId(null);
-      Alert.alert('Job no longer available', 'Another tradesperson may have accepted this job first.');
+    setBusyId(null);
+
+    if (error || !updatedOffer) {
+      Alert.alert(
+        response === 'accepted' ? 'Job no longer available' : 'Could not decline',
+        response === 'accepted'
+          ? 'Another tradesperson may have accepted this job first.'
+          : error?.message || 'Please try again.'
+      );
       await loadMarketJobs(user.id);
       return;
     }
 
-    await supabase
-      .from('job_offers')
-      .update({ status: 'accepted', responded_at: new Date().toISOString() })
-      .eq('id', job.offerId)
-      .eq('tradesperson_id', user.id);
-
-    const { data: tradeProfile } = await supabase
-      .from('tradesperson_profiles')
-      .select('display_name, primary_trade, avatar_url')
-      .eq('user_id', user.id)
-      .single();
-
-    await supabase.from('conversations').upsert(
-      {
-        customer_id: job.request.customer_id,
-        tradesperson_id: user.id,
-        tradesperson_display_name: tradeProfile?.display_name || 'Tradesperson',
-        tradesperson_trade: tradeProfile?.primary_trade || job.request.trade,
-        tradesperson_avatar_url: tradeProfile?.avatar_url || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'customer_id,tradesperson_id' }
-    );
-
-    setBusyId(null);
     await loadMarketJobs(user.id);
   };
 
@@ -6236,7 +6203,9 @@ function TradeJobsScreen({
   const active = jobs.filter(job => job.offerStatus === 'accepted');
   const offered = jobs.filter(job => job.offerStatus === 'offered');
   const marketActive = marketJobs.filter(job => job.offerStatus === 'accepted');
-  const marketOffered = marketJobs.filter(job => job.offerStatus === 'offered');
+  const marketOffered = marketJobs.filter(
+    job => job.offerStatus === 'offered' && ['posted', 'offered'].includes(job.request.status)
+  );
 
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
