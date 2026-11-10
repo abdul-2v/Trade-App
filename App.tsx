@@ -2284,7 +2284,7 @@ function TradeProfileScreen({
           ) : null}
 
           {tab === 'Reviews' ? (
-            <View style={styles.reviewCard}>
+            <View style={styles.jobReviewCard}>
               <Text style={styles.reviewName}>Sarah L. · ⭐⭐⭐⭐⭐</Text>
               <Text style={styles.bodyText}>Fantastic service. Arrived quickly, explained the problem clearly and left everything clean.</Text>
             </View>
@@ -7713,7 +7713,7 @@ const styles = StyleSheet.create({
   streetRunCheck: { width: 25, height: 25, borderRadius: 13, borderWidth: 1.5, borderColor: '#B7B6AB', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   streetRunCheckActive: { backgroundColor: C.white, borderColor: C.white },
 
-  reviewCard: { borderRadius: 22, backgroundColor: '#FFFDF8', borderWidth: 1, borderColor: C.line, padding: 15, marginTop: 14 },
+  jobReviewCard: { borderRadius: 22, backgroundColor: '#FFFDF8', borderWidth: 1, borderColor: C.line, padding: 15, marginTop: 14 },
   reviewHeaderRow: { flexDirection: 'row', alignItems: 'center' },
   reviewIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#F5EDD8', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   reviewEyebrow: { color: C.green, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
