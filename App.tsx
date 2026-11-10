@@ -2949,7 +2949,7 @@ function UrgentScreen({
             <View style={styles.dispatchTrackingLabelRow}>
               <View style={styles.dispatchTrackingDot} />
               <Text style={styles.dispatchTrackingLabel}>
-                ${demoMode ? 'Demo position' : 'Live tradesperson location'}
+                {demoMode ? 'Demo position' : 'Live tradesperson location'}
               </Text>
             </View>
             <MapMock trades={[matchedTrade]} onTrade={() => openTrade(matchedTrade)} compact />
@@ -3378,6 +3378,11 @@ function RequestDetailScreen({
         .sort((a, b) => a.eta - b.eta)[0] || null
     );
   });
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+
 
   const buildMatchedTrade = async (row: any) => {
     if (!row?.accepted_tradesperson_id) {
@@ -3461,6 +3466,22 @@ function RequestDetailScreen({
     setDetails(data);
     setLiveStatus(dispatchStatusLabel(data.status));
     await buildMatchedTrade(data);
+
+    if (data.status === 'completed') {
+      const { data: reviewRows } = await supabase
+        .from('job_reviews')
+        .select('rating, comment')
+        .eq('request_id', request.id)
+        .limit(1);
+
+      const existingReview = reviewRows?.[0];
+      if (existingReview) {
+        setReviewRating(Number(existingReview.rating) || 0);
+        setReviewComment(existingReview.comment || '');
+        setReviewSubmitted(true);
+      }
+    }
+
     setLoading(false);
   };
 
@@ -3584,6 +3605,61 @@ function RequestDetailScreen({
     navigate('messages');
   };
 
+  const submitReview = async () => {
+    if (isDemo || !details?.accepted_tradesperson_id || reviewSubmitted) return;
+
+    if (!reviewRating) {
+      Alert.alert('Choose a rating', 'Tap a star before submitting your review.');
+      return;
+    }
+
+    setReviewBusy(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setReviewBusy(false);
+      return;
+    }
+
+    const { error } = await supabase.from('job_reviews').insert({
+      request_id: request.id,
+      customer_id: user.id,
+      tradesperson_id: details.accepted_tradesperson_id,
+      rating: reviewRating,
+      comment: reviewComment.trim() || null,
+    });
+
+    if (error) {
+      setReviewBusy(false);
+      Alert.alert('Could not submit review', error.message);
+      return;
+    }
+
+    const { data: ratingRow } = await supabase
+      .from('tradesperson_profiles')
+      .select('rating, review_count')
+      .eq('user_id', details.accepted_tradesperson_id)
+      .single();
+
+    if (ratingRow) {
+      setMatchedTrade(previous =>
+        previous
+          ? {
+              ...previous,
+              rating: Number(ratingRow.rating) || reviewRating,
+              reviews: Number(ratingRow.review_count) || 1,
+            }
+          : previous
+      );
+    }
+
+    setReviewSubmitted(true);
+    setReviewBusy(false);
+  };
+
   const displayIssue = details?.issue || request.issue;
   const displayUrgency = details?.urgency || request.urgency;
   const rawStatus = details?.status || (isRoute ? 'route_waiting' : isDemo ? 'matched' : 'searching');
@@ -3703,6 +3779,60 @@ function RequestDetailScreen({
               </View>
             )}
 
+            {liveStatus === 'Completed' && !isDemo && matchedTrade ? (
+              <View style={styles.reviewCard}>
+                <View style={styles.reviewHeaderRow}>
+                  <View style={styles.reviewIcon}>
+                    <AppIcon icon={{ ios: 'star.fill', android: 'star' }} size={19} color={C.gold} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reviewEyebrow}>JOB COMPLETE</Text>
+                    <Text style={styles.reviewTitle}>
+                      {reviewSubmitted ? 'Thanks for your review' : 'How did it go?'}
+                    </Text>
+                  </View>
+                </View>
+
+                {reviewSubmitted ? (
+                  <View style={styles.reviewSubmittedRow}>
+                    <Text style={styles.reviewSubmittedStars}>{'★'.repeat(reviewRating)}</Text>
+                    <Text style={styles.reviewSubmittedText}>Your rating is now part of this tradesperson's live profile.</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.reviewText}>Rate {matchedTrade.name}. This can only be submitted after a completed real job.</Text>
+                    <View style={styles.reviewStars}>
+                      {[1, 2, 3, 4, 5].map(value => (
+                        <Pressable
+                          key={value}
+                          style={styles.reviewStarButton}
+                          onPress={() => setReviewRating(value)}
+                        >
+                          <Text style={[styles.reviewStar, value <= reviewRating && styles.reviewStarActive]}>★</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <TextInput
+                      value={reviewComment}
+                      onChangeText={setReviewComment}
+                      style={styles.reviewInput}
+                      placeholder="Anything useful for future customers? (optional)"
+                      placeholderTextColor="#8E918A"
+                      multiline
+                      maxLength={500}
+                    />
+                    <Pressable
+                      style={[styles.reviewSubmit, (!reviewRating || reviewBusy) && { opacity: 0.45 }]}
+                      onPress={submitReview}
+                      disabled={!reviewRating || reviewBusy}
+                    >
+                      {reviewBusy ? <ActivityIndicator color={C.navy} /> : <Text style={styles.reviewSubmitText}>Submit review</Text>}
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            ) : null}
+
             {liveStatus === 'Completed' ? (
               <View style={styles.relayCard}>
                 <View style={styles.relayHeader}>
@@ -3792,7 +3922,7 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
 
     const { data: rows, error } = await supabase
       .from('conversations')
-      .select('id, tradesperson_id, updated_at')
+      .select('id, tradesperson_id, tradesperson_display_name, tradesperson_trade, tradesperson_avatar_url, updated_at')
       .eq('customer_id', user.id)
       .order('updated_at', { ascending: false });
 
@@ -3802,22 +3932,13 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
       return;
     }
 
-    const tradeIds = Array.from(new Set(rows.map(row => row.tradesperson_id)));
     const conversationIds = rows.map(row => row.id);
+    const { data: latestMessages } = await supabase
+      .from('messages')
+      .select('conversation_id, body, created_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
 
-    const [{ data: profiles }, { data: latestMessages }] = await Promise.all([
-      supabase
-        .from('tradesperson_profiles')
-        .select('user_id, display_name, primary_trade, avatar_url')
-        .in('user_id', tradeIds),
-      supabase
-        .from('messages')
-        .select('conversation_id, body, created_at')
-        .in('conversation_id', conversationIds)
-        .order('created_at', { ascending: false }),
-    ]);
-
-    const profileMap = new Map((profiles ?? []).map(profile => [profile.user_id, profile]));
     const latestByConversation = new Map<string, { body: string; created_at: string }>();
 
     for (const item of latestMessages ?? []) {
@@ -3828,16 +3949,15 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
 
     setConversations(
       rows.map(row => {
-        const profile = profileMap.get(row.tradesperson_id);
         const latest = latestByConversation.get(row.id);
 
         return {
           id: row.id,
           tradespersonId: row.tradesperson_id,
-          name: profile?.display_name || 'Tradesperson',
-          trade: profile?.primary_trade || 'Trade professional',
-          avatar: profile?.avatar_url || null,
-          lastMessage: latest?.body || 'Conversation started',
+          name: row.tradesperson_display_name || 'Tradesperson',
+          trade: row.tradesperson_trade || 'Trade professional',
+          avatar: row.tradesperson_avatar_url || null,
+          lastMessage: latest?.body || 'You are connected — say hello.',
           updatedAt: latest?.created_at || row.updated_at,
         };
       })
@@ -3847,7 +3967,42 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
   };
 
   useEffect(() => {
-    loadInbox();
+    let channel: any = null;
+    let active = true;
+
+    const start = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) {
+        setLoadingInbox(false);
+        return;
+      }
+
+      await loadInbox();
+
+      channel = supabase
+        .channel('customer-conversations-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'conversations',
+            filter: 'customer_id=eq.' + user.id,
+          },
+          () => loadInbox()
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      active = false;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -3857,21 +4012,49 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
     }
 
     let active = true;
+    let channel: any = null;
     setLoadingThread(true);
 
-    supabase
-      .from('messages')
-      .select('id, sender_id, body, created_at')
-      .eq('conversation_id', selectedConversation.id)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => {
-        if (!active) return;
-        setThread((data as LiveMessage[]) ?? []);
-        setLoadingThread(false);
-      });
+    const start = async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('id, sender_id, body, created_at')
+        .eq('conversation_id', selectedConversation.id)
+        .order('created_at', { ascending: true });
+
+      if (!active) return;
+
+      setThread((data as LiveMessage[]) ?? []);
+      setLoadingThread(false);
+
+      channel = supabase
+        .channel('customer-thread-' + selectedConversation.id)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: 'conversation_id=eq.' + selectedConversation.id,
+          },
+          payload => {
+            const incoming = payload.new as LiveMessage;
+            setThread(previous =>
+              previous.some(item => item.id === incoming.id)
+                ? previous
+                : [...previous, incoming]
+            );
+            loadInbox();
+          }
+        )
+        .subscribe();
+    };
+
+    start();
 
     return () => {
       active = false;
+      if (channel) supabase.removeChannel(channel);
     };
   }, [selectedConversation?.id]);
 
@@ -3896,12 +4079,9 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
       return;
     }
 
-    setThread(prev => [...prev, data as LiveMessage]);
-
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', selectedConversation.id);
+    setThread(prev =>
+      prev.some(item => item.id === data.id) ? prev : [...prev, data as LiveMessage]
+    );
 
     loadInbox();
   };
@@ -5245,31 +5425,25 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
 
     setUserId(user.id);
 
-    const { data: rows } = await supabase
+    const { data: rows, error } = await supabase
       .from('conversations')
-      .select('id, customer_id, updated_at')
+      .select('id, customer_id, customer_display_name, updated_at')
       .eq('tradesperson_id', user.id)
       .order('updated_at', { ascending: false });
 
-    if (!rows?.length) {
+    if (error || !rows?.length) {
       setConversations([]);
       setLoading(false);
       return;
     }
 
-    const customerIds = Array.from(new Set(rows.map(row => row.customer_id)));
     const conversationIds = rows.map(row => row.id);
+    const { data: latestMessages } = await supabase
+      .from('messages')
+      .select('conversation_id, body, created_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
 
-    const [{ data: customers }, { data: latestMessages }] = await Promise.all([
-      supabase.from('profiles').select('id, first_name, last_name').in('id', customerIds),
-      supabase
-        .from('messages')
-        .select('conversation_id, body, created_at')
-        .in('conversation_id', conversationIds)
-        .order('created_at', { ascending: false }),
-    ]);
-
-    const customerMap = new Map((customers ?? []).map(person => [person.id, person]));
     const latestMap = new Map<string, { body: string; created_at: string }>();
 
     for (const item of latestMessages ?? []) {
@@ -5278,14 +5452,13 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
 
     setConversations(
       rows.map(row => {
-        const person = customerMap.get(row.customer_id);
         const latest = latestMap.get(row.id);
-        const name = [person?.first_name, person?.last_name].filter(Boolean).join(' ') || 'Customer';
+
         return {
           id: row.id,
           customerId: row.customer_id,
-          customerName: name,
-          lastMessage: latest?.body || 'Conversation started',
+          customerName: row.customer_display_name || 'Customer',
+          lastMessage: latest?.body || 'You are connected — say hello.',
           updatedAt: latest?.created_at || row.updated_at,
         };
       })
@@ -5295,7 +5468,42 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
   };
 
   useEffect(() => {
-    loadInbox();
+    let channel: any = null;
+    let active = true;
+
+    const start = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) {
+        setLoading(false);
+        return;
+      }
+
+      await loadInbox();
+
+      channel = supabase
+        .channel('trade-conversations-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'conversations',
+            filter: 'tradesperson_id=eq.' + user.id,
+          },
+          () => loadInbox()
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      active = false;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -5304,12 +5512,48 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
       return;
     }
 
-    supabase
-      .from('messages')
-      .select('id, sender_id, body, created_at')
-      .eq('conversation_id', selected.id)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => setThread((data as TradeLiveMessage[]) ?? []));
+    let active = true;
+    let channel: any = null;
+
+    const start = async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('id, sender_id, body, created_at')
+        .eq('conversation_id', selected.id)
+        .order('created_at', { ascending: true });
+
+      if (!active) return;
+      setThread((data as TradeLiveMessage[]) ?? []);
+
+      channel = supabase
+        .channel('trade-thread-' + selected.id)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: 'conversation_id=eq.' + selected.id,
+          },
+          payload => {
+            const incoming = payload.new as TradeLiveMessage;
+            setThread(previous =>
+              previous.some(item => item.id === incoming.id)
+                ? previous
+                : [...previous, incoming]
+            );
+            loadInbox();
+          }
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      active = false;
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [selected?.id]);
 
   const send = async () => {
@@ -5330,12 +5574,9 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
       return;
     }
 
-    setThread(current => [...current, data as TradeLiveMessage]);
-
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', selected.id);
+    setThread(current =>
+      current.some(item => item.id === data.id) ? current : [...current, data as TradeLiveMessage]
+    );
 
     loadInbox();
   };
@@ -7471,6 +7712,23 @@ const styles = StyleSheet.create({
   streetRunText: { color: '#696B64', fontSize: 9, lineHeight: 13, marginTop: 3, paddingRight: 5 },
   streetRunCheck: { width: 25, height: 25, borderRadius: 13, borderWidth: 1.5, borderColor: '#B7B6AB', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   streetRunCheckActive: { backgroundColor: C.white, borderColor: C.white },
+
+  reviewCard: { borderRadius: 22, backgroundColor: '#FFFDF8', borderWidth: 1, borderColor: C.line, padding: 15, marginTop: 14 },
+  reviewHeaderRow: { flexDirection: 'row', alignItems: 'center' },
+  reviewIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#F5EDD8', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  reviewEyebrow: { color: C.green, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  reviewTitle: { color: C.text, fontSize: 16, fontWeight: '900', marginTop: 2 },
+  reviewText: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 11 },
+  reviewStars: { flexDirection: 'row', marginTop: 10, marginBottom: 10 },
+  reviewStarButton: { paddingRight: 7, paddingVertical: 3 },
+  reviewStar: { fontSize: 31, color: '#D8D5CB' },
+  reviewStarActive: { color: C.gold },
+  reviewInput: { minHeight: 78, borderRadius: 15, backgroundColor: C.pale, borderWidth: 1, borderColor: C.line, paddingHorizontal: 12, paddingVertical: 10, color: C.text, fontSize: 11, textAlignVertical: 'top' },
+  reviewSubmit: { minHeight: 47, borderRadius: 15, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  reviewSubmitText: { color: C.navy, fontSize: 11, fontWeight: '900' },
+  reviewSubmittedRow: { marginTop: 12, borderRadius: 15, backgroundColor: '#F2F5EA', padding: 12 },
+  reviewSubmittedStars: { color: C.gold, fontSize: 20, letterSpacing: 2 },
+  reviewSubmittedText: { color: C.muted, fontSize: 9, lineHeight: 14, marginTop: 5 },
 
 });
 
