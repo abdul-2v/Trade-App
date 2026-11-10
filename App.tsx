@@ -514,12 +514,52 @@ export default function App() {
     return (
       <TradeProfileScreen
         trade={selectedTrade}
-        back={() => setCustomerScreen('home')}
-        message={() => {
-          Alert.alert(
-            'Demo profile',
-            'This profile is sample data. Messaging is enabled automatically for real tradesperson accounts.'
+        back={() => setCustomerScreen('map')}
+        message={async () => {
+          if (!selectedTrade.id.startsWith('live-')) {
+            Alert.alert(
+              'Demo profile',
+              'This is sample marketplace data. Create a real tradesperson account to test live conversations.'
+            );
+            return;
+          }
+
+          const tradespersonId = selectedTrade.id.replace('live-', '');
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (!user) return;
+
+          const { data: customerProfile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', user.id)
+            .single();
+
+          const customerName =
+            [customerProfile?.first_name, customerProfile?.last_name].filter(Boolean).join(' ') ||
+            'Customer';
+
+          const { error } = await supabase.from('conversations').upsert(
+            {
+              customer_id: user.id,
+              tradesperson_id: tradespersonId,
+              customer_display_name: customerName,
+              tradesperson_display_name: selectedTrade.name,
+              tradesperson_trade: selectedTrade.role,
+              tradesperson_avatar_url: selectedTrade.image,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'customer_id,tradesperson_id' }
           );
+
+          if (error) {
+            Alert.alert('Could not open conversation', error.message);
+            return;
+          }
+
+          setCustomerScreen('messages');
         }}
         book={() => setCustomerScreen('booking')}
       />
@@ -2347,6 +2387,7 @@ function TradeProfileScreen({
 }) {
   const [tab, setTab] = useState<'About' | 'Services' | 'Reviews' | 'Gallery'>('About');
   const [saved, setSaved] = useState(false);
+  const isLiveProfile = trade.id.startsWith('live-');
 
   return (
     <CustomerShell>
@@ -2378,25 +2419,29 @@ function TradeProfileScreen({
         </View>
 
         <View style={styles.profileSheet}>
-          <Text style={styles.profileName}>{trade.name} <Text style={{ color: C.blue }}>✓</Text></Text>
+          <Text style={styles.profileName}>
+            {trade.name}{trade.verified ? <Text style={{ color: C.blue }}> ✓</Text> : null}
+          </Text>
           <Text style={styles.profileRole}>{trade.role}{trade.secondaryRole ? ' · ' + trade.secondaryRole : ''}</Text>
           <View style={styles.profileMetaRow}>
-            <Text style={styles.ratingText}>⭐ {trade.rating} <Text style={styles.muted}>({trade.reviews} reviews)</Text></Text>
+            <Text style={styles.ratingText}>
+              {trade.reviews > 0 ? '⭐ ' + trade.rating + ' (' + trade.reviews + ' reviews)' : 'New on TradeHub'}
+            </Text>
             <Text style={styles.muted}>⌖ {trade.distance} miles away</Text>
           </View>
 
           <View style={styles.badgeRow}>
-            <Badge text="● Available now" green />
+            <Badge text={trade.available ? '● Available now' : 'Offline'} green={trade.available} />
             {trade.verified ? <Badge text="✓ Verified" /> : null}
             {trade.insured ? <Badge text="◆ Insured" dark /> : null}
             {trade.gasSafe ? <Badge text="⚠ Gas Safe" gold /> : null}
           </View>
 
           <View style={styles.statRow}>
-            <Stat icon="⚡" value={'in ' + trade.response + ' mins'} label="Typically responds" />
-            <Stat icon="◷" value={trade.years + '+ years'} label="Experience" />
-            <Stat icon="£" value={'from £' + trade.callout} label="Call-out" />
-            <Stat icon="◇" value="Guaranteed" label="Work" />
+            <Stat icon="⚡" value={isLiveProfile ? (trade.available ? 'Live now' : 'Offline') : 'in ' + trade.response + ' mins'} label={isLiveProfile ? 'Availability' : 'Typically responds'} />
+            <Stat icon="◷" value={trade.years > 0 ? trade.years + '+ years' : 'Not added'} label="Experience" />
+            <Stat icon="£" value={trade.callout > 0 ? 'from £' + trade.callout : 'Ask'} label="Call-out" />
+            <Stat icon="◇" value={trade.verified ? 'Verified' : 'New'} label="Profile" />
           </View>
 
           <View style={styles.tabs}>
@@ -2428,7 +2473,7 @@ function TradeProfileScreen({
               {trade.services.map(service => (
                 <View key={service} style={styles.lineRow}>
                   <Text style={styles.lineTitle}>{service}</Text>
-                  <Text style={styles.lineRight}>From £{trade.callout}</Text>
+                  <Text style={styles.lineRight}>{trade.callout > 0 ? 'From £' + trade.callout : 'Ask for price'}</Text>
                 </View>
               ))}
             </View>
@@ -2436,24 +2481,50 @@ function TradeProfileScreen({
 
           {tab === 'Reviews' ? (
             <View style={styles.jobReviewCard}>
-              <Text style={styles.reviewName}>Sarah L. · ⭐⭐⭐⭐⭐</Text>
-              <Text style={styles.bodyText}>Fantastic service. Arrived quickly, explained the problem clearly and left everything clean.</Text>
+              {isLiveProfile ? (
+                <>
+                  <Text style={styles.reviewName}>
+                    {trade.reviews > 0 ? trade.reviews + ' verified job review' + (trade.reviews === 1 ? '' : 's') : 'No verified reviews yet'}
+                  </Text>
+                  <Text style={styles.bodyText}>
+                    {trade.reviews > 0
+                      ? 'The ' + trade.rating + '/5 rating above is calculated only from completed TradeHub jobs.'
+                      : 'Reviews appear here only after a real TradeHub job has been completed and the customer submits a rating.'}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.reviewName}>Demo review · ⭐⭐⭐⭐⭐</Text>
+                  <Text style={styles.bodyText}>Sample review content for the demo marketplace profile.</Text>
+                </>
+              )}
             </View>
           ) : null}
 
           {tab === 'Gallery' ? (
-            <View style={styles.galleryGrid}>
-              {[1, 2, 3, 4].map(n => (
-                <View key={n} style={styles.galleryTile}><Text style={styles.galleryEmoji}>{['🚿', '🔧', '🏠', '♨'][n - 1]}</Text></View>
-              ))}
-            </View>
+            isLiveProfile ? (
+              <View style={styles.jobReviewCard}>
+                <Text style={styles.reviewName}>No portfolio photos yet</Text>
+                <Text style={styles.bodyText}>Real portfolio uploads will appear here once this professional adds them.</Text>
+              </View>
+            ) : (
+              <View style={styles.galleryGrid}>
+                {[1, 2, 3, 4].map(n => (
+                  <View key={n} style={styles.galleryTile}><Text style={styles.galleryEmoji}>{['🚿', '🔧', '🏠', '♨'][n - 1]}</Text></View>
+                ))}
+              </View>
+            )
           ) : null}
         </View>
       </ScrollView>
 
       <View style={styles.actionBar}>
-        <Pressable style={styles.secondaryAction} onPress={() => Linking.openURL('tel:' + trade.phone)}>
-          <Text style={styles.secondaryActionText}>☎ Call</Text>
+        <Pressable
+          style={[styles.secondaryAction, !trade.phone && { opacity: 0.38 }]}
+          disabled={!trade.phone}
+          onPress={() => trade.phone && Linking.openURL('tel:' + trade.phone)}
+        >
+          <Text style={styles.secondaryActionText}>{trade.phone ? '☎ Call' : 'No phone'}</Text>
         </Pressable>
         <Pressable style={styles.secondaryAction} onPress={message}>
           <Text style={styles.secondaryActionText}>◌ Message</Text>
