@@ -598,17 +598,110 @@ export default function App() {
         initialService={serviceIntent?.service}
         initialTiming={serviceIntent?.timing}
         back={() => setCustomerScreen('profile')}
-        complete={() => {
+        complete={async booking => {
+          if (!selectedTrade.id.startsWith('live-')) {
+            setRequests(prev => [
+              {
+                id: 'demo-booking-' + Date.now(),
+                trade: selectedTrade.role,
+                issue: booking.service + ' with ' + selectedTrade.name,
+                urgency: booking.date + ' · ' + booking.time,
+                status: 'Booked (demo)',
+              },
+              ...prev,
+            ]);
+            setCustomerScreen('requests');
+            return;
+          }
+
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (!user) throw new Error('Please sign in again.');
+
+          const permission = await Location.requestForegroundPermissionsAsync();
+          if (permission.status !== 'granted') {
+            throw new Error('Location permission is needed so the tradesperson knows the job area.');
+          }
+
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+
+          const tradespersonId = selectedTrade.id.replace('live-', '');
+          const { data: request, error: requestError } = await supabase
+            .from('urgent_requests')
+            .insert({
+              customer_id: user.id,
+              trade: selectedTrade.role,
+              issue: booking.service,
+              urgency: booking.date + ' · ' + booking.time,
+              latitude: Number(coords.latitude.toFixed(2)),
+              longitude: Number(coords.longitude.toFixed(2)),
+              location_label: 'Approximate scheduled job area',
+              photo_url: null,
+              search_radius_miles: Math.max(1, Math.ceil(selectedTrade.distance + 1)),
+              status: 'searching',
+            })
+            .select('id')
+            .single();
+
+          if (requestError || !request) {
+            throw requestError || new Error('Could not create booking request.');
+          }
+
+          const { error: locationError } = await supabase
+            .from('urgent_request_locations')
+            .insert({
+              request_id: request.id,
+              customer_id: user.id,
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+            });
+
+          if (locationError) {
+            await supabase
+              .from('urgent_requests')
+              .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+              .eq('id', request.id);
+            throw locationError;
+          }
+
+          const { error: offerError } = await supabase
+            .from('urgent_request_offers')
+            .insert({
+              request_id: request.id,
+              tradesperson_id: tradespersonId,
+              distance_miles: Number(selectedTrade.distance.toFixed(2)),
+              eta_minutes: Math.max(8, selectedTrade.eta),
+              status: 'offered',
+            });
+
+          if (offerError) {
+            await supabase
+              .from('urgent_requests')
+              .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+              .eq('id', request.id);
+            throw offerError;
+          }
+
           setRequests(prev => [
             {
-              id: String(Date.now()),
+              id: request.id,
               trade: selectedTrade.role,
-              issue: 'Booking with ' + selectedTrade.name,
-              urgency: 'Scheduled',
-              status: 'Booked',
+              issue: booking.service + ' with ' + selectedTrade.name,
+              urgency: booking.date + ' · ' + booking.time,
+              status: 'Awaiting response',
             },
             ...prev,
           ]);
+
           setCustomerScreen('requests');
         }}
       />
@@ -3384,7 +3477,7 @@ function BookingScreen({
 }: {
   trade: Trade;
   back: () => void;
-  complete: () => void;
+  complete: (booking: { service: string; date: string; time: string }) => Promise<void> | void;
   initialService?: string | null;
   initialTiming?: string | null;
 }) {
@@ -3393,6 +3486,22 @@ function BookingScreen({
   const times = ['08:00–10:00', '10:00–12:00', '14:00–16:00', 'Flexible'];
   const [dateIndex, setDateIndex] = useState(initialTiming === 'Today' ? 0 : 1);
   const [timeIndex, setTimeIndex] = useState(initialTiming === 'Flexible' ? 3 : 1);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submitBooking = async () => {
+    setSubmitting(true);
+    try {
+      await complete({
+        service,
+        date: dates[dateIndex],
+        time: times[timeIndex],
+      });
+    } catch (error: any) {
+      Alert.alert('Could not send booking request', error?.message || 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <CustomerShell>
@@ -3436,7 +3545,13 @@ function BookingScreen({
           </Pressable>
         </View>
 
-        <Pressable style={styles.largeBlueButton} onPress={complete}><Text style={styles.largeBlueText}>Send booking request</Text></Pressable>
+        <Pressable
+          style={[styles.largeBlueButton, submitting && { opacity: 0.55 }]}
+          onPress={submitBooking}
+          disabled={submitting}
+        >
+          {submitting ? <ActivityIndicator color={C.white} /> : <Text style={styles.largeBlueText}>Send booking request</Text>}
+        </Pressable>
       </ScrollView>
     </CustomerShell>
   );
