@@ -1465,8 +1465,13 @@ function MapScreen({
   const [availableOnly, setAvailableOnly] = useState(true);
   const [selectedMapTrade, setSelectedMapTrade] = useState<Trade | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
+  const [marketLoading, setMarketLoading] = useState(true);
+  const [marketIsLive, setMarketIsLive] = useState(false);
 
-  const filtered = trades.filter(trade => {
+  const marketplaceTrades = marketIsLive ? liveTrades : trades;
+
+  const filtered = marketplaceTrades.filter(trade => {
     const query = searchQuery.trim().toLowerCase();
     if (query && !trade.name.toLowerCase().includes(query) && !trade.role.toLowerCase().includes(query)) return false;
     if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
@@ -1475,6 +1480,133 @@ function MapScreen({
     if (availableOnly && !trade.available) return false;
     return true;
   });
+
+  useEffect(() => {
+    let active = true;
+    const channels: any[] = [];
+
+    const loadMarketplace = async () => {
+      let reference = { latitude: 52.6369, longitude: -1.1398 };
+
+      try {
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status === 'granted') {
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          reference = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+        }
+      } catch {
+        // Fall back to Leicester centre for distance ordering.
+      }
+
+      const [{ data: profiles, error: profileError }, { data: availability }, { data: presence }] =
+        await Promise.all([
+          supabase
+            .from('tradesperson_profiles')
+            .select('user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'),
+          supabase
+            .from('trade_availability')
+            .select('user_id, is_available, radius_miles, available_until, location_mode'),
+          supabase
+            .from('trade_map_presence')
+            .select('user_id, latitude, longitude, source_mode, updated_at'),
+        ]);
+
+      if (!active) return;
+
+      if (profileError || !profiles?.length) {
+        setLiveTrades([]);
+        setMarketIsLive(false);
+        setMarketLoading(false);
+        return;
+      }
+
+      const availabilityMap = new Map((availability ?? []).map(row => [row.user_id, row]));
+      const presenceMap = new Map((presence ?? []).map(row => [row.user_id, row]));
+      const now = Date.now();
+
+      const realTrades = profiles
+        .map(profile => {
+          const role = profile.primary_trade as TradeCategory;
+          const spot = presenceMap.get(profile.user_id);
+          const status = availabilityMap.get(profile.user_id);
+
+          if (!customerCategoryOrder.includes(role) || !spot) return null;
+
+          const untilOk =
+            !status?.available_until ||
+            new Date(status.available_until).getTime() > now;
+
+          const freshLive =
+            spot.source_mode !== 'live' ||
+            !spot.updated_at ||
+            now - new Date(spot.updated_at).getTime() <= 15 * 60 * 1000;
+
+          const isAvailable = Boolean(status?.is_available && untilOk && freshLive);
+          const latitude = Number(spot.latitude);
+          const longitude = Number(spot.longitude);
+          const distance = distanceMilesBetween(reference, { latitude, longitude });
+
+          const item: Trade = {
+            id: 'live-' + profile.user_id,
+            name: profile.display_name || 'Local tradesperson',
+            role,
+            distance: Number(distance.toFixed(1)),
+            eta: estimatedDispatchEta(distance),
+            rating: Number(profile.rating) || 0,
+            reviews: Number(profile.review_count) || 0,
+            image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + profile.user_id,
+            accent: C.green,
+            callout: 0,
+            available: isAvailable,
+            verified: Boolean(profile.is_verified),
+            insured: Boolean(profile.is_insured),
+            response: estimatedDispatchEta(distance),
+            years: 0,
+            phone: profile.public_phone || '',
+            about: profile.bio || 'Local trade professional on TradeHub.',
+            services: serviceCatalog[role].slice(0, 5),
+            mapLatitude: latitude,
+            mapLongitude: longitude,
+          };
+
+          return item;
+        })
+        .filter(Boolean)
+        .sort((a, b) => (a as Trade).distance - (b as Trade).distance) as Trade[];
+
+      setLiveTrades(realTrades);
+      setMarketIsLive(realTrades.length > 0);
+      setMarketLoading(false);
+    };
+
+    const start = async () => {
+      await loadMarketplace();
+
+      for (const table of ['tradesperson_profiles', 'trade_availability', 'trade_map_presence']) {
+        const channel = supabase
+          .channel('marketplace-' + table)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table },
+            () => loadMarketplace()
+          )
+          .subscribe();
+        channels.push(channel);
+      }
+    };
+
+    start();
+
+    return () => {
+      active = false;
+      channels.forEach(channel => supabase.removeChannel(channel));
+    };
+  }, []);
 
   const activeFilterCount =
     (maxDistance !== 5 ? 1 : 0) +
@@ -1558,6 +1690,23 @@ function MapScreen({
           <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
+        {marketLoading ? (
+          <View style={styles.marketDataBanner}>
+            <ActivityIndicator size="small" color={C.green} />
+            <Text style={styles.marketDataBannerText}>Loading live TradeHub professionals…</Text>
+          </View>
+        ) : marketIsLive ? (
+          <View style={[styles.marketDataBanner, styles.marketDataBannerLive]}>
+            <View style={styles.marketDataDot} />
+            <Text style={styles.marketDataBannerText}>Live marketplace · real TradeHub accounts</Text>
+          </View>
+        ) : (
+          <View style={styles.marketDataBanner}>
+            <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={14} color={C.orange} />
+            <Text style={styles.marketDataBannerText}>Demo profiles shown until a real trade account publishes a work area.</Text>
+          </View>
+        )}
+
         {intent ? (
           <View style={styles.mapIntentCard}>
             <View style={styles.mapIntentIcon}>
@@ -1632,7 +1781,9 @@ function MapScreen({
                     {selectedMapTrade.available ? 'Available now' : 'Not currently available'}
                   </Text>
                 </View>
-                <Text style={styles.mapPreviewPrice}>From £{selectedMapTrade.callout} call-out</Text>
+                <Text style={styles.mapPreviewPrice}>
+                  {selectedMapTrade.callout > 0 ? 'From £' + selectedMapTrade.callout + ' call-out' : 'Ask for price'}
+                </Text>
               </View>
 
               <View style={styles.mapPreviewActions}>
@@ -7869,6 +8020,11 @@ const styles = StyleSheet.create({
   incomingLiveEta: { flex: 1, color: C.text, fontSize: 9, fontWeight: '800' },
   incomingLiveButton: { minHeight: 34, borderRadius: 12, backgroundColor: C.lime, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5 },
   incomingLiveButtonText: { color: C.navy, fontSize: 8, fontWeight: '900' },
+
+  marketDataBanner: { minHeight: 34, borderRadius: 12, backgroundColor: '#F1EEE5', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, marginTop: 7 },
+  marketDataBannerLive: { backgroundColor: '#E8F3E8' },
+  marketDataDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
+  marketDataBannerText: { color: C.muted, fontSize: 8.5, fontWeight: '700', flex: 1 },
 
 });
 
