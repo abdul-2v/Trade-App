@@ -5677,10 +5677,23 @@ function TradeJobsScreen({
     request: any;
   };
 
+  type MarketOfferJob = {
+    offerId: string;
+    offerStatus: string;
+    distance: number;
+    eta: number;
+    quotedPrice: number | null;
+    routePrice: number | null;
+    detourMinutes: number | null;
+    request: any;
+  };
+
   const [jobs, setJobs] = useState<OfferJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [marketJobs, setMarketJobs] = useState<MarketOfferJob[]>([]);
+  const [loadingMarket, setLoadingMarket] = useState(true);
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
@@ -5760,6 +5773,88 @@ function TradeJobsScreen({
     setLoading(false);
   };
 
+
+  const loadMarketJobs = async (knownUserId?: string) => {
+    setLoadingMarket(true);
+
+    const userId =
+      knownUserId ||
+      (
+        await supabase.auth.getUser()
+      ).data.user?.id ||
+      null;
+
+    if (!userId) {
+      setMarketJobs([]);
+      setLoadingMarket(false);
+      return;
+    }
+
+    const { data: offerRows, error: offerError } = await supabase
+      .from('job_offers')
+      .select('id, job_id, status, distance_miles, eta_minutes, quoted_price, route_price, detour_minutes, offered_at')
+      .eq('tradesperson_id', userId)
+      .in('status', ['offered', 'accepted'])
+      .order('offered_at', { ascending: false });
+
+    if (offerError || !offerRows?.length) {
+      setMarketJobs([]);
+      setLoadingMarket(false);
+      return;
+    }
+
+    const jobIds = Array.from(new Set(offerRows.map(row => row.job_id)));
+
+    const [{ data: jobRows }, { data: exactLocationRows }] = await Promise.all([
+      supabase
+        .from('jobs')
+        .select('id, customer_id, trade, issue, job_mode, timing, status, accepted_tradesperson_id, standard_price, route_price, detour_minutes, created_at')
+        .in('id', jobIds),
+      supabase
+        .from('job_locations')
+        .select('job_id, latitude, longitude, address_label')
+        .in('job_id', jobIds),
+    ]);
+
+    const exactMap = new Map(
+      (exactLocationRows ?? []).map(row => [
+        row.job_id,
+        {
+          latitude: Number(row.latitude),
+          longitude: Number(row.longitude),
+          addressLabel: row.address_label || 'Customer location',
+        },
+      ])
+    );
+
+    const jobMap = new Map(
+      (jobRows ?? []).map(row => [
+        row.id,
+        {
+          ...row,
+          exactLocation: exactMap.get(row.id) || null,
+        },
+      ])
+    );
+
+    setMarketJobs(
+      offerRows
+        .map(row => ({
+          offerId: row.id,
+          offerStatus: row.status,
+          distance: Number(row.distance_miles) || 0,
+          eta: Number(row.eta_minutes) || 10,
+          quotedPrice: row.quoted_price == null ? null : Number(row.quoted_price),
+          routePrice: row.route_price == null ? null : Number(row.route_price),
+          detourMinutes: row.detour_minutes == null ? null : Number(row.detour_minutes),
+          request: jobMap.get(row.job_id),
+        }))
+        .filter(item => item.request)
+    );
+
+    setLoadingMarket(false);
+  };
+
   useEffect(() => {
     let offerChannel: any = null;
     let requestChannel: any = null;
@@ -5815,6 +5910,62 @@ function TradeJobsScreen({
       if (requestChannel) supabase.removeChannel(requestChannel);
     };
   }, []);
+
+  useEffect(() => {
+    let offerChannel: any = null;
+    let jobChannel: any = null;
+    let mounted = true;
+
+    const start = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !mounted) {
+        setLoadingMarket(false);
+        return;
+      }
+
+      await loadMarketJobs(user.id);
+
+      offerChannel = supabase
+        .channel('market-offers-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'job_offers',
+            filter: 'tradesperson_id=eq.' + user.id,
+          },
+          () => loadMarketJobs(user.id)
+        )
+        .subscribe();
+
+      jobChannel = supabase
+        .channel('market-jobs-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'jobs',
+            filter: 'accepted_tradesperson_id=eq.' + user.id,
+          },
+          () => loadMarketJobs(user.id)
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      mounted = false;
+      if (offerChannel) supabase.removeChannel(offerChannel);
+      if (jobChannel) supabase.removeChannel(jobChannel);
+    };
+  }, []);
+
 
   useEffect(() => {
     const hasActiveTrackingJob = jobs.some(
@@ -5958,8 +6109,134 @@ function TradeJobsScreen({
     );
   };
 
+
+  const respondToMarketOffer = async (job: MarketOfferJob, response: 'accepted' | 'declined') => {
+    setBusyId(job.offerId);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setBusyId(null);
+      return;
+    }
+
+    if (response === 'declined') {
+      const { error } = await supabase
+        .from('job_offers')
+        .update({ status: 'declined', responded_at: new Date().toISOString() })
+        .eq('id', job.offerId)
+        .eq('tradesperson_id', user.id)
+        .eq('status', 'offered');
+
+      setBusyId(null);
+      if (error) Alert.alert('Could not decline', error.message);
+      await loadMarketJobs(user.id);
+      return;
+    }
+
+    const { data: claimed, error: claimError } = await supabase
+      .from('jobs')
+      .update({
+        accepted_tradesperson_id: user.id,
+        accepted_at: new Date().toISOString(),
+        status: 'accepted',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', job.request.id)
+      .in('status', ['posted', 'offered'])
+      .is('accepted_tradesperson_id', null)
+      .select('id')
+      .maybeSingle();
+
+    if (claimError || !claimed) {
+      setBusyId(null);
+      Alert.alert('Job no longer available', 'Another tradesperson may have accepted this job first.');
+      await loadMarketJobs(user.id);
+      return;
+    }
+
+    await supabase
+      .from('job_offers')
+      .update({ status: 'accepted', responded_at: new Date().toISOString() })
+      .eq('id', job.offerId)
+      .eq('tradesperson_id', user.id);
+
+    const { data: tradeProfile } = await supabase
+      .from('tradesperson_profiles')
+      .select('display_name, primary_trade, avatar_url')
+      .eq('user_id', user.id)
+      .single();
+
+    await supabase.from('conversations').upsert(
+      {
+        customer_id: job.request.customer_id,
+        tradesperson_id: user.id,
+        tradesperson_display_name: tradeProfile?.display_name || 'Tradesperson',
+        tradesperson_trade: tradeProfile?.primary_trade || job.request.trade,
+        tradesperson_avatar_url: tradeProfile?.avatar_url || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'customer_id,tradesperson_id' }
+    );
+
+    setBusyId(null);
+    await loadMarketJobs(user.id);
+  };
+
+  const advanceMarketJob = async (job: MarketOfferJob) => {
+    const current = job.request.status;
+    const next =
+      current === 'accepted'
+        ? 'en_route'
+        : current === 'en_route'
+          ? 'arrived'
+          : current === 'arrived'
+            ? 'in_progress'
+            : current === 'in_progress'
+              ? 'completed'
+              : null;
+
+    if (!next) return;
+
+    setBusyId(job.offerId);
+
+    const { error } = await supabase
+      .from('jobs')
+      .update({
+        status: next,
+        completed_at: next === 'completed' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', job.request.id);
+
+    setBusyId(null);
+
+    if (error) {
+      Alert.alert('Could not update job', error.message);
+      return;
+    }
+
+    await loadMarketJobs(currentUserId || undefined);
+  };
+
+  const openMarketDirections = (job: MarketOfferJob) => {
+    const location = job.request.exactLocation;
+    if (!location) {
+      Alert.alert('Location protected', 'The exact customer location becomes available after you accept the job.');
+      return;
+    }
+
+    Linking.openURL(
+      'https://maps.google.com/?daddr=' + location.latitude + ',' + location.longitude
+    );
+  };
+
   const active = jobs.filter(job => job.offerStatus === 'accepted');
   const offered = jobs.filter(job => job.offerStatus === 'offered');
+  const marketActive = marketJobs.filter(job => job.offerStatus === 'accepted');
+  const marketOffered = marketJobs.filter(job => job.offerStatus === 'offered');
 
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
@@ -6017,6 +6294,144 @@ function TradeJobsScreen({
             ))}
           </>
         ) : null}
+
+        {marketActive.length ? (
+          <>
+            <Text style={styles.dispatchTradeSectionTitle}>Scheduled & flexible jobs</Text>
+            {marketActive.map(job => (
+              <View key={job.offerId} style={styles.marketTradeActiveCard}>
+                <View style={styles.dispatchTradeTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.marketTradeMode}>
+                      {job.request.job_mode === 'street_run'
+                        ? 'STREET RUN'
+                        : job.request.job_mode === 'route'
+                          ? 'ON MY WAY'
+                          : 'BOOKED JOB'}
+                    </Text>
+                    <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
+                  </View>
+                  <Badge text={marketJobStatusLabel(job.request.status)} green />
+                </View>
+
+                <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+                <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
+
+                <View style={styles.dispatchTradeMetaRow}>
+                  <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                  {job.routePrice != null ? (
+                    <Text style={styles.marketTradePrice}>£{job.routePrice}</Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.dispatchTradeActionRow}>
+                  <Pressable style={styles.dispatchTradeDirections} onPress={() => openMarketDirections(job)}>
+                    <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={17} color={C.navy2} />
+                    <Text style={styles.dispatchTradeDirectionsText}>Directions</Text>
+                  </Pressable>
+
+                  {job.request.status !== 'completed' ? (
+                    <Pressable
+                      style={[styles.dispatchTradeAdvance, busyId === job.offerId && { opacity: 0.6 }]}
+                      onPress={() => advanceMarketJob(job)}
+                      disabled={busyId === job.offerId}
+                    >
+                      <Text style={styles.dispatchTradeAdvanceText}>
+                        {job.request.status === 'accepted'
+                          ? 'Start journey'
+                          : job.request.status === 'en_route'
+                            ? "I've arrived"
+                            : job.request.status === 'arrived'
+                              ? 'Start job'
+                              : job.request.status === 'in_progress'
+                                ? 'Complete job'
+                                : 'Update'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        <Text style={styles.dispatchTradeSectionTitle}>Flexible & scheduled offers</Text>
+
+        {loadingMarket ? (
+          <View style={styles.tradeEmptyCompact}>
+            <ActivityIndicator color={C.green} />
+            <Text style={styles.tradeEmptyLargeText}>Checking route and booking offers…</Text>
+          </View>
+        ) : marketOffered.length ? (
+          marketOffered.map(job => (
+            <View key={job.offerId} style={styles.marketTradeOfferCard}>
+              <View style={styles.dispatchTradeTopRow}>
+                <View style={styles.marketTradeOfferIcon}>
+                  <AppIcon
+                    icon={{ ios: job.request.job_mode === 'normal' ? 'calendar' : 'arrow.triangle.branch', android: job.request.job_mode === 'normal' ? 'event' : 'alt_route' }}
+                    size={18}
+                    color={C.orange}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.marketTradeMode}>
+                    {job.request.job_mode === 'street_run'
+                      ? 'STREET RUN'
+                      : job.request.job_mode === 'route'
+                        ? 'ON MY WAY'
+                        : 'SCHEDULED'}
+                  </Text>
+                  <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
+                </View>
+                {job.routePrice != null ? (
+                  <View style={styles.marketTradePayPill}>
+                    <Text style={styles.marketTradePay}>£{job.routePrice}</Text>
+                    <Text style={styles.marketTradePaySmall}>route price</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+              <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
+
+              <View style={styles.dispatchTradeMetaRow}>
+                <Text style={styles.dispatchTradeMeta}>📍 approx. {job.distance.toFixed(1)} mi</Text>
+                <Text style={styles.dispatchTradeMeta}>
+                  {job.detourMinutes != null ? '+' + job.detourMinutes + ' min route' : '~' + job.eta + ' min away'}
+                </Text>
+              </View>
+
+              <View style={styles.dispatchTradeDecisionRow}>
+                <Pressable
+                  style={styles.dispatchTradeDecline}
+                  onPress={() => respondToMarketOffer(job, 'declined')}
+                  disabled={busyId === job.offerId}
+                >
+                  <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.marketTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
+                  onPress={() => respondToMarketOffer(job, 'accepted')}
+                  disabled={busyId === job.offerId}
+                >
+                  {busyId === job.offerId ? (
+                    <ActivityIndicator color={C.navy} />
+                  ) : (
+                    <Text style={styles.marketTradeAcceptText}>Accept job</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.tradeEmptyCompact}>
+            <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={26} color={C.green} />
+            <Text style={styles.tradeEmptyLargeTitle}>No flexible offers yet</Text>
+            <Text style={styles.tradeEmptyLargeText}>
+              On My Way, Street Run and scheduled bookings inside your area will appear here automatically.
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
 
@@ -8603,6 +9018,19 @@ const styles = StyleSheet.create({
   tradeEditChipTextActive: { color: C.navy },
   tradeEditSave: { minHeight: 48, borderRadius: 15, backgroundColor: C.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 },
   tradeEditSaveText: { color: C.navy, fontSize: 10, fontWeight: '900' },
+
+  marketTradeActiveCard: { borderRadius: 22, backgroundColor: '#EAF1E4', borderWidth: 1, borderColor: '#CDD9C8', padding: 14, marginBottom: 10 },
+  marketTradeOfferCard: { borderRadius: 22, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 14, marginBottom: 10 },
+  marketTradeMode: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.15, marginBottom: 2 },
+  marketTradeTiming: { color: C.muted, fontSize: 9, fontWeight: '700', marginTop: 5 },
+  marketTradePrice: { color: C.green, fontSize: 16, fontWeight: '900' },
+  marketTradeOfferIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: '#FFF0E8', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  marketTradePayPill: { minWidth: 68, borderRadius: 13, backgroundColor: '#E5F0DB', paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center' },
+  marketTradePay: { color: C.navy, fontSize: 14, fontWeight: '900' },
+  marketTradePaySmall: { color: C.muted, fontSize: 7, fontWeight: '700', marginTop: 1 },
+  marketTradeAccept: { flex: 1, minHeight: 46, borderRadius: 14, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' },
+  marketTradeAcceptText: { color: C.navy, fontSize: 11, fontWeight: '900' },
+  tradeEmptyCompact: { borderRadius: 20, backgroundColor: '#F1EFE8', padding: 18, alignItems: 'center', marginBottom: 15, gap: 6 },
 
 });
 
