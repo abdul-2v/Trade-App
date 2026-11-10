@@ -4529,6 +4529,17 @@ function TradeHomeScreen({
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [radarBusy, setRadarBusy] = useState<string | null>(null);
+  const [incomingOffers, setIncomingOffers] = useState<
+    Array<{
+      offerId: string;
+      requestId: string;
+      trade: string;
+      issue: string;
+      urgency: string;
+      distance: number;
+      eta: number;
+    }>
+  >([]);
 
   useEffect(() => {
     let active = true;
@@ -4583,6 +4594,94 @@ function TradeHomeScreen({
     load();
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let channel: any = null;
+
+    const loadIncoming = async (knownUserId?: string) => {
+      const userId =
+        knownUserId ||
+        (
+          await supabase.auth.getUser()
+        ).data.user?.id ||
+        null;
+
+      if (!userId || !active) return;
+
+      const { data: offers } = await supabase
+        .from('urgent_request_offers')
+        .select('id, request_id, distance_miles, eta_minutes, offered_at')
+        .eq('tradesperson_id', userId)
+        .eq('status', 'offered')
+        .order('offered_at', { ascending: false })
+        .limit(3);
+
+      if (!active || !offers?.length) {
+        if (active) setIncomingOffers([]);
+        return;
+      }
+
+      const ids = offers.map(item => item.request_id);
+      const { data: requests } = await supabase
+        .from('urgent_requests')
+        .select('id, trade, issue, urgency, status')
+        .in('id', ids)
+        .eq('status', 'searching');
+
+      const requestMap = new Map((requests ?? []).map(item => [item.id, item]));
+
+      setIncomingOffers(
+        offers
+          .map(offer => {
+            const request = requestMap.get(offer.request_id);
+            if (!request) return null;
+
+            return {
+              offerId: offer.id,
+              requestId: offer.request_id,
+              trade: request.trade,
+              issue: request.issue,
+              urgency: request.urgency,
+              distance: Number(offer.distance_miles) || 0,
+              eta: Number(offer.eta_minutes) || 0,
+            };
+          })
+          .filter(Boolean) as any
+      );
+    };
+
+    const start = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !active) return;
+
+      await loadIncoming(user.id);
+
+      channel = supabase
+        .channel('trade-home-offers-' + user.id)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'urgent_request_offers',
+            filter: 'tradesperson_id=eq.' + user.id,
+          },
+          () => loadIncoming(user.id)
+        )
+        .subscribe();
+    };
+
+    start();
+
+    return () => {
+      active = false;
+      if (channel) supabase.removeChannel(channel);
     };
   }, []);
 
@@ -4850,8 +4949,8 @@ function TradeHomeScreen({
             <View style={styles.proV3QuickIcon}>
               <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={19} color={C.orange} />
             </View>
-            <Text style={styles.proV3QuickValue}>Jobs</Text>
-            <Text style={styles.proV3QuickLabel}>Offers & active work</Text>
+            <Text style={styles.proV3QuickValue}>{incomingOffers.length ? incomingOffers.length + ' new' : 'Jobs'}</Text>
+            <Text style={styles.proV3QuickLabel}>{incomingOffers.length ? 'Tap to respond' : 'Offers & active work'}</Text>
           </Pressable>
           <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeMap')}>
             <View style={styles.proV3QuickIcon}>
@@ -4940,10 +5039,37 @@ function TradeHomeScreen({
           <Pressable onPress={() => navigate('tradeJobs')}><Text style={styles.tradeLink}>View all</Text></Pressable>
         </View>
 
-        <View style={styles.tradeEmptyCard}>
-          <Text style={styles.tradeEmptyTitle}>No live opportunities yet</Text>
-          <Text style={styles.tradeEmptyText}>Requests matching your trade, availability and work radius will appear here.</Text>
-        </View>
+        {incomingOffers.length ? (
+          <View style={styles.incomingLiveWrap}>
+            {incomingOffers.map(offer => (
+              <Pressable
+                key={offer.offerId}
+                style={styles.incomingLiveCard}
+                onPress={() => navigate('tradeJobs')}
+              >
+                <View style={styles.incomingLiveTop}>
+                  <View style={styles.incomingLivePulse}><View style={styles.incomingLivePulseDot} /></View>
+                  <Text style={styles.incomingLiveUrgency}>{offer.urgency.toUpperCase()}</Text>
+                  <Text style={styles.incomingLiveDistance}>{offer.distance.toFixed(1)} mi</Text>
+                </View>
+                <Text style={styles.incomingLiveTrade}>{offer.trade}</Text>
+                <Text style={styles.incomingLiveIssue} numberOfLines={2}>{offer.issue}</Text>
+                <View style={styles.incomingLiveFooter}>
+                  <Text style={styles.incomingLiveEta}>~{offer.eta} min away</Text>
+                  <View style={styles.incomingLiveButton}>
+                    <Text style={styles.incomingLiveButtonText}>Review job</Text>
+                    <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={13} color={C.navy} />
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.tradeEmptyCard}>
+            <Text style={styles.tradeEmptyTitle}>No live opportunities yet</Text>
+            <Text style={styles.tradeEmptyText}>Requests matching your trade, availability and work radius will appear here.</Text>
+          </View>
+        )}
 
         <View style={{ height: 90 }} />
       </ScrollView>
@@ -7729,6 +7855,20 @@ const styles = StyleSheet.create({
   reviewSubmittedRow: { marginTop: 12, borderRadius: 15, backgroundColor: '#F2F5EA', padding: 12 },
   reviewSubmittedStars: { color: C.gold, fontSize: 20, letterSpacing: 2 },
   reviewSubmittedText: { color: C.muted, fontSize: 9, lineHeight: 14, marginTop: 5 },
+
+  incomingLiveWrap: { gap: 9 },
+  incomingLiveCard: { borderRadius: 21, backgroundColor: C.white, borderWidth: 1, borderColor: '#D8D5C9', padding: 14 },
+  incomingLiveTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
+  incomingLivePulse: { width: 17, height: 17, borderRadius: 9, backgroundColor: '#DFF2E7', alignItems: 'center', justifyContent: 'center', marginRight: 6 },
+  incomingLivePulseDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.green },
+  incomingLiveUrgency: { color: C.green, fontSize: 8, fontWeight: '900', letterSpacing: 1.1, flex: 1 },
+  incomingLiveDistance: { color: C.muted, fontSize: 9, fontWeight: '800' },
+  incomingLiveTrade: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 17, fontWeight: '900' },
+  incomingLiveIssue: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 3 },
+  incomingLiveFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  incomingLiveEta: { flex: 1, color: C.text, fontSize: 9, fontWeight: '800' },
+  incomingLiveButton: { minHeight: 34, borderRadius: 12, backgroundColor: C.lime, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  incomingLiveButtonText: { color: C.navy, fontSize: 8, fontWeight: '900' },
 
 });
 
