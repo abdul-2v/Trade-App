@@ -6131,6 +6131,9 @@ function TradeSettingsScreen({
   const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
   const [workAreaSaved, setWorkAreaSaved] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
+  const [bio, setBio] = useState('');
+  const [publicPhone, setPublicPhone] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -6145,7 +6148,7 @@ function TradeSettingsScreen({
       const [{ data: profile }, { data: availability }] = await Promise.all([
         supabase
           .from('tradesperson_profiles')
-          .select('display_name, primary_trade, avatar_url')
+          .select('display_name, primary_trade, avatar_url, bio, public_phone')
           .eq('user_id', user.id)
           .single(),
         supabase
@@ -6161,6 +6164,8 @@ function TradeSettingsScreen({
         setDisplayName(profile.display_name || 'Your trade profile');
         setPrimaryTrade(profile.primary_trade || 'Tradesperson');
         setAvatarUrl(profile.avatar_url || null);
+        setBio(profile.bio || '');
+        setPublicPhone(profile.public_phone || '');
       }
 
       if (availability) {
@@ -6178,6 +6183,57 @@ function TradeSettingsScreen({
       active = false;
     };
   }, []);
+
+  const savePublicProfile = async () => {
+    const cleanName = displayName.trim();
+    const cleanPhone = publicPhone.replace(/\s/g, '');
+
+    if (!cleanName) {
+      Alert.alert('Business name needed', 'Add the name customers should see.');
+      return;
+    }
+
+    if (cleanPhone && !/^07\d{9}$/.test(cleanPhone)) {
+      Alert.alert('Check phone number', 'Use a UK mobile number beginning with 07, or leave it blank.');
+      return;
+    }
+
+    if (!customerCategoryOrder.includes(primaryTrade as TradeCategory)) {
+      Alert.alert('Choose your trade', 'Select the main trade customers should find you under.');
+      return;
+    }
+
+    setSavingProfile(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSavingProfile(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('tradesperson_profiles')
+      .update({
+        display_name: cleanName,
+        primary_trade: primaryTrade,
+        public_phone: cleanPhone || null,
+        bio: bio.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id);
+
+    setSavingProfile(false);
+
+    if (error) {
+      Alert.alert('Could not save profile', error.message);
+      return;
+    }
+
+    Alert.alert('Profile updated', 'Customers will now see your latest public details.');
+  };
 
   const setModeOnly = async (mode: 'work_area' | 'live') => {
     const {
@@ -6294,6 +6350,78 @@ function TradeSettingsScreen({
           </View>
         </View>
 
+        <View style={styles.tradeEditCard}>
+          <View style={styles.tradeEditHeader}>
+            <View style={styles.tradeEditIcon}>
+              <AppIcon icon={{ ios: 'person.crop.rectangle', android: 'badge' }} size={20} color={C.orange} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tradeEditTitle}>Public profile</Text>
+              <Text style={styles.tradeEditSub}>These are the details customers see in Explore and after a match.</Text>
+            </View>
+          </View>
+
+          <Text style={styles.tradeEditLabel}>Business / display name</Text>
+          <TextInput
+            value={displayName}
+            onChangeText={setDisplayName}
+            style={styles.tradeEditInput}
+            placeholder="e.g. AJ Plumbing"
+            placeholderTextColor="#71877B"
+            maxLength={80}
+          />
+
+          <Text style={styles.tradeEditLabel}>Main trade</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tradeEditTradeRow}>
+            {customerCategoryOrder.map(item => (
+              <Pressable
+                key={item}
+                style={[styles.tradeEditChip, primaryTrade === item && styles.tradeEditChipActive]}
+                onPress={() => setPrimaryTrade(item)}
+              >
+                <Text style={[styles.tradeEditChipText, primaryTrade === item && styles.tradeEditChipTextActive]}>{item}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <Text style={styles.tradeEditLabel}>Public phone (optional)</Text>
+          <TextInput
+            value={publicPhone}
+            onChangeText={setPublicPhone}
+            style={styles.tradeEditInput}
+            placeholder="07..."
+            placeholderTextColor="#71877B"
+            keyboardType="phone-pad"
+            maxLength={11}
+          />
+
+          <Text style={styles.tradeEditLabel}>About your business</Text>
+          <TextInput
+            value={bio}
+            onChangeText={setBio}
+            style={[styles.tradeEditInput, styles.tradeEditBio]}
+            placeholder="What do you specialise in? What areas do you cover?"
+            placeholderTextColor="#71877B"
+            multiline
+            maxLength={600}
+          />
+
+          <Pressable
+            style={[styles.tradeEditSave, savingProfile && { opacity: 0.5 }]}
+            onPress={savePublicProfile}
+            disabled={savingProfile}
+          >
+            {savingProfile ? (
+              <ActivityIndicator color={C.navy} />
+            ) : (
+              <>
+                <Text style={styles.tradeEditSaveText}>Save public profile</Text>
+                <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={15} color={C.navy} />
+              </>
+            )}
+          </Pressable>
+        </View>
+
         <View style={styles.locationSettingsCard}>
           <View style={styles.locationSettingsHeader}>
             <View style={styles.locationSettingsIcon}>
@@ -6367,7 +6495,7 @@ function TradeSettingsScreen({
           </Text>
         </View>
 
-        {['Business details', 'Services & prices', 'Verification', 'Availability defaults', 'Notifications', 'Payouts'].map(item => (
+        {['Verification', 'Services & prices', 'Notifications', 'Payouts'].map(item => (
           <View key={item} style={styles.darkSettingsRow}>
             <Text style={styles.darkSettingsLabel}>{item}</Text>
             <Text style={styles.darkSettingsStatus}>Setup later</Text>
@@ -8211,6 +8339,22 @@ const styles = StyleSheet.create({
   marketDataBannerLive: { backgroundColor: '#E8F3E8' },
   marketDataDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
   marketDataBannerText: { color: C.muted, fontSize: 8.5, fontWeight: '700', flex: 1 },
+
+  tradeEditCard: { borderRadius: 23, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', padding: 14, marginBottom: 12 },
+  tradeEditHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 13 },
+  tradeEditIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#1D493D', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  tradeEditTitle: { color: C.white, fontSize: 15, fontWeight: '900' },
+  tradeEditSub: { color: '#91A198', fontSize: 9, lineHeight: 13, marginTop: 2 },
+  tradeEditLabel: { color: '#A8B6AE', fontSize: 8, fontWeight: '900', letterSpacing: 0.9, textTransform: 'uppercase', marginTop: 10, marginBottom: 6 },
+  tradeEditInput: { minHeight: 49, borderRadius: 14, backgroundColor: '#0C2921', borderWidth: 1, borderColor: '#2A4D42', color: C.white, paddingHorizontal: 12, fontSize: 11 },
+  tradeEditBio: { minHeight: 92, paddingTop: 11, paddingBottom: 11, textAlignVertical: 'top' },
+  tradeEditTradeRow: { paddingRight: 10 },
+  tradeEditChip: { minHeight: 37, borderRadius: 14, backgroundColor: '#0C2921', borderWidth: 1, borderColor: '#2A4D42', paddingHorizontal: 11, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
+  tradeEditChipActive: { backgroundColor: C.lime, borderColor: C.lime },
+  tradeEditChipText: { color: '#A8B6AE', fontSize: 9, fontWeight: '800' },
+  tradeEditChipTextActive: { color: C.navy },
+  tradeEditSave: { minHeight: 48, borderRadius: 15, backgroundColor: C.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 },
+  tradeEditSaveText: { color: C.navy, fontSize: 10, fontWeight: '900' },
 
 });
 
