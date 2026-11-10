@@ -81,6 +81,7 @@ type RequestItem = {
   issue: string;
   urgency: string;
   status: string;
+  source?: 'urgent' | 'job' | 'demo';
 };
 
 type DispatchStage = 'form' | 'searching' | 'matched';
@@ -123,6 +124,18 @@ const dispatchStatusLabel = (status: string) => {
   if (status === 'cancelled') return 'Cancelled';
   if (status === 'expired') return 'Expired';
   return 'Searching';
+};
+
+const marketJobStatusLabel = (status: string) => {
+  if (status === 'posted' || status === 'offered') return 'Waiting for tradesperson';
+  if (status === 'accepted') return 'Accepted';
+  if (status === 'en_route') return 'On the way';
+  if (status === 'arrived') return 'Arrived';
+  if (status === 'in_progress') return 'In progress';
+  if (status === 'completed') return 'Completed';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'expired') return 'Expired';
+  return 'Waiting for tradesperson';
 };
 
 const C = {
@@ -464,6 +477,99 @@ export default function App() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
 
+  useEffect(() => {
+    if (!session?.user.id || accountType !== 'customer') return;
+
+    let active = true;
+    let urgentChannel: any = null;
+    let jobsChannel: any = null;
+
+    const loadCustomerRequests = async () => {
+      const userId = session.user.id;
+      const [{ data: urgentRows }, { data: jobRows }] = await Promise.all([
+        supabase
+          .from('urgent_requests')
+          .select('id, trade, issue, urgency, status, created_at')
+          .eq('customer_id', userId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('jobs')
+          .select('id, trade, issue, timing, job_mode, status, created_at')
+          .eq('customer_id', userId)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      if (!active) return;
+
+      const merged = [
+        ...(urgentRows ?? []).map(row => ({
+          id: row.id,
+          trade: row.trade,
+          issue: row.issue,
+          urgency: row.urgency,
+          status: dispatchStatusLabel(row.status),
+          source: 'urgent' as const,
+          createdAt: row.created_at,
+        })),
+        ...(jobRows ?? []).map(row => ({
+          id: row.id,
+          trade: row.trade,
+          issue: row.issue,
+          urgency:
+            row.job_mode === 'street_run'
+              ? 'Street Run · ' + row.timing
+              : row.job_mode === 'route'
+                ? 'On My Way · ' + row.timing
+                : row.timing,
+          status: marketJobStatusLabel(row.status),
+          source: 'job' as const,
+          createdAt: row.created_at,
+        })),
+      ]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .map(({ createdAt, ...item }) => item);
+
+      setRequests(merged);
+    };
+
+    loadCustomerRequests();
+
+    urgentChannel = supabase
+      .channel('customer-urgent-list-' + session.user.id)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'urgent_requests',
+          filter: 'customer_id=eq.' + session.user.id,
+        },
+        loadCustomerRequests
+      )
+      .subscribe();
+
+    jobsChannel = supabase
+      .channel('customer-job-list-' + session.user.id)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'jobs',
+          filter: 'customer_id=eq.' + session.user.id,
+        },
+        loadCustomerRequests
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      if (urgentChannel) supabase.removeChannel(urgentChannel);
+      if (jobsChannel) supabase.removeChannel(jobsChannel);
+    };
+  }, [session?.user.id, accountType]);
+
+
   const openTrade = (trade: Trade) => {
     setSelectedTrade(trade);
     setCustomerScreen('profile');
@@ -635,69 +741,61 @@ export default function App() {
           };
 
           const tradespersonId = selectedTrade.id.replace('live-', '');
-          const { data: request, error: requestError } = await supabase
-            .from('urgent_requests')
+          const timing = booking.date + ' · ' + booking.time;
+          const { data: job, error: jobError } = await supabase
+            .from('jobs')
             .insert({
               customer_id: user.id,
               trade: selectedTrade.role,
               issue: booking.service,
-              urgency: booking.date + ' · ' + booking.time,
+              job_mode: 'normal',
+              timing,
               latitude: Number(coords.latitude.toFixed(2)),
               longitude: Number(coords.longitude.toFixed(2)),
               location_label: 'Approximate scheduled job area',
-              photo_url: null,
               search_radius_miles: Math.max(1, Math.ceil(selectedTrade.distance + 1)),
-              status: 'searching',
+              preferred_tradesperson_id: tradespersonId,
+              status: 'offered',
             })
             .select('id')
             .single();
 
-          if (requestError || !request) {
-            throw requestError || new Error('Could not create booking request.');
-          }
+          if (jobError || !job) throw jobError || new Error('Could not create booking request.');
 
-          const { error: locationError } = await supabase
-            .from('urgent_request_locations')
-            .insert({
-              request_id: request.id,
-              customer_id: user.id,
-              latitude: coords.latitude,
-              longitude: coords.longitude,
-            });
+          const { error: locationError } = await supabase.from('job_locations').insert({
+            job_id: job.id,
+            customer_id: user.id,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            address_label: 'Customer job location',
+          });
 
           if (locationError) {
-            await supabase
-              .from('urgent_requests')
-              .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-              .eq('id', request.id);
+            await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', job.id);
             throw locationError;
           }
 
-          const { error: offerError } = await supabase
-            .from('urgent_request_offers')
-            .insert({
-              request_id: request.id,
-              tradesperson_id: tradespersonId,
-              distance_miles: Number(selectedTrade.distance.toFixed(2)),
-              eta_minutes: Math.max(8, selectedTrade.eta),
-              status: 'offered',
-            });
+          const { error: offerError } = await supabase.from('job_offers').insert({
+            job_id: job.id,
+            tradesperson_id: tradespersonId,
+            distance_miles: Number(selectedTrade.distance.toFixed(2)),
+            eta_minutes: Math.max(8, selectedTrade.eta),
+            status: 'offered',
+          });
 
           if (offerError) {
-            await supabase
-              .from('urgent_requests')
-              .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-              .eq('id', request.id);
+            await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', job.id);
             throw offerError;
           }
 
           setRequests(prev => [
             {
-              id: request.id,
+              id: job.id,
               trade: selectedTrade.role,
               issue: booking.service + ' with ' + selectedTrade.name,
-              urgency: booking.date + ' · ' + booking.time,
-              status: 'Awaiting response',
+              urgency: timing,
+              status: 'Waiting for tradesperson',
+              source: 'job',
             },
             ...prev,
           ]);
@@ -1208,6 +1306,7 @@ function RouteSaverScreen({
   const [deadline, setDeadline] = useState<'Today' | '48 hours' | 'This week'>('48 hours');
   const [selectedSlot, setSelectedSlot] = useState(0);
   const [streetRun, setStreetRun] = useState(false);
+  const [reserving, setReserving] = useState(false);
 
   useEffect(() => {
     if (!serviceCatalog[trade].includes(service)) {
@@ -1231,22 +1330,152 @@ function RouteSaverScreen({
     return { item, standard, saving, routePrice, detour, slot: times[index] || 'Flexible slot' };
   });
 
-  const reserve = () => {
+  const reserve = async () => {
     const match = slots[selectedSlot];
-    if (!match) return;
-    const extraStreetSaving = streetRun ? 8 : 0;
-    addRequest({
-      id: 'route-' + Date.now(),
-      trade,
-      issue: service,
-      urgency: (streetRun ? 'Street Run' : 'On My Way') + ' · ' + dayLabel + ' ' + match.slot,
-      status: 'Route slot held',
-    });
-    Alert.alert(
-      streetRun ? 'Street Run slot held' : 'Route slot held',
-      match.item.name + ' can fit this job into an existing route. You save £' + (match.saving + extraStreetSaving) + ' if the slot is confirmed.'
-    );
-    navigate('requests');
+    if (!match || reserving) return;
+
+    setReserving(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) throw new Error('Please sign in again.');
+
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        throw new Error('Location permission is needed to find route-compatible tradespeople nearby.');
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+
+      const [{ data: availabilityRows }, { data: profileRows }, { data: presenceRows }] = await Promise.all([
+        supabase
+          .from('trade_availability')
+          .select('user_id, radius_miles')
+          .eq('is_available', true),
+        supabase
+          .from('tradesperson_profiles')
+          .select('user_id, primary_trade, display_name, avatar_url, rating, review_count, is_verified, is_insured, public_phone, bio')
+          .eq('primary_trade', trade),
+        supabase
+          .from('trade_map_presence')
+          .select('user_id, latitude, longitude'),
+      ]);
+
+      const availabilityMap = new Map(
+        (availabilityRows ?? []).map(row => [row.user_id, Number(row.radius_miles) || 10])
+      );
+      const presenceMap = new Map(
+        (presenceRows ?? []).map(row => [
+          row.user_id,
+          { latitude: Number(row.latitude), longitude: Number(row.longitude) },
+        ])
+      );
+
+      const liveCandidates = (profileRows ?? [])
+        .map(profile => {
+          const publicLocation = presenceMap.get(profile.user_id);
+          const radius = availabilityMap.get(profile.user_id);
+          if (!publicLocation || !radius) return null;
+          const distance = distanceMilesBetween(coords, publicLocation);
+          if (distance > radius) return null;
+          return {
+            profile,
+            distance,
+            eta: estimatedDispatchEta(distance),
+          };
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => a.distance - b.distance)
+        .slice(0, 8) as any[];
+
+      const extraStreetSaving = streetRun ? 8 : 0;
+      const timing = deadline + ' · flexible route slot';
+
+      const { data: job, error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          customer_id: user.id,
+          trade,
+          issue: service,
+          job_mode: streetRun ? 'street_run' : 'route',
+          timing,
+          latitude: Number(coords.latitude.toFixed(2)),
+          longitude: Number(coords.longitude.toFixed(2)),
+          location_label: 'Approximate flexible job area',
+          search_radius_miles: 15,
+          status: liveCandidates.length ? 'offered' : 'posted',
+          standard_price: match.standard,
+          route_price: Math.max(1, match.routePrice - extraStreetSaving),
+          detour_minutes: match.detour,
+        })
+        .select('id')
+        .single();
+
+      if (jobError || !job) throw jobError || new Error('Could not create flexible job.');
+
+      const { error: exactLocationError } = await supabase.from('job_locations').insert({
+        job_id: job.id,
+        customer_id: user.id,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        address_label: 'Customer job location',
+      });
+
+      if (exactLocationError) {
+        await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', job.id);
+        throw exactLocationError;
+      }
+
+      if (liveCandidates.length) {
+        const offerRows = liveCandidates.map(candidate => ({
+          job_id: job.id,
+          tradesperson_id: candidate.profile.user_id,
+          distance_miles: Number(candidate.distance.toFixed(2)),
+          eta_minutes: candidate.eta,
+          quoted_price: match.standard,
+          route_price: Math.max(1, match.routePrice - extraStreetSaving),
+          detour_minutes: Math.max(2, Math.round(candidate.distance * 2.2)),
+          status: 'offered',
+        }));
+
+        const { error: offerError } = await supabase.from('job_offers').insert(offerRows);
+        if (offerError) {
+          await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', job.id);
+          throw offerError;
+        }
+      }
+
+      addRequest({
+        id: job.id,
+        trade,
+        issue: service,
+        urgency: (streetRun ? 'Street Run' : 'On My Way') + ' · ' + timing,
+        status: liveCandidates.length ? 'Waiting for tradesperson' : 'Posted — waiting for local supply',
+        source: 'job',
+      });
+
+      Alert.alert(
+        streetRun ? 'Street Run request posted' : 'On My Way request posted',
+        liveCandidates.length
+          ? 'Sent to ' + liveCandidates.length + ' real available ' + trade.toLowerCase() + (liveCandidates.length === 1 ? '.' : 's.')
+          : 'Your job is saved, but no real available ' + trade.toLowerCase() + ' accounts are online inside the search area yet.'
+      );
+      navigate('requests');
+    } catch (error: any) {
+      Alert.alert('Could not post flexible job', error?.message || 'Please try again.');
+    } finally {
+      setReserving(false);
+    }
   };
 
   return (
@@ -1386,9 +1615,19 @@ function RouteSaverScreen({
         )}
 
         {slots.length ? (
-          <Pressable style={styles.routeReserveButton} onPress={reserve}>
-            <Text style={styles.routeReserveText}>Hold this route slot</Text>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+          <Pressable
+            style={[styles.routeReserveButton, reserving && { opacity: 0.6 }]}
+            onPress={reserve}
+            disabled={reserving}
+          >
+            {reserving ? (
+              <ActivityIndicator color={C.navy} />
+            ) : (
+              <>
+                <Text style={styles.routeReserveText}>Post flexible job</Text>
+                <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+              </>
+            )}
           </Pressable>
         ) : null}
 
@@ -3702,8 +3941,9 @@ function RequestDetailScreen({
   openTrade: (trade: Trade) => void;
   startRelay: (trade: TradeCategory, issue: string) => void;
 }) {
-  const isRoute = request.id.startsWith('route-');
-  const isDemo = request.id.startsWith('demo-') || isRoute || /^\d+$/.test(request.id);
+  const isMarketJob = request.source === 'job';
+  const isRoute = isMarketJob && /On My Way|Street Run/i.test(request.urgency);
+  const isDemo = request.source === 'demo' || request.id.startsWith('demo-') || /^\d+$/.test(request.id);
   const [loading, setLoading] = useState(!isDemo);
   const [liveStatus, setLiveStatus] = useState(request.status);
   const [details, setDetails] = useState<any>(null);
@@ -3742,9 +3982,9 @@ function RequestDetailScreen({
         .eq('user_id', userId)
         .limit(1),
       supabase
-        .from('urgent_request_offers')
+        .from(isMarketJob ? 'job_offers' : 'urgent_request_offers')
         .select('distance_miles, eta_minutes')
-        .eq('request_id', request.id)
+        .eq(isMarketJob ? 'job_id' : 'request_id', request.id)
         .eq('tradesperson_id', userId)
         .limit(1),
     ]);
@@ -3771,8 +4011,8 @@ function RequestDetailScreen({
       response: Number(row.estimated_arrival_minutes || offer?.eta_minutes) || 10,
       years: 0,
       phone: profile.public_phone || '',
-      about: profile.bio || 'Available for your urgent request.',
-      services: ['Urgent call-out'],
+      about: profile.bio || 'Available for your request.',
+      services: [isMarketJob ? 'Booked work' : 'Urgent call-out'],
       mapLatitude: location ? Number(location.latitude) : undefined,
       mapLongitude: location ? Number(location.longitude) : undefined,
     });
@@ -3787,9 +4027,11 @@ function RequestDetailScreen({
     setLoading(true);
 
     const { data, error } = await supabase
-      .from('urgent_requests')
+      .from(isMarketJob ? 'jobs' : 'urgent_requests')
       .select(
-        'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at'
+        isMarketJob
+          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, created_at'
+          : 'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at'
       )
       .eq('id', request.id)
       .single();
@@ -3801,10 +4043,10 @@ function RequestDetailScreen({
     }
 
     setDetails(data);
-    setLiveStatus(dispatchStatusLabel(data.status));
+    setLiveStatus(isMarketJob ? marketJobStatusLabel(data.status) : dispatchStatusLabel(data.status));
     await buildMatchedTrade(data);
 
-    if (data.status === 'completed') {
+    if (data.status === 'completed' && !isMarketJob) {
       const { data: reviewRows } = await supabase
         .from('job_reviews')
         .select('rating, comment')
@@ -3834,13 +4076,13 @@ function RequestDetailScreen({
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'urgent_requests',
+          table: isMarketJob ? 'jobs' : 'urgent_requests',
           filter: 'id=eq.' + request.id,
         },
         async payload => {
           const row = payload.new as any;
           setDetails(row);
-          setLiveStatus(dispatchStatusLabel(row.status));
+          setLiveStatus(isMarketJob ? marketJobStatusLabel(row.status) : dispatchStatusLabel(row.status));
           await buildMatchedTrade(row);
         }
       )
@@ -3849,7 +4091,7 @@ function RequestDetailScreen({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [request.id]);
+  }, [request.id, isMarketJob]);
 
   useEffect(() => {
     if (isDemo || !matchedTrade?.id.startsWith('live-')) return;
@@ -3892,7 +4134,7 @@ function RequestDetailScreen({
     }
 
     const { error } = await supabase
-      .from('urgent_requests')
+      .from(isMarketJob ? 'jobs' : 'urgent_requests')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('id', request.id);
 
@@ -3943,7 +4185,7 @@ function RequestDetailScreen({
   };
 
   const submitReview = async () => {
-    if (isDemo || !details?.accepted_tradesperson_id || reviewSubmitted) return;
+    if (isDemo || isMarketJob || !details?.accepted_tradesperson_id || reviewSubmitted) return;
 
     if (!reviewRating) {
       Alert.alert('Choose a rating', 'Tap a star before submitting your review.');
@@ -3998,8 +4240,8 @@ function RequestDetailScreen({
   };
 
   const displayIssue = details?.issue || request.issue;
-  const displayUrgency = details?.urgency || request.urgency;
-  const rawStatus = details?.status || (isRoute ? 'route_waiting' : isDemo ? 'matched' : 'searching');
+  const displayUrgency = (isMarketJob ? details?.timing : details?.urgency) || request.urgency;
+  const rawStatus = details?.status || (isDemo ? 'matched' : isMarketJob ? 'posted' : 'searching');
   const canCancel = !['completed', 'cancelled', 'expired'].includes(rawStatus);
 
   return (
@@ -4103,20 +4345,26 @@ function RequestDetailScreen({
                 <ActivityIndicator color={C.blue} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.requestDetailSearchingTitle}>
-                    {liveStatus === 'Cancelled' ? 'Request cancelled' : isRoute ? 'Route slot awaiting confirmation' : 'Still searching'}
+                    {liveStatus === 'Cancelled'
+                      ? 'Request cancelled'
+                      : isMarketJob
+                        ? isRoute ? 'Flexible job awaiting a match' : 'Booking awaiting response'
+                        : 'Still searching'}
                   </Text>
                   <Text style={styles.requestDetailSearchingText}>
                     {liveStatus === 'Cancelled'
                       ? 'This request is no longer being sent to tradespeople.'
-                      : isRoute
-                        ? 'Your flexible slot is being held while the professional confirms it fits their existing route.'
+                      : isMarketJob
+                        ? isRoute
+                          ? 'Real nearby tradespeople have been offered this flexible job. Once one accepts, their profile and status will appear here.'
+                          : 'Your selected tradesperson has been sent this booking request.'
                         : 'TradeHub is waiting for one of the nearby available tradespeople to accept.'}
                   </Text>
                 </View>
               </View>
             )}
 
-            {liveStatus === 'Completed' && !isDemo && matchedTrade ? (
+            {liveStatus === 'Completed' && !isDemo && !isMarketJob && matchedTrade ? (
               <View style={styles.reviewCard}>
                 <View style={styles.reviewHeaderRow}>
                   <View style={styles.reviewIcon}>
