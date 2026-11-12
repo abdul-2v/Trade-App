@@ -5093,6 +5093,8 @@ function TradeHomeScreen({
   const [radius, setRadius] = useState(10);
   const [firstName, setFirstName] = useState('there');
   const [savingAvailability, setSavingAvailability] = useState(false);
+  const [showWorkSettings, setShowWorkSettings] = useState(false);
+  const [showPlanning, setShowPlanning] = useState(false);
   const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
   const [profileCompletion, setProfileCompletion] = useState(0);
   const [profileTrade, setProfileTrade] = useState('Trade professional');
@@ -5369,10 +5371,11 @@ function TradeHomeScreen({
     await saveAvailability(available, duration, value);
   };
 
+  // Location presets, not fabricated live demand numbers.
   const demandAreas = [
-    { name: 'LE5 · Evington / Hamilton', jobs: 14, flexible: 9, urgent: 3, earning: 410, lat: 52.637, lng: -1.075 },
-    { name: 'LE2 · Oadby / Stoneygate', jobs: 11, flexible: 7, urgent: 2, earning: 335, lat: 52.607, lng: -1.087 },
-    { name: 'LE4 · Belgrave / Birstall', jobs: 8, flexible: 6, urgent: 1, earning: 260, lat: 52.670, lng: -1.120 },
+    { name: 'LE5 · Evington / Hamilton', lat: 52.637, lng: -1.075 },
+    { name: 'LE2 · Oadby / Stoneygate', lat: 52.607, lng: -1.087 },
+    { name: 'LE4 · Belgrave / Birstall', lat: 52.670, lng: -1.120 },
   ];
 
   const workDemandArea = async (area: (typeof demandAreas)[number]) => {
@@ -5415,11 +5418,11 @@ function TradeHomeScreen({
       <ScrollView contentContainerStyle={styles.tradePageV3} showsVerticalScrollIndicator={false}>
         <View style={styles.proV3Header}>
           <View>
-            <Text style={styles.proV3Eyebrow}>TRADEHUB PRO</Text>
+            <Text style={styles.proV3Eyebrow}>TRADEHUB · FOR PROS</Text>
             <Text style={styles.proV3Hello}>Hi {firstName}</Text>
-            <Text style={styles.proV3Sub}>Control when and where new jobs can find you.</Text>
+            <Text style={styles.proV3Sub}>Your work, all in one place.</Text>
           </View>
-          <Pressable style={styles.proV3CustomerButton} onPress={switchToCustomer}>
+          <Pressable style={styles.proV3CustomerButton} onPress={switchToCustomer} accessibilityRole="button" accessibilityLabel="Switch to customer view">
             <AppIcon icon={{ ios: 'person.2.fill', android: 'group' }} size={17} color={C.white} />
           </Pressable>
         </View>
@@ -5438,7 +5441,7 @@ function TradeHomeScreen({
             <View style={styles.proV3ProgressTrack}>
               <View style={[styles.proV3ProgressFill, { width: (profileCompletion + '%') as any }]} />
             </View>
-            <Text style={styles.proV3Completion}>{profileCompletion}% profile ready</Text>
+            <Text style={styles.proV3Completion}>{profileCompletion === 100 ? 'Profile ready' : profileCompletion + '% complete · tap to finish'}</Text>
           </View>
           <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#91A198" />
         </Pressable>
@@ -5446,21 +5449,21 @@ function TradeHomeScreen({
         <View style={[styles.proV3Availability, available && styles.proV3AvailabilityLive]}>
           <View style={styles.proV3AvailabilityIcon}>
             <AppIcon
-              icon={{ ios: available ? 'bolt.fill' : 'moon.fill', android: available ? 'bolt' : 'bedtime' }}
+              icon={{ ios: available ? 'checkmark.circle.fill' : 'moon.fill', android: available ? 'check_circle' : 'bedtime' }}
               size={22}
-              color={available ? C.navy : '#95A39B'}
+              color={available ? '#23516D' : '#9BAFC0'}
             />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.proV3AvailabilityTitle, available && { color: C.navy }]}>
-              {available ? 'You are available now' : 'You are currently offline'}
+              {available ? 'Available for new jobs' : 'Not taking new jobs'}
             </Text>
             <Text style={[styles.proV3AvailabilitySub, available && { color: '#506050' }]}>
               {savingAvailability
-                ? 'Saving availability…'
+                ? 'Saving…'
                 : available
-                  ? 'Nearby matching customers can send you urgent work.'
-                  : 'Turn this on when you are ready to receive new nearby work.'}
+                  ? 'Matching customers can send you requests.'
+                  : 'Switch on when you are ready for new work.'}
             </Text>
           </View>
           <Switch
@@ -5472,6 +5475,84 @@ function TradeHomeScreen({
           />
         </View>
 
+        <View style={styles.tradeSectionHeader}>
+          <Text style={styles.tradeSectionTitle}>Incoming work</Text>
+          <Pressable onPress={() => navigate('tradeJobs')}><Text style={styles.tradeLink}>View all</Text></Pressable>
+        </View>
+
+        {incomingOffers.length ? (
+          <View style={styles.incomingLiveWrap}>
+            {incomingOffers.map(offer => (
+              <Pressable
+                key={offer.offerId}
+                style={styles.incomingLiveCard}
+                onPress={() => navigate('tradeJobs')}
+              >
+                <View style={styles.incomingLiveTop}>
+                  <View style={styles.incomingLivePulse}><View style={styles.incomingLivePulseDot} /></View>
+                  <Text style={styles.incomingLiveUrgency}>{offer.urgency.toUpperCase()}</Text>
+                  <Text style={styles.incomingLiveDistance}>{offer.distance.toFixed(1)} mi</Text>
+                </View>
+                <Text style={styles.incomingLiveTrade}>{offer.trade}</Text>
+                <Text style={styles.incomingLiveIssue} numberOfLines={2}>{offer.issue}</Text>
+                <View style={styles.incomingLiveFooter}>
+                  <Text style={styles.incomingLiveEta}>~{offer.eta} min away</Text>
+                  <View style={styles.incomingLiveButton}>
+                    <Text style={styles.incomingLiveButtonText}>Review job</Text>
+                    <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={13} color={C.navy} />
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.tradeEmptyCard}>
+            <Text style={styles.tradeEmptyTitle}>No live opportunities yet</Text>
+            <Text style={styles.tradeEmptyText}>Requests matching your trade, availability and work radius will appear here.</Text>
+          </View>
+        )}
+
+        <View style={styles.proV3QuickGrid}>
+          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeJobs')}>
+            <View style={styles.proV3QuickIcon}>
+              <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={19} color={C.orange} />
+            </View>
+            <Text style={styles.proV3QuickValue}>{incomingOffers.length ? incomingOffers.length + ' new' : 'Jobs'}</Text>
+            <Text style={styles.proV3QuickLabel}>{incomingOffers.length ? 'Tap to respond' : 'Offers & active work'}</Text>
+          </Pressable>
+          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeMap')}>
+            <View style={styles.proV3QuickIcon}>
+              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={19} color={C.orange} />
+            </View>
+            <Text style={styles.proV3QuickValue}>Merchants</Text>
+            <Text style={styles.proV3QuickLabel}>Suppliers near you</Text>
+          </Pressable>
+          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeProfile')}>
+            <View style={styles.proV3QuickIcon}>
+              <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={19} color={C.orange} />
+            </View>
+            <Text style={styles.proV3QuickValue}>{profileCompletion}%</Text>
+            <Text style={styles.proV3QuickLabel}>Profile readiness</Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          style={styles.proV3DetailsToggle}
+          onPress={() => setShowWorkSettings(value => !value)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showWorkSettings }}
+        >
+          <View style={styles.proV3DetailsIcon}>
+            <AppIcon icon={{ ios: 'slider.horizontal.3', android: 'tune' }} size={19} color="#456A82" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proV3DetailsTitle}>Work preferences</Text>
+            <Text style={styles.proV3DetailsSub}>{duration} availability · {radius} mile radius</Text>
+          </View>
+          <AppIcon icon={{ ios: showWorkSettings ? 'chevron.up' : 'chevron.down', android: showWorkSettings ? 'expand_less' : 'expand_more' }} size={18} color="#9EB0C2" />
+        </Pressable>
+        {showWorkSettings ? (
+          <>
         <View style={styles.proV3ControlCard}>
           <View style={styles.proV3ControlHeader}>
             <View>
@@ -5514,132 +5595,62 @@ function TradeHomeScreen({
           </View>
         </View>
 
-        <View style={styles.proV3QuickGrid}>
-          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeJobs')}>
-            <View style={styles.proV3QuickIcon}>
-              <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={19} color={C.orange} />
-            </View>
-            <Text style={styles.proV3QuickValue}>{incomingOffers.length ? incomingOffers.length + ' new' : 'Jobs'}</Text>
-            <Text style={styles.proV3QuickLabel}>{incomingOffers.length ? 'Tap to respond' : 'Offers & active work'}</Text>
-          </Pressable>
-          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeMap')}>
-            <View style={styles.proV3QuickIcon}>
-              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={19} color={C.green} />
-            </View>
-            <Text style={styles.proV3QuickValue}>{radius} mi</Text>
-            <Text style={styles.proV3QuickLabel}>Current work radius</Text>
-          </Pressable>
-          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeProfile')}>
-            <View style={styles.proV3QuickIcon}>
-              <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={19} color={C.lime} />
-            </View>
-            <Text style={styles.proV3QuickValue}>{profileCompletion}%</Text>
-            <Text style={styles.proV3QuickLabel}>Profile readiness</Text>
-          </Pressable>
-        </View>
+          </>
+        ) : null}
 
-        <View style={styles.radarCard}>
-          <View style={styles.radarTopRow}>
-            <View>
-              <Text style={styles.radarEyebrow}>DEMAND RADAR</Text>
-              <Text style={styles.radarTitle}>Go where the work is building.</Text>
-              <Text style={styles.radarSub}>Private demand clusters — exact customer addresses stay hidden.</Text>
-            </View>
-            <View style={styles.radarPulse}><View style={styles.radarPulseDot} /></View>
+        <Pressable
+          style={styles.proV3DetailsToggle}
+          onPress={() => setShowPlanning(value => !value)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showPlanning }}
+        >
+          <View style={styles.proV3DetailsIcon}>
+            <AppIcon icon={{ ios: 'square.grid.2x2.fill', android: 'apps' }} size={18} color="#456A82" />
           </View>
-
-          {demandAreas.map((area, index) => (
-            <Pressable
-              key={area.name}
-              style={[styles.radarArea, index === demandAreas.length - 1 && { marginBottom: 0 }]}
-              onPress={() => workDemandArea(area)}
-              disabled={radarBusy === area.name}
-            >
-              <View style={styles.radarAreaCount}>
-                <Text style={styles.radarAreaCountValue}>{area.jobs}</Text>
-                <Text style={styles.radarAreaCountLabel}>jobs</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.radarAreaName}>{area.name}</Text>
-                <Text style={styles.radarAreaMeta}>{area.flexible} flexible · {area.urgent} urgent · ~£{area.earning} demand</Text>
-              </View>
-              <View style={styles.radarAreaAction}>
-                {radarBusy === area.name
-                  ? <ActivityIndicator size="small" color={C.navy} />
-                  : <Text style={styles.radarAreaActionText}>Work here</Text>}
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.routeFillCard}>
-          <View style={styles.routeFillHeader}>
-            <View style={styles.routeFillIcon}>
-              <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={20} color={C.orange} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.routeFillEyebrow}>ROUTE FILL</Text>
-              <Text style={styles.routeFillTitle}>Turn gaps into paid stops.</Text>
-            </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proV3DetailsTitle}>More work tools</Text>
+            <Text style={styles.proV3DetailsSub}>Choose a work area or explore route jobs</Text>
           </View>
-          <Text style={styles.routeFillText}>
-            Flexible customer jobs can be inserted between booked work when the detour is small enough.
-          </Text>
-          {[
-            { time: '12:40', job: 'Leaking kitchen tap', detour: '+3 min', pay: '£52' },
-            { time: '15:10', job: 'Replace radiator valve', detour: '+5 min', pay: '£68' },
-          ].map(item => (
-            <View key={item.time} style={styles.routeFillRow}>
-              <View style={styles.routeFillTime}><Text style={styles.routeFillTimeText}>{item.time}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.routeFillJob}>{item.job}</Text>
-                <Text style={styles.routeFillMeta}>{item.detour} from route</Text>
-              </View>
-              <Text style={styles.routeFillPay}>{item.pay}</Text>
-            </View>
-          ))}
-          <Pressable style={styles.routeFillButton} onPress={() => navigate('tradeJobs')}>
-            <Text style={styles.routeFillButtonText}>Open route opportunities</Text>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={15} color={C.navy} />
-          </Pressable>
-        </View>
-
-        <View style={styles.tradeSectionHeader}>
-          <Text style={styles.tradeSectionTitle}>Incoming work</Text>
-          <Pressable onPress={() => navigate('tradeJobs')}><Text style={styles.tradeLink}>View all</Text></Pressable>
-        </View>
-
-        {incomingOffers.length ? (
-          <View style={styles.incomingLiveWrap}>
-            {incomingOffers.map(offer => (
-              <Pressable
-                key={offer.offerId}
-                style={styles.incomingLiveCard}
-                onPress={() => navigate('tradeJobs')}
-              >
-                <View style={styles.incomingLiveTop}>
-                  <View style={styles.incomingLivePulse}><View style={styles.incomingLivePulseDot} /></View>
-                  <Text style={styles.incomingLiveUrgency}>{offer.urgency.toUpperCase()}</Text>
-                  <Text style={styles.incomingLiveDistance}>{offer.distance.toFixed(1)} mi</Text>
-                </View>
-                <Text style={styles.incomingLiveTrade}>{offer.trade}</Text>
-                <Text style={styles.incomingLiveIssue} numberOfLines={2}>{offer.issue}</Text>
-                <View style={styles.incomingLiveFooter}>
-                  <Text style={styles.incomingLiveEta}>~{offer.eta} min away</Text>
-                  <View style={styles.incomingLiveButton}>
-                    <Text style={styles.incomingLiveButtonText}>Review job</Text>
-                    <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={13} color={C.navy} />
+          <AppIcon icon={{ ios: showPlanning ? 'chevron.up' : 'chevron.down', android: showPlanning ? 'expand_less' : 'expand_more' }} size={18} color="#9EB0C2" />
+        </Pressable>
+        {showPlanning ? (
+          <>
+            <View style={styles.radarCard}>
+              <Text style={styles.radarEyebrow}>WORK AREA</Text>
+              <Text style={styles.radarTitle}>Where would you like to work?</Text>
+              <Text style={styles.radarSub}>Select an area to update where customers can find you. These are suggested areas, not live demand figures.</Text>
+              {demandAreas.map(area => (
+                <Pressable
+                  key={area.name}
+                  style={styles.radarArea}
+                  onPress={() => workDemandArea(area)}
+                  disabled={radarBusy === area.name}
+                >
+                  <View style={styles.proV3AreaIcon}>
+                    <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={20} color="#375D79" />
                   </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.tradeEmptyCard}>
-            <Text style={styles.tradeEmptyTitle}>No live opportunities yet</Text>
-            <Text style={styles.tradeEmptyText}>Requests matching your trade, availability and work radius will appear here.</Text>
-          </View>
-        )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.radarAreaName}>{area.name}</Text>
+                    <Text style={styles.radarAreaMeta}>Use as my work area</Text>
+                  </View>
+                  {radarBusy === area.name
+                    ? <ActivityIndicator size="small" color={C.blue} />
+                    : <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color="#375D79" />}
+                </Pressable>
+              ))}
+            </View>
+            <Pressable style={styles.proV3RouteShortcut} onPress={() => navigate('tradeJobs')}>
+              <View style={styles.proV3AreaIcon}>
+                <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={20} color="#375D79" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.proV3RouteShortcutTitle}>Route opportunities</Text>
+                <Text style={styles.proV3RouteShortcutSub}>See flexible jobs that could fit your schedule</Text>
+              </View>
+              <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color="#375D79" />
+            </Pressable>
+          </>
+        ) : null}
 
         <View style={{ height: 90 }} />
       </ScrollView>
