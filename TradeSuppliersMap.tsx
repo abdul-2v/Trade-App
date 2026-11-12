@@ -158,7 +158,8 @@ async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<
     try {
       const response = await fetch(endpoint + '?data=' + encodeURIComponent(query), { signal: controller.signal });
       if (!response.ok) throw new Error('Map data provider is busy (' + response.status + ').');
-      const data = await response.json() as { elements?: OsmElement[] };
+      const data = await response.json() as { elements?: OsmElement[]; remark?: string };
+      if (data.remark) throw new Error('Map data provider returned an incomplete result.');
       if (!Array.isArray(data.elements)) throw new Error('No valid store data was returned.');
       const stores = convertResults(data.elements, centre, radiusMiles);
       STORE_CACHE.set(key, { stores, expires: Date.now() + 15 * 60 * 1000 });
@@ -356,7 +357,7 @@ export default function TradeSuppliersMap() {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.filters}>
           {([
-            ['mine', primaryTrade ? 'For ' + primaryTrade.toLowerCase() + 's' : 'For my trade'],
+            ['mine', primaryTrade ? 'My trade · ' + primaryTrade : 'For my trade'],
             ['general', 'General supplies'],
             ['specialist', 'Specialist merchants'],
             ['all', 'All shops'],
