@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
+import TradeSuppliersMap from './TradeSuppliersMap';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -6499,13 +6500,7 @@ function TradeJobsScreen({
 function TradeMapScreen({ navigate }: { screen: TradeScreen; navigate: (screen: TradeScreen) => void; switchToCustomer: () => void }) {
   return (
     <TradeShell current="tradeMap" navigate={navigate}>
-      <View style={styles.tradeMapStatus}>
-        <Text style={styles.tradeMapStatusTitle}>Your work map</Text>
-        <Text style={styles.tradeMapStatusSub}>Use Profile → Map location to choose your work area or live-location mode.</Text>
-      </View>
-      <View style={{ flex: 1, paddingBottom: 90 }}>
-        <MapMock trades={[]} onTrade={() => {}} />
-      </View>
+      <TradeSuppliersMap />
     </TradeShell>
   );
 }
