@@ -624,8 +624,8 @@ export default function TradeSuppliersMap() {
           scrollEnabled={false}
         />
         <View pointerEvents="none" style={S.locationLegend}>
-          <View style={S.youDot} />
-          <Text style={S.legendText}>{usingGps ? 'You are here' : savedWorkArea ? 'Distances from work area' : 'Distances from Leicester'}</Text>
+          <View style={usingGps ? S.youDot : S.workDot} />
+          <Text style={S.legendText}>{usingGps ? 'You are here' : savedWorkArea ? 'Using saved work area' : 'Using Leicester as fallback'}</Text>
         </View>
         <Pressable
           style={S.recenterButton}
@@ -667,7 +667,9 @@ export default function TradeSuppliersMap() {
                 <View style={S.storeGlyph}><Text style={S.storeGlyphText}>▣</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={S.storeTitle} numberOfLines={1}>{selected.name}</Text>
-                  <Text style={S.storeMeta}>{selected.distance.toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}</Text>
+                  <Text style={S.storeMeta}>
+                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
+                  </Text>
                 </View>
                 <Pressable onPress={() => setSelected(null)} style={S.close}><Text style={S.closeText}>×</Text></Pressable>
               </View>
@@ -734,6 +736,7 @@ const S = StyleSheet.create({
   counter: { position: 'absolute', top: 14, left: 13, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FAF8F4F2' },
   locationLegend: { position: 'absolute', top: 14, right: 12, borderRadius: 11, backgroundColor: '#FFFCF7EE', flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, maxWidth: 200 },
   youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#1677E8', borderColor: '#FFFFFF', borderWidth: 2, marginRight: 6 },
+  workDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#738499', borderColor: '#FFFFFF', borderWidth: 2, marginRight: 6 },
   legendText: { fontSize: 10, fontWeight: '800', color: '#214258', flexShrink: 1 },
   recenterButton: { position: 'absolute', top: 59, right: 12, backgroundColor: '#153F5B', borderRadius: 11, paddingVertical: 12, paddingHorizontal: 14, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 9, elevation: 4 },
   recenterText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
