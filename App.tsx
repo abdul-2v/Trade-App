@@ -6045,23 +6045,27 @@ function TradeJobsScreen({
   const respondToOffer = async (job: OfferJob, response: 'accepted' | 'declined') => {
     setBusyId(job.offerId);
 
-    const { error } = await supabase
+    const { data: updatedOffer, error } = await supabase
       .from('urgent_request_offers')
       .update({
         status: response,
         responded_at: new Date().toISOString(),
       })
       .eq('id', job.offerId)
-      .eq('status', 'offered');
+      .eq('status', 'offered')
+      .select('id')
+      .maybeSingle();
 
     setBusyId(null);
 
-    if (error) {
+    // A conditional UPDATE affecting zero rows is not an error in PostgREST.
+    // Detect expired/already-accepted offers rather than showing a false success.
+    if (error || !updatedOffer) {
       Alert.alert(
         response === 'accepted' ? 'Job no longer available' : 'Could not decline',
         response === 'accepted'
           ? 'Another tradesperson may have accepted this job first.'
-          : error.message
+          : error?.message || 'This offer is no longer available.'
       );
       await loadJobs(currentUserId || undefined);
       return;
@@ -6081,22 +6085,27 @@ function TradeJobsScreen({
             ? 'completed'
             : null;
 
-    if (!next) return;
+    if (!next || !currentUserId) return;
 
     setBusyId(job.offerId);
-    const { error } = await supabase
+    const { data: updatedRequest, error } = await supabase
       .from('urgent_requests')
       .update({ status: next, updated_at: new Date().toISOString() })
-      .eq('id', job.request.id);
+      .eq('id', job.request.id)
+      .eq('accepted_tradesperson_id', currentUserId)
+      .eq('status', current)
+      .select('id')
+      .maybeSingle();
 
     setBusyId(null);
 
-    if (error) {
-      Alert.alert('Could not update job', error.message);
+    if (error || !updatedRequest) {
+      Alert.alert('Could not update job', error?.message || 'The job has changed. Refreshing its latest status.');
+      await loadJobs(currentUserId);
       return;
     }
 
-    await loadJobs(currentUserId || undefined);
+    await loadJobs(currentUserId);
   };
 
   const openDirections = (job: OfferJob) => {
@@ -6165,27 +6174,32 @@ function TradeJobsScreen({
               ? 'completed'
               : null;
 
-    if (!next) return;
+    if (!next || !currentUserId) return;
 
     setBusyId(job.offerId);
 
-    const { error } = await supabase
+    const { data: updatedJob, error } = await supabase
       .from('jobs')
       .update({
         status: next,
         completed_at: next === 'completed' ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', job.request.id);
+      .eq('id', job.request.id)
+      .eq('accepted_tradesperson_id', currentUserId)
+      .eq('status', current)
+      .select('id')
+      .maybeSingle();
 
     setBusyId(null);
 
-    if (error) {
-      Alert.alert('Could not update job', error.message);
+    if (error || !updatedJob) {
+      Alert.alert('Could not update job', error?.message || 'The job has changed. Refreshing its latest status.');
+      await loadMarketJobs(currentUserId);
       return;
     }
 
-    await loadMarketJobs(currentUserId || undefined);
+    await loadMarketJobs(currentUserId);
   };
 
   const openMarketDirections = (job: MarketOfferJob) => {
