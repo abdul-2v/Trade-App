@@ -158,6 +158,10 @@ const C = {
   stone: '#E9E5D9',
   clay: '#E5744C',
   lime: '#D7EF72',
+  homeInk: '#111C29',
+  homeSurface: '#1D2B3A',
+  homeStone: '#F5F0E8',
+  homeSlate: '#DBE4EB',
 };
 
 const DISPLAY_FONT = Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif';
@@ -880,9 +884,9 @@ function CustomerShell({
   dark?: boolean;
 }) {
   return (
-    <SafeAreaView style={[styles.safe, dark && { backgroundColor: C.navy }]}>
+    <SafeAreaView style={[styles.safe, dark && { backgroundColor: C.homeInk }]}>
       <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
-      <View style={[styles.screen, dark && { backgroundColor: C.navy }]}>{children}</View>
+      <View style={[styles.screen, dark && { backgroundColor: C.homeInk }]}>{children}</View>
       {current && navigate ? <CustomerNav current={current} navigate={navigate} /> : null}
     </SafeAreaView>
   );
@@ -942,7 +946,7 @@ function CustomerNav({
               <AppIcon
                 icon={active ? item.activeIcon : item.icon}
                 size={20}
-                color={active ? C.white : '#91A198'}
+                color={active ? C.white : '#A8B3C0'}
               />
             </View>
             <Text style={[styles.v2NavLabel, active && styles.v2NavLabelActive]}>{item.label}</Text>
@@ -1061,19 +1065,19 @@ function MarketplaceHomeScreen({
             <Text style={styles.marketSearchSub}>Trade, job and timing — we’ll narrow it down.</Text>
           </View>
           <View style={styles.marketSearchArrow}>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.white} />
           </View>
         </Pressable>
 
         <Pressable style={styles.routeHomeCard} onPress={onOpenRoute}>
           <View style={styles.routeHomeTop}>
             <View style={styles.routeHomeBadge}>
-              <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={15} color={C.navy} />
+              <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={15} color={'#203748'} />
               <Text style={styles.routeHomeBadgeText}>ON MY WAY</Text>
             </View>
-            <Text style={styles.routeHomeSaving}>SAVE 15–30%</Text>
+            <Text style={styles.routeHomeSaving}>FLEXIBLE BOOKINGS</Text>
           </View>
-          <Text style={styles.routeHomeTitle}>Flexible? Let the job come to you.</Text>
+          <Text style={styles.routeHomeTitle}>Your job. Their route. Less travel.</Text>
           <Text style={styles.routeHomeSub}>
             We fit your job into a nearby tradesperson's existing route, so they drive less and you pay less.
           </Text>
@@ -1085,8 +1089,8 @@ function MarketplaceHomeScreen({
               <View style={styles.routeMiniLine} />
               <View style={styles.routeMiniDot} />
             </View>
-            <Text style={styles.routeHomeAction}>Find a route slot</Text>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={C.navy} />
+            <Text style={styles.routeHomeAction}>Explore route slots</Text>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={'#203748'} />
           </View>
         </Pressable>
 
@@ -1104,27 +1108,34 @@ function MarketplaceHomeScreen({
 
         <View style={styles.marketSectionHead}>
           <View>
-            <Text style={styles.marketSectionTitle}>What do you need?</Text>
+            <Text style={styles.marketSectionTitle}>Find your trade</Text>
             <Text style={styles.marketSectionSub}>Pick a trade and we’ll ask only what matters.</Text>
           </View>
         </View>
 
         <View style={styles.marketCategoryGrid}>
-          {customerCategoryOrder.slice(0, 6).map(category => {
-            const person = trades.find(item => item.role === category);
+          {customerCategoryOrder.slice(0, 6).map((category, index) => {
             const meta = categories.find(item => item.label === category);
             return (
-              <Pressable key={category} style={styles.marketCategoryCard} onPress={() => beginFlow(category)}>
-                <View style={styles.marketCategoryCopy}>
+              <Pressable
+                key={category}
+                style={[styles.marketCategoryCard, index % 3 === 1 && styles.marketCategoryCardAlt]}
+                onPress={() => beginFlow(category)}
+                accessibilityRole="button"
+                accessibilityLabel={'Find a ' + category.toLowerCase()}
+              >
+                <View style={styles.marketCategoryTop}>
                   <View style={styles.marketCategoryIcon}>
-                    {meta ? <AppIcon icon={meta.icon} size={18} color={C.orange} /> : null}
+                    {meta ? <AppIcon icon={meta.icon} size={23} color="#C66A4A" /> : null}
                   </View>
-                  <Text style={styles.marketCategoryTitle}>{category}</Text>
-                  <Text style={styles.marketCategorySub}>{categoryDescriptions[category]}</Text>
+                  <Text style={styles.marketCategoryIndex}>{String(index + 1).padStart(2, '0')}</Text>
                 </View>
-                {person ? <Image source={{ uri: person.image }} style={styles.marketCategoryImage} /> : null}
-                <View style={styles.marketCategoryGo}>
-                  <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={14} color={C.orange} />
+                <Text style={styles.marketCategoryTitle}>{category}</Text>
+                <View style={styles.marketCategoryFoot}>
+                  <Text style={styles.marketCategorySub} numberOfLines={2}>{categoryDescriptions[category]}</Text>
+                  <View style={styles.marketCategoryGo}>
+                    <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={15} color="#1A2C3C" />
+                  </View>
                 </View>
               </Pressable>
             );
@@ -1176,7 +1187,7 @@ function MarketplaceHomeScreen({
 
         <View style={styles.marketTrustCard}>
           <View style={styles.marketTrustIcon}>
-            <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={20} color={C.green} />
+            <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={20} color={'#355E78'} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.marketTrustTitle}>Trust is part of the profile</Text>
@@ -8658,15 +8669,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
     maxWidth: 240,
   },
-  v2Nav: {
-    minHeight: 76,
-    backgroundColor: '#071C16',
-    borderTopWidth: 1,
-    borderTopColor: '#1D3B31',
-    flexDirection: 'row',
-    paddingTop: 7,
-    paddingBottom: 6,
-  },
+  v2Nav: { minHeight: 76, backgroundColor: C.homeInk, borderTopWidth: 1, borderTopColor: '#2B3848', flexDirection: 'row', paddingTop: 7, paddingBottom: 6 },
   v2NavItem: {
     flex: 1,
     alignItems: 'center',
@@ -8682,12 +8685,7 @@ const styles = StyleSheet.create({
   v2NavIconWrapActive: {
     backgroundColor: C.orange,
   },
-  v2NavLabel: {
-    color: '#91A198',
-    fontSize: 9,
-    fontWeight: '600',
-    marginTop: 2,
-  },
+  v2NavLabel: { color: '#A8B3C0', fontSize: 9, fontWeight: '600', marginTop: 2 },
   v2NavLabelActive: {
     color: C.white,
     fontWeight: '800',
@@ -8703,43 +8701,45 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
 
-  marketHome: { flex: 1, backgroundColor: '#071C16' },
-  marketHomeContent: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 28 },
+  marketHome: { flex: 1, backgroundColor: C.homeInk },
+  marketHomeContent: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 34 },
   marketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   marketGreeting: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '700', letterSpacing: -0.8 },
-  marketGreetingSub: { color: '#97A59D', fontSize: 13, marginTop: 3 },
-  marketAccountButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#28483E', backgroundColor: '#103027', alignItems: 'center', justifyContent: 'center' },
-  marketAddressCard: { minHeight: 78, borderRadius: 22, borderWidth: 1, borderColor: '#275044', backgroundColor: '#12362C', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 12 },
-  marketAddressIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#1A493B', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  marketAddressEyebrow: { color: '#8EA198', fontSize: 9, fontWeight: '800', letterSpacing: 1.4 },
-  marketAddressText: { color: C.white, fontSize: 17, fontWeight: '700', marginTop: 4, maxWidth: 245 },
-  marketSearchCard: { minHeight: 74, backgroundColor: '#F7F3E8', borderRadius: 22, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginBottom: 12 },
-  marketSearchIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#E7E1D2', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
-  marketSearchTitle: { color: C.text, fontSize: 15, fontWeight: '800' },
+  marketGreetingSub: { color: '#A7B5C2', fontSize: 13, marginTop: 3 },
+  marketAccountButton: { width: 44, height: 44, borderRadius: 15, borderWidth: 1, borderColor: '#405063', backgroundColor: C.homeSurface, alignItems: 'center', justifyContent: 'center' },
+  marketAddressCard: { minHeight: 70, borderRadius: 16, borderWidth: 1, borderColor: '#34475B', backgroundColor: C.homeSurface, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 13 },
+  marketAddressIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#31465C', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  marketAddressEyebrow: { color: '#9FB1C3', fontSize: 9, fontWeight: '800', letterSpacing: 1.3 },
+  marketAddressText: { color: C.white, fontSize: 16, fontWeight: '800', marginTop: 4, maxWidth: 245 },
+  marketSearchCard: { minHeight: 84, backgroundColor: '#FBF7EF', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 13 },
+  marketSearchIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEE4D7', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  marketSearchTitle: { color: '#182632', fontSize: 16, fontWeight: '900' },
   marketSearchSub: { color: C.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
-  marketSearchArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  marketUrgentCard: { minHeight: 100, borderRadius: 23, backgroundColor: C.orange, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 24 },
-  marketUrgentIcon: { width: 50, height: 50, borderRadius: 17, backgroundColor: 'rgba(24,27,23,0.18)', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  marketSearchArrow: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#D56F4F', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  marketUrgentCard: { minHeight: 96, borderRadius: 17, backgroundColor: '#B9543A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 26 },
+  marketUrgentIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: 'rgba(17,28,41,0.19)', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   marketUrgentEyebrow: { color: '#FFE3D8', fontSize: 9, fontWeight: '900', letterSpacing: 1.4 },
   marketUrgentTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', marginTop: 2 },
   marketUrgentSub: { color: '#FFE6DC', fontSize: 11, lineHeight: 16, marginTop: 3, maxWidth: 230 },
   marketSectionHead: { marginBottom: 12 },
-  marketSectionTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
-  marketSectionSub: { color: '#91A198', fontSize: 12, lineHeight: 17, marginTop: 3 },
+  marketSectionTitle: { color: '#F7F2EA', fontFamily: DISPLAY_FONT, fontSize: 23, fontWeight: '800', letterSpacing: -0.6 },
+  marketSectionSub: { color: '#9CAABA', fontSize: 12, lineHeight: 17, marginTop: 4 },
   marketCategoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  marketCategoryCard: { width: '48.5%', minHeight: 158, borderRadius: 23, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', marginBottom: 11, overflow: 'hidden', position: 'relative' },
-  marketCategoryCopy: { padding: 15, paddingRight: 46, zIndex: 2 },
-  marketCategoryIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#1C493D', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  marketCategoryTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 17, fontWeight: '700' },
-  marketCategorySub: { color: '#92A299', fontSize: 10, lineHeight: 14, marginTop: 4, maxWidth: 112 },
-  marketCategoryImage: { position: 'absolute', right: -20, bottom: -10, width: 105, height: 128, borderRadius: 40, opacity: 0.58 },
-  marketCategoryGo: { position: 'absolute', left: 14, bottom: 13, width: 30, height: 30, borderRadius: 15, backgroundColor: '#1D493D', alignItems: 'center', justifyContent: 'center', zIndex: 3 },
-  marketMoreServices: { minHeight: 72, borderRadius: 20, backgroundColor: '#E9E4D8', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginTop: 2 },
-  marketMoreIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketCategoryCard: { width: '48.5%', minHeight: 159, borderRadius: 16, backgroundColor: C.homeStone, borderWidth: 1, borderColor: '#DDD6CA', marginBottom: 11, padding: 14, justifyContent: 'space-between' },
+  marketCategoryCardAlt: { backgroundColor: '#E6EAED', borderColor: '#D2DBE1' },
+  marketCategoryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  marketCategoryIndex: { color: '#A4ACB5', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  marketCategoryFoot: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
+  marketCategoryIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#F1DDCF', alignItems: 'center', justifyContent: 'center' },
+  marketCategoryTitle: { color: '#1A2835', fontFamily: DISPLAY_FONT, fontSize: 19, fontWeight: '800', marginTop: 9, letterSpacing: -0.45 },
+  marketCategorySub: { flex: 1, color: '#687581', fontSize: 10, lineHeight: 14, marginTop: 2 },
+  marketCategoryGo: { width: 29, height: 29, borderRadius: 10, backgroundColor: '#DED9D1', alignItems: 'center', justifyContent: 'center', marginLeft: 5 },
+  marketMoreServices: { minHeight: 71, borderRadius: 15, backgroundColor: '#E9E5DE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginTop: 2 },
+  marketMoreIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: '#D7DDE4', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   marketMoreTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
   marketMoreSub: { color: C.muted, fontSize: 10, marginTop: 2 },
   marketNearbyHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
-  marketSeeAll: { color: C.lime, fontSize: 12, fontWeight: '800', paddingBottom: 2 },
+  marketSeeAll: { color: '#EFA887', fontSize: 12, fontWeight: '800', paddingBottom: 2 },
   marketNearbyRow: { paddingRight: 18 },
   marketProCard: { width: 166, borderRadius: 22, backgroundColor: '#F7F3E8', marginRight: 10, padding: 10, overflow: 'hidden' },
   marketProImage: { width: '100%', height: 108, borderRadius: 16, marginBottom: 9 },
@@ -8751,8 +8751,8 @@ const styles = StyleSheet.create({
   marketProMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   marketProMetaStrong: { color: C.text, fontSize: 10, fontWeight: '900', marginRight: 8 },
   marketProMetaText: { color: C.muted, fontSize: 9, marginRight: 8 },
-  marketTrustCard: { minHeight: 88, borderRadius: 22, borderWidth: 1, borderColor: '#275044', backgroundColor: '#0E3026', marginTop: 22, padding: 14, flexDirection: 'row', alignItems: 'center' },
-  marketTrustIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: '#E2F1E5', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  marketTrustCard: { minHeight: 88, borderRadius: 17, borderWidth: 1, borderColor: '#34475B', backgroundColor: C.homeSurface, marginTop: 22, padding: 14, flexDirection: 'row', alignItems: 'center' },
+  marketTrustIcon: { width: 43, height: 43, borderRadius: 12, backgroundColor: '#DDE7EF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   marketTrustTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
   marketTrustSub: { color: '#91A198', fontSize: 10, lineHeight: 15, marginTop: 3 },
   marketFlowRoot: { flex: 1, justifyContent: 'flex-end' },
@@ -8826,18 +8826,18 @@ const styles = StyleSheet.create({
   mapIntentTiming: { borderRadius: 10, backgroundColor: '#E7EFE7', paddingHorizontal: 8, paddingVertical: 6 },
   mapIntentTimingText: { color: C.blue, fontSize: 9, fontWeight: '900' },
 
-  routeHomeCard: { minHeight: 160, borderRadius: 24, backgroundColor: C.lime, padding: 16, marginBottom: 12, overflow: 'hidden' },
+  routeHomeCard: { minHeight: 160, borderRadius: 17, backgroundColor: C.homeSlate, padding: 16, marginBottom: 13, overflow: 'hidden', borderWidth: 1, borderColor: '#C5D2DB' },
   routeHomeTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  routeHomeBadge: { minHeight: 28, borderRadius: 14, backgroundColor: 'rgba(24,27,23,0.09)', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  routeHomeBadgeText: { color: C.navy, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
-  routeHomeSaving: { color: C.blue, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
-  routeHomeTitle: { color: C.navy, fontFamily: DISPLAY_FONT, fontSize: 22, fontWeight: '800', letterSpacing: -0.55, marginTop: 15, maxWidth: 300 },
-  routeHomeSub: { color: '#46513A', fontSize: 11, lineHeight: 16, marginTop: 5, maxWidth: 315 },
+  routeHomeBadge: { minHeight: 28, borderRadius: 8, backgroundColor: '#C3D3DF', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  routeHomeBadgeText: { color: '#203748', fontSize: 9, fontWeight: '900', letterSpacing: 1.0 },
+  routeHomeSaving: { color: '#315A74', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  routeHomeTitle: { color: '#172E40', fontFamily: DISPLAY_FONT, fontSize: 23, fontWeight: '800', letterSpacing: -0.6, marginTop: 14, maxWidth: 315 },
+  routeHomeSub: { color: '#526776', fontSize: 11, lineHeight: 17, marginTop: 6, maxWidth: 315 },
   routeHomeFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
   routeMiniPath: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
-  routeMiniDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.blue },
-  routeMiniLine: { width: 16, height: 1.5, backgroundColor: '#728054' },
-  routeHomeAction: { flex: 1, color: C.navy, fontSize: 11, fontWeight: '900' },
+  routeMiniDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#355F79' },
+  routeMiniLine: { width: 16, height: 1.5, backgroundColor: '#819CAA' },
+  routeHomeAction: { flex: 1, color: '#1B3549', fontSize: 11, fontWeight: '900' },
 
   routeScreen: { flex: 1, backgroundColor: C.canvas },
   routeScreenContent: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 35 },
