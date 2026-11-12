@@ -174,7 +174,7 @@ async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<
 
 // The map stays mounted during filtering, preserving the user's zoom and position.
 function createMapHtml(centre: Coordinates) {
-  return \`
+  return `
 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
@@ -228,7 +228,7 @@ function draw(){
 window.showSuppliers=function(list){shops=Array.isArray(list)?list:[];draw()};
 window.focusSupplier=function(lat,lng){map.flyTo([lat,lng],Math.max(14,map.getZoom()),{duration:.3})};
 map.on('moveend zoomend resize',draw);
-</script></body></html>\`;
+</script></body></html>`;
 }
 
 export default function TradeSuppliersMap() {
