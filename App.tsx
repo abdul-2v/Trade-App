@@ -5063,16 +5063,16 @@ function TradeShell({
   ];
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: C.navy }]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: C.homeInk }]}>
       <StatusBar barStyle="light-content" />
-      <View style={[styles.screen, { backgroundColor: C.navy }]}>{children}</View>
+      <View style={[styles.screen, { backgroundColor: C.homeInk }]}>{children}</View>
       <View style={styles.tradeNav}>
         {items.map(item => (
           <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}>
-            <View style={styles.navIconWrap}>
-              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.orange : '#91A198'} />
+            <View style={[styles.navIconWrap, item.route === current && styles.tradeNavIconActive]}>
+              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.white : '#AABAC9'} />
             </View>
-            <Text style={[styles.navLabel, { color: item.route === current ? C.orange : '#91A198' }]}>{item.label}</Text>
+            <Text style={[styles.navLabel, { color: item.route === current ? '#F2AE93' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -5458,7 +5458,7 @@ function TradeHomeScreen({
             <Text style={[styles.proV3AvailabilityTitle, available && { color: C.navy }]}>
               {available ? 'Available for new jobs' : 'Not taking new jobs'}
             </Text>
-            <Text style={[styles.proV3AvailabilitySub, available && { color: '#506050' }]}>
+            <Text style={[styles.proV3AvailabilitySub, available && { color: '#4F6777' }]}>
               {savingAvailability
                 ? 'Saving…'
                 : available
@@ -5469,8 +5469,8 @@ function TradeHomeScreen({
           <Switch
             value={available}
             onValueChange={changeAvailable}
-            trackColor={{ false: '#345047', true: C.green }}
-            thumbColor={available ? C.white : '#D9DED9'}
+            trackColor={{ false: '#43556A', true: '#6A94AE' }}
+            thumbColor={available ? C.white : '#D8E0E6'}
             disabled={savingAvailability}
           />
         </View>
@@ -7296,10 +7296,11 @@ const styles = StyleSheet.create({
   availablePill: { alignSelf: 'flex-start', backgroundColor: C.greenSoft, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, marginTop: 6 },
   availableText: { color: '#087A4E', fontSize: 10, fontWeight: '800' },
   nav: { height: 78, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: '#E9EDF2', flexDirection: 'row', paddingBottom: 7, paddingTop: 5, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -5 } },
-  tradeNav: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80, backgroundColor: '#071C16', borderTopWidth: 1, borderTopColor: '#1D3B31', flexDirection: 'row', paddingBottom: 8 },
-  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 54 },
+  tradeNav: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 82, backgroundColor: C.homeInk, borderTopWidth: 1, borderTopColor: '#314559', flexDirection: 'row', paddingBottom: 9, paddingTop: 4 },
+  tradeNavIconActive: { backgroundColor: '#C86B50', width: 39, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 58 },
   navIcon: { fontSize: 24, color: '#7C8795' },
-  navLabel: { fontSize: 10, color: '#7C8795', marginTop: 3, fontWeight: '600' },
+  navLabel: { fontSize: 10, color: '#AEBACA', marginTop: 4, fontWeight: '700' },
   navActive: { color: C.blue, fontWeight: '800' },
   mapTop: { paddingHorizontal: 14, paddingTop: 10, backgroundColor: C.white, zIndex: 5, borderBottomWidth: 1, borderBottomColor: '#EEF1F5' },
   mapSearchRow: { flexDirection: 'row', alignItems: 'center' },
@@ -7646,8 +7647,8 @@ const styles = StyleSheet.create({
   tradeStatNumber: { color: C.white, fontSize: 24, fontWeight: '900' },
   tradeStatLabel: { color: '#8FA9BD', fontSize: 10, marginTop: 3 },
   tradeSectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 25, marginBottom: 10 },
-  tradeSectionTitle: { color: C.white, fontSize: 18, fontWeight: '900', flex: 1 },
-  tradeLink: { color: C.cyan, fontWeight: '800' },
+  tradeSectionTitle: { color: C.white, fontSize: 20, fontWeight: '900', flex: 1 },
+  tradeLink: { color: '#F2A78E', fontWeight: '800' },
   opportunity: { backgroundColor: '#0D2A43', borderRadius: 17, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#173F5F' },
   opportunityTop: { flexDirection: 'row', alignItems: 'center' },
   opportunityTitle: { color: C.white, fontSize: 16, fontWeight: '900' },
@@ -7706,9 +7707,9 @@ const styles = StyleSheet.create({
   signOutText: { color: C.red, fontWeight: '900' },
 
   photoPicked: { width: 120, height: 105, borderRadius: 15 },
-  tradeEmptyCard: { backgroundColor: '#0C2B45', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#173F5F' },
+  tradeEmptyCard: { backgroundColor: '#1D3042', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#354C60' },
   tradeEmptyTitle: { color: C.white, fontSize: 14, fontWeight: '900' },
-  tradeEmptyText: { color: '#9FB5C7', fontSize: 11, lineHeight: 17, marginTop: 5 },
+  tradeEmptyText: { color: '#B0BECC', fontSize: 11, lineHeight: 17, marginTop: 6 },
   darkSettingsStatus: { color: '#7890A4', fontSize: 10, fontWeight: '700' },
   dispatchPromiseCard: {
     marginHorizontal: 18,
@@ -8781,36 +8782,44 @@ const styles = StyleSheet.create({
   marketContinueDisabled: { opacity: 0.38 },
   marketContinueText: { color: C.white, fontSize: 13, fontWeight: '900' },
 
-  tradePageV3: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 110, backgroundColor: '#071C16' },
-  proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  proV3Eyebrow: { color: C.orange, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
-  proV3Hello: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 30, fontWeight: '700', letterSpacing: -0.8, marginTop: 2 },
-  proV3Sub: { color: '#91A198', fontSize: 11, marginTop: 3 },
-  proV3CustomerButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', alignItems: 'center', justifyContent: 'center' },
-  proV3ProfileCard: { minHeight: 96, borderRadius: 23, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
-  proV3Avatar: { width: 58, height: 58, borderRadius: 18, marginRight: 12 },
-  proV3AvatarFallback: { width: 58, height: 58, borderRadius: 18, backgroundColor: '#1D493D', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  proV3AvatarFallbackText: { color: C.white, fontSize: 22, fontWeight: '900' },
-  proV3ProfileName: { color: C.white, fontSize: 15, fontWeight: '900' },
-  proV3ProfileTrade: { color: '#93A49A', fontSize: 10, marginTop: 2 },
-  proV3ProgressTrack: { height: 5, borderRadius: 3, backgroundColor: '#28483E', marginTop: 9, overflow: 'hidden' },
-  proV3ProgressFill: { height: 5, borderRadius: 3, backgroundColor: C.lime },
-  proV3Completion: { color: '#A9B6AE', fontSize: 9, marginTop: 5, fontWeight: '700' },
-  proV3Availability: { minHeight: 94, borderRadius: 23, backgroundColor: '#102D25', borderWidth: 1, borderColor: '#28483E', padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  proV3AvailabilityLive: { backgroundColor: C.lime, borderColor: C.lime },
-  proV3AvailabilityIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  tradePageV3: { paddingHorizontal: 18, paddingTop: 15, paddingBottom: 112, backgroundColor: C.homeInk },
+  proV3DetailsToggle: { minHeight: 66, borderRadius: 15, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 11, marginBottom: 11 },
+  proV3DetailsIcon: { width: 37, height: 37, borderRadius: 11, backgroundColor: '#DEE8EF', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  proV3DetailsTitle: { color: '#F9F6EF', fontSize: 14, fontWeight: '900' },
+  proV3DetailsSub: { color: '#ABBDCC', fontSize: 11, marginTop: 4 },
+  proV3AreaIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#DDE7EC', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  proV3RouteShortcut: { minHeight: 71, borderRadius: 15, backgroundColor: '#E0E9EE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginBottom: 14 },
+  proV3RouteShortcutTitle: { color: '#1B3448', fontSize: 14, fontWeight: '900' },
+  proV3RouteShortcutSub: { color: '#607788', fontSize: 11, marginTop: 4 },
+  proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 17 },
+  proV3Eyebrow: { color: '#F2A78E', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
+  proV3Hello: { color: '#F9F6EF', fontFamily: DISPLAY_FONT, fontSize: 28, fontWeight: '800', letterSpacing: -0.7, marginTop: 3 },
+  proV3Sub: { color: '#B5C0CD', fontSize: 12, marginTop: 5 },
+  proV3CustomerButton: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#203247', borderWidth: 1, borderColor: '#344B60', alignItems: 'center', justifyContent: 'center' },
+  proV3ProfileCard: { minHeight: 87, borderRadius: 16, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', padding: 12, flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
+  proV3Avatar: { width: 52, height: 52, borderRadius: 14, marginRight: 12 },
+  proV3AvatarFallback: { width: 52, height: 52, borderRadius: 14, backgroundColor: '#2D4961', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  proV3AvatarFallbackText: { color: C.white, fontSize: 21, fontWeight: '900' },
+  proV3ProfileName: { color: C.white, fontSize: 16, fontWeight: '900' },
+  proV3ProfileTrade: { color: '#B2C0CD', fontSize: 11, marginTop: 3 },
+  proV3ProgressTrack: { height: 4, borderRadius: 2, backgroundColor: '#3B5063', marginTop: 8, overflow: 'hidden' },
+  proV3ProgressFill: { height: 4, borderRadius: 2, backgroundColor: '#E5A080' },
+  proV3Completion: { color: '#A8B8C9', fontSize: 10, marginTop: 6, fontWeight: '700' },
+  proV3Availability: { minHeight: 88, borderRadius: 16, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  proV3AvailabilityLive: { backgroundColor: '#DEEAEF', borderColor: '#DEEAEF' },
+  proV3AvailabilityIcon: { width: 43, height: 43, borderRadius: 12, backgroundColor: 'rgba(116,148,177,0.13)', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   proV3AvailabilityTitle: { color: C.white, fontSize: 15, fontWeight: '900' },
-  proV3AvailabilitySub: { color: '#91A198', fontSize: 10, lineHeight: 14, marginTop: 3, paddingRight: 6 },
-  proV3ControlCard: { borderRadius: 22, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#275044', padding: 14, marginBottom: 11 },
-  proV3ControlHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
+  proV3AvailabilitySub: { color: '#B2C1CE', fontSize: 11, lineHeight: 16, marginTop: 4, paddingRight: 6 },
+  proV3ControlCard: { borderRadius: 16, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', padding: 14, marginBottom: 10 },
+  proV3ControlHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 11 },
   proV3ControlTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
-  proV3ControlSub: { color: '#91A198', fontSize: 9, lineHeight: 13, marginTop: 2, maxWidth: 230 },
-  proV3ControlValue: { color: C.lime, fontSize: 12, fontWeight: '900' },
-  proV3QuickGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3, marginBottom: 20 },
-  proV3QuickCard: { width: '31.5%', minHeight: 110, borderRadius: 20, backgroundColor: '#F5F1E6', padding: 11 },
-  proV3QuickIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#E6E1D5', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  proV3QuickValue: { color: C.text, fontSize: 15, fontWeight: '900' },
-  proV3QuickLabel: { color: C.muted, fontSize: 8, lineHeight: 11, marginTop: 3 },
+  proV3ControlSub: { color: '#B0BECC', fontSize: 11, lineHeight: 15, marginTop: 3, maxWidth: 235 },
+  proV3ControlValue: { color: '#F2AE93', fontSize: 12, fontWeight: '900' },
+  proV3QuickGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 12 },
+  proV3QuickCard: { width: '31.5%', minHeight: 105, borderRadius: 15, backgroundColor: '#F4EFE7', padding: 12 },
+  proV3QuickIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#E4DED4', alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
+  proV3QuickValue: { color: '#1B2936', fontSize: 15, fontWeight: '900', letterSpacing: -0.25 },
+  proV3QuickLabel: { color: '#667480', fontSize: 10, lineHeight: 14, marginTop: 4 },
 
   mapIntentCard: { minHeight: 58, borderRadius: 17, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: '#E1DCCF', marginBottom: 10, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
   mapIntentIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#FFE4D8', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
@@ -8900,19 +8909,19 @@ const styles = StyleSheet.create({
   relayOption: { minHeight: 36, borderRadius: 13, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#285044', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   relayOptionText: { color: C.white, fontSize: 9, fontWeight: '800' },
 
-  radarCard: { borderRadius: 23, backgroundColor: '#F7F3E8', padding: 14, marginBottom: 12 },
+  radarCard: { borderRadius: 16, backgroundColor: '#F4EFE7', padding: 14, marginBottom: 11 },
   radarTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
-  radarEyebrow: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
-  radarTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 18, fontWeight: '800', marginTop: 3 },
-  radarSub: { color: C.muted, fontSize: 9, lineHeight: 13, marginTop: 3, maxWidth: 255 },
+  radarEyebrow: { color: '#B85C42', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  radarTitle: { color: '#1B2936', fontFamily: DISPLAY_FONT, fontSize: 18, fontWeight: '800', marginTop: 5 },
+  radarSub: { color: '#67727F', fontSize: 11, lineHeight: 16, marginTop: 5, marginBottom: 12 },
   radarPulse: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#E2EFDE', alignItems: 'center', justifyContent: 'center' },
   radarPulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.green },
-  radarArea: { minHeight: 67, borderRadius: 17, backgroundColor: C.white, borderWidth: 1, borderColor: '#E1DCCF', flexDirection: 'row', alignItems: 'center', padding: 9, marginBottom: 7 },
+  radarArea: { minHeight: 61, borderRadius: 12, backgroundColor: '#FFFCF6', borderWidth: 1, borderColor: '#E1DBD1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
   radarAreaCount: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E8EEE7', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   radarAreaCountValue: { color: C.blue, fontSize: 16, fontWeight: '900' },
   radarAreaCountLabel: { color: C.muted, fontSize: 7, fontWeight: '700' },
-  radarAreaName: { color: C.text, fontSize: 11, fontWeight: '900' },
-  radarAreaMeta: { color: C.muted, fontSize: 8, marginTop: 3 },
+  radarAreaName: { color: '#1E3447', fontSize: 12, fontWeight: '900' },
+  radarAreaMeta: { color: '#657586', fontSize: 10, marginTop: 4 },
   radarAreaAction: { minWidth: 61, minHeight: 32, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   radarAreaActionText: { color: C.navy, fontSize: 8, fontWeight: '900' },
 
