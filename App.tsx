@@ -861,7 +861,6 @@ export default function App() {
     <MarketplaceHomeScreen
       selectedCategory={selectedCategory}
       setSelectedCategory={setSelectedCategory}
-      openTrade={openTrade}
       navigate={setCustomerScreen}
       onOpenRoute={() => setCustomerScreen('route')}
       onStartIntent={(trade, service, timing) => {
@@ -942,6 +941,9 @@ function CustomerNav({
             key={item.route}
             style={styles.v2NavItem}
             onPress={() => navigate(item.route)}
+            accessibilityRole="tab"
+            accessibilityLabel={item.label}
+            accessibilityState={{ selected: active }}
           >
             <View style={[styles.v2NavIconWrap, active && styles.v2NavIconWrapActive]}>
               <AppIcon
@@ -962,14 +964,12 @@ function CustomerNav({
 function MarketplaceHomeScreen({
   selectedCategory,
   setSelectedCategory,
-  openTrade,
   navigate,
   onStartIntent,
   onOpenRoute,
 }: {
   selectedCategory: TradeCategory | 'All';
   setSelectedCategory: (category: TradeCategory | 'All') => void;
-  openTrade: (trade: Trade) => void;
   navigate: (screen: CustomerScreen) => void;
   onStartIntent: (trade: TradeCategory, service: string, timing: string) => void;
   onOpenRoute: () => void;
@@ -981,7 +981,6 @@ function MarketplaceHomeScreen({
   const [flowTrade, setFlowTrade] = useState<TradeCategory | null>(null);
   const [flowService, setFlowService] = useState('');
   const [flowTiming, setFlowTiming] = useState('');
-  const featured = trades.filter(item => item.available).slice(0, 5);
 
   useEffect(() => {
     let active = true;
@@ -5068,7 +5067,9 @@ function TradeShell({
       <View style={[styles.screen, { backgroundColor: C.homeInk }]}>{children}</View>
       <View style={styles.tradeNav}>
         {items.map(item => (
-          <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}>
+          <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}
+            accessibilityRole="tab" accessibilityLabel={item.label}
+            accessibilityState={{ selected: item.route === current }}>
             <View style={[styles.navIconWrap, item.route === current && styles.tradeNavIconActive]}>
               <AppIcon icon={item.icon} size={21} color={item.route === current ? C.white : '#AABAC9'} />
             </View>
@@ -7300,7 +7301,7 @@ const styles = StyleSheet.create({
   tradeNavIconActive: { backgroundColor: '#C86B50', width: 39, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 58 },
   navIcon: { fontSize: 24, color: '#7C8795' },
-  navLabel: { fontSize: 10, color: '#AEBACA', marginTop: 4, fontWeight: '700' },
+  navLabel: { fontSize: 11, color: '#AEBACA', marginTop: 4, fontWeight: '700' },
   navActive: { color: C.blue, fontWeight: '800' },
   mapTop: { paddingHorizontal: 14, paddingTop: 10, backgroundColor: C.white, zIndex: 5, borderBottomWidth: 1, borderBottomColor: '#EEF1F5' },
   mapSearchRow: { flexDirection: 'row', alignItems: 'center' },
@@ -8647,11 +8648,12 @@ const styles = StyleSheet.create({
     marginTop: 3,
     maxWidth: 240,
   },
-  v2Nav: { minHeight: 76, backgroundColor: C.homeInk, borderTopWidth: 1, borderTopColor: '#2B3848', flexDirection: 'row', paddingTop: 7, paddingBottom: 6 },
+  v2Nav: { minHeight: 81, backgroundColor: C.homeInk, borderTopWidth: 1, borderTopColor: '#2B3848', flexDirection: 'row', paddingTop: 7, paddingBottom: 6 },
   v2NavItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 54,
   },
   v2NavIconWrap: {
     width: 34,
@@ -8663,7 +8665,7 @@ const styles = StyleSheet.create({
   v2NavIconWrapActive: {
     backgroundColor: C.orange,
   },
-  v2NavLabel: { color: '#A8B3C0', fontSize: 9, fontWeight: '600', marginTop: 2 },
+  v2NavLabel: { color: '#A8B3C0', fontSize: 11, fontWeight: '600', marginTop: 4 },
   v2NavLabelActive: {
     color: C.white,
     fontWeight: '800',
