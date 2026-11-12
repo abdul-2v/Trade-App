@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View, StyleShe
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
+import { LEICESTER_SUPPLIER_SEEDS } from './TradeSuppliersLeicester';
 
 type TradeName = 'Plumber' | 'Electrician' | 'Builder' | 'Heating' | 'Locksmith' | 'Carpenter' | 'Roofer';
 type Coordinates = { latitude: number; longitude: number };
@@ -18,6 +19,7 @@ type Supplier = {
   distance: number;
   kinds: TradeName[];
   general: boolean;
+  postcodeApproximate?: boolean;
 };
 type Filter = 'mine' | 'all' | 'general' | 'specialist';
 
@@ -29,6 +31,36 @@ const ALL_TRADES: TradeName[] = ['Plumber', 'Electrician', 'Builder', 'Heating',
 const PLUMBING: TradeName[] = ['Plumber', 'Heating'];
 const BUILDING: TradeName[] = ['Builder', 'Roofer', 'Carpenter'];
 const STORE_CACHE = new Map<string, { expires: number; stores: Supplier[] }>();
+
+// Real, verified Leicester merchants are ready instantly, even if the public
+// Overpass endpoint is slow or unavailable. Pins are postcode-centre approximations.
+function localDirectorySuppliers(near: Coordinates, radiusMiles: number): Supplier[] {
+  return LEICESTER_SUPPLIER_SEEDS
+    .map(store => ({
+      ...store,
+      postcodeApproximate: true,
+      distance: haversine(near, { latitude: store.latitude, longitude: store.longitude }),
+    }))
+    .filter(store => store.distance <= radiusMiles)
+    .sort((a, b) => a.distance - b.distance);
+}
+
+function mergeMerchantSources(directory: Supplier[], live: Supplier[]): Supplier[] {
+  const combined = [...live];
+  for (const shop of directory) {
+    const duplicate = combined.some(other => {
+      const a = other.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const b = shop.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return (a === b || a.includes(b) || b.includes(a))
+        && haversine(
+          { latitude: other.latitude, longitude: other.longitude },
+          { latitude: shop.latitude, longitude: shop.longitude }
+        ) < 0.35;
+    });
+    if (!duplicate) combined.push(shop);
+  }
+  return combined.sort((a, b) => a.distance - b.distance);
+}
 
 const merchantGroups: Array<{ match: RegExp; trades: TradeName[]; general?: boolean }> = [
   { match: /screwfix|toolstation|b\s*&\s*q|wickes|homebase|home hardware/i, trades: ALL_TRADES, general: true },
@@ -146,31 +178,40 @@ async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<
   const cached = STORE_CACHE.get(key);
   if (cached && cached.expires > Date.now()) return cached.stores;
 
+  // Public Overpass is best-effort, not a production guaranteed live service.
+  // Use one maintained endpoint, with an absolute deadline even on devices where
+  // AbortController does not reliably stop a React Native fetch.
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const query = overpassQuery(centre, radiusMiles);
-  const endpoints = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-  ];
-  let lastError: Error = new Error('Could not reach the map data provider.');
-  for (const endpoint of endpoints) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 23000);
-    try {
-      const response = await fetch(endpoint + '?data=' + encodeURIComponent(query), { signal: controller.signal });
-      if (!response.ok) throw new Error('Map data provider is busy (' + response.status + ').');
+  const url = 'https://overpass.private.coffee/api/interpreter';
+
+  try {
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error('Merchant lookup timed out.'));
+      }, 13500);
+    });
+    const request = fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: 'data=' + encodeURIComponent(query),
+      signal: controller.signal,
+    }).then(async response => {
+      if (!response.ok) throw new Error('Merchant lookup unavailable (' + response.status + ').');
       const data = await response.json() as { elements?: OsmElement[]; remark?: string };
-      if (data.remark) throw new Error('Map data provider returned an incomplete result.');
-      if (!Array.isArray(data.elements)) throw new Error('No valid store data was returned.');
-      const stores = convertResults(data.elements, centre, radiusMiles);
-      STORE_CACHE.set(key, { stores, expires: Date.now() + 15 * 60 * 1000 });
-      return stores;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Merchant lookup failed.');
-    } finally {
-      clearTimeout(timeout);
-    }
+      if (data.remark) throw new Error('Merchant lookup returned an incomplete result.');
+      if (!Array.isArray(data.elements)) throw new Error('Invalid merchant map data.');
+      return convertResults(data.elements, centre, radiusMiles);
+    });
+    const result = await Promise.race([request, deadline]);
+    STORE_CACHE.set(key, { stores: result, expires: Date.now() + 15 * 60 * 1000 });
+    return result;
+  } finally {
+    if (timer) clearTimeout(timer);
+    controller.abort();
   }
-  throw lastError;
 }
 
 // The map stays mounted during filtering, preserving the user's zoom and position.
@@ -244,6 +285,7 @@ export default function TradeSuppliersMap() {
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
+  const [sourceNote, setSourceNote] = useState('');
   const [refreshIndex, setRefreshIndex] = useState(0);
 
   useEffect(() => {
@@ -294,17 +336,42 @@ export default function TradeSuppliersMap() {
   useEffect(() => {
     if (!positionReady) return;
     let active = true;
-    setLoading(true);
+    const nearbyDirectory = localDirectorySuppliers(centre, radius);
+
+    // Never block Leicester tradespeople behind a remote loading spinner.
+    setShops(nearbyDirectory);
+    setSelected(null);
+    setLoading(nearbyDirectory.length === 0);
     setProblem(null);
+    setSourceNote(nearbyDirectory.length
+      ? 'Leicester directory locations shown · checking latest map records…'
+      : 'Checking map records…');
+
     loadSuppliers(centre, radius)
-      .then(found => { if (active) { setShops(found); setLoading(false); } })
+      .then(found => {
+        if (!active) return;
+        const combined = mergeMerchantSources(nearbyDirectory, found);
+        setShops(combined);
+        setLoading(false);
+        setSourceNote(nearbyDirectory.length
+          ? 'Leicester directory + OpenStreetMap locations'
+          : 'Locations from OpenStreetMap');
+        if (!combined.length) {
+          setProblem('No merchants found within this radius. Try expanding the area or open Maps to search directly.');
+        }
+      })
       .catch(() => {
-        if (active) {
-          setShops([]);
-          setLoading(false);
-          setProblem('Merchant locations could not be loaded. Tap Retry to try again.');
+        if (!active) return;
+        setShops(nearbyDirectory);
+        setLoading(false);
+        setSourceNote(nearbyDirectory.length
+          ? 'Leicester directory locations · map search temporarily unavailable'
+          : 'Live merchant lookup is temporarily unavailable');
+        if (!nearbyDirectory.length) {
+          setProblem('The map service is unavailable. Use Find shops in Maps or try again.');
         }
       });
+
     return () => { active = false; };
   }, [positionReady, centre.latitude, centre.longitude, radius, refreshIndex]);
 
@@ -322,7 +389,7 @@ export default function TradeSuppliersMap() {
   const sendToMap = () => {
     const values = visible.map(s => ({ id: s.id, name: s.name, lat: s.latitude, lng: s.longitude, general: s.general }));
     const encoded = JSON.stringify(values).replace(/</g, '\\u003c').replace(/\u2028|\u2029/g, '');
-    mapRef.current?.injectJavaScript('window.showSuppliers(' + encoded + ');true;');
+    mapRef.current?.injectJavaScript('if(window.showSuppliers){window.showSuppliers(' + encoded + ')};true;');
   };
 
   useEffect(sendToMap, [visible]);
@@ -338,8 +405,17 @@ export default function TradeSuppliersMap() {
     } catch { /* ignore unexpected messages */ }
   };
 
-  const openDirections = (shop: Supplier) =>
-    Linking.openURL('https://www.google.com/maps/dir/?api=1&destination=' + shop.latitude + ',' + shop.longitude);
+  const openDirections = (shop: Supplier) => {
+    // For directory records, address lookup is more accurate than their postcode-centre pin.
+    const destination = shop.postcodeApproximate
+      ? shop.address
+      : shop.latitude + ',' + shop.longitude;
+    return Linking.openURL('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(destination));
+  };
+
+  const openShopsInMaps = () =>
+    Linking.openURL('https://www.google.com/maps/search/?api=1&query='
+      + encodeURIComponent((primaryTrade || 'trade') + ' merchants near ' + centre.latitude + ',' + centre.longitude));
 
   return (
     <View style={S.root}>
@@ -391,9 +467,14 @@ export default function TradeSuppliersMap() {
         ) : problem ? (
           <View style={S.notice}>
             <Text style={S.noticeText}>{problem}</Text>
-            <Pressable style={S.noticeButton} onPress={() => { STORE_CACHE.clear(); setRefreshIndex(x => x + 1); }}>
-              <Text style={S.noticeButtonText}>Retry</Text>
-            </Pressable>
+            <View style={S.noticeActions}>
+              <Pressable style={S.noticeButton} onPress={() => { STORE_CACHE.clear(); setRefreshIndex(x => x + 1); }}>
+                <Text style={S.noticeButtonText}>Retry</Text>
+              </Pressable>
+              <Pressable style={S.noticeButton} onPress={openShopsInMaps}>
+                <Text style={S.noticeButtonText}>Find shops in Maps</Text>
+              </Pressable>
+            </View>
           </View>
         ) : !visible.length ? (
           <View style={S.notice}>
@@ -412,6 +493,7 @@ export default function TradeSuppliersMap() {
                 <Pressable onPress={() => setSelected(null)} style={S.close}><Text style={S.closeText}>×</Text></Pressable>
               </View>
               <Text style={S.address} numberOfLines={2}>{selected.address}</Text>
+              {selected.postcodeApproximate ? <Text style={S.pinDisclaimer}>Approximate map pin (postcode centre)</Text> : null}
               <View style={S.actions}>
                 <Pressable style={S.primaryButton} onPress={() => openDirections(selected)}>
                   <Text style={S.primaryButtonText}>Get directions ↗</Text>
@@ -444,7 +526,8 @@ export default function TradeSuppliersMap() {
               </ScrollView>
             </>
           )}
-          <Text style={S.attribution}>Map data © OpenStreetMap contributors · Shop stock and opening times are not live.</Text>
+          {sourceNote ? <Text style={S.sourceNote}>{sourceNote}</Text> : null}
+          <Text style={S.attribution}>Map data © OpenStreetMap contributors · Directory pins approximate. Check stock and opening times.</Text>
         </View>
       </View>
     </View>
@@ -474,7 +557,8 @@ const S = StyleSheet.create({
   loadingText: { color: '#1E3444', fontSize: 11, fontWeight: '700' },
   notice: { position: 'absolute', left: 16, right: 16, top: 65, padding: 13, borderRadius: 12, backgroundColor: '#FDFCF9', alignItems: 'center' },
   noticeText: { color: '#33485B', fontSize: 12, textAlign: 'center' },
-  noticeButton: { backgroundColor: '#1A3449', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9, marginTop: 10 },
+  noticeButton: { backgroundColor: '#1A3449', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, marginTop: 10 },
+  noticeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   noticeButtonText: { color: LIGHT, fontSize: 12, fontWeight: '800' },
   bottomPanel: { position: 'absolute', bottom: 11, left: 11, right: 11, borderRadius: 16, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, backgroundColor: '#FFFCF7F7', shadowColor: '#11273B', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5 },
   storeHeader: { flexDirection: 'row', alignItems: 'center' },
@@ -496,5 +580,7 @@ const S = StyleSheet.create({
   nearbyShop: { width: 135, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: '#EAF0F3', marginRight: 8 },
   nearbyTitle: { color: '#1E3547', fontSize: 11, fontWeight: '900' },
   nearbyDistance: { color: '#687D8C', fontSize: 9, marginTop: 3 },
-  attribution: { marginTop: 7, fontSize: 8, color: '#82909D' },
+  attribution: { marginTop: 6, fontSize: 8, color: '#82909D' },
+  sourceNote: { marginTop: 8, fontSize: 9, color: '#48617A', fontWeight: '700' },
+  pinDisclaimer: { marginTop: 4, fontSize: 9, color: '#8B674F' },
 });
