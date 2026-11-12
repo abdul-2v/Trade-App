@@ -72,6 +72,28 @@ const merchantGroups: Array<{ match: RegExp; trades: TradeName[]; general?: bool
   { match: /ironmong|lock supplies|lock centre|locksmith supplies|security hardware/i, trades: ['Locksmith', 'Carpenter'] },
 ];
 
+async function getFreshDeviceLocation(): Promise<Location.LocationObject | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const current = await Promise.race<Location.LocationObject | null>([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<null>(resolve => {
+        timer = setTimeout(() => resolve(null), 9000);
+      }),
+    ]);
+    if (current) return current;
+  } catch {
+    // The device may have no fresh GPS fix indoors.
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  try {
+    return await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000, requiredAccuracy: 500 });
+  } catch {
+    return null;
+  }
+}
+
 function haversine(a: Coordinates, b: Coordinates) {
   const radians = (n: number) => n * Math.PI / 180;
   const dLat = radians(b.latitude - a.latitude);
@@ -226,6 +248,8 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#E7EBE
 .pin{width:34px;height:34px;border-radius:11px;background:#243F55;border:2px solid white;box-shadow:0 3px 12px #14263955;color:white;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900}
 .pin.general{background:#D3714E}.pin:hover{transform:scale(1.12)}
 .cluster{width:42px;height:42px;border-radius:14px;background:#FFFDF7;border:2px solid #294C66;box-shadow:0 2px 10px #14263944;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#19344C}
+.you-pin{width:24px;height:24px;border-radius:50%;background:#1677E8;border:5px solid #fff;box-shadow:0 0 0 6px #1677E832,0 2px 14px #1B467A77;box-sizing:border-box}
+.work-pin{border:2px solid #68788C;background:#F9FAFC;border-radius:9px;padding:4px 7px;color:#35465A;font-size:10px;font-weight:900;white-space:nowrap;box-shadow:0 2px 8px #233A4A33}
 </style></head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
@@ -237,6 +261,31 @@ map.attributionControl.setPrefix('');
 map.attributionControl.addAttribution('© OpenStreetMap contributors · OpenFreeMap');
 var layer=L.layerGroup().addTo(map);
 var shops=[];
+var userPoint=null, userMarker=null, workMarker=null, accuracyArea=null, shopLink=null;
+function removeFeature(feature){if(feature && map.hasLayer(feature))map.removeLayer(feature);}
+window.updateLocations=function(points){
+  removeFeature(userMarker);removeFeature(workMarker);removeFeature(accuracyArea);
+  userMarker=null;workMarker=null;accuracyArea=null;
+  var current=points&&points.current, work=points&&points.workArea;
+  userPoint=current||null;
+  if(work && (!current || Math.abs(current.lat-work.lat)+Math.abs(current.lng-work.lng)>.001)){
+    var wicon=L.divIcon({className:'',html:'<span class="work-pin">Work area</span>',iconSize:[75,24],iconAnchor:[37,12]});
+    workMarker=L.marker([work.lat,work.lng],{icon:wicon,interactive:false,zIndexOffset:400}).addTo(map);
+  }
+  if(current){
+    if(current.accuracy && current.accuracy>25 && current.accuracy<1000){
+      accuracyArea=L.circle([current.lat,current.lng],{
+        radius:current.accuracy,weight:1,color:'#1677E8',fillColor:'#1677E8',fillOpacity:.09,interactive:false
+      }).addTo(map);
+    }
+    var icon=L.divIcon({className:'',html:'<div class="you-pin"></div>',iconSize:[24,24],iconAnchor:[12,12]});
+    userMarker=L.marker([current.lat,current.lng],{icon:icon,interactive:false,zIndexOffset:1100}).addTo(map);
+  }
+};
+window.centerOnMe=function(){
+  if(userPoint) map.flyTo([userPoint.lat,userPoint.lng],Math.max(14,map.getZoom()),{duration:.35});
+};
+window.clearShopLine=function(){removeFeature(shopLink);shopLink=null};
 function draw(){
  layer.clearLayers();
  var zoom=map.getZoom(),buckets={};
@@ -268,7 +317,18 @@ function draw(){
  });
 }
 window.showSuppliers=function(list){shops=Array.isArray(list)?list:[];draw()};
-window.focusSupplier=function(lat,lng){map.flyTo([lat,lng],Math.max(14,map.getZoom()),{duration:.3})};
+window.focusSupplier=function(lat,lng){
+  window.clearShopLine();
+  if(userPoint){
+    shopLink=L.polyline([[userPoint.lat,userPoint.lng],[lat,lng]],{
+      color:'#1677E8',weight:3,dashArray:'5,7',opacity:.8,interactive:false
+    }).addTo(map);
+    var bounds=L.latLngBounds([[userPoint.lat,userPoint.lng],[lat,lng]]);
+    map.fitBounds(bounds.pad(.45),{padding:[45,45],maxZoom:14.5,animate:true});
+  } else {
+    map.flyTo([lat,lng],Math.max(14,map.getZoom()),{duration:.3});
+  }
+};
 map.on('moveend zoomend resize',draw);
 </script></body></html>`;
 }
@@ -277,7 +337,11 @@ export default function TradeSuppliersMap() {
   const mapRef = useRef<WebView>(null);
   const [centre, setCentre] = useState<Coordinates>(LEICESTER);
   const [positionReady, setPositionReady] = useState(false);
-  const [positionName, setPositionName] = useState('Locating your work area…');
+  const [positionName, setPositionName] = useState('Finding your position…');
+  const [gpsPosition, setGpsPosition] = useState<Coordinates | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [gpsState, setGpsState] = useState<'checking' | 'ready' | 'disabled' | 'unavailable'>('checking');
+  const [savedWorkArea, setSavedWorkArea] = useState<Coordinates | null>(null);
   const [primaryTrade, setPrimaryTrade] = useState<TradeName | null>(null);
   const [filter, setFilter] = useState<Filter>('mine');
   const [radius, setRadius] = useState(10);
@@ -290,9 +354,25 @@ export default function TradeSuppliersMap() {
 
   useEffect(() => {
     let active = true;
+    let watch: Location.LocationSubscription | null = null;
+    let queryOrigin = LEICESTER;
+
+    const onPosition = (position: Location.LocationObject, changeMapArea: boolean) => {
+      if (!active) return;
+      const next = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setGpsPosition(next);
+      setGpsAccuracy(position.coords.accuracy ?? null);
+      setGpsState('ready');
+      if (changeMapArea || haversine(queryOrigin, next) > 2.5) {
+        queryOrigin = next;
+        setCentre(next);
+        setPositionName('Near your current location');
+      }
+    };
+
     async function locate() {
-      let coordinate: Coordinates | null = null;
-      let label = 'Near Leicester · choose a work area in Profile';
+      let area: Coordinates = LEICESTER;
+      let label = 'Leicester area · enable location for accurate distances';
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -305,32 +385,53 @@ export default function TradeSuppliersMap() {
           if (profile?.primary_trade && ALL_TRADES.includes(profile.primary_trade as TradeName) && active) {
             setPrimaryTrade(profile.primary_trade as TradeName);
           }
-          if (availability?.location_mode === 'work_area' &&
-              typeof availability.work_area_latitude === 'number' &&
-              typeof availability.work_area_longitude === 'number') {
-            coordinate = { latitude: availability.work_area_latitude, longitude: availability.work_area_longitude };
-            label = 'Your saved work area';
-          }
-        }
-        if (!coordinate) {
-          const permission = await Location.requestForegroundPermissionsAsync();
-          if (permission.status === 'granted') {
-            const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            coordinate = { latitude: current.coords.latitude, longitude: current.coords.longitude };
-            label = 'Near your current location';
+          if (typeof availability?.work_area_latitude === 'number' &&
+              typeof availability?.work_area_longitude === 'number') {
+            area = { latitude: availability.work_area_latitude, longitude: availability.work_area_longitude };
+            label = 'Saved work area · GPS not yet available';
+            if (active) setSavedWorkArea(area);
           }
         }
       } catch {
-        // If location is unavailable, Leicester is explicitly labelled as a fallback.
+        // The map can still start with the clearly labelled Leicester fallback.
       }
-      if (active) {
-        setCentre(coordinate || LEICESTER);
-        setPositionName(label);
-        setPositionReady(true);
+
+      if (!active) return;
+      queryOrigin = area;
+      setCentre(area);
+      setPositionName(label);
+      setPositionReady(true);
+
+      try {
+        let permission = await Location.getForegroundPermissionsAsync();
+        if (!permission.granted) permission = await Location.requestForegroundPermissionsAsync();
+        if (!active) return;
+        if (!permission.granted) {
+          setGpsState('disabled');
+          return;
+        }
+
+        const fix = await getFreshDeviceLocation();
+        if (!active) return;
+        if (fix) onPosition(fix, true);
+        else setGpsState('unavailable');
+
+        const subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 25, timeInterval: 12000 },
+          pos => onPosition(pos, false)
+        );
+        if (active) watch = subscription;
+        else subscription.remove();
+      } catch {
+        if (active) setGpsState('unavailable');
       }
     }
+
     locate();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      watch?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -375,12 +476,21 @@ export default function TradeSuppliersMap() {
     return () => { active = false; };
   }, [positionReady, centre.latitude, centre.longitude, radius, refreshIndex]);
 
-  const visible = useMemo(() => shops.filter(shop => {
-    if (filter === 'all') return true;
-    if (filter === 'general') return shop.general;
-    if (filter === 'specialist') return !shop.general && (!primaryTrade || shop.kinds.includes(primaryTrade));
-    return !primaryTrade || shop.kinds.includes(primaryTrade);
-  }), [shops, filter, primaryTrade]);
+  const referencePosition = gpsPosition || centre;
+  const usingGps = gpsState === 'ready' && !!gpsPosition;
+  const visible = useMemo(() => shops
+    .filter(shop => {
+      if (filter === 'all') return true;
+      if (filter === 'general') return shop.general;
+      if (filter === 'specialist') return !shop.general && (!primaryTrade || shop.kinds.includes(primaryTrade));
+      return !primaryTrade || shop.kinds.includes(primaryTrade);
+    })
+    .map(shop => ({
+      ...shop,
+      distance: haversine(referencePosition, { latitude: shop.latitude, longitude: shop.longitude }),
+    }))
+    .sort((a,b) => a.distance - b.distance),
+  [shops, filter, primaryTrade, referencePosition.latitude, referencePosition.longitude]);
 
   useEffect(() => {
     if (selected && !visible.some(s => s.id === selected.id)) setSelected(null);
@@ -393,7 +503,64 @@ export default function TradeSuppliersMap() {
   };
 
   useEffect(sendToMap, [visible]);
+
+  const sendPositionToMap = () => {
+    const payload = {
+      current: gpsPosition
+        ? { lat: gpsPosition.latitude, lng: gpsPosition.longitude, accuracy: gpsAccuracy || 0 }
+        : null,
+      workArea: savedWorkArea
+        ? { lat: savedWorkArea.latitude, lng: savedWorkArea.longitude }
+        : null,
+    };
+    mapRef.current?.injectJavaScript(
+      'if(window.updateLocations){window.updateLocations(' + JSON.stringify(payload) + ')};true;'
+    );
+  };
+  useEffect(sendPositionToMap, [
+    gpsPosition?.latitude, gpsPosition?.longitude, gpsAccuracy,
+    savedWorkArea?.latitude, savedWorkArea?.longitude,
+  ]);
+
   const mapHtml = useMemo(() => createMapHtml(centre), [centre.latitude, centre.longitude]);
+
+  const centreOnMyLocation = async () => {
+    try {
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted && !permission.canAskAgain) {
+        await Linking.openSettings();
+        return;
+      }
+      if (!permission.granted) permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setGpsState('disabled');
+        return;
+      }
+      const fix = await getFreshDeviceLocation();
+      if (!fix) {
+        setGpsState('unavailable');
+        return;
+      }
+      const current = { latitude: fix.coords.latitude, longitude: fix.coords.longitude };
+      setGpsPosition(current);
+      setGpsAccuracy(fix.coords.accuracy ?? null);
+      setGpsState('ready');
+      setCentre(current);
+      setPositionName('Near your current location');
+      mapRef.current?.injectJavaScript(
+        'if(window.centerOnMe){window.centerOnMe()};true;'
+      );
+    } catch {
+      setGpsState('unavailable');
+    }
+  };
+
+  useEffect(() => {
+    const javascript = selected
+      ? 'if(window.focusSupplier){window.focusSupplier(' + selected.latitude + ',' + selected.longitude + ')};true;'
+      : 'if(window.clearShopLine){window.clearShopLine()};true;';
+    mapRef.current?.injectJavaScript(javascript);
+  }, [selected?.id]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
@@ -453,9 +620,21 @@ export default function TradeSuppliersMap() {
           javaScriptEnabled
           domStorageEnabled
           onMessage={handleMessage}
-          onLoadEnd={sendToMap}
+          onLoadEnd={() => { sendToMap(); sendPositionToMap(); }}
           scrollEnabled={false}
         />
+        <View pointerEvents="none" style={S.locationLegend}>
+          <View style={S.youDot} />
+          <Text style={S.legendText}>{usingGps ? 'You are here' : savedWorkArea ? 'Distances from work area' : 'Distances from Leicester'}</Text>
+        </View>
+        <Pressable
+          style={S.recenterButton}
+          onPress={centreOnMyLocation}
+          accessibilityRole="button"
+          accessibilityLabel="Show my current location on the map"
+        >
+          <Text style={S.recenterText}>{usingGps ? '⌖ Centre on me' : '⌖ Use my location'}</Text>
+        </Pressable>
         <View pointerEvents="none" style={S.counter}>
           <Text style={S.counterText}>{loading ? 'Finding shops…' : visible.length + ' shops on map'}</Text>
         </View>
@@ -488,7 +667,7 @@ export default function TradeSuppliersMap() {
                 <View style={S.storeGlyph}><Text style={S.storeGlyphText}>▣</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={S.storeTitle} numberOfLines={1}>{selected.name}</Text>
-                  <Text style={S.storeMeta}>{selected.distance.toFixed(1)} mi away · {selected.general ? 'General supplies' : 'Trade specialist'}</Text>
+                  <Text style={S.storeMeta}>{selected.distance.toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}</Text>
                 </View>
                 <Pressable onPress={() => setSelected(null)} style={S.close}><Text style={S.closeText}>×</Text></Pressable>
               </View>
@@ -508,9 +687,9 @@ export default function TradeSuppliersMap() {
           ) : (
             <>
               <Text style={S.panelTitle}>Closest {primaryTrade ? primaryTrade.toLowerCase() + ' suppliers' : 'trade suppliers'}</Text>
-              <Text style={S.panelHint}>Tap a pin for directions and shop details. Check stock before travelling.</Text>
+              <Text style={S.panelHint}>{usingGps ? 'Nearest first · straight-line miles from you' : 'Nearest first · approximate miles from ' + (savedWorkArea ? 'work area' : 'Leicester')}. Tap a shop to compare locations.</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow}>
-                {visible.slice(0, 8).map(shop => (
+                {visible.slice(0, 8).map((shop, index) => (
                   <Pressable
                     key={shop.id}
                     style={S.nearbyShop}
@@ -519,8 +698,9 @@ export default function TradeSuppliersMap() {
                       mapRef.current?.injectJavaScript('window.focusSupplier(' + shop.latitude + ',' + shop.longitude + ');true;');
                     }}
                   >
+                    <Text style={S.nearbyRank}>#{index + 1} CLOSEST</Text>
                     <Text style={S.nearbyTitle} numberOfLines={1}>{shop.name}</Text>
-                    <Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi · Directions ↗</Text>
+                    <Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi {usingGps ? 'from you' : 'away'} · View</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -552,6 +732,11 @@ const S = StyleSheet.create({
   mapArea: { flex: 1, backgroundColor: '#E7EBEF' },
   webView: { flex: 1, backgroundColor: '#E7EBEF' },
   counter: { position: 'absolute', top: 14, left: 13, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FAF8F4F2' },
+  locationLegend: { position: 'absolute', top: 14, right: 12, borderRadius: 11, backgroundColor: '#FFFCF7EE', flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, maxWidth: 200 },
+  youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#1677E8', borderColor: '#FFFFFF', borderWidth: 2, marginRight: 6 },
+  legendText: { fontSize: 10, fontWeight: '800', color: '#214258', flexShrink: 1 },
+  recenterButton: { position: 'absolute', top: 59, right: 12, backgroundColor: '#153F5B', borderRadius: 11, paddingVertical: 12, paddingHorizontal: 14, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 9, elevation: 4 },
+  recenterText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
   counterText: { fontSize: 11, color: '#1E3444', fontWeight: '900' },
   loading: { position: 'absolute', left: 16, right: 16, top: 70, padding: 13, borderRadius: 12, backgroundColor: '#FDFCF9', flexDirection: 'row', alignItems: 'center', gap: 10 },
   loadingText: { color: '#1E3444', fontSize: 11, fontWeight: '700' },
@@ -578,6 +763,7 @@ const S = StyleSheet.create({
   panelHint: { color: '#697A89', marginTop: 3, fontSize: 10 },
   nearbyRow: { paddingTop: 10, paddingBottom: 4 },
   nearbyShop: { width: 135, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: '#EAF0F3', marginRight: 8 },
+  nearbyRank: { color: '#B75F43', fontWeight: '900', letterSpacing: 0.8, fontSize: 8, marginBottom: 3 },
   nearbyTitle: { color: '#1E3547', fontSize: 11, fontWeight: '900' },
   nearbyDistance: { color: '#687D8C', fontSize: 9, marginTop: 3 },
   attribution: { marginTop: 6, fontSize: 8, color: '#82909D' },
