@@ -140,11 +140,11 @@ const marketJobStatusLabel = (status: string) => {
 };
 
 const C = {
-  navy: '#181B17',
-  navy2: '#232821',
-  navy3: '#30362D',
-  blue: '#355B46',
-  cyan: '#D7EF72',
+  navy: '#111C29',
+  navy2: '#1D2B3A',
+  navy3: '#2D4052',
+  blue: '#375D79',
+  cyan: '#D8E7F0',
   green: '#2F8A67',
   greenSoft: '#E7F2EA',
   text: '#1A1D19',
@@ -158,7 +158,7 @@ const C = {
   canvas: '#F6F4ED',
   stone: '#E9E5D9',
   clay: '#E5744C',
-  lime: '#D7EF72',
+  lime: '#E9D9C4',
   homeInk: '#111C29',
   homeSurface: '#1D2B3A',
   homeStone: '#F5F0E8',
@@ -1037,7 +1037,7 @@ function MarketplaceHomeScreen({
         <View style={styles.marketHeader}>
           <View>
             <Text style={styles.marketGreeting}>{firstName ? 'Hi ' + firstName : 'TradeHub'}</Text>
-            <Text style={styles.marketGreetingSub}>What can we get sorted today?</Text>
+            <Text style={styles.marketGreetingSub}>Find the right help, without the hassle.</Text>
           </View>
           <Pressable style={styles.marketAccountButton} onPress={() => navigate('customerProfile')}>
             <AppIcon icon={{ ios: 'person.fill', android: 'person' }} size={18} color={C.white} />
@@ -1062,55 +1062,43 @@ function MarketplaceHomeScreen({
             <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={20} color={C.navy} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.marketSearchTitle}>Tell us what needs doing</Text>
-            <Text style={styles.marketSearchSub}>Trade, job and timing — we’ll narrow it down.</Text>
+            <Text style={styles.marketSearchTitle}>What needs doing?</Text>
+            <Text style={styles.marketSearchSub}>Tell us a little about the job</Text>
           </View>
           <View style={styles.marketSearchArrow}>
             <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.white} />
           </View>
         </Pressable>
 
-        <Pressable style={styles.routeHomeCard} onPress={onOpenRoute}>
-          <View style={styles.routeHomeTop}>
-            <View style={styles.routeHomeBadge}>
-              <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={15} color={'#203748'} />
-              <Text style={styles.routeHomeBadgeText}>ON MY WAY</Text>
+        <View style={styles.marketActionPair}>
+          <Pressable style={[styles.marketActionCard, styles.marketActionUrgent]} onPress={() => beginFlow(undefined, true)}
+            accessibilityRole="button" accessibilityLabel="Find urgent help now">
+            <View style={styles.marketActionTop}>
+              <View style={styles.marketActionUrgentIcon}>
+                <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={21} color={C.white} />
+              </View>
+              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color={C.white} />
             </View>
-            <Text style={styles.routeHomeSaving}>FLEXIBLE BOOKINGS</Text>
-          </View>
-          <Text style={styles.routeHomeTitle}>Your job. Their route. Less travel.</Text>
-          <Text style={styles.routeHomeSub}>
-            We fit your job into a nearby tradesperson's existing route, so they drive less and you pay less.
-          </Text>
-          <View style={styles.routeHomeFooter}>
-            <View style={styles.routeMiniPath}>
-              <View style={styles.routeMiniDot} />
-              <View style={styles.routeMiniLine} />
-              <View style={[styles.routeMiniDot, { backgroundColor: C.orange }]} />
-              <View style={styles.routeMiniLine} />
-              <View style={styles.routeMiniDot} />
+            <Text style={styles.marketActionUrgentTitle}>Need help now?</Text>
+            <Text style={styles.marketActionUrgentSub}>Send an urgent request to nearby pros.</Text>
+          </Pressable>
+          <Pressable style={[styles.marketActionCard, styles.marketActionFlexible]} onPress={onOpenRoute}
+            accessibilityRole="button" accessibilityLabel="Find a flexible route booking">
+            <View style={styles.marketActionTop}>
+              <View style={styles.marketActionFlexibleIcon}>
+                <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={21} color="#27465E" />
+              </View>
+              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color="#27465E" />
             </View>
-            <Text style={styles.routeHomeAction}>Explore route slots</Text>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={'#203748'} />
-          </View>
-        </Pressable>
-
-        <Pressable style={styles.marketUrgentCard} onPress={() => beginFlow(undefined, true)}>
-          <View style={styles.marketUrgentIcon}>
-            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={23} color={C.white} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.marketUrgentEyebrow}>URGENT DISPATCH</Text>
-            <Text style={styles.marketUrgentTitle}>Need someone now?</Text>
-            <Text style={styles.marketUrgentSub}>Send the job to nearby available tradespeople.</Text>
-          </View>
-          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color={C.white} />
-        </Pressable>
+            <Text style={styles.marketActionFlexibleTitle}>I'm flexible</Text>
+            <Text style={styles.marketActionFlexibleSub}>Find a slot on a tradesperson's route.</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.marketSectionHead}>
           <View>
-            <Text style={styles.marketSectionTitle}>Find your trade</Text>
-            <Text style={styles.marketSectionSub}>Pick a trade and we’ll ask only what matters.</Text>
+            <Text style={styles.marketSectionTitle}>Browse by trade</Text>
+            <Text style={styles.marketSectionSub}>Choose a service to get started</Text>
           </View>
         </View>
 
@@ -1154,45 +1142,28 @@ function MarketplaceHomeScreen({
           <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#89978F" />
         </Pressable>
 
-        <View style={styles.marketNearbyHeader}>
-          <View>
-            <Text style={styles.marketSectionTitle}>Available near you</Text>
-            <Text style={styles.marketSectionSub}>People who can currently take work.</Text>
+        <Pressable style={styles.marketExploreCard}
+          onPress={() => { setSelectedCategory('All'); navigate('map'); }}
+          accessibilityRole="button" accessibilityLabel="Explore tradespeople in your area">
+          <View style={styles.marketExploreIcon}>
+            <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={23} color="#375D79" />
           </View>
-          <Pressable onPress={() => {
-            setSelectedCategory('All');
-            navigate('map');
-          }}>
-            <Text style={styles.marketSeeAll}>Explore</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.marketNearbyRow}>
-          {featured.map(item => (
-            <Pressable key={item.id} style={styles.marketProCard} onPress={() => openTrade(item)}>
-              <Image source={{ uri: item.image }} style={styles.marketProImage} />
-              <View style={styles.marketProAvailable}>
-                <View style={styles.marketProDot} />
-                <Text style={styles.marketProAvailableText}>Available</Text>
-              </View>
-              <Text style={styles.marketProName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.marketProRole}>{item.role}</Text>
-              <View style={styles.marketProMeta}>
-                <Text style={styles.marketProMetaStrong}>★ {item.rating}</Text>
-                <Text style={styles.marketProMetaText}>{item.distance} mi</Text>
-                <Text style={styles.marketProMetaText}>~{item.eta} min</Text>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.marketExploreTitle}>Explore nearby tradespeople</Text>
+            <Text style={styles.marketExploreSub}>View profiles, locations and availability</Text>
+          </View>
+          <View style={styles.marketExploreArrow}>
+            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={18} color="#263B4E" />
+          </View>
+        </Pressable>
 
         <View style={styles.marketTrustCard}>
           <View style={styles.marketTrustIcon}>
             <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={20} color={'#355E78'} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.marketTrustTitle}>Trust is part of the profile</Text>
-            <Text style={styles.marketTrustSub}>Verification, insurance, reviews and credentials stay visible before you contact anyone.</Text>
+            <Text style={styles.marketTrustTitle}>Know who you're contacting</Text>
+            <Text style={styles.marketTrustSub}>Check reviews, insurance and credentials on each profile when available.</Text>
           </View>
         </View>
       </ScrollView>
@@ -1288,7 +1259,7 @@ function MarketplaceHomeScreen({
                   disabled={!flowTiming}
                 >
                   <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : flowTiming === 'Flexible' ? 'Find cheaper route slots' : 'Show matching tradespeople'}</Text>
-                  <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+                  <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.white} />
                 </Pressable>
               </View>
             ) : null}
@@ -8697,40 +8668,56 @@ const styles = StyleSheet.create({
   },
 
   marketHome: { flex: 1, backgroundColor: C.homeInk },
+  marketActionPair: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginBottom: 25 },
+  marketActionCard: { width: '48.5%', minHeight: 145, borderRadius: 16, padding: 14, justifyContent: 'space-between' },
+  marketActionUrgent: { backgroundColor: '#B9573D' },
+  marketActionFlexible: { backgroundColor: '#DCE7ED' },
+  marketActionTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 },
+  marketActionUrgentIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#A34A33', alignItems: 'center', justifyContent: 'center' },
+  marketActionFlexibleIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#C9D9E3', alignItems: 'center', justifyContent: 'center' },
+  marketActionUrgentTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', letterSpacing: -0.35 },
+  marketActionUrgentSub: { color: '#FFE3DB', fontSize: 11, lineHeight: 16, marginTop: 5 },
+  marketActionFlexibleTitle: { color: '#193247', fontSize: 17, fontWeight: '900', letterSpacing: -0.35 },
+  marketActionFlexibleSub: { color: '#4E6374', fontSize: 11, lineHeight: 16, marginTop: 5 },
+  marketExploreCard: { marginTop: 18, minHeight: 82, borderRadius: 16, backgroundColor: '#E0E8EC', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
+  marketExploreIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#CADAE3', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketExploreTitle: { color: '#1A3244', fontWeight: '900', fontSize: 15 },
+  marketExploreSub: { color: '#586D7F', fontSize: 11, marginTop: 4 },
+  marketExploreArrow: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#CEDBE4', alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
   marketHomeContent: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 34 },
-  marketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  marketGreeting: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '700', letterSpacing: -0.8 },
-  marketGreetingSub: { color: '#A7B5C2', fontSize: 13, marginTop: 3 },
+  marketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
+  marketGreeting: { color: '#F9F6EF', fontFamily: DISPLAY_FONT, fontSize: 27, fontWeight: '800', letterSpacing: -0.7 },
+  marketGreetingSub: { color: '#B6C0CD', fontSize: 13, marginTop: 5 },
   marketAccountButton: { width: 44, height: 44, borderRadius: 15, borderWidth: 1, borderColor: '#405063', backgroundColor: C.homeSurface, alignItems: 'center', justifyContent: 'center' },
-  marketAddressCard: { minHeight: 70, borderRadius: 16, borderWidth: 1, borderColor: '#34475B', backgroundColor: C.homeSurface, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 13 },
-  marketAddressIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#31465C', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  marketAddressCard: { minHeight: 64, borderRadius: 14, borderWidth: 1, borderColor: '#33485C', backgroundColor: C.homeSurface, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginBottom: 12 },
+  marketAddressIcon: { width: 37, height: 37, borderRadius: 11, backgroundColor: '#2E455C', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   marketAddressEyebrow: { color: '#9FB1C3', fontSize: 9, fontWeight: '800', letterSpacing: 1.3 },
-  marketAddressText: { color: C.white, fontSize: 16, fontWeight: '800', marginTop: 4, maxWidth: 245 },
-  marketSearchCard: { minHeight: 84, backgroundColor: '#FBF7EF', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 13 },
+  marketAddressText: { color: C.white, fontSize: 15, fontWeight: '800', marginTop: 3, maxWidth: 245 },
+  marketSearchCard: { minHeight: 88, backgroundColor: '#F9F6EF', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 12 },
   marketSearchIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEE4D7', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  marketSearchTitle: { color: '#182632', fontSize: 16, fontWeight: '900' },
-  marketSearchSub: { color: C.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
-  marketSearchArrow: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#D56F4F', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  marketSearchTitle: { color: '#182632', fontSize: 18, fontWeight: '900', letterSpacing: -0.35 },
+  marketSearchSub: { color: '#69727D', fontSize: 12, lineHeight: 16, marginTop: 4 },
+  marketSearchArrow: { width: 39, height: 39, borderRadius: 12, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center', marginLeft: 9 },
   marketUrgentCard: { minHeight: 96, borderRadius: 17, backgroundColor: '#B9543A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 26 },
   marketUrgentIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: 'rgba(17,28,41,0.19)', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   marketUrgentEyebrow: { color: '#FFE3D8', fontSize: 9, fontWeight: '900', letterSpacing: 1.4 },
   marketUrgentTitle: { color: C.white, fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', marginTop: 2 },
   marketUrgentSub: { color: '#FFE6DC', fontSize: 11, lineHeight: 16, marginTop: 3, maxWidth: 230 },
   marketSectionHead: { marginBottom: 12 },
-  marketSectionTitle: { color: '#F7F2EA', fontFamily: DISPLAY_FONT, fontSize: 23, fontWeight: '800', letterSpacing: -0.6 },
-  marketSectionSub: { color: '#9CAABA', fontSize: 12, lineHeight: 17, marginTop: 4 },
+  marketSectionTitle: { color: '#F7F2EA', fontFamily: DISPLAY_FONT, fontSize: 21, fontWeight: '800', letterSpacing: -0.5 },
+  marketSectionSub: { color: '#B4BFCC', fontSize: 12, lineHeight: 17, marginTop: 5 },
   marketCategoryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  marketCategoryCard: { width: '48.5%', minHeight: 159, borderRadius: 16, backgroundColor: C.homeStone, borderWidth: 1, borderColor: '#DDD6CA', marginBottom: 11, padding: 14, justifyContent: 'space-between' },
+  marketCategoryCard: { width: '48.5%', minHeight: 137, borderRadius: 15, backgroundColor: C.homeStone, borderWidth: 1, borderColor: '#DDD6CA', marginBottom: 10, padding: 13, justifyContent: 'space-between' },
   marketCategoryCardAlt: { backgroundColor: '#E6EAED', borderColor: '#D2DBE1' },
   marketCategoryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   marketCategoryIndex: { color: '#A4ACB5', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   marketCategoryFoot: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
-  marketCategoryIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#F1DDCF', alignItems: 'center', justifyContent: 'center' },
-  marketCategoryTitle: { color: '#1A2835', fontFamily: DISPLAY_FONT, fontSize: 19, fontWeight: '800', marginTop: 9, letterSpacing: -0.45 },
-  marketCategorySub: { flex: 1, color: '#687581', fontSize: 10, lineHeight: 14, marginTop: 2 },
+  marketCategoryIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#F1DDCF', alignItems: 'center', justifyContent: 'center' },
+  marketCategoryTitle: { color: '#1A2835', fontFamily: DISPLAY_FONT, fontSize: 17, fontWeight: '800', marginTop: 8, letterSpacing: -0.3 },
+  marketCategorySub: { flex: 1, color: '#64717E', fontSize: 11, lineHeight: 15, marginTop: 3 },
   marketCategoryGo: { width: 29, height: 29, borderRadius: 10, backgroundColor: '#DED9D1', alignItems: 'center', justifyContent: 'center', marginLeft: 5 },
-  marketMoreServices: { minHeight: 71, borderRadius: 15, backgroundColor: '#E9E5DE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginTop: 2 },
-  marketMoreIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: '#D7DDE4', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketMoreServices: { minHeight: 68, borderRadius: 15, backgroundColor: '#EEE9E0', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginTop: 2 },
+  marketMoreIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: '#DEE5EB', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   marketMoreTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
   marketMoreSub: { color: C.muted, fontSize: 10, marginTop: 2 },
   marketNearbyHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
@@ -8746,10 +8733,10 @@ const styles = StyleSheet.create({
   marketProMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   marketProMetaStrong: { color: C.text, fontSize: 10, fontWeight: '900', marginRight: 8 },
   marketProMetaText: { color: C.muted, fontSize: 9, marginRight: 8 },
-  marketTrustCard: { minHeight: 88, borderRadius: 17, borderWidth: 1, borderColor: '#34475B', backgroundColor: C.homeSurface, marginTop: 22, padding: 14, flexDirection: 'row', alignItems: 'center' },
+  marketTrustCard: { minHeight: 78, borderRadius: 15, borderWidth: 1, borderColor: '#33475B', backgroundColor: C.homeSurface, marginTop: 13, padding: 13, flexDirection: 'row', alignItems: 'center' },
   marketTrustIcon: { width: 43, height: 43, borderRadius: 12, backgroundColor: '#DDE7EF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   marketTrustTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
-  marketTrustSub: { color: '#91A198', fontSize: 10, lineHeight: 15, marginTop: 3 },
+  marketTrustSub: { color: '#B1BFCE', fontSize: 11, lineHeight: 16, marginTop: 4 },
   marketFlowRoot: { flex: 1, justifyContent: 'flex-end' },
   marketFlowBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,15,11,0.64)' },
   marketFlowSheet: { maxHeight: '82%', minHeight: '58%', backgroundColor: '#F8F5ED', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 },
@@ -8779,9 +8766,9 @@ const styles = StyleSheet.create({
   marketTimingSub: { color: C.muted, fontSize: 10, lineHeight: 14, marginTop: 2 },
   marketUrgentMini: { borderRadius: 9, backgroundColor: '#FFE0D4', paddingHorizontal: 7, paddingVertical: 4 },
   marketUrgentMiniText: { color: C.orange, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
-  marketContinue: { minHeight: 55, borderRadius: 17, backgroundColor: C.lime, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  marketContinue: { minHeight: 55, borderRadius: 14, backgroundColor: C.orange, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   marketContinueDisabled: { opacity: 0.38 },
-  marketContinueText: { color: C.navy, fontSize: 13, fontWeight: '900' },
+  marketContinueText: { color: C.white, fontSize: 13, fontWeight: '900' },
 
   tradePageV3: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 110, backgroundColor: '#071C16' },
   proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
