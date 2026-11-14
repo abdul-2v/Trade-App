@@ -8002,7 +8002,7 @@ const styles = StyleSheet.create({
   tradeChatMine: { alignSelf: 'flex-end', backgroundColor: '#3A7475', borderBottomRightRadius: 5 },
   tradeChatTheirs: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', borderBottomLeftRadius: 5 },
   tradeChatBubbleText: { color: '#243A46', fontSize: 13, lineHeight: 19 },
-  tradeChatComposer: { minHeight: 68, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8EC' },
+  tradeChatComposer: { minHeight: 68, marginBottom: 82, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8EC' },
   tradeChatInput: { flex: 1, minHeight: 46, borderRadius: 15, backgroundColor: '#F3F6F6', borderWidth: 1, borderColor: '#E2E8EC', color: '#253847', paddingHorizontal: 15, fontSize: 14 },
   tradeChatSend: { width: 45, height: 45, borderRadius: 14, backgroundColor: '#3A7475', alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
 
