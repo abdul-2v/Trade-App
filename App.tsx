@@ -4,6 +4,8 @@ import AuthScreen from './AuthScreen';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
+import { theme } from './theme';
+import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, Clock3, Send, Search, X } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -1696,7 +1698,7 @@ function HomeScreen({
 
         <View style={styles.v2CategoryGrid}>
           {categories.map(item => {
-            const active = selectedCategory === item.label && item.label !== 'More';
+            const active = selectedCategory === item.label;
             return (
               <Pressable
                 key={item.label}
@@ -4125,10 +4127,11 @@ function RequestDetailScreen({
     }
 
     setDetails(data);
-    setLiveStatus(isMarketJob ? marketJobStatusLabel(data.status) : dispatchStatusLabel(data.status));
+    const currentRequestStatus = (data as { status?: string }).status || 'searching';
+    setLiveStatus(isMarketJob ? marketJobStatusLabel(currentRequestStatus) : dispatchStatusLabel(currentRequestStatus));
     await buildMatchedTrade(data);
 
-    if (data.status === 'completed' && !isMarketJob) {
+    if (currentRequestStatus === 'completed' && !isMarketJob) {
       const { data: reviewRows } = await supabase
         .from('job_reviews')
         .select('rating, comment')
@@ -5363,31 +5366,36 @@ function TradeShell({
   current: TradeScreen;
   navigate: (screen: TradeScreen) => void;
 }) {
-  // Every tradesperson tab uses the same light design system.
-  const lightHome = true;
-  const items: { label: string; icon: AppSymbol; route: TradeScreen }[] = [
-    { label: 'Home', icon: { ios: 'house.fill', android: 'home' }, route: 'tradeHome' },
-    { label: 'Jobs', icon: { ios: 'briefcase.fill', android: 'work' }, route: 'tradeJobs' },
-    { label: 'Map', icon: { ios: 'map.fill', android: 'map' }, route: 'tradeMap' },
-    { label: 'Messages', icon: { ios: 'message.fill', android: 'chat_bubble' }, route: 'tradeMessages' },
-    { label: 'Profile', icon: { ios: 'person.fill', android: 'person' }, route: 'tradeProfile' },
+  const items = [
+    { label: 'Home', Icon: HomeIcon, route: 'tradeHome' as TradeScreen },
+    { label: 'Jobs', Icon: BriefcaseBusiness, route: 'tradeJobs' as TradeScreen },
+    { label: 'Map', Icon: MapIcon, route: 'tradeMap' as TradeScreen },
+    { label: 'Messages', Icon: MessageCircle, route: 'tradeMessages' as TradeScreen },
+    { label: 'Profile', Icon: UserRound, route: 'tradeProfile' as TradeScreen },
   ];
-
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: lightHome ? '#F7F8FA' : C.homeInk }]}>
-      <StatusBar barStyle={lightHome ? 'dark-content' : 'light-content'} />
-      <View style={[styles.screen, { backgroundColor: lightHome ? '#F7F8FA' : C.homeInk }]}>{children}</View>
-      <View style={[styles.tradeNav, lightHome && styles.proHomeBottomNav]}>
-        {items.map(item => (
-          <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}
-            accessibilityRole="tab" accessibilityLabel={item.label}
-            accessibilityState={{ selected: item.route === current }}>
-            <View style={[styles.navIconWrap, item.route === current && (lightHome ? styles.proHomeBottomActive : styles.tradeNavIconActive)]}>
-              <AppIcon icon={item.icon} size={21} color={item.route === current ? (lightHome ? '#253940' : C.white) : lightHome ? '#879399' : '#AABAC9'} />
-            </View>
-            <Text style={[styles.navLabel, { color: item.route === current ? (lightHome ? '#14292F' : '#F2AE93') : lightHome ? '#8C9498' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
-          </Pressable>
-        ))}
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>
+      <StatusBar barStyle="dark-content" />
+      <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
+      <View style={styles.premiumTabBar}>
+        {items.map(({ label, Icon, route }) => {
+          const active = current === route;
+          return (
+            <Pressable
+              key={route}
+              onPress={() => navigate(route)}
+              style={styles.premiumTab}
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: active }}
+            >
+              <View style={[styles.premiumTabIcon, active && styles.premiumTabIconActive]}>
+                <Icon size={23} strokeWidth={2} color={active ? theme.colors.white : theme.colors.muted} />
+              </View>
+              <Text style={[styles.premiumTabLabel, active && styles.premiumTabLabelActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
     </SafeAreaView>
   );
@@ -5478,7 +5486,7 @@ function TradeHomeScreen({
         const hasSavedArea = validCoordinates(availability.work_area_latitude, availability.work_area_longitude);
         const recentPresence = validCoordinates(mapPresence?.latitude, mapPresence?.longitude)
           && Boolean(mapPresence?.updated_at)
-          && Date.now() - new Date(mapPresence.updated_at).getTime() < 15 * 60 * 1000;
+          && Date.now() - new Date(mapPresence?.updated_at || 0).getTime() < 15 * 60 * 1000;
 
         if (availability.location_mode === 'live' && recentPresence && mapPresence) {
           setPreviewArea({
@@ -5798,35 +5806,22 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePageV3} showsVerticalScrollIndicator={false}>
-        <View style={styles.proReferenceHeader}>
-          <View style={styles.proReferenceGreetingArea}>
-            <Text style={styles.proReferenceEyebrow}>TRADEHUB · FOR PROS</Text>
-            <Text style={styles.proReferenceGreeting} numberOfLines={3} adjustsFontSizeToFit>
-              {greetingFirst}{'\n'}{greetingSecond + ','}{'\n'}{firstName}
-            </Text>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
+            <Text style={styles.premiumPageTitle} numberOfLines={1}>{firstName}</Text>
           </View>
-          <Pressable style={styles.proReferenceProfileCard} onPress={() => navigate('tradeProfile')}
-            accessibilityRole="button" accessibilityLabel="Complete your tradesperson profile">
-            <View style={styles.proReferenceProfileTopLine} />
-            <View style={styles.proReferenceAvatarWrap}>
-              {profileAvatar
-                ? <Image source={{ uri: profileAvatar }} style={styles.proReferenceAvatar} />
-                : <View style={styles.proReferenceAvatar}><Text style={styles.proReferenceAvatarLetter}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text></View>
-              }
-              <View style={styles.proReferenceProgressDot}>
-                <Text style={styles.proReferenceProgressDotText}>↗</Text>
-              </View>
-            </View>
-            <Text style={styles.proReferenceProfileLabel}>Profile readiness: <Text style={{ fontWeight: '900' }}>{profileCompletion}%</Text></Text>
-            <View style={styles.proReferenceSetupButton}>
-              <Text style={styles.proReferenceSetupText}>{profileCompletion === 100 ? 'View Profile' : 'Complete Setup'}</Text>
-            </View>
+          <Pressable style={styles.premiumHeaderAvatar} onPress={() => navigate('tradeProfile')}
+            accessibilityRole="button" accessibilityLabel="Open your profile">
+            {profileAvatar
+              ? <Image source={{ uri: profileAvatar }} style={styles.premiumHeaderAvatarImage} />
+              : <Text style={styles.premiumHeaderAvatarText}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text>}
           </Pressable>
         </View>
 
-        <View style={styles.proReferenceMapWrap}>
-          <View style={styles.proReferenceMapVisual} pointerEvents="none">
+        <View style={styles.premiumHomeMap}>
+          <View style={styles.premiumMapPreview} pointerEvents="none">
             <WorkAreaMapPreview
               latitude={previewArea?.latitude ?? 52.6369}
               longitude={previewArea?.longitude ?? -1.1398}
@@ -5834,89 +5829,91 @@ function TradeHomeScreen({
               trade={profileTrade}
             />
           </View>
-          <Pressable style={styles.proReferenceMapHit} onPress={() => navigate('tradeMap')}
-            accessibilityRole="button" accessibilityLabel="Open your work area and nearby suppliers" />
-          <View style={[styles.proReferenceStatusPill, available ? styles.proReferenceOnlinePill : styles.proReferenceOfflinePill]}>
-            <View style={styles.proReferenceStatusDot} />
-            <Text style={styles.proReferenceStatusText} numberOfLines={1}>
-              {savingAvailability ? 'Updating…' : available ? 'Online & available for new jobs' : 'Offline · not taking jobs'}
-            </Text>
-            <Switch
-              value={available}
-              onValueChange={changeAvailable}
-              trackColor={{ false: '#858B94', true: '#B87779' }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#858B94"
-              disabled={savingAvailability}
-              style={{ transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }], marginRight: -5 }}
-              accessibilityLabel="Available for new jobs"
-            />
+          <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
+          <View style={styles.premiumMapStatus}>
+            <View style={[styles.premiumOnlineDot, { backgroundColor: available ? theme.colors.success : '#A9B9BD' }]} />
+            <Text style={styles.premiumMapStatusText}>{available ? 'Online · looking for jobs' : 'Offline · not taking jobs'}</Text>
           </View>
-          <Pressable style={styles.proReferenceMapPlus}
-            onPress={() => navigate('tradeMap')}
-            accessibilityRole="button" accessibilityLabel="Open full nearby merchant map">
-            <AppIcon icon={{ ios: 'plus', android: 'add' }} size={30} color="#E7B1A7" />
+          <Pressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Find your location on the map">
+            <Crosshair size={21} color={theme.colors.white} strokeWidth={2} />
+          </Pressable>
+          <Pressable style={styles.premiumAvailabilityButton}
+            onPress={() => changeAvailable(!available)}
+            disabled={savingAvailability}
+            accessibilityRole="button" accessibilityLabel={available ? 'Go offline' : 'Go online'}>
+            {savingAvailability ? <ActivityIndicator color={theme.colors.darkTeal} /> : (
+              <>
+                <Power size={20} strokeWidth={2.2} color={theme.colors.darkTeal} />
+                <Text style={styles.premiumAvailabilityText}>{available ? 'Go offline' : 'Go online'}</Text>
+              </>
+            )}
           </Pressable>
         </View>
 
-        <View style={styles.proReferenceSectionHeader}>
-          <Text style={styles.proReferenceSectionTitle}>Incoming Opportunities</Text>
-        </View>
-        {incomingOffers.length ? (
-          <View style={styles.proReferenceOpportunityList}>
-            {incomingOffers.map(offer => (
-              <Pressable key={offer.offerId} style={styles.proReferenceOpportunityCard}
-                onPress={() => navigate('tradeJobs')} accessibilityRole="button">
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.proReferenceOpportunityName}>{offer.trade} · {offer.urgency}</Text>
-                  <Text style={styles.proReferenceOpportunityDetail} numberOfLines={2}>{offer.issue}</Text>
-                  <Text style={styles.proReferenceOpportunityDistance}>{offer.distance.toFixed(1)} mi away</Text>
-                </View>
-                <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={18} color="#4F727A" />
-              </Pressable>
-            ))}
+        <Pressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
+          accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
+          <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumProgressTitle}>{profileCompletion === 100 ? 'Your profile is complete' : 'Finish your profile'}</Text>
+            <Text style={styles.premiumProgressSub}>Help customers trust you</Text>
           </View>
-        ) : (
-          <View style={styles.proReferenceEmptyCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.proReferenceEmptyTitle}>No live opportunities</Text>
-              <Text style={styles.proReferenceEmptySub}>No new requests right now.{'\n'}Refresh to check again.</Text>
+          <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
+        </Pressable>
+
+        <View style={styles.premiumSectionRow}>
+          <Text style={styles.premiumSectionTitle}>Incoming opportunities</Text>
+          <Pressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
+            accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
+            <RotateCw size={17} strokeWidth={2} color={theme.colors.teal} />
+            <Text style={styles.premiumRefreshText}>Refresh</Text>
+          </Pressable>
+        </View>
+
+        {incomingOffers.length ? incomingOffers.map(offer => (
+          <Pressable key={offer.offerId} onPress={() => navigate('tradeJobs')}
+            style={styles.premiumOfferCard} accessibilityRole="button" accessibilityLabel={'View ' + offer.issue + ' job'}>
+            <View style={styles.premiumOfferHeading}>
+              <View style={styles.premiumUrgentTag}><Text style={styles.premiumUrgentText}>{offer.urgency || 'REQUEST'}</Text></View>
+              <Text style={styles.premiumOfferDistance}>{offer.distance.toFixed(1)} mi away</Text>
             </View>
-            <Pressable style={styles.proReferenceRefreshButton}
-              onPress={() => setOffersRefreshKey(value => value + 1)}
-              accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
-              <Text style={styles.proReferenceRefreshText}>Refresh</Text>
-            </Pressable>
+            <Text style={styles.premiumOfferTitle} numberOfLines={2}>{offer.issue}</Text>
+            <Text style={styles.premiumOfferMeta}>{offer.trade} · ~{offer.eta} min ETA</Text>
+            <View style={styles.premiumPrimaryButton}><Text style={styles.premiumPrimaryText}>View offer</Text></View>
+          </Pressable>
+        )) : (
+          <View style={styles.premiumEmptyCard}>
+            <View style={styles.premiumEmptyIcon}><Inbox size={27} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.premiumEmptyTitle}>No live opportunities</Text>
+            <Text style={styles.premiumEmptyText}>Go online and new requests will appear here.</Text>
           </View>
         )}
 
-        <View style={styles.proReferenceTiles}>
-          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#3D7478' }]}
-            onPress={() => navigate('tradeJobs')} accessibilityRole="button" accessibilityLabel="View active jobs">
-            <View style={styles.proReferenceTileIcon}>
-              <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} color="#E5A5A0" size={20} />
+        <View style={styles.premiumShortcuts}>
+          <Pressable style={styles.premiumShortcut} onPress={() => navigate('tradeJobs')}
+            accessibilityRole="button" accessibilityLabel="View active jobs">
+            <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.tealTint }]}>
+              <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
             </View>
-            <Text style={styles.proReferenceTileTitle}>Active Jobs</Text>
-            <Text style={styles.proReferenceTileSub} numberOfLines={2}>
-              {activeJobCount === null ? 'View your jobs' : activeJobCount === 1 ? '1 active job' : activeJobCount + ' active jobs'}
-            </Text>
+            <Text style={styles.premiumShortcutTitle}>Active jobs</Text>
+            <Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text>
           </Pressable>
-          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#2D555A' }]}
-            onPress={() => navigate('tradeMap')} accessibilityRole="button" accessibilityLabel="Find nearby trade merchants">
-            <View style={styles.proReferenceTileIcon}>
-              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} color="#E4A59B" size={20} />
+          <Pressable style={styles.premiumShortcut} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Find merchants">
+            <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.coralTint }]}>
+              <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
             </View>
-            <Text style={styles.proReferenceTileTitle}>Merchants</Text>
-            <Text style={styles.proReferenceTileSub} numberOfLines={2}>Find nearby suppliers</Text>
+            <Text style={styles.premiumShortcutTitle}>Merchants</Text>
+            <Text style={styles.premiumShortcutSub}>Suppliers</Text>
           </Pressable>
-          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#1E383E' }]}
-            onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
-            accessibilityRole="button" accessibilityLabel="Open route and flexible job tools">
-            <View style={styles.proReferenceTileIcon}>
-              <AppIcon icon={{ ios: 'wrench.adjustable.fill', android: 'build' }} color="#E4A59B" size={20} />
+          <Pressable style={styles.premiumShortcut} onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
+            accessibilityRole="button" accessibilityLabel="Open route tools">
+            <View style={[styles.premiumShortcutIcon, { backgroundColor: '#E8EDF3' }]}>
+              <Route size={22} strokeWidth={2} color="#365875" />
             </View>
-            <Text style={styles.proReferenceTileTitle}>Route Tools</Text>
-            <Text style={styles.proReferenceTileSub} numberOfLines={2}>Flexible work</Text>
+            <Text style={styles.premiumShortcutTitle}>Route tools</Text>
+            <Text style={styles.premiumShortcutSub}>Flexible work</Text>
           </Pressable>
         </View>
 
@@ -6076,6 +6073,7 @@ function TradeJobsScreen({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [marketJobs, setMarketJobs] = useState<MarketOfferJob[]>([]);
   const [loadingMarket, setLoadingMarket] = useState(true);
+  const [jobsView, setJobsView] = useState<'offers' | 'active'>('offers');
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
@@ -6603,31 +6601,48 @@ function TradeJobsScreen({
 
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.proSharedEyebrow}>YOUR WORK · JOBS</Text>
-        <View style={styles.proSharedHeadingRow}>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumScreenHeading}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tradePageTitle}>Jobs & opportunities</Text>
-            <Text style={styles.tradePageSub}>Nearby work, flexible offers and active bookings.</Text>
+            <Text style={styles.premiumEyebrow}>Your work</Text>
+            <Text style={styles.premiumPageTitle}>Jobs</Text>
+            <Text style={styles.premiumScreenSub}>Nearby work, flexible offers and active bookings.</Text>
           </View>
-          <Pressable style={styles.proSharedRefresh} accessibilityRole="button"
+          <Pressable style={styles.premiumHeaderRefresh} accessibilityRole="button"
             accessibilityLabel="Refresh job offers" onPress={() => {
               loadJobs(currentUserId || undefined);
               loadMarketJobs(currentUserId || undefined);
             }}>
-            <AppIcon icon={{ ios: 'arrow.clockwise', android: 'refresh' }} size={19} color="#3B6D73" />
+            <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </Pressable>
         </View>
-        <View style={styles.proJobsOverview}>
-          <View style={styles.proJobsOverviewIcon}>
-            <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={20} color="#D18A75" />
+        <View style={styles.premiumJobOverview}>
+          <View style={styles.premiumJobMetric}>
+            <Text style={styles.premiumJobMetricNumber}>{active.length + marketActive.length}</Text>
+            <Text style={styles.premiumJobMetricLabel}>Active</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.proJobsOverviewTitle}>{active.length + marketActive.length} active · {offered.length + marketOffered.length} new</Text>
-            <Text style={styles.proJobsOverviewSub}>Offers refresh automatically while the app is open.</Text>
+          <View style={styles.premiumJobDivider} />
+          <View style={styles.premiumJobMetric}>
+            <Text style={styles.premiumJobMetricNumber}>{offered.length + marketOffered.length}</Text>
+            <Text style={styles.premiumJobMetricLabel}>New</Text>
+          </View>
+          <View style={styles.premiumOverviewNote}>
+            <View style={styles.premiumOnlineDot} />
+            <Text style={styles.premiumOverviewNoteText}>Offers refresh automatically while the app is open</Text>
           </View>
         </View>
-
+        <View style={styles.premiumSegment}>
+          <Pressable onPress={() => setJobsView('offers')} style={[styles.premiumSegmentTab, jobsView === 'offers' && styles.premiumSegmentActive]}
+            accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'offers' }}>
+            <Text style={[styles.premiumSegmentText, jobsView === 'offers' && styles.premiumSegmentTextActive]}>Offers</Text>
+          </Pressable>
+          <Pressable onPress={() => setJobsView('active')} style={[styles.premiumSegmentTab, jobsView === 'active' && styles.premiumSegmentActive]}
+            accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'active' }}>
+            <Text style={[styles.premiumSegmentText, jobsView === 'active' && styles.premiumSegmentTextActive]}>Active</Text>
+          </Pressable>
+        </View>
+        {jobsView === 'active' ? (
+          <>
         {active.length ? (
           <>
             <Text style={styles.dispatchTradeSectionTitle}>Active job</Text>
@@ -6644,7 +6659,7 @@ function TradeJobsScreen({
                 <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
 
                 <View style={styles.dispatchTradeMetaRow}>
-                  <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                  <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
                   <Text style={styles.dispatchTradeMeta}>~{job.eta} min ETA</Text>
                 </View>
 
@@ -6700,7 +6715,7 @@ function TradeJobsScreen({
                 <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
 
                 <View style={styles.dispatchTradeMetaRow}>
-                  <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                  <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
                   {job.routePrice != null ? (
                     <Text style={styles.marketTradePrice}>£{job.routePrice}</Text>
                   ) : null}
@@ -6736,6 +6751,81 @@ function TradeJobsScreen({
             ))}
           </>
         ) : null}
+
+
+          {(active.length + marketActive.length) === 0 ? (
+            <View style={styles.premiumEmptyCard}>
+              <BriefcaseBusiness size={30} strokeWidth={2} color={theme.colors.teal} />
+              <Text style={styles.premiumEmptyTitle}>No active jobs yet</Text>
+              <Text style={styles.premiumEmptyText}>Accepted jobs and bookings will appear here.</Text>
+            </View>
+          ) : null}
+          </>
+        ) : (
+          <>
+        <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
+
+        {loading ? (
+          <View style={styles.tradeEmptyLarge}>
+            <ActivityIndicator color={C.cyan} />
+            <Text style={styles.tradeEmptyLargeText}>Checking for nearby requests…</Text>
+          </View>
+        ) : offered.length ? (
+          offered.map(job => (
+            <View key={job.offerId} style={styles.dispatchTradeOfferCard}>
+              <View style={styles.dispatchTradeTopRow}>
+                <View style={styles.dispatchTradeUrgentIcon}>
+                  <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={18} color={C.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dispatchTradeUrgency}>Urgent · {job.request.urgency}</Text>
+                  <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
+                </View>
+                <View style={styles.dispatchTradeEtaPill}>
+                  <Text style={styles.dispatchTradeEtaValue}>~{job.eta} min</Text>
+                  <Text style={styles.dispatchTradeEtaSmall}>estimated</Text>
+                </View>
+              </View>
+
+              <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+
+              <View style={styles.dispatchTradeMetaRow}>
+                <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
+                <Text style={styles.dispatchTradeMeta}>Location shown after acceptance</Text>
+              </View>
+
+              <View style={styles.dispatchTradeDecisionRow}>
+                <Pressable
+                  style={styles.dispatchTradeDecline}
+                  onPress={() => respondToOffer(job, 'declined')}
+                  disabled={busyId === job.offerId}
+                >
+                  <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.dispatchTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
+                  onPress={() => respondToOffer(job, 'accepted')}
+                  disabled={busyId === job.offerId}
+                >
+                  {busyId === job.offerId ? (
+                    <ActivityIndicator color={C.white} />
+                  ) : (
+                    <Text style={styles.dispatchTradeAcceptText}>Accept job</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.tradeEmptyLarge}>
+            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
+            <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
+            <Text style={styles.tradeEmptyLargeText}>
+              Matching urgent requests appear here while you're available.
+            </Text>
+          </View>
+        )}
+
 
         <Text style={styles.dispatchTradeSectionTitle}>Flexible & scheduled offers</Text>
 
@@ -6777,7 +6867,7 @@ function TradeJobsScreen({
               <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
 
               <View style={styles.dispatchTradeMetaRow}>
-                <Text style={styles.dispatchTradeMeta}>📍 approx. {job.distance.toFixed(1)} mi</Text>
+                <Text style={styles.dispatchTradeMeta}>approx. {job.distance.toFixed(1)} mi</Text>
                 <Text style={styles.dispatchTradeMeta}>
                   {job.detourMinutes != null ? '+' + job.detourMinutes + ' min route' : '~' + job.eta + ' min away'}
                 </Text>
@@ -6815,70 +6905,10 @@ function TradeJobsScreen({
           </View>
         )}
 
-        <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
 
-        {loading ? (
-          <View style={styles.tradeEmptyLarge}>
-            <ActivityIndicator color={C.cyan} />
-            <Text style={styles.tradeEmptyLargeText}>Checking for nearby requests…</Text>
-          </View>
-        ) : offered.length ? (
-          offered.map(job => (
-            <View key={job.offerId} style={styles.dispatchTradeOfferCard}>
-              <View style={styles.dispatchTradeTopRow}>
-                <View style={styles.dispatchTradeUrgentIcon}>
-                  <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={18} color={C.white} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.dispatchTradeUrgency}>Urgent · {job.request.urgency}</Text>
-                  <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
-                </View>
-                <View style={styles.dispatchTradeEtaPill}>
-                  <Text style={styles.dispatchTradeEtaValue}>~{job.eta} min</Text>
-                  <Text style={styles.dispatchTradeEtaSmall}>estimated</Text>
-                </View>
-              </View>
-
-              <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
-
-              <View style={styles.dispatchTradeMetaRow}>
-                <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
-                <Text style={styles.dispatchTradeMeta}>Location shown after acceptance</Text>
-              </View>
-
-              <View style={styles.dispatchTradeDecisionRow}>
-                <Pressable
-                  style={styles.dispatchTradeDecline}
-                  onPress={() => respondToOffer(job, 'declined')}
-                  disabled={busyId === job.offerId}
-                >
-                  <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.dispatchTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
-                  onPress={() => respondToOffer(job, 'accepted')}
-                  disabled={busyId === job.offerId}
-                >
-                  {busyId === job.offerId ? (
-                    <ActivityIndicator color={C.white} />
-                  ) : (
-                    <Text style={styles.dispatchTradeAcceptText}>Accept job</Text>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          ))
-        ) : (
-          <View style={styles.tradeEmptyLarge}>
-            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
-            <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
-            <Text style={styles.tradeEmptyLargeText}>
-              Matching urgent requests appear here while you're available.
-            </Text>
-          </View>
+          </>
         )}
-
-        <View style={{ height: 90 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
     </TradeShell>
   );
@@ -7087,7 +7117,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
     return (
       <TradeShell current="tradeMessages" navigate={navigate}>
         <View style={styles.tradeChatHeader}>
-          <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack}>
+          <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack} accessibilityRole="button" accessibilityLabel="Back to all messages">
             <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={19} color="#244A54" />
           </Pressable>
           <View>
@@ -7115,7 +7145,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
             placeholder="Type a message…"
             placeholderTextColor="#7890A4"
           />
-          <Pressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()}>
+          <Pressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message">
             <AppIcon icon={{ ios: 'arrow.up', android: 'arrow_upward' }} size={18} color={C.white} />
           </Pressable>
         </View>
@@ -7125,37 +7155,52 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
 
   return (
     <TradeShell current="tradeMessages" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.proSharedEyebrow}>YOUR WORK · INBOX</Text>
-        <View style={styles.proSharedHeadingRow}>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumScreenHeading}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tradePageTitle}>Messages</Text>
-            <Text style={styles.tradePageSub}>All your customer conversations in one place.</Text>
+            <Text style={styles.premiumEyebrow}>Your work</Text>
+            <Text style={styles.premiumPageTitle}>Messages</Text>
+            <Text style={styles.premiumScreenSub}>All your customer conversations in one place.</Text>
           </View>
-          <Pressable style={styles.proSharedRefresh} onPress={loadInbox}
+          <Pressable style={styles.premiumHeaderRefresh} onPress={loadInbox}
             accessibilityRole="button" accessibilityLabel="Refresh messages">
-            <AppIcon icon={{ ios: 'arrow.clockwise', android: 'refresh' }} size={19} color="#3B6D73" />
+            <RotateCw size={23} strokeWidth={2} color={theme.colors.tealMid} />
           </Pressable>
         </View>
 
         {loading ? (
-          <Text style={styles.darkMessageLast}>Loading messages…</Text>
+          <View style={styles.premiumEmptyCard}>
+            <ActivityIndicator color={theme.colors.teal} />
+            <Text style={styles.premiumEmptyText}>Loading messages…</Text>
+          </View>
         ) : conversations.length ? (
-          conversations.map(item => (
-            <Pressable key={item.id} style={styles.darkMessageRow} onPress={() => setSelected(item)}>
-              <View style={styles.darkAvatar}><Text style={styles.darkAvatarText}>{item.customerName.charAt(0).toUpperCase()}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.darkMessageName}>{item.customerName}</Text>
-                <Text style={styles.darkMessageLast} numberOfLines={1}>{item.lastMessage}</Text>
-              </View>
-              <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#7890A4" />
-            </Pressable>
-          ))
+          <View style={styles.premiumInboxCard}>
+            {conversations.map((item, index) => (
+              <Pressable key={item.id} style={[styles.premiumMessageRow, index > 0 && styles.premiumMessageDivider]}
+                onPress={() => setSelected(item)} accessibilityRole="button" accessibilityLabel={'Open conversation with ' + item.customerName}>
+                <View style={styles.premiumMessageAvatar}>
+                  <Text style={styles.premiumMessageInitials}>{item.customerName.trim().split(' ').slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.premiumMessageTitleRow}>
+                    <Text style={styles.premiumMessageName} numberOfLines={1}>{item.customerName}</Text>
+                    <Text style={styles.premiumMessageTime}>{new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
+                  </View>
+                  <Text style={styles.premiumMessagePreview} numberOfLines={2}>{item.lastMessage}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
         ) : (
-          <View style={styles.tradeEmptyLarge}>
-            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={25} color="#4B7779" /></View>
-            <Text style={styles.tradeEmptyLargeTitle}>No messages yet</Text>
-            <Text style={styles.tradeEmptyLargeText}>When a customer contacts you about a job, the conversation will appear here.</Text>
+          <View style={styles.premiumMessageEmpty}>
+            <View style={styles.premiumMessageEmptyIcon}><MessageCircle size={56} strokeWidth={1.7} color={theme.colors.darkTeal} /></View>
+            <Text style={styles.premiumMessageEmptyTitle}>No messages yet</Text>
+            <Text style={styles.premiumMessageEmptySub}>When a customer contacts you about a job, the conversation will appear here.</Text>
+            <Pressable style={styles.premiumMessageOnline} onPress={() => navigate('tradeHome')}
+              accessibilityRole="button" accessibilityLabel="Go to home to change availability">
+              <Power size={20} strokeWidth={2} color={theme.colors.white} />
+              <Text style={styles.premiumMessageOnlineText}>Go online</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -7182,6 +7227,19 @@ function TradeSettingsScreen({
   const [bio, setBio] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  // Presentation-only subpages. All saved profile/location logic remains unchanged.
+  const [profilePage, setProfilePage] = useState<'overview' | 'edit' | 'account' | 'preview'>('overview');
+  const profileSteps = [
+    avatarUrl != null,
+    !!bio.trim(),
+    workAreaSaved,
+    !!publicPhone.trim(),
+    customerCategoryOrder.includes(primaryTrade as TradeCategory),
+    !!displayName.trim() && displayName !== 'Your trade profile',
+  ];
+  const completedProfileSteps = profileSteps.filter(Boolean).length;
+  const profileProgress = Math.round(completedProfileSteps / profileSteps.length * 100);
+
 
   useEffect(() => {
     let active = true;
@@ -7380,26 +7438,107 @@ function TradeSettingsScreen({
 
   return (
     <TradeShell current="tradeProfile" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.proSharedEyebrow}>YOUR BUSINESS · PROFILE</Text>
-        <Text style={styles.tradePageTitle}>Your profile</Text>
-        <Text style={styles.tradePageSub}>Manage the details customers can see.</Text>
-
-        <View style={styles.proProfile}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.proProfileImage} />
-          ) : (
-            <View style={styles.proProfileFallback}>
-              <Text style={styles.proProfileFallbackText}>{displayName.charAt(0).toUpperCase()}</Text>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        {profilePage === 'overview' ? (
+          <>
+            <View style={styles.premiumScreenHeading}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumEyebrow}>Your business</Text>
+                <Text style={styles.premiumPageTitle}>Profile</Text>
+              </View>
+              <Pressable style={styles.premiumPreviewButton} onPress={() => setProfilePage('preview')}
+                accessibilityRole="button" accessibilityLabel="Preview public trade profile">
+                <UserRound size={18} strokeWidth={2} color={theme.colors.ink} />
+                <Text style={styles.premiumPreviewText}>Preview</Text>
+              </Pressable>
             </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.proName}>{displayName}</Text>
-            <Text style={styles.proRole}>{primaryTrade}</Text>
-            <Text style={styles.proVerify}>Profile linked to your TradeHub account</Text>
-          </View>
-        </View>
-
+            <View style={styles.premiumProfileHero}>
+              <View style={styles.premiumProfileHeroTop}>
+                {avatarUrl
+                  ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
+                  : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumProfileHeroName}>{displayName}</Text>
+                  <Text style={styles.premiumProfileHeroTrade}>{primaryTrade}</Text>
+                  <Text style={styles.premiumProfileHeroNote}>Your public trade profile</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.premiumProfileChecklist}>
+              <View style={styles.premiumProfileProgressRow}>
+                <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileProgress}%</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumProgressTitle}>Complete your profile</Text>
+                  <Text style={styles.premiumProgressSub}>{completedProfileSteps} of {profileSteps.length} steps done</Text>
+                </View>
+              </View>
+              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><Camera size={21} color={theme.colors.coralDark} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>{avatarUrl ? 'Profile photo added' : 'Add a profile photo'}</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Help customers recognise you</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted} />
+              </Pressable>
+              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><Pencil size={21} color={theme.colors.teal} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>{bio.trim() ? 'Business bio added' : 'Write your business bio'}</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>What you specialise in</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted} />
+              </Pressable>
+              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: '#E9EDF3' }]}><MapPin size={21} color="#365875" /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>{workAreaSaved ? 'Service area set' : 'Set your service area'}</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Where you take work</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted} />
+              </Pressable>
+              <View style={styles.premiumProfileCheckRow}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: '#F4ECDB' }]}><ShieldCheck size={21} color="#8E701C" /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>Verify ID & insurance</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Verification upload coming soon</Text>
+                </View>
+              </View>
+              <Pressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
+                accessibilityRole="button" accessibilityLabel="Complete profile setup">
+                <Text style={styles.premiumPrimaryText}>Complete setup</Text>
+              </Pressable>
+            </View>
+            <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}
+              accessibilityRole="button" accessibilityLabel="Open account settings">
+              <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><UserRound size={21} color={theme.colors.teal} /></View>
+              <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Account & settings</Text>
+              <ChevronRight size={20} color={theme.colors.muted} />
+            </Pressable>
+          </>
+        ) : profilePage === 'edit' ? (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+              </Pressable>
+              <Text style={styles.premiumProfileEditTitle}>Public profile</Text>
+              <Pressable onPress={savePublicProfile} disabled={savingProfile} style={styles.premiumProfileSaveTop}
+                accessibilityRole="button" accessibilityLabel="Save public profile">
+                <Text style={styles.premiumProfileSaveTopText}>Save</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.premiumProfileEditHint}>These are the details customers see when they explore tradespeople and after a match.</Text>
+            <View style={styles.premiumPhotoCard}>
+              {avatarUrl
+                ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
+                : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumChecklistTitle}>Profile photo</Text>
+                <Text style={styles.premiumChecklistSubtitle}>Your current customer-facing photo</Text>
+                <Text style={styles.premiumPhotoFootnote}>Photo upload is not available here yet</Text>
+              </View>
+            </View>
         <View style={styles.tradeEditCard}>
           <View style={styles.tradeEditHeader}>
             <View style={styles.tradeEditIcon}>
@@ -7465,13 +7604,67 @@ function TradeSettingsScreen({
               <ActivityIndicator color={C.white} />
             ) : (
               <>
-                <Text style={styles.tradeEditSaveText}>Save public profile</Text>
+                <Text style={styles.tradeEditSaveText}>Save changes</Text>
                 <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={15} color={C.white} />
               </>
             )}
           </Pressable>
         </View>
 
+
+          </>
+        ) : profilePage === 'preview' ? (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+              </Pressable>
+              <Text style={styles.premiumProfileEditTitle}>Public preview</Text>
+              <View style={{ width: 44 }} />
+            </View>
+            <View style={styles.premiumPhotoCard}>
+              {avatarUrl
+                ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
+                : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumChecklistTitle}>{displayName}</Text>
+                <Text style={styles.premiumChecklistSubtitle}>{primaryTrade}</Text>
+              </View>
+            </View>
+            {bio.trim() ? <Text style={styles.premiumProfileEditHint}>{bio}</Text> : null}
+            {publicPhone.trim() ? <Text style={styles.premiumProfileEditHint}>Contact: {publicPhone}</Text> : null}
+            <Text style={styles.premiumProfileEditHint}>Only saved details are visible to customers.</Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+              </Pressable>
+              <Text style={styles.premiumProfileEditTitle}>Account</Text>
+              <View style={{ width: 44 }} />
+            </View>
+            <Text style={styles.premiumEyebrow}>Your business</Text>
+            <View style={styles.premiumAccountCard}>
+              <View style={styles.premiumAccountRow}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><ShieldCheck size={22} color={theme.colors.coralDark} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>Get verified</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Show customers you're the real deal</Text>
+                </View>
+                <Text style={styles.premiumComingSoon}>Soon</Text>
+              </View>
+              {['Photo ID', 'Insurance', 'Qualifications'].map(item => (
+                <View style={styles.premiumAccountRow} key={item}>
+                  <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><ShieldCheck size={19} color={theme.colors.teal} /></View>
+                  <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
+                  <Text style={styles.premiumComingSoon}>Coming soon</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.premiumSectionTitle}>Service area</Text>
         <View style={styles.locationSettingsCard}>
           <View style={styles.locationSettingsHeader}>
             <View style={styles.locationSettingsIcon}>
@@ -7545,20 +7738,34 @@ function TradeSettingsScreen({
           </Text>
         </View>
 
-        <Text style={styles.proProfileSectionLabel}>More settings</Text>
-        {['Verification', 'Services & prices', 'Notifications', 'Payouts'].map(item => (
-          <View key={item} style={styles.darkSettingsRow}>
-            <Text style={styles.darkSettingsLabel}>{item}</Text>
-            <Text style={styles.darkSettingsStatus}>Coming soon</Text>
-          </View>
-        ))}
 
-        <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}>
-          <Text style={styles.backCustomerText}>Switch to customer app</Text>
-        </Pressable>
-        <Pressable style={styles.signOutButton} onPress={signOut}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </Pressable>
+            <View style={styles.premiumAccountCard}>
+              <Pressable style={styles.premiumAccountRow} onPress={() => setProfilePage('edit')}>
+                <View style={styles.premiumChecklistIcon}><Pencil size={20} color={theme.colors.teal} /></View>
+                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Public profile</Text>
+                <ChevronRight size={21} color={theme.colors.muted} />
+              </Pressable>
+              <Pressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHome')}>
+                <View style={styles.premiumChecklistIcon}><Clock3 size={20} color={theme.colors.teal} /></View>
+                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & hours</Text>
+                <ChevronRight size={21} color={theme.colors.muted} />
+              </Pressable>
+              {['Payments & payouts', 'Notifications', 'Help & support'].map(item => (
+                <View style={styles.premiumAccountRow} key={item}>
+                  <View style={styles.premiumChecklistIcon}><UserRound size={19} color={theme.colors.teal} /></View>
+                  <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
+                  <Text style={styles.premiumComingSoon}>Coming soon</Text>
+                </View>
+              ))}
+            </View>
+            <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}>
+              <Text style={styles.backCustomerText}>Switch to customer app</Text>
+            </Pressable>
+            <Pressable style={styles.signOutButton} onPress={signOut}>
+              <Text style={styles.signOutText}>Log out</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </TradeShell>
   );
@@ -7601,7 +7808,7 @@ function HeaderBack({ title, back }: { title: string; back: () => void }) {
   );
 }
 
-function Badge({ text, green, dark, gold }: { text: string; green?: boolean; dark?: boolean; gold?: boolean }) {
+function Badge({ text, green, dark, gold }: { text: string; green?: boolean; blue?: boolean; dark?: boolean; gold?: boolean }) {
   const backgroundColor = green ? C.greenSoft : dark ? '#E9EEF5' : gold ? '#FFF4D6' : '#E6F0FF';
   const color = green ? '#087A4E' : dark ? '#233144' : gold ? '#8A6400' : '#0867D8';
   return <View style={[styles.badge, { backgroundColor }]}><Text style={[styles.badgeText, { color }]}>{text}</Text></View>;
@@ -7734,7 +7941,7 @@ const styles = StyleSheet.create({
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
   filterModalRoot: { flex: 1, justifyContent: 'flex-end' },
-  filterModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
+  filterModalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
   filterSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 } },
   filterSheetHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#D8DEE6', alignSelf: 'center', marginBottom: 16 },
   filterPanelHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
@@ -7750,7 +7957,7 @@ const styles = StyleSheet.create({
   filterApplyButton: { height: 52, borderRadius: 15, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   filterApplyText: { color: C.white, fontSize: 15, fontWeight: '900' },
   mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
-  mapCanvas: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E9EEF3' },
+  mapCanvas: { ...StyleSheet.absoluteFill, backgroundColor: '#E9EEF3' },
   realMarkerWrap: { alignItems: 'center' },
   mapLocationPill: { position: 'absolute', top: 14, left: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
@@ -7994,7 +8201,7 @@ const styles = StyleSheet.create({
   customerAvatarText: { color: C.navy, fontFamily: DISPLAY_FONT, fontWeight: '900', fontSize: 23 },
   customerName: { fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', color: C.white, letterSpacing: -0.4 },
   profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
-  profileModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,27,49,0.35)' },
+  profileModalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,27,49,0.35)' },
   profileModalSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
   savedTradeRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E1D8', paddingVertical: 10 },
   savedTradeInitial: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#DCE7ED', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
@@ -8036,24 +8243,24 @@ const styles = StyleSheet.create({
   proJobsOverviewIcon: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#F2E5DC', alignItems: 'center', justifyContent: 'center' },
   proJobsOverviewTitle: { color: '#243F47', fontSize: 15, fontWeight: '900' },
   proJobsOverviewSub: { color: '#6A818A', fontSize: 11, marginTop: 4, lineHeight: 16 },
-  proEmptyIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#E8F0F0', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  proEmptyIcon: { width: 53, height: 53, borderRadius: 17, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
   tradePage: { paddingHorizontal: 20, paddingTop: 25, paddingBottom: 122, backgroundColor: '#F7F8FA' },
-  tradeEmptyLarge: { marginTop: 7, marginBottom: 18, backgroundColor: '#FFFFFF', borderRadius: 18, paddingVertical: 30, paddingHorizontal: 20, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8EC' },
-  tradeEmptyLargeTitle: { color: '#233641', fontSize: 16, fontWeight: '900', marginTop: 13, textAlign: 'center' },
-  tradeEmptyLargeText: { color: '#798894', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 7, maxWidth: 310 },
-  tradeChatHeader: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8EC' },
-  tradeChatBack: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#E6EFF0', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  tradeChatName: { color: '#1C3340', fontSize: 17, fontWeight: '900' },
-  tradeChatSub: { color: '#768794', fontSize: 11, marginTop: 4 },
-  tradeChatBody: { flex: 1, backgroundColor: '#F7F8FA' },
+  tradeEmptyLarge: { marginTop: 8, marginBottom: 18, backgroundColor: theme.colors.white, borderRadius: 28, paddingVertical: 26, paddingHorizontal: 20, alignItems: 'center', ...theme.shadow },
+  tradeEmptyLargeTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800', marginTop: 5, textAlign: 'center' },
+  tradeEmptyLargeText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6, textAlign: 'center' },
+  tradeChatHeader: { backgroundColor: theme.colors.proBackground, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: theme.colors.line },
+  tradeChatBack: { minWidth: 44, minHeight: 44, backgroundColor: theme.colors.white, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  tradeChatName: { color: theme.colors.ink, fontSize: 19, fontWeight: '800' },
+  tradeChatSub: { color: theme.colors.muted, fontSize: 13, marginTop: 4 },
+  tradeChatBody: { flex: 1, backgroundColor: theme.colors.proBackground },
   tradeChatContent: { paddingHorizontal: 20, paddingTop: 17, paddingBottom: 30 },
   tradeChatBubble: { maxWidth: '82%', borderRadius: 17, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 11 },
-  tradeChatMine: { alignSelf: 'flex-end', backgroundColor: '#3A7475', borderBottomRightRadius: 5 },
+  tradeChatMine: { alignSelf: 'flex-end', backgroundColor: theme.colors.darkTeal, borderBottomRightRadius: 6 },
   tradeChatTheirs: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', borderBottomLeftRadius: 5 },
   tradeChatBubbleText: { color: '#243A46', fontSize: 13, lineHeight: 19 },
-  tradeChatComposer: { minHeight: 68, marginBottom: 82, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8EC' },
-  tradeChatInput: { flex: 1, minHeight: 46, borderRadius: 15, backgroundColor: '#F3F6F6', borderWidth: 1, borderColor: '#E2E8EC', color: '#253847', paddingHorizontal: 15, fontSize: 14 },
-  tradeChatSend: { width: 45, height: 45, borderRadius: 14, backgroundColor: '#3A7475', alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
+  tradeChatComposer: { backgroundColor: theme.colors.white, minHeight: 79, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 12 },
+  tradeChatInput: { flex: 1, minHeight: 52, borderRadius: 26, backgroundColor: theme.colors.proBackground, paddingHorizontal: 17, fontSize: 15, color: theme.colors.ink },
+  tradeChatSend: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
 
   tradeHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
   tradeBrand: { color: C.white, fontSize: 24, fontWeight: '900' },
@@ -8065,13 +8272,13 @@ const styles = StyleSheet.create({
   availablePanelSub: { color: C.green, fontSize: 12, marginTop: 4 },
   tradeLabel: { color: '#D9E4EC', fontWeight: '800', marginTop: 19, marginBottom: 9 },
   tradeChipWrap: { flexDirection: 'row', flexWrap: 'wrap' },
-  tradeChip: { borderRadius: 10, backgroundColor: '#102E47', paddingHorizontal: 14, paddingVertical: 10, marginRight: 7, marginBottom: 7 },
+  tradeChip: { borderRadius: 22, backgroundColor: theme.colors.tealTint, paddingHorizontal: 15, paddingVertical: 10, marginRight: 8, marginBottom: 7 },
   tradeChipActive: { backgroundColor: C.blue },
   tradeChipText: { color: '#BFD0DD', fontWeight: '700', fontSize: 12 },
   radiusRow: { flexDirection: 'row', alignItems: 'center' },
   radiusValue: { marginLeft: 'auto', color: C.white, fontWeight: '900', marginTop: 19 },
   radiusOptions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  radiusDot: { width: 50, height: 38, borderRadius: 19, backgroundColor: '#102E47', alignItems: 'center', justifyContent: 'center' },
+  radiusDot: { width: 54, height: 42, borderRadius: 22, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   radiusDotActive: { backgroundColor: C.blue },
   radiusDotText: { color: '#BFD0DD', fontWeight: '900' },
   tradeStats: { flexDirection: 'row', marginTop: 23, gap: 8 },
@@ -8110,23 +8317,23 @@ const styles = StyleSheet.create({
   proProfileImage: { width: 66, height: 66, borderRadius: 20, marginRight: 14 },
   proProfileFallback: { width: 66, height: 66, borderRadius: 20, marginRight: 14, backgroundColor: '#3C7073', alignItems: 'center', justifyContent: 'center' },
   proProfileFallbackText: { color: '#FFFFFF', fontSize: 26, fontWeight: '900' },
-  locationSettingsCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, marginTop: 2, marginBottom: 22, borderWidth: 1, borderColor: '#E1E8EA' },
+  locationSettingsCard: { backgroundColor: theme.colors.white, borderRadius: 28, padding: 19, marginTop: 10, marginBottom: 20, ...theme.shadow },
   locationSettingsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 17 },
   locationSettingsIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E4F0F0', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  locationSettingsTitle: { color: '#1A303B', fontSize: 17, fontWeight: '900' },
-  locationSettingsSub: { color: '#768894', fontSize: 11, marginTop: 5, lineHeight: 17 },
-  locationChoice: { flexDirection: 'row', alignItems: 'flex-start', padding: 14, borderRadius: 14, backgroundColor: '#F7F9F9', borderWidth: 1, borderColor: '#DEE7E8' },
-  locationChoiceActive: { borderColor: '#8DB9B7', backgroundColor: '#EAF4F2' },
+  locationSettingsTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800' },
+  locationSettingsSub: { color: theme.colors.muted, fontSize: 13, marginTop: 5, lineHeight: 19 },
+  locationChoice: { flexDirection: 'row', alignItems: 'flex-start', padding: 15, borderRadius: 20, backgroundColor: theme.colors.proBackground, borderWidth: 1, borderColor: theme.colors.line },
+  locationChoiceActive: { borderColor: theme.colors.teal, backgroundColor: theme.colors.tealTint },
   locationChoiceRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#9CAEB4', alignItems: 'center', justifyContent: 'center', marginRight: 12, marginTop: 1 },
-  locationChoiceRadioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#41777A' },
+  locationChoiceRadioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.teal },
   locationChoiceTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  locationChoiceTitle: { color: '#25424C', fontSize: 13, fontWeight: '900' },
-  locationChoiceText: { color: '#758894', fontSize: 11, lineHeight: 17, marginTop: 6 },
+  locationChoiceTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  locationChoiceText: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   recommendedPill: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#DCECE2' },
   recommendedText: { color: '#3B7862', fontSize: 9, fontWeight: '900' },
-  locationSaveButton: { minHeight: 45, borderRadius: 12, backgroundColor: '#3F7779', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  locationSaveButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
-  locationPrivacyNote: { color: '#7E919A', fontSize: 10, lineHeight: 16, marginTop: 15 },
+  locationSaveButton: { minHeight: 52, borderRadius: 26, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  locationSaveButtonText: { color: theme.colors.white, fontSize: 14, fontWeight: '800' },
+  locationPrivacyNote: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 15 },
 
   proName: { color: '#FFFFFF', fontWeight: '900', fontSize: 19, letterSpacing: -0.3 },
   proRole: { color: '#D5E6E5', marginTop: 4, fontSize: 12 },
@@ -8134,10 +8341,10 @@ const styles = StyleSheet.create({
   darkSettingsRow: { minHeight: 62, borderRadius: 14, borderWidth: 1, borderColor: '#E2E8EA', backgroundColor: '#FFFFFF', paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   darkSettingsLabel: { flex: 1, color: '#27414C', fontSize: 13, fontWeight: '800' },
   darkChevron: { color: '#8FA4B5', fontSize: 26 },
-  backCustomerButton: { height: 52, borderRadius: 14, borderWidth: 1, borderColor: '#D4E0E2', backgroundColor: '#E9F1F2', alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-  backCustomerText: { color: '#345E69', fontSize: 12, fontWeight: '900' },
-  signOutButton: { height: 52, borderRadius: 14, borderWidth: 1, borderColor: '#E2E8EA', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 11 },
-  signOutText: { color: '#B65B4D', fontSize: 12, fontWeight: '900' },
+  backCustomerButton: { height: 56, borderRadius: 28, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginTop: 15 },
+  backCustomerText: { color: theme.colors.teal, fontSize: 14, fontWeight: '800' },
+  signOutButton: { height: 56, borderRadius: 28, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', marginTop: 11, ...theme.shadow },
+  signOutText: { color: theme.colors.coralDark, fontSize: 14, fontWeight: '800' },
 
   photoPicked: { width: 120, height: 105, borderRadius: 15 },
   tradeEmptyCard: { backgroundColor: '#1D3042', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#354C60' },
@@ -8363,29 +8570,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dispatchCancelOutlineText: { fontSize: 13, fontWeight: '800', color: C.red },
-  dispatchTradeSectionTitle: { marginTop: 29, marginBottom: 12, fontSize: 18, fontWeight: '900', color: '#1A2D38', letterSpacing: -0.4 },
-  dispatchTradeActiveCard: { padding: 17, borderRadius: 18, backgroundColor: '#EFF5F2', borderWidth: 1, borderColor: '#D5E5DD', marginBottom: 14 },
-  dispatchTradeOfferCard: { padding: 17, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', marginBottom: 14 },
+  dispatchTradeSectionTitle: { marginTop: 23, marginBottom: 13, fontSize: 20, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.4 },
+  dispatchTradeActiveCard: { padding: 19, borderRadius: 28, backgroundColor: theme.colors.white, marginBottom: 15, ...theme.shadow },
+  dispatchTradeOfferCard: { padding: 19, borderRadius: 28, backgroundColor: theme.colors.white, marginBottom: 15, ...theme.shadow },
   dispatchTradeTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dispatchTradeUrgentIcon: { width: 39, height: 39, borderRadius: 12, backgroundColor: '#C66B50', alignItems: 'center', justifyContent: 'center' },
-  dispatchTradeUrgency: { fontSize: 10, fontWeight: '900', color: '#B86C50', letterSpacing: 0.4 },
-  dispatchTradeJobTitle: { marginTop: 3, fontSize: 18, fontWeight: '900', color: '#1C3541' },
-  dispatchTradeIssue: { marginTop: 13, fontSize: 13, lineHeight: 20, color: '#516878' },
+  dispatchTradeUrgentIcon: { width: 42, height: 42, borderRadius: 15, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center' },
+  dispatchTradeUrgency: { fontSize: 12, fontWeight: '800', color: theme.colors.coralText, letterSpacing: 0.4 },
+  dispatchTradeJobTitle: { marginTop: 5, fontSize: 19, fontWeight: '800', color: theme.colors.ink },
+  dispatchTradeIssue: { marginTop: 12, fontSize: 14, lineHeight: 21, color: theme.colors.muted },
   dispatchTradeMetaRow: { marginTop: 14, flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
-  dispatchTradeMeta: { flexShrink: 1, fontSize: 11, color: '#718492' },
-  dispatchTradeEtaPill: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: '#E6EFF0', alignItems: 'center' },
-  dispatchTradeEtaValue: { fontSize: 12, fontWeight: '900', color: '#28515A' },
-  dispatchTradeEtaSmall: { fontSize: 9, color: '#6D858D' },
+  dispatchTradeMeta: { flexShrink: 1, fontSize: 13, color: theme.colors.muted },
+  dispatchTradeEtaPill: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 16, backgroundColor: theme.colors.tealTint, alignItems: 'center' },
+  dispatchTradeEtaValue: { fontSize: 13, fontWeight: '800', color: theme.colors.teal },
+  dispatchTradeEtaSmall: { fontSize: 12, color: theme.colors.muted },
   dispatchTradeDecisionRow: { marginTop: 18, flexDirection: 'row', gap: 10 },
-  dispatchTradeDecline: { flex: 1, height: 46, borderRadius: 12, borderWidth: 1, borderColor: '#CDD8DD', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  dispatchTradeDeclineText: { fontSize: 12, fontWeight: '900', color: '#4D6574' },
-  dispatchTradeAccept: { flex: 1.5, height: 46, borderRadius: 12, backgroundColor: '#3C7475', alignItems: 'center', justifyContent: 'center' },
-  dispatchTradeAcceptText: { fontSize: 12, fontWeight: '900', color: '#FFFFFF' },
+  dispatchTradeDecline: { flex: 1, height: 52, borderRadius: 26, backgroundColor: theme.colors.soft, alignItems: 'center', justifyContent: 'center' },
+  dispatchTradeDeclineText: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
+  dispatchTradeAccept: { flex: 1.5, height: 52, borderRadius: 26, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
+  dispatchTradeAcceptText: { fontSize: 14, fontWeight: '800', color: theme.colors.white },
   dispatchTradeActionRow: { marginTop: 16, flexDirection: 'row', gap: 10 },
-  dispatchTradeDirections: { flex: 1, height: 46, borderRadius: 12, backgroundColor: '#E6F0F1', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  dispatchTradeDirectionsText: { fontSize: 11, fontWeight: '900', color: '#2C5862' },
-  dispatchTradeAdvance: { flex: 1.4, height: 46, borderRadius: 12, backgroundColor: '#3C7475', alignItems: 'center', justifyContent: 'center' },
-  dispatchTradeAdvanceText: { fontSize: 11, fontWeight: '900', color: '#FFFFFF' },
+  dispatchTradeDirections: { flex: 1, height: 52, borderRadius: 26, backgroundColor: theme.colors.soft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  dispatchTradeDirectionsText: { fontSize: 13, fontWeight: '800', color: theme.colors.ink },
+  dispatchTradeAdvance: { flex: 1.4, height: 52, borderRadius: 26, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
+  dispatchTradeAdvanceText: { fontSize: 13, fontWeight: '800', color: theme.colors.white },
 
   dispatchTrackingMapWrap: {
     marginTop: 2,
@@ -9132,7 +9339,7 @@ const styles = StyleSheet.create({
   marketTrustTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
   marketTrustSub: { color: '#B1BFCE', fontSize: 11, lineHeight: 16, marginTop: 4 },
   marketFlowRoot: { flex: 1, justifyContent: 'flex-end' },
-  marketFlowBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,15,11,0.64)' },
+  marketFlowBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(3,15,11,0.64)' },
   marketFlowSheet: { maxHeight: '82%', minHeight: '58%', backgroundColor: '#F8F5ED', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 },
   marketFlowHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#C9C5BA', alignSelf: 'center', marginBottom: 16 },
   marketFlowHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
@@ -9180,8 +9387,8 @@ const styles = StyleSheet.create({
   proReferenceSetupButton: { minHeight: 30, borderRadius: 8, alignSelf: 'stretch', backgroundColor: '#426F72', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   proReferenceSetupText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
   proReferenceMapWrap: { height: 185, marginBottom: 24, position: 'relative', borderRadius: 18, backgroundColor: '#E7ECEE' },
-  proReferenceMapVisual: { ...StyleSheet.absoluteFillObject, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#D5DEE2' },
-  proReferenceMapHit: { ...StyleSheet.absoluteFillObject, borderRadius: 18 },
+  proReferenceMapVisual: { ...StyleSheet.absoluteFill, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#D5DEE2' },
+  proReferenceMapHit: { ...StyleSheet.absoluteFill, borderRadius: 18 },
   proReferenceStatusPill: { position: 'absolute', left: 38, right: 38, top: 14, height: 38, borderRadius: 23, backgroundColor: '#8F515E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingLeft: 13, paddingRight: 7, shadowColor: '#442332', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.24, shadowRadius: 5, elevation: 5 },
   proReferenceOnlinePill: { backgroundColor: '#915260' },
   proReferenceOfflinePill: { backgroundColor: '#506773' },
@@ -9240,14 +9447,14 @@ const styles = StyleSheet.create({
   proHomeQuickTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   proHomeQuickAlt: { backgroundColor: '#EAF1F5', borderColor: '#DCE7ED' },
 
-  proV3DetailsToggle: { minHeight: 80, borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E8EC', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 12, marginBottom: 13 },
-  proV3DetailsIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#EBF1F5', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
-  proV3DetailsTitle: { color: '#1A3042', fontSize: 15, fontWeight: '900' },
-  proV3DetailsSub: { color: '#718392', fontSize: 11, marginTop: 5 },
-  proV3AreaIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#DDE7EC', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
-  proV3RouteShortcut: { minHeight: 75, borderRadius: 16, backgroundColor: '#E5EFF3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
-  proV3RouteShortcutTitle: { color: '#1B3448', fontSize: 14, fontWeight: '900' },
-  proV3RouteShortcutSub: { color: '#607788', fontSize: 11, marginTop: 4 },
+  proV3DetailsToggle: { minHeight: 78, borderRadius: 25, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 13, marginBottom: 12, ...theme.shadow },
+  proV3DetailsIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  proV3DetailsTitle: { color: theme.colors.ink, fontSize: 16, fontWeight: '800' },
+  proV3DetailsSub: { color: theme.colors.muted, fontSize: 13, marginTop: 5 },
+  proV3AreaIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  proV3RouteShortcut: { minHeight: 76, borderRadius: 24, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15, ...theme.shadow },
+  proV3RouteShortcutTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  proV3RouteShortcutSub: { color: theme.colors.muted, fontSize: 12, marginTop: 4 },
   proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 21 },
   proV3Eyebrow: { color: '#C16F54', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
   proV3Hello: { color: '#152638', fontFamily: DISPLAY_FONT, fontSize: 33, fontWeight: '900', letterSpacing: -0.8, marginTop: 6 },
@@ -9267,11 +9474,11 @@ const styles = StyleSheet.create({
   proV3AvailabilityIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#E0ECE8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   proV3AvailabilityTitle: { color: '#1A2D3B', fontSize: 15, fontWeight: '900' },
   proV3AvailabilitySub: { color: '#637583', fontSize: 11, lineHeight: 16, marginTop: 4, paddingRight: 6 },
-  proV3ControlCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E7EB', padding: 16, marginBottom: 13 },
+  proV3ControlCard: { borderRadius: 24, backgroundColor: theme.colors.white, padding: 18, marginBottom: 13, ...theme.shadow },
   proV3ControlHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 11 },
-  proV3ControlTitle: { color: '#1B2E41', fontSize: 14, fontWeight: '800' },
-  proV3ControlSub: { color: '#71818D', fontSize: 11, lineHeight: 16, marginTop: 4, maxWidth: 235 },
-  proV3ControlValue: { color: '#B9674F', fontSize: 12, fontWeight: '900' },
+  proV3ControlTitle: { color: theme.colors.ink, fontSize: 15, fontWeight: '800' },
+  proV3ControlSub: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5, maxWidth: 235 },
+  proV3ControlValue: { color: theme.colors.coralText, fontSize: 13, fontWeight: '800' },
   proV3QuickGrid: { flexDirection: 'row', gap: 13, marginBottom: 22 },
   proV3QuickCard: { flex: 1, minHeight: 142, borderRadius: 19, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E8EC', padding: 15, justifyContent: 'space-between' },
   proV3QuickIcon: { width: 41, height: 41, borderRadius: 13, backgroundColor: '#F7E6DE', alignItems: 'center', justifyContent: 'center' },
@@ -9366,19 +9573,19 @@ const styles = StyleSheet.create({
   relayOption: { minHeight: 36, borderRadius: 13, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#285044', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   relayOptionText: { color: C.white, fontSize: 9, fontWeight: '800' },
 
-  radarCard: { borderRadius: 16, backgroundColor: '#F4EFE7', padding: 14, marginBottom: 11 },
+  radarCard: { borderRadius: 24, backgroundColor: theme.colors.white, padding: 17, marginBottom: 12, ...theme.shadow },
   radarTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
-  radarEyebrow: { color: '#B85C42', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
-  radarTitle: { color: '#1B2936', fontFamily: DISPLAY_FONT, fontSize: 18, fontWeight: '800', marginTop: 5 },
-  radarSub: { color: '#67727F', fontSize: 11, lineHeight: 16, marginTop: 5, marginBottom: 12 },
+  radarEyebrow: { color: theme.colors.coralText, fontSize: 12, fontWeight: '800', letterSpacing: 1.1 },
+  radarTitle: { color: theme.colors.ink, fontSize: 19, fontWeight: '800', marginTop: 6 },
+  radarSub: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 12 },
   radarPulse: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#E2EFDE', alignItems: 'center', justifyContent: 'center' },
   radarPulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.green },
-  radarArea: { minHeight: 61, borderRadius: 12, backgroundColor: '#FFFCF6', borderWidth: 1, borderColor: '#E1DBD1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
+  radarArea: { minHeight: 66, borderRadius: 19, backgroundColor: theme.colors.proBackground, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, marginBottom: 8 },
   radarAreaCount: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E8EEE7', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   radarAreaCountValue: { color: C.blue, fontSize: 16, fontWeight: '900' },
   radarAreaCountLabel: { color: C.muted, fontSize: 7, fontWeight: '700' },
-  radarAreaName: { color: '#1E3447', fontSize: 12, fontWeight: '900' },
-  radarAreaMeta: { color: '#657586', fontSize: 10, marginTop: 4 },
+  radarAreaName: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  radarAreaMeta: { color: theme.colors.muted, fontSize: 12, marginTop: 4 },
   radarAreaAction: { minWidth: 61, minHeight: 32, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   radarAreaActionText: { color: C.navy, fontSize: 8, fontWeight: '900' },
 
@@ -9445,34 +9652,145 @@ const styles = StyleSheet.create({
   marketDataDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
   marketDataBannerText: { color: C.muted, fontSize: 8.5, fontWeight: '700', flex: 1 },
 
-  tradeEditCard: { borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E8EA', padding: 18, marginBottom: 18 },
-  tradeEditHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 17 },
-  tradeEditIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#F5E7E0', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  tradeEditTitle: { color: '#1A303B', fontSize: 17, fontWeight: '900' },
-  tradeEditSub: { color: '#748692', fontSize: 11, lineHeight: 17, marginTop: 4 },
-  tradeEditLabel: { color: '#536976', fontSize: 10, fontWeight: '900', letterSpacing: 0.7, textTransform: 'uppercase', marginTop: 16, marginBottom: 8 },
-  tradeEditInput: { minHeight: 52, borderRadius: 14, backgroundColor: '#F7F9F9', borderWidth: 1, borderColor: '#DDE5E8', color: '#213744', paddingHorizontal: 15, fontSize: 14 },
-  tradeEditBio: { minHeight: 112, paddingTop: 14, paddingBottom: 13, textAlignVertical: 'top' },
+  tradeEditCard: { borderRadius: 28, backgroundColor: theme.colors.white, padding: 20, marginBottom: 18, ...theme.shadow },
+  tradeEditHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  tradeEditIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  tradeEditTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800' },
+  tradeEditSub: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  tradeEditLabel: { color: theme.colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 17, marginBottom: 9 },
+  tradeEditInput: { minHeight: 56, borderRadius: 17, backgroundColor: theme.colors.proBackground, color: theme.colors.ink, paddingHorizontal: 16, fontSize: 15 },
+  tradeEditBio: { minHeight: 118, paddingTop: 15, paddingBottom: 14, textAlignVertical: 'top' },
   tradeEditTradeRow: { paddingRight: 10, paddingVertical: 2 },
-  tradeEditChip: { minHeight: 42, borderRadius: 12, backgroundColor: '#F3F6F6', borderWidth: 1, borderColor: '#DEE6E9', paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
-  tradeEditChipActive: { backgroundColor: '#DCE9E9', borderColor: '#7DAAAA' },
-  tradeEditChipText: { color: '#627783', fontSize: 12, fontWeight: '800' },
-  tradeEditChipTextActive: { color: '#29565F', fontSize: 12, fontWeight: '900' },
-  tradeEditSave: { minHeight: 52, borderRadius: 14, backgroundColor: '#41777A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 20 },
-  tradeEditSaveText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  tradeEditChip: { minHeight: 43, borderRadius: 22, backgroundColor: theme.colors.proBackground, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  tradeEditChipActive: { backgroundColor: theme.colors.darkTeal },
+  tradeEditChipText: { color: theme.colors.muted, fontSize: 13, fontWeight: '700' },
+  tradeEditChipTextActive: { color: theme.colors.white, fontSize: 13, fontWeight: '800' },
+  tradeEditSave: { minHeight: 56, borderRadius: 28, backgroundColor: theme.colors.darkTeal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 22 },
+  tradeEditSaveText: { color: theme.colors.white, fontSize: 15, fontWeight: '800' },
 
-  marketTradeActiveCard: { borderRadius: 18, backgroundColor: '#EFF5F2', borderWidth: 1, borderColor: '#D5E5DD', padding: 17, marginBottom: 14 },
-  marketTradeOfferCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', padding: 17, marginBottom: 14 },
-  marketTradeMode: { color: '#B46A55', fontSize: 10, fontWeight: '900', letterSpacing: 1.0, marginBottom: 3 },
-  marketTradeTiming: { color: '#748592', fontSize: 11, fontWeight: '700', marginTop: 7 },
-  marketTradePrice: { color: '#37766B', fontSize: 17, fontWeight: '900' },
-  marketTradeOfferIcon: { width: 41, height: 41, borderRadius: 12, backgroundColor: '#F8EAE2', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  marketTradePayPill: { minWidth: 70, borderRadius: 12, backgroundColor: '#E6F0EC', paddingHorizontal: 11, paddingVertical: 7, alignItems: 'center' },
-  marketTradePay: { color: '#1C5960', fontSize: 14, fontWeight: '900' },
-  marketTradePaySmall: { color: '#708B8D', fontSize: 8, fontWeight: '700', marginTop: 2 },
-  marketTradeAccept: { flex: 1, minHeight: 46, borderRadius: 12, backgroundColor: '#3C7475', alignItems: 'center', justifyContent: 'center' },
-  marketTradeAcceptText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
-  tradeEmptyCompact: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', paddingVertical: 27, paddingHorizontal: 17, alignItems: 'center', marginBottom: 19, gap: 4 },
+  marketTradeActiveCard: { borderRadius: 28, backgroundColor: theme.colors.white, padding: 19, marginBottom: 15, ...theme.shadow },
+  marketTradeOfferCard: { borderRadius: 28, backgroundColor: theme.colors.white, padding: 19, marginBottom: 15, ...theme.shadow },
+  marketTradeMode: { color: theme.colors.coralText, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, marginBottom: 4 },
+  marketTradeTiming: { color: theme.colors.muted, fontSize: 13, fontWeight: '700', marginTop: 9 },
+  marketTradePrice: { color: theme.colors.teal, fontSize: 17, fontWeight: '800' },
+  marketTradeOfferIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  marketTradePayPill: { minWidth: 74, borderRadius: 18, backgroundColor: theme.colors.tealTint, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center' },
+  marketTradePay: { color: theme.colors.teal, fontSize: 15, fontWeight: '800' },
+  marketTradePaySmall: { color: theme.colors.muted, fontSize: 12, fontWeight: '500', marginTop: 2 },
+  marketTradeAccept: { flex: 1, minHeight: 52, borderRadius: 26, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
+  marketTradeAcceptText: { color: theme.colors.white, fontSize: 14, fontWeight: '800' },
+  tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
+
+  // Premium pro UI – shared across all five tabs.
+  premiumTabBar: { height: theme.shape.tabHeight, backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.line, flexDirection: 'row', paddingHorizontal: 7, paddingTop: 5, paddingBottom: 7 },
+  premiumTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  premiumTabIcon: { width: 48, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
+  premiumTabIconActive: { backgroundColor: theme.colors.darkTeal },
+  premiumTabLabel: { marginTop: 3, color: theme.colors.muted, fontSize: 12, fontWeight: '500' },
+  premiumTabLabelActive: { color: theme.colors.ink, fontWeight: '800' },
+  premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
+  premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 21 },
+  premiumEyebrow: { color: theme.colors.muted, fontSize: 16, fontWeight: '500' },
+  premiumPageTitle: { color: theme.colors.ink, fontSize: 34, lineHeight: 40, letterSpacing: -1.3, fontWeight: '800' },
+  premiumHeaderAvatar: { width: 54, height: 54, backgroundColor: theme.colors.darkTeal, borderRadius: 27, alignItems: 'center', justifyContent: 'center', shadowColor: theme.colors.ink, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
+  premiumHeaderAvatarImage: { height: 54, width: 54, borderRadius: 27 },
+  premiumHeaderAvatarText: { fontSize: 24, color: theme.colors.white, fontWeight: '800' },
+  premiumHomeMap: { height: 260, borderRadius: 30, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 15, ...theme.shadow },
+  premiumMapPreview: { ...StyleSheet.absoluteFill },
+  premiumMapOpen: { ...StyleSheet.absoluteFill },
+  premiumMapStatus: { position: 'absolute', top: 18, left: 18, right: 76, minHeight: 43, paddingHorizontal: 14, borderRadius: 23, backgroundColor: '#334A4E', alignItems: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#51696D' },
+  premiumOnlineDot: { width: 10, height: 10, borderRadius: 5 },
+  premiumMapStatusText: { color: theme.colors.white, fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  premiumMapLocate: { position: 'absolute', right: 16, top: 18, width: 44, height: 44, borderRadius: 23, backgroundColor: '#3C575B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#658083' },
+  premiumAvailabilityButton: { position: 'absolute', bottom: 19, left: 18, right: 18, height: 56, backgroundColor: theme.colors.white, borderRadius: 28, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 12 },
+  premiumAvailabilityText: { fontSize: 17, fontWeight: '800', color: theme.colors.ink },
+  premiumProgress: { minHeight: 78, backgroundColor: theme.colors.white, borderRadius: 26, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22, ...theme.shadow },
+  premiumProgressCircle: { width: 47, height: 47, borderRadius: 24, backgroundColor: theme.colors.tealTint, borderWidth: 4, borderColor: theme.colors.tealMid, alignItems: 'center', justifyContent: 'center' },
+  premiumProgressPercent: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
+  premiumProgressTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.ink },
+  premiumProgressSub: { fontSize: 13, color: theme.colors.muted, marginTop: 3 },
+  premiumSmallButton: { minHeight: 40, borderRadius: 22, paddingHorizontal: 17, backgroundColor: theme.colors.darkTeal, justifyContent: 'center' },
+  premiumSmallButtonText: { fontSize: 13, fontWeight: '800', color: theme.colors.white },
+  premiumSectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  premiumSectionTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.55, flexShrink: 1 },
+  premiumRefresh: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
+  premiumRefreshText: { color: theme.colors.teal, fontSize: 13, fontWeight: '700' },
+  premiumOfferCard: { backgroundColor: theme.colors.white, borderRadius: 28, padding: 18, marginBottom: 12, ...theme.shadow },
+  premiumOfferHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  premiumUrgentTag: { backgroundColor: theme.colors.coralTint, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  premiumUrgentText: { color: theme.colors.coralText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  premiumOfferDistance: { color: theme.colors.muted, fontSize: 12 },
+  premiumOfferTitle: { color: theme.colors.ink, fontSize: 19, fontWeight: '800', marginTop: 12 },
+  premiumOfferMeta: { fontSize: 13, color: theme.colors.muted, marginTop: 6 },
+  premiumPrimaryButton: { marginTop: 13, backgroundColor: theme.colors.darkTeal, minHeight: 48, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
+  premiumPrimaryText: { color: theme.colors.white, fontSize: 15, fontWeight: '800' },
+  premiumEmptyCard: { minHeight: 164, borderRadius: 29, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 22, marginBottom: 13, ...theme.shadow },
+  premiumEmptyIcon: { height: 45, width: 45, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
+  premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
+  premiumShortcuts: { flexDirection: 'row', gap: 10 },
+  premiumShortcut: { flex: 1, minHeight: 113, padding: 12, borderRadius: 24, backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumShortcutIcon: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  premiumShortcutTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  premiumShortcutSub: { color: theme.colors.muted, fontSize: 12, marginTop: 2 },
+
+  premiumScreenHeading: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 22 },
+  premiumScreenSub: { fontSize: 14, color: theme.colors.muted, lineHeight: 21, marginTop: 4 },
+  premiumHeaderRefresh: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumJobOverview: { minHeight: 136, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 24, paddingTop: 21, flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', overflow: 'hidden', ...theme.shadow },
+  premiumJobMetric: { width: 90, minHeight: 63 },
+  premiumJobMetricNumber: { color: theme.colors.white, fontSize: 39, fontWeight: '800', letterSpacing: -1.4, lineHeight: 42 },
+  premiumJobMetricLabel: { color: '#C0D1D2', fontSize: 14, marginTop: 1 },
+  premiumJobDivider: { width: 1, height: 60, marginRight: 22, backgroundColor: '#355258' },
+  premiumOverviewNote: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 },
+  premiumOverviewNoteText: { color: '#B4C5C5', fontSize: 12 },
+  premiumSegment: { minHeight: 55, borderRadius: 19, backgroundColor: '#E6ECEA', padding: 4, flexDirection: 'row', marginBottom: 14 },
+  premiumSegmentTab: { flex: 1, minHeight: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  premiumSegmentActive: { backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumSegmentText: { color: theme.colors.muted, fontSize: 15, fontWeight: '700' },
+  premiumSegmentTextActive: { color: theme.colors.ink, fontWeight: '800' },
+  premiumInboxCard: { borderRadius: 30, backgroundColor: theme.colors.white, overflow: 'hidden', ...theme.shadow },
+  premiumMessageRow: { minHeight: 89, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 14 },
+  premiumMessageDivider: { borderTopWidth: 1, borderTopColor: theme.colors.line },
+  premiumMessageAvatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  premiumMessageInitials: { color: theme.colors.teal, fontSize: 19, fontWeight: '800' },
+  premiumMessageTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, justifyContent: 'space-between' },
+  premiumMessageName: { color: theme.colors.ink, fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  premiumMessageTime: { color: theme.colors.muted, fontSize: 12 },
+  premiumMessagePreview: { color: theme.colors.muted, fontSize: 14, lineHeight: 19, marginTop: 5 },
+  premiumMessageEmpty: { paddingTop: 95, alignItems: 'center', paddingHorizontal: 24 },
+  premiumMessageEmptyIcon: { width: 142, height: 142, borderRadius: 71, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  premiumMessageEmptyTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.5 },
+  premiumMessageEmptySub: { color: theme.colors.muted, fontSize: 16, lineHeight: 24, marginTop: 12, textAlign: 'center', maxWidth: 300 },
+  premiumMessageOnline: { marginTop: 28, minHeight: 56, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 31, flexDirection: 'row', alignItems: 'center', gap: 12, ...theme.shadow },
+  premiumMessageOnlineText: { color: theme.colors.white, fontSize: 16, fontWeight: '800' },
+
+  premiumPreviewButton: { minHeight: 44, paddingHorizontal: 15, borderRadius: 24, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, ...theme.shadow },
+  premiumPreviewText: { fontSize: 13, fontWeight: '800', color: theme.colors.ink },
+  premiumProfileHero: { borderRadius: 28, backgroundColor: theme.colors.darkTeal, padding: 20, minHeight: 147, marginBottom: 14, overflow: 'hidden', ...theme.shadow },
+  premiumProfileHeroTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  premiumProfileAvatar: { width: 74, height: 74, borderRadius: 37, backgroundColor: theme.colors.tealMid, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  premiumProfileAvatarLetter: { color: theme.colors.white, fontSize: 30, fontWeight: '800' },
+  premiumProfileHeroName: { color: theme.colors.white, fontSize: 23, fontWeight: '800' },
+  premiumProfileHeroTrade: { color: '#D1E2E1', fontSize: 14, marginTop: 4 },
+  premiumProfileHeroNote: { marginTop: 8, color: '#A7C5C4', fontSize: 12 },
+  premiumProfileChecklist: { borderRadius: 30, backgroundColor: theme.colors.white, padding: 18, marginBottom: 18, ...theme.shadow },
+  premiumProfileProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 15 },
+  premiumProfileCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, borderTopWidth: 1, borderTopColor: theme.colors.line },
+  premiumChecklistIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  premiumChecklistTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
+  premiumChecklistSubtitle: { fontSize: 12, lineHeight: 18, color: theme.colors.muted, marginTop: 3 },
+  premiumProfileEditHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  premiumBackButton: { backgroundColor: theme.colors.white, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  premiumProfileEditTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink },
+  premiumProfileSaveTop: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 },
+  premiumProfileSaveTopText: { fontSize: 15, fontWeight: '800', color: theme.colors.teal },
+  premiumProfileEditHint: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 18 },
+  premiumPhotoCard: { borderRadius: 26, backgroundColor: theme.colors.white, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 14, ...theme.shadow },
+  premiumPhotoFootnote: { color: theme.colors.teal, fontSize: 12, marginTop: 10 },
+  premiumAccountCard: { borderRadius: 28, backgroundColor: theme.colors.white, paddingHorizontal: 17, paddingVertical: 5, marginTop: 10, marginBottom: 20, ...theme.shadow },
+  premiumAccountRow: { minHeight: 65, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderColor: theme.colors.line },
+  premiumComingSoon: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
 
 });
 
