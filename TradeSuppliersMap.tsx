@@ -239,6 +239,9 @@ async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<
 }
 
 // The map stays mounted during filtering, preserving the user's zoom and position.
+// Expo SDK 58 / RN 0.88 typing interop: preserve the same native WebView at runtime.
+const MapWebView = WebView as React.ComponentType<any>;
+
 function createMapHtml(centre: Coordinates) {
   return `
 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
@@ -343,7 +346,7 @@ map.on('moveend zoomend resize',draw);
 }
 
 export default function TradeSuppliersMap() {
-  const mapRef = useRef<WebView>(null);
+  const mapRef = useRef<any>(null);
   const [centre, setCentre] = useState<Coordinates>(LEICESTER);
   const [positionReady, setPositionReady] = useState(false);
   const [positionName, setPositionName] = useState('Finding your position…');
@@ -621,7 +624,7 @@ export default function TradeSuppliersMap() {
         </ScrollView>
       </View>
       <View style={S.mapArea}>
-        <WebView
+        <MapWebView
           ref={mapRef}
           source={{ html: mapHtml }}
           style={S.webView}
