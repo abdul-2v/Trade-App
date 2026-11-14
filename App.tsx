@@ -2663,7 +2663,55 @@ function TradeProfileScreen({
 }) {
   const [tab, setTab] = useState<'About' | 'Services' | 'Reviews' | 'Gallery'>('About');
   const [saved, setSaved] = useState(false);
+  const [savingFavourite, setSavingFavourite] = useState(false);
   const isLiveProfile = trade.id.startsWith('live-');
+
+  useEffect(() => {
+    if (!isLiveProfile) {
+      setSaved(false);
+      return;
+    }
+    let active = true;
+    const checkSaved = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await supabase.from('saved_tradespeople')
+        .select('tradesperson_id')
+        .eq('customer_id', user.id)
+        .eq('tradesperson_id', trade.id.slice(5))
+        .maybeSingle();
+      if (active && !error) setSaved(Boolean(data));
+    };
+    checkSaved();
+    return () => { active = false; };
+  }, [trade.id]);
+
+  const toggleFavourite = async () => {
+    if (!isLiveProfile) {
+      Alert.alert('Sample profile', 'Only real registered tradespeople can be saved.');
+      return;
+    }
+    if (savingFavourite) return;
+    setSavingFavourite(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sign in to save a tradesperson.');
+      const tradeId = trade.id.slice(5);
+      const { error } = saved
+        ? await supabase.from('saved_tradespeople')
+          .delete()
+          .eq('customer_id', user.id)
+          .eq('tradesperson_id', tradeId)
+        : await supabase.from('saved_tradespeople')
+          .insert({ customer_id: user.id, tradesperson_id: tradeId });
+      if (error) throw error;
+      setSaved(!saved);
+    } catch (error: any) {
+      Alert.alert('Could not update saved tradespeople', error?.message || 'Please try again.');
+    } finally {
+      setSavingFavourite(false);
+    }
+  };
 
   return (
     <CustomerShell>
@@ -2674,10 +2722,10 @@ function TradeProfileScreen({
           <View style={styles.profileHeroActions}>
             <Pressable
               style={styles.smallCircle}
-              onPress={() => {
-                setSaved(value => !value);
-                Alert.alert(saved ? 'Removed from saved' : 'Saved', saved ? 'Removed from your saved tradespeople.' : 'Added to your saved tradespeople for this session.');
-              }}
+              onPress={toggleFavourite}
+              disabled={savingFavourite}
+              accessibilityRole="button"
+              accessibilityLabel={saved ? 'Remove from saved tradespeople' : 'Save this tradesperson'}
             >
               <Text style={{ fontSize: 18 }}>{saved ? '♥' : '♡'}</Text>
             </Pressable>
@@ -2703,7 +2751,7 @@ function TradeProfileScreen({
             <Text style={styles.ratingText}>
               {trade.reviews > 0 ? '⭐ ' + trade.rating + ' (' + trade.reviews + ' reviews)' : 'New on TradeHub'}
             </Text>
-            <Text style={styles.muted}>⌖ {trade.distance} miles away</Text>
+            {trade.distance >= 0 ? <Text style={styles.muted}>⌖ {trade.distance} miles away</Text> : <Text style={styles.muted}>Location not available</Text>}
           </View>
 
           <View style={styles.badgeRow}>
