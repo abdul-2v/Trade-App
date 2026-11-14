@@ -28,5 +28,8 @@ jobs:
       - name: Check TS and TSX syntax (Metro red-screen prevention)
         run: npm run check:syntax
 
+      - name: Check Expo-compatible dependency versions
+        run: CI=1 npx expo install --check
+
       - name: Check TypeScript types
         run: npm run typecheck
