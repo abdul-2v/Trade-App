@@ -7,7 +7,6 @@ import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
   Alert,
@@ -85,7 +84,7 @@ type RequestItem = {
   source?: 'urgent' | 'job' | 'demo';
 };
 
-type DispatchStage = 'form' | 'searching' | 'matched';
+type DispatchStage = 'form' | 'searching' | 'matched' | 'unavailable';
 
 type LiveDispatchCandidate = {
   userId: string;
@@ -2805,9 +2804,8 @@ function UrgentScreen({
   initialIssue?: string;
 }) {
   const [trade, setTrade] = useState<TradeCategory>(initialTrade || 'Plumber');
-  const [issue, setIssue] = useState(initialIssue || 'Leaking pipe under kitchen sink');
+  const [issue, setIssue] = useState(initialIssue || '');
   const [urgency, setUrgency] = useState('ASAP');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [jobLocation, setJobLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [stage, setStage] = useState<DispatchStage>('form');
@@ -2819,35 +2817,6 @@ function UrgentScreen({
   const [matchStatus, setMatchStatus] = useState('searching');
   const [demoMode, setDemoMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  const demoMatches = useMemo(
-    () =>
-      trades
-        .filter(item => item.role === trade && item.available)
-        .sort((a, b) => a.eta - b.eta),
-    [trade]
-  );
-
-  const demoCalloutRange = useMemo(() => {
-    const prices = demoMatches.map(item => item.callout).filter(Boolean);
-    if (!prices.length) return null;
-    return {
-      min: Math.min(...prices),
-      max: Math.max(...prices),
-    };
-  }, [demoMatches]);
-
-  const choosePhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.75,
-    });
-
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      setPhotoUri(result.assets[0].uri);
-    }
-  };
 
   const resolveCurrentLocation = async () => {
     setLocating(true);
@@ -3143,7 +3112,9 @@ function UrgentScreen({
       try {
         liveCandidates = await loadLiveCandidates(coords, searchRadius);
       } catch {
-        liveCandidates = [];
+        Alert.alert('Availability unavailable', 'We could not check which professionals are online. Please check your connection and try again.');
+        setStage('form');
+        return;
       }
 
       setStage('searching');
@@ -3152,28 +3123,10 @@ function UrgentScreen({
       setMatchedTradeUserId(null);
 
       if (!liveCandidates.length) {
-        const demoPool = demoMatches.length ? demoMatches : trades.filter(item => item.available);
-        setCandidateCount(demoPool.length);
-        setSearchNote(
-          'Demo preview — there are no real available tradesperson accounts in this test project yet.'
-        );
-        setDemoMode(true);
-
-        setTimeout(() => {
-          const person = demoPool[0];
-          if (!person) return;
-          setMatchedTrade(person);
-          setMatchStatus('matched');
-          setStage('matched');
-          addRequest({
-            id: 'demo-' + Date.now(),
-            trade,
-            issue: issue.trim(),
-            urgency,
-            status: 'Matched (demo)',
-          });
-        }, 1800);
-
+        setCandidateCount(0);
+        setSearchNote('No available ' + trade.toLowerCase() + 's found nearby at the moment.');
+        setDemoMode(false);
+        setStage('unavailable');
         return;
       }
 
@@ -3377,6 +3330,37 @@ function UrgentScreen({
     );
   }
 
+  if (stage === 'unavailable') {
+    return (
+      <CustomerShell>
+        <ScrollView contentContainerStyle={styles.dispatchMatchedPage} showsVerticalScrollIndicator={false}>
+          <View style={styles.dispatchTopBar}>
+            <Pressable style={styles.dispatchBackButton} onPress={back}>
+              <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
+            </Pressable>
+            <Text style={styles.dispatchTopTitle}>Availability check</Text>
+            <View style={{ width: 42 }} />
+          </View>
+          <View style={styles.routeNoMatch}>
+            <Text style={styles.routeNoMatchTitle}>Nobody available nearby just now</Text>
+            <Text style={styles.routeNoMatchText}>
+              We couldn't find an online {trade.toLowerCase()} within the search radius. No request has been sent and no booking has been made.
+            </Text>
+          </View>
+          <Pressable style={styles.findButton} onPress={() => setStage('form')}>
+            <Text style={styles.findButtonText}>Try the search again</Text>
+          </Pressable>
+          <Pressable style={styles.dispatchCancelOutline} onPress={() => navigate('route')}>
+            <Text style={styles.dispatchCancelOutlineText}>Post a flexible request instead</Text>
+          </Pressable>
+          <Pressable style={styles.dispatchCancelOutline} onPress={() => navigate('map')}>
+            <Text style={styles.dispatchCancelOutlineText}>Browse tradespeople</Text>
+          </Pressable>
+        </ScrollView>
+      </CustomerShell>
+    );
+  }
+
   if (stage === 'matched' && matchedTrade) {
     const progress = ['matched', 'en_route', 'arrived', 'completed'];
     const progressIndex = Math.max(0, progress.indexOf(matchStatus));
@@ -3569,23 +3553,7 @@ function UrgentScreen({
             </View>
           </FormStep>
 
-          <FormStep number="4" title="Add a photo (optional)">
-            <View style={styles.photoRow}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photoPicked} />
-              ) : (
-                <View style={styles.photoDemo}>
-                  <AppIcon icon={{ ios: 'camera.fill', android: 'photo_camera' }} size={30} color={C.navy2} />
-                </View>
-              )}
-              <Pressable style={styles.addPhoto} onPress={choosePhoto}>
-                <Text style={styles.plus}>{photoUri ? '↻' : '＋'}</Text>
-                <Text style={styles.addPhotoText}>{photoUri ? 'Change photo' : 'Add photo'}</Text>
-              </Pressable>
-            </View>
-          </FormStep>
-
-          <FormStep number="5" title="Confirm the job location">
+          <FormStep number="4" title="Confirm the job location">
             <Pressable style={styles.locationField} onPress={resolveCurrentLocation} disabled={locating}>
               <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={18} color={jobLocation ? C.green : C.blue} />
               <View style={{ flex: 1 }}>
@@ -3600,15 +3568,9 @@ function UrgentScreen({
             </Pressable>
           </FormStep>
 
-          {demoCalloutRange ? (
-            <View style={styles.dispatchEstimate}>
-              <View>
-                <Text style={styles.dispatchEstimateLabel}>Typical test call-out range</Text>
-                <Text style={styles.dispatchEstimatePrice}>£{demoCalloutRange.min}–£{demoCalloutRange.max}</Text>
-              </View>
-              <Text style={styles.dispatchEstimateNote}>Final price agreed before work starts</Text>
-            </View>
-          ) : null}
+          <View style={styles.dispatchEstimate}>
+            <Text style={styles.dispatchEstimateNote}>You'll agree the price and scope directly with a real tradesperson before work begins. No call-out price is guaranteed.</Text>
+          </View>
 
           <Pressable
             style={[styles.findButton, submitting && { opacity: 0.65 }]}
