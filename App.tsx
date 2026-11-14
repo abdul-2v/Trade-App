@@ -5358,6 +5358,8 @@ function TradeHomeScreen({
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [showWorkSettings, setShowWorkSettings] = useState(false);
   const [showPlanning, setShowPlanning] = useState(false);
+  const [offersRefreshKey, setOffersRefreshKey] = useState(0);
+  const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
   const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
   const [profileCompletion, setProfileCompletion] = useState(0);
   const [profileTrade, setProfileTrade] = useState('Trade professional');
@@ -5554,7 +5556,33 @@ function TradeHomeScreen({
       active = false;
       if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [offersRefreshKey]);
+
+  useEffect(() => {
+    let active = true;
+    const loadActive = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active || !user) return;
+        const [standard, urgent] = await Promise.all([
+          supabase.from('jobs').select('id,status').eq('accepted_tradesperson_id', user.id),
+          supabase.from('urgent_requests').select('id,status').eq('accepted_tradesperson_id', user.id),
+        ]);
+        if (standard.error || urgent.error) {
+          if (active) setActiveJobCount(null);
+          return;
+        }
+        const open = new Set(['accepted', 'en_route', 'arrived', 'in_progress', 'active']);
+        const total = [...(standard.data || []), ...(urgent.data || [])]
+          .filter(job => open.has(String(job.status))).length;
+        if (active) setActiveJobCount(total);
+      } catch {
+        if (active) setActiveJobCount(null);
+      }
+    };
+    loadActive();
+    return () => { active = false; };
+  }, [offersRefreshKey]);
 
   useEffect(() => {
     if (!available || locationMode !== 'live') return;
@@ -5714,207 +5742,135 @@ function TradeHomeScreen({
     Alert.alert('Work area updated', 'Matching jobs can now find you around ' + area.name + '.');
   };
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const [greetingFirst, greetingSecond] = greeting.split(' ');
+
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
       <ScrollView contentContainerStyle={styles.tradePageV3} showsVerticalScrollIndicator={false}>
-        <View style={styles.proV3Header}>
-          <View>
-            <Text style={styles.proV3Eyebrow}>YOUR WORKSPACE  <Text style={{ color: '#B3BEC7' }}>·  TRADEHUB PRO</Text></Text>
-            <Text style={styles.proV3Hello}>Hi {firstName}</Text>
-            <Text style={styles.proV3Sub}>
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+        <View style={styles.proReferenceHeader}>
+          <View style={styles.proReferenceGreetingArea}>
+            <Text style={styles.proReferenceEyebrow}>TRADEHUB · FOR PROS</Text>
+            <Text style={styles.proReferenceGreeting} numberOfLines={3} adjustsFontSizeToFit>
+              {greetingFirst}{'\n'}{greetingSecond + ','}{'\n'}{firstName}
             </Text>
           </View>
-          <Pressable style={styles.proV3CustomerButton} onPress={switchToCustomer} accessibilityRole="button" accessibilityLabel="Switch to customer view">
-            <AppIcon icon={{ ios: 'person.2.fill', android: 'group' }} size={18} color="#365872" />
+          <Pressable style={styles.proReferenceProfileCard} onPress={() => navigate('tradeProfile')}
+            accessibilityRole="button" accessibilityLabel="Complete your tradesperson profile">
+            <View style={styles.proReferenceProfileTopLine} />
+            <View style={styles.proReferenceAvatarWrap}>
+              {profileAvatar
+                ? <Image source={{ uri: profileAvatar }} style={styles.proReferenceAvatar} />
+                : <View style={styles.proReferenceAvatar}><Text style={styles.proReferenceAvatarLetter}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text></View>
+              }
+              <View style={styles.proReferenceProgressDot}>
+                <Text style={styles.proReferenceProgressDotText}>↗</Text>
+              </View>
+            </View>
+            <Text style={styles.proReferenceProfileLabel}>Profile readiness: <Text style={{ fontWeight: '900' }}>{profileCompletion}%</Text></Text>
+            <View style={styles.proReferenceSetupButton}>
+              <Text style={styles.proReferenceSetupText}>{profileCompletion === 100 ? 'View Profile' : 'Complete Setup'}</Text>
+            </View>
           </Pressable>
         </View>
 
-        <Pressable style={styles.proV3ProfileCard} onPress={() => navigate('tradeProfile')}
-          accessibilityRole="button" accessibilityLabel="Open your business profile and finish setup">
-          <View pointerEvents="none" style={styles.proHomeHeroOrb} />
-          <View style={styles.proHomeHeroHeading}>
-            <Text style={styles.proHomeHeroEyebrow}>YOUR BUSINESS PROFILE</Text>
-            <View style={styles.proHomeHeroProgressPill}>
-              <Text style={styles.proHomeHeroProgressText}>{profileCompletion}% READY</Text>
-            </View>
-          </View>
-          <View style={styles.proHomeHeroBody}>
-            {profileAvatar ? (
-              <Image source={{ uri: profileAvatar }} style={styles.proV3Avatar} />
-            ) : (
-              <View style={styles.proV3AvatarFallback}>
-                <Text style={styles.proV3AvatarFallbackText}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text>
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.proV3ProfileName}>{profileName || firstName || 'Your business'}</Text>
-              <Text style={styles.proV3ProfileTrade}>{profileTrade}</Text>
-              <View style={styles.proV3ProgressTrack}>
-                <View style={[styles.proV3ProgressFill, { width: (profileCompletion + '%') as any }]} />
-              </View>
-              <Text style={styles.proV3Completion}>
-                {profileCompletion === 100 ? 'Your profile is ready' : 'Complete your profile to build trust'}
-              </Text>
-            </View>
-            <View style={styles.proHomeHeroArrow}>
-              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color={C.white} />
-            </View>
-          </View>
-        </Pressable>
-
-        <View style={[styles.proV3Availability, available && styles.proV3AvailabilityLive]}>
-          <View style={styles.proV3AvailabilityIcon}>
-            <AppIcon
-              icon={{ ios: available ? 'checkmark.circle.fill' : 'moon.fill', android: available ? 'check_circle' : 'bedtime' }}
-              size={22}
-              color={available ? '#267955' : '#8EA1AC'}
+        <View style={styles.proReferenceMapWrap}>
+          <View style={styles.proReferenceMapVisual} pointerEvents="none">
+            <WorkAreaMapPreview
+              latitude={previewArea?.latitude ?? 52.6369}
+              longitude={previewArea?.longitude ?? -1.1398}
+              showPin={Boolean(previewArea)}
+              trade={profileTrade}
             />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.proV3AvailabilityTitle}>
-              {available ? 'Ready for new work' : 'You are currently offline'}
+          <Pressable style={styles.proReferenceMapHit} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Open your work area and nearby suppliers" />
+          <View style={[styles.proReferenceStatusPill, available ? styles.proReferenceOnlinePill : styles.proReferenceOfflinePill]}>
+            <View style={styles.proReferenceStatusDot} />
+            <Text style={styles.proReferenceStatusText} numberOfLines={1}>
+              {savingAvailability ? 'Updating…' : available ? 'Online & available for new jobs' : 'Offline · not taking jobs'}
             </Text>
-            <Text style={styles.proV3AvailabilitySub}>
-              {savingAvailability
-                ? 'Updating your status…'
-                : available
-                  ? 'Visible to customers · ' + radius + '-mile radius'
-                  : 'Turn on when you are ready to receive requests.'}
-            </Text>
+            <Switch
+              value={available}
+              onValueChange={changeAvailable}
+              trackColor={{ false: '#858B94', true: '#B87779' }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor="#858B94"
+              disabled={savingAvailability}
+              style={{ transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }], marginRight: -5 }}
+              accessibilityLabel="Available for new jobs"
+            />
           </View>
-          <Switch
-            value={available}
-            onValueChange={changeAvailable}
-            trackColor={{ false: '#C2CCD2', true: '#86B6A2' }}
-            thumbColor={available ? C.white : '#D8E0E6'}
-            disabled={savingAvailability}
-          />
-        </View>
-
-        <View style={styles.proHomeIncomingHeading}>
-          <Text style={[styles.proHomeSectionTitle, { flex: 1 }]}>Incoming work</Text>
-          <Pressable onPress={() => navigate('tradeJobs')} accessibilityRole="button">
-            <Text style={styles.proHomeViewAll}>View all  ↗</Text>
+          <Pressable style={styles.proReferenceMapPlus}
+            onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Open full nearby merchant map">
+            <AppIcon icon={{ ios: 'plus', android: 'add' }} size={30} color="#E7B1A7" />
           </Pressable>
         </View>
 
+        <View style={styles.proReferenceSectionHeader}>
+          <Text style={styles.proReferenceSectionTitle}>Incoming Opportunities</Text>
+        </View>
         {incomingOffers.length ? (
-          <View style={styles.incomingLiveWrap}>
+          <View style={styles.proReferenceOpportunityList}>
             {incomingOffers.map(offer => (
-              <Pressable
-                key={offer.offerId}
-                style={styles.incomingLiveCard}
-                onPress={() => navigate('tradeJobs')}
-              >
-                <View style={styles.incomingLiveTop}>
-                  <View style={styles.incomingLivePulse}><View style={styles.incomingLivePulseDot} /></View>
-                  <Text style={styles.incomingLiveUrgency}>{offer.urgency.toUpperCase()}</Text>
-                  <Text style={styles.incomingLiveDistance}>{offer.distance.toFixed(1)} mi</Text>
+              <Pressable key={offer.offerId} style={styles.proReferenceOpportunityCard}
+                onPress={() => navigate('tradeJobs')} accessibilityRole="button">
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.proReferenceOpportunityName}>{offer.trade} · {offer.urgency}</Text>
+                  <Text style={styles.proReferenceOpportunityDetail} numberOfLines={2}>{offer.issue}</Text>
+                  <Text style={styles.proReferenceOpportunityDistance}>{offer.distance.toFixed(1)} mi away</Text>
                 </View>
-                <Text style={styles.incomingLiveTrade}>{offer.trade}</Text>
-                <Text style={styles.incomingLiveIssue} numberOfLines={2}>{offer.issue}</Text>
-                <View style={styles.incomingLiveFooter}>
-                  <Text style={styles.incomingLiveEta}>~{offer.eta} min away</Text>
-                  <View style={styles.incomingLiveButton}>
-                    <Text style={styles.incomingLiveButtonText}>Review job</Text>
-                    <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={13} color={C.navy} />
-                  </View>
-                </View>
+                <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={18} color="#4F727A" />
               </Pressable>
             ))}
           </View>
         ) : (
-          <View style={styles.proHomeEmptyJobs}>
-            <View style={styles.proHomeEmptyIcon}>
-              <AppIcon icon={{ ios: 'tray.fill', android: 'inbox' }} size={23} color="#5A8499" />
-            </View>
+          <View style={styles.proReferenceEmptyCard}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.proHomeEmptyTitle}>No new requests just yet</Text>
-              <Text style={styles.proHomeEmptySub}>
-                {available ? 'Matching requests will appear here when they arrive.' : 'Go available to start receiving job offers.'}
-              </Text>
+              <Text style={styles.proReferenceEmptyTitle}>No live opportunities</Text>
+              <Text style={styles.proReferenceEmptySub}>No new requests right now.{'\n'}Refresh to check again.</Text>
             </View>
+            <Pressable style={styles.proReferenceRefreshButton}
+              onPress={() => setOffersRefreshKey(value => value + 1)}
+              accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
+              <Text style={styles.proReferenceRefreshText}>Refresh</Text>
+            </Pressable>
           </View>
         )}
 
-        <View style={styles.proHomeMapSection}>
-          <View style={styles.proHomeMapHeading}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.proHomeSectionEyebrow}>WORK NEAR YOU</Text>
-              <Text style={styles.proHomeSectionTitle}>Explore your area</Text>
+        <View style={styles.proReferenceTiles}>
+          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#3D7478' }]}
+            onPress={() => navigate('tradeJobs')} accessibilityRole="button" accessibilityLabel="View active jobs">
+            <View style={styles.proReferenceTileIcon}>
+              <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} color="#E5A5A0" size={20} />
             </View>
-            <Pressable onPress={() => navigate('tradeMap')} accessibilityRole="button">
-              <Text style={styles.proHomeMapLink}>Full map  ↗</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            style={styles.proHomeMapCard}
-            onPress={() => navigate('tradeMap')}
-            accessibilityRole="button"
-            accessibilityLabel="Open supplier map for your work area"
-          >
-            <View style={styles.proHomeMapCanvas} pointerEvents="none">
-              <WorkAreaMapPreview
-                latitude={previewArea?.latitude ?? 52.6369}
-                longitude={previewArea?.longitude ?? -1.1398}
-                showPin={Boolean(previewArea)}
-              />
-              <View style={styles.proHomeMapFlag}>
-                <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={13} color="#C8674C" />
-                <Text style={styles.proHomeMapFlagText}>{previewArea ? 'YOUR WORK AREA' : 'LEICESTER PREVIEW'}</Text>
-              </View>
+            <Text style={styles.proReferenceTileTitle}>Active Jobs</Text>
+            <Text style={styles.proReferenceTileSub} numberOfLines={2}>
+              {activeJobCount === null ? 'View your jobs' : activeJobCount === 1 ? '1 active job' : activeJobCount + ' active jobs'}
+            </Text>
+          </Pressable>
+          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#2D555A' }]}
+            onPress={() => navigate('tradeMap')} accessibilityRole="button" accessibilityLabel="Find nearby trade merchants">
+            <View style={styles.proReferenceTileIcon}>
+              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} color="#E4A59B" size={20} />
             </View>
-            <View style={styles.proHomeMapFooter}>
-              <View style={styles.proHomeMapFooterIcon}>
-                <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={21} color="#3B6781" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.proHomeMapAreaTitle} numberOfLines={1}>
-                  {previewArea?.label || 'Explore Leicester'}
-                </Text>
-                <Text style={styles.proHomeMapAreaSub} numberOfLines={2}>
-                  {previewArea ? 'Open the map to find nearby trade suppliers' : 'Set your work area in Profile for a personalised map'}
-                </Text>
-              </View>
-              <View style={styles.proHomeMapFooterArrow}>
-                <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color="#203A4A" />
-              </View>
+            <Text style={styles.proReferenceTileTitle}>Merchants</Text>
+            <Text style={styles.proReferenceTileSub} numberOfLines={2}>Find nearby suppliers</Text>
+          </Pressable>
+          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#1E383E' }]}
+            onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
+            accessibilityRole="button" accessibilityLabel="Open route and flexible job tools">
+            <View style={styles.proReferenceTileIcon}>
+              <AppIcon icon={{ ios: 'wrench.adjustable.fill', android: 'build' }} color="#E4A59B" size={20} />
             </View>
+            <Text style={styles.proReferenceTileTitle}>Route Tools</Text>
+            <Text style={styles.proReferenceTileSub} numberOfLines={2}>Flexible work</Text>
           </Pressable>
         </View>
 
-        <View style={styles.proHomeToolsHeader}>
-          <Text style={styles.proHomeSectionTitle}>Quick access</Text>
-        </View>
-        <View style={styles.proV3QuickGrid}>
-          <Pressable style={styles.proV3QuickCard} onPress={() => navigate('tradeJobs')}
-            accessibilityRole="button" accessibilityLabel="Open jobs and offers">
-            <View style={styles.proHomeQuickTop}>
-              <View style={styles.proV3QuickIcon}>
-                <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={20} color="#CA7050" />
-              </View>
-              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={16} color="#8192A2" />
-            </View>
-            <Text style={styles.proV3QuickValue}>Jobs & offers</Text>
-            <Text style={styles.proV3QuickLabel}>Manage your work</Text>
-          </Pressable>
-          <Pressable style={[styles.proV3QuickCard, styles.proHomeQuickAlt]} onPress={() => navigate('tradeMessages')}
-            accessibilityRole="button" accessibilityLabel="Open messages">
-            <View style={styles.proHomeQuickTop}>
-              <View style={[styles.proV3QuickIcon, { backgroundColor: '#DDE7EE' }]}>
-                <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={20} color="#456D8A" />
-              </View>
-              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={16} color="#8192A2" />
-            </View>
-            <Text style={styles.proV3QuickValue}>Messages</Text>
-            <Text style={styles.proV3QuickLabel}>Conversations & updates</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.proHomeToolsHeader}>
-          <Text style={styles.proHomeSectionTitle}>Your work settings</Text>
-        </View>
+        <View style={styles.proReferenceSettingsList}>
         <Pressable
           style={styles.proV3DetailsToggle}
           onPress={() => setShowWorkSettings(value => !value)}
@@ -5925,8 +5881,8 @@ function TradeHomeScreen({
             <AppIcon icon={{ ios: 'slider.horizontal.3', android: 'tune' }} size={19} color="#456A82" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.proV3DetailsTitle}>Work preferences</Text>
-            <Text style={styles.proV3DetailsSub}>{duration} availability · {radius} mile radius</Text>
+            <Text style={styles.proV3DetailsTitle}>Work Preferences</Text>
+            <Text style={styles.proV3DetailsSub}>{duration} · {radius} mi</Text>
           </View>
           <AppIcon icon={{ ios: showWorkSettings ? 'chevron.up' : 'chevron.down', android: showWorkSettings ? 'expand_less' : 'expand_more' }} size={18} color="#9EB0C2" />
         </Pressable>
@@ -5987,8 +5943,8 @@ function TradeHomeScreen({
             <AppIcon icon={{ ios: 'square.grid.2x2.fill', android: 'apps' }} size={18} color="#456A82" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.proV3DetailsTitle}>More work tools</Text>
-            <Text style={styles.proV3DetailsSub}>Choose a work area or explore route jobs</Text>
+            <Text style={styles.proV3DetailsTitle}>Admin Tools</Text>
+            <Text style={styles.proV3DetailsSub}>Work areas, scheduling & tools</Text>
           </View>
           <AppIcon icon={{ ios: showPlanning ? 'chevron.up' : 'chevron.down', android: showPlanning ? 'expand_less' : 'expand_more' }} size={18} color="#9EB0C2" />
         </Pressable>
@@ -6031,7 +5987,8 @@ function TradeHomeScreen({
           </>
         ) : null}
 
-        <View style={{ height: 90 }} />
+        </View>
+        <View style={{ height: 70 }} />
       </ScrollView>
     </TradeShell>
   );
