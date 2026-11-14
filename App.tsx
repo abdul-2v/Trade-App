@@ -712,7 +712,13 @@ export default function App() {
 
           setCustomerScreen('messages');
         }}
-        book={() => setCustomerScreen('booking')}
+        book={() => {
+          if (!selectedTrade.id.startsWith('live-')) {
+            Alert.alert('Demo profile', 'This is a fictional sample profile. Bookings can only be sent to real tradespeople.');
+            return;
+          }
+          setCustomerScreen('booking');
+        }}
       />
     );
   }
@@ -1801,12 +1807,14 @@ function MapScreen({
   const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [marketIsLive, setMarketIsLive] = useState(false);
-  const [showDemoProfiles, setShowDemoProfiles] = useState(false);
+  const [showDemoProfiles, setShowDemoProfiles] = useState(true);
   const [marketError, setMarketError] = useState(false);
   const [reloadMarketplace, setReloadMarketplace] = useState(0);
   const [distanceOrigin, setDistanceOrigin] = useState('Leicester centre');
 
-  // Real profiles are the default. Demo data is an explicit preview, not marketplace supply.
+  // TEMPORARY TESTING MODE: show existing sample tradespeople by default.
+  // Banner labels them as fictional; users can switch back to real profiles.
+  // Reset showDemoProfiles to false when the demo should be removed.
   const marketplaceTrades = showDemoProfiles ? trades : liveTrades;
 
   const filtered = marketplaceTrades.filter(trade => {
@@ -2059,36 +2067,48 @@ function MapScreen({
           <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
-        {marketLoading ? (
+        {showDemoProfiles ? (
+          <Pressable
+            style={styles.marketDataBanner}
+            onPress={() => { setShowDemoProfiles(false); setSelectedMapTrade(null); }}
+            accessibilityRole="button"
+            accessibilityLabel="Showing fictional sample tradespeople, switch to real profiles"
+          >
+            <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={14} color={C.orange} />
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>
+              DEMO PREVIEW · {trades.length} fictional profiles
+            </Text>
+            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Show real</Text>
+          </Pressable>
+        ) : marketLoading ? (
           <View style={styles.marketDataBanner}>
             <ActivityIndicator size="small" color={C.green} />
             <Text style={styles.marketDataBannerText}>Loading live TradeHub professionals…</Text>
           </View>
         ) : marketError ? (
-          <Pressable
-            style={styles.marketDataBanner}
-            onPress={() => { setMarketLoading(true); setReloadMarketplace(value => value + 1); }}
-            accessibilityRole="button"
-          >
+          <View style={styles.marketDataBanner}>
             <AppIcon icon={{ ios: 'wifi.exclamationmark', android: 'wifi_off' }} size={15} color={C.orange} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Could not load live tradespeople</Text>
-            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Retry</Text>
-          </Pressable>
-        ) : showDemoProfiles ? (
-          <Pressable
-            style={styles.marketDataBanner}
-            onPress={() => { setShowDemoProfiles(false); setSelectedMapTrade(null); }}
-            accessibilityRole="button"
-          >
-            <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={14} color={C.orange} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Sample profiles only · not real businesses</Text>
-            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Show real</Text>
-          </Pressable>
-        ) : marketIsLive ? (
-          <View style={[styles.marketDataBanner, styles.marketDataBannerLive]}>
-            <View style={styles.marketDataDot} />
-            <Text style={styles.marketDataBannerText}>Real tradespeople · distances from {distanceOrigin}</Text>
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Could not load real tradespeople</Text>
+            <Pressable onPress={() => { setMarketLoading(true); setReloadMarketplace(value => value + 1); }}
+              accessibilityRole="button" accessibilityLabel="Retry loading real profiles">
+              <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Retry</Text>
+            </Pressable>
+            <Pressable onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
+              accessibilityRole="button" accessibilityLabel="Show demo profiles">
+              <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11, marginLeft: 11 }}>Demo</Text>
+            </Pressable>
           </View>
+        ) : marketIsLive ? (
+          <Pressable
+            style={[styles.marketDataBanner, styles.marketDataBannerLive]}
+            onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
+            accessibilityRole="button"
+            accessibilityLabel="Real tradespeople currently shown, preview demo profiles"
+          >
+            <View style={styles.marketDataDot} />
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Real tradespeople · {distanceOrigin}</Text>
+            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
+          </Pressable>
         ) : (
           <Pressable
             style={styles.marketDataBanner}
@@ -2951,11 +2971,11 @@ function TradeProfileScreen({
 
       <View style={styles.actionBar}>
         <Pressable
-          style={[styles.secondaryAction, !trade.phone && { opacity: 0.38 }]}
-          disabled={!trade.phone}
-          onPress={() => trade.phone && Linking.openURL('tel:' + trade.phone)}
+          style={[styles.secondaryAction, (!trade.phone || !isLiveProfile) && { opacity: 0.38 }]}
+          disabled={!trade.phone || !isLiveProfile}
+          onPress={() => isLiveProfile && trade.phone && Linking.openURL('tel:' + trade.phone)}
         >
-          <Text style={styles.secondaryActionText}>{trade.phone ? '☎ Call' : 'No phone'}</Text>
+          <Text style={styles.secondaryActionText}>{!isLiveProfile ? 'Demo only' : trade.phone ? '☎ Call' : 'No phone'}</Text>
         </Pressable>
         <Pressable style={styles.secondaryAction} onPress={message}>
           <Text style={styles.secondaryActionText}>◌ Message</Text>
