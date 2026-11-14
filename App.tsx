@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
+import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -5313,6 +5314,7 @@ function TradeShell({
   current: TradeScreen;
   navigate: (screen: TradeScreen) => void;
 }) {
+  const lightHome = current === 'tradeHome';
   const items: { label: string; icon: AppSymbol; route: TradeScreen }[] = [
     { label: 'Home', icon: { ios: 'house.fill', android: 'home' }, route: 'tradeHome' },
     { label: 'Jobs', icon: { ios: 'briefcase.fill', android: 'work' }, route: 'tradeJobs' },
@@ -5322,18 +5324,18 @@ function TradeShell({
   ];
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: C.homeInk }]}>
-      <StatusBar barStyle="light-content" />
-      <View style={[styles.screen, { backgroundColor: C.homeInk }]}>{children}</View>
-      <View style={styles.tradeNav}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: lightHome ? '#F7F8FA' : C.homeInk }]}>
+      <StatusBar barStyle={lightHome ? 'dark-content' : 'light-content'} />
+      <View style={[styles.screen, { backgroundColor: lightHome ? '#F7F8FA' : C.homeInk }]}>{children}</View>
+      <View style={[styles.tradeNav, lightHome && styles.proHomeBottomNav]}>
         {items.map(item => (
           <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}
             accessibilityRole="tab" accessibilityLabel={item.label}
             accessibilityState={{ selected: item.route === current }}>
-            <View style={[styles.navIconWrap, item.route === current && styles.tradeNavIconActive]}>
-              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.white : '#AABAC9'} />
+            <View style={[styles.navIconWrap, item.route === current && (lightHome ? styles.proHomeBottomActive : styles.tradeNavIconActive)]}>
+              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.white : lightHome ? '#748391' : '#AABAC9'} />
             </View>
-            <Text style={[styles.navLabel, { color: item.route === current ? '#F2AE93' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
+            <Text style={[styles.navLabel, { color: item.route === current ? (lightHome ? '#BA624A' : '#F2AE93') : lightHome ? '#72808D' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
           </Pressable>
         ))}
       </View>
