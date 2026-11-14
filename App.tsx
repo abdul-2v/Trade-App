@@ -1698,7 +1698,7 @@ function HomeScreen({
 
         <View style={styles.v2CategoryGrid}>
           {categories.map(item => {
-            const active = selectedCategory === item.label && item.label !== 'More';
+            const active = selectedCategory === item.label;
             return (
               <Pressable
                 key={item.label}
@@ -4127,10 +4127,11 @@ function RequestDetailScreen({
     }
 
     setDetails(data);
-    setLiveStatus(isMarketJob ? marketJobStatusLabel(data.status) : dispatchStatusLabel(data.status));
+    const currentRequestStatus = (data as { status?: string }).status || 'searching';
+    setLiveStatus(isMarketJob ? marketJobStatusLabel(currentRequestStatus) : dispatchStatusLabel(currentRequestStatus));
     await buildMatchedTrade(data);
 
-    if (data.status === 'completed' && !isMarketJob) {
+    if (currentRequestStatus === 'completed' && !isMarketJob) {
       const { data: reviewRows } = await supabase
         .from('job_reviews')
         .select('rating, comment')
@@ -5485,7 +5486,7 @@ function TradeHomeScreen({
         const hasSavedArea = validCoordinates(availability.work_area_latitude, availability.work_area_longitude);
         const recentPresence = validCoordinates(mapPresence?.latitude, mapPresence?.longitude)
           && Boolean(mapPresence?.updated_at)
-          && Date.now() - new Date(mapPresence.updated_at).getTime() < 15 * 60 * 1000;
+          && Date.now() - new Date(mapPresence?.updated_at || 0).getTime() < 15 * 60 * 1000;
 
         if (availability.location_mode === 'live' && recentPresence && mapPresence) {
           setPreviewArea({
@@ -7807,7 +7808,7 @@ function HeaderBack({ title, back }: { title: string; back: () => void }) {
   );
 }
 
-function Badge({ text, green, dark, gold }: { text: string; green?: boolean; dark?: boolean; gold?: boolean }) {
+function Badge({ text, green, dark, gold }: { text: string; green?: boolean; blue?: boolean; dark?: boolean; gold?: boolean }) {
   const backgroundColor = green ? C.greenSoft : dark ? '#E9EEF5' : gold ? '#FFF4D6' : '#E6F0FF';
   const color = green ? '#087A4E' : dark ? '#233144' : gold ? '#8A6400' : '#0867D8';
   return <View style={[styles.badge, { backgroundColor }]}><Text style={[styles.badgeText, { color }]}>{text}</Text></View>;
@@ -7940,7 +7941,7 @@ const styles = StyleSheet.create({
   chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: C.white },
   filterModalRoot: { flex: 1, justifyContent: 'flex-end' },
-  filterModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
+  filterModalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
   filterSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 } },
   filterSheetHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#D8DEE6', alignSelf: 'center', marginBottom: 16 },
   filterPanelHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
@@ -7956,7 +7957,7 @@ const styles = StyleSheet.create({
   filterApplyButton: { height: 52, borderRadius: 15, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   filterApplyText: { color: C.white, fontSize: 15, fontWeight: '900' },
   mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
-  mapCanvas: { ...StyleSheet.absoluteFillObject, backgroundColor: '#E9EEF3' },
+  mapCanvas: { ...StyleSheet.absoluteFill, backgroundColor: '#E9EEF3' },
   realMarkerWrap: { alignItems: 'center' },
   mapLocationPill: { position: 'absolute', top: 14, left: 14, minHeight: 40, borderRadius: 20, paddingHorizontal: 12, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.09, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
@@ -8200,7 +8201,7 @@ const styles = StyleSheet.create({
   customerAvatarText: { color: C.navy, fontFamily: DISPLAY_FONT, fontWeight: '900', fontSize: 23 },
   customerName: { fontFamily: DISPLAY_FONT, fontSize: 20, fontWeight: '800', color: C.white, letterSpacing: -0.4 },
   profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
-  profileModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,27,49,0.35)' },
+  profileModalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,27,49,0.35)' },
   profileModalSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
   savedTradeRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E1D8', paddingVertical: 10 },
   savedTradeInitial: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#DCE7ED', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
@@ -8251,10 +8252,10 @@ const styles = StyleSheet.create({
   tradeChatBack: { minWidth: 44, minHeight: 44, backgroundColor: theme.colors.white, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   tradeChatName: { color: theme.colors.ink, fontSize: 19, fontWeight: '800' },
   tradeChatSub: { color: theme.colors.muted, fontSize: 13, marginTop: 4 },
-  tradeChatBody: { flex: 1, backgroundColor: '#F7F8FA' },
+  tradeChatBody: { flex: 1, backgroundColor: theme.colors.proBackground },
   tradeChatContent: { paddingHorizontal: 20, paddingTop: 17, paddingBottom: 30 },
   tradeChatBubble: { maxWidth: '82%', borderRadius: 17, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 11 },
-  tradeChatMine: { alignSelf: 'flex-end', backgroundColor: '#3A7475', borderBottomRightRadius: 5 },
+  tradeChatMine: { alignSelf: 'flex-end', backgroundColor: theme.colors.darkTeal, borderBottomRightRadius: 6 },
   tradeChatTheirs: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', borderBottomLeftRadius: 5 },
   tradeChatBubbleText: { color: '#243A46', fontSize: 13, lineHeight: 19 },
   tradeChatComposer: { backgroundColor: theme.colors.white, minHeight: 79, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 12 },
@@ -8271,13 +8272,13 @@ const styles = StyleSheet.create({
   availablePanelSub: { color: C.green, fontSize: 12, marginTop: 4 },
   tradeLabel: { color: '#D9E4EC', fontWeight: '800', marginTop: 19, marginBottom: 9 },
   tradeChipWrap: { flexDirection: 'row', flexWrap: 'wrap' },
-  tradeChip: { borderRadius: 10, backgroundColor: '#102E47', paddingHorizontal: 14, paddingVertical: 10, marginRight: 7, marginBottom: 7 },
+  tradeChip: { borderRadius: 22, backgroundColor: theme.colors.tealTint, paddingHorizontal: 15, paddingVertical: 10, marginRight: 8, marginBottom: 7 },
   tradeChipActive: { backgroundColor: C.blue },
   tradeChipText: { color: '#BFD0DD', fontWeight: '700', fontSize: 12 },
   radiusRow: { flexDirection: 'row', alignItems: 'center' },
   radiusValue: { marginLeft: 'auto', color: C.white, fontWeight: '900', marginTop: 19 },
   radiusOptions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  radiusDot: { width: 50, height: 38, borderRadius: 19, backgroundColor: '#102E47', alignItems: 'center', justifyContent: 'center' },
+  radiusDot: { width: 54, height: 42, borderRadius: 22, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   radiusDotActive: { backgroundColor: C.blue },
   radiusDotText: { color: '#BFD0DD', fontWeight: '900' },
   tradeStats: { flexDirection: 'row', marginTop: 23, gap: 8 },
@@ -9338,7 +9339,7 @@ const styles = StyleSheet.create({
   marketTrustTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
   marketTrustSub: { color: '#B1BFCE', fontSize: 11, lineHeight: 16, marginTop: 4 },
   marketFlowRoot: { flex: 1, justifyContent: 'flex-end' },
-  marketFlowBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,15,11,0.64)' },
+  marketFlowBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(3,15,11,0.64)' },
   marketFlowSheet: { maxHeight: '82%', minHeight: '58%', backgroundColor: '#F8F5ED', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 },
   marketFlowHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#C9C5BA', alignSelf: 'center', marginBottom: 16 },
   marketFlowHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
@@ -9386,8 +9387,8 @@ const styles = StyleSheet.create({
   proReferenceSetupButton: { minHeight: 30, borderRadius: 8, alignSelf: 'stretch', backgroundColor: '#426F72', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   proReferenceSetupText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
   proReferenceMapWrap: { height: 185, marginBottom: 24, position: 'relative', borderRadius: 18, backgroundColor: '#E7ECEE' },
-  proReferenceMapVisual: { ...StyleSheet.absoluteFillObject, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#D5DEE2' },
-  proReferenceMapHit: { ...StyleSheet.absoluteFillObject, borderRadius: 18 },
+  proReferenceMapVisual: { ...StyleSheet.absoluteFill, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#D5DEE2' },
+  proReferenceMapHit: { ...StyleSheet.absoluteFill, borderRadius: 18 },
   proReferenceStatusPill: { position: 'absolute', left: 38, right: 38, top: 14, height: 38, borderRadius: 23, backgroundColor: '#8F515E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingLeft: 13, paddingRight: 7, shadowColor: '#442332', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.24, shadowRadius: 5, elevation: 5 },
   proReferenceOnlinePill: { backgroundColor: '#915260' },
   proReferenceOfflinePill: { backgroundColor: '#506773' },
@@ -9446,14 +9447,14 @@ const styles = StyleSheet.create({
   proHomeQuickTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   proHomeQuickAlt: { backgroundColor: '#EAF1F5', borderColor: '#DCE7ED' },
 
-  proV3DetailsToggle: { minHeight: 80, borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E8EC', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 12, marginBottom: 13 },
-  proV3DetailsIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#EBF1F5', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
-  proV3DetailsTitle: { color: '#1A3042', fontSize: 15, fontWeight: '900' },
-  proV3DetailsSub: { color: '#718392', fontSize: 11, marginTop: 5 },
-  proV3AreaIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#DDE7EC', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
-  proV3RouteShortcut: { minHeight: 75, borderRadius: 16, backgroundColor: '#E5EFF3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
-  proV3RouteShortcutTitle: { color: '#1B3448', fontSize: 14, fontWeight: '900' },
-  proV3RouteShortcutSub: { color: '#607788', fontSize: 11, marginTop: 4 },
+  proV3DetailsToggle: { minHeight: 78, borderRadius: 25, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 13, marginBottom: 12, ...theme.shadow },
+  proV3DetailsIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  proV3DetailsTitle: { color: theme.colors.ink, fontSize: 16, fontWeight: '800' },
+  proV3DetailsSub: { color: theme.colors.muted, fontSize: 13, marginTop: 5 },
+  proV3AreaIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  proV3RouteShortcut: { minHeight: 76, borderRadius: 24, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15, ...theme.shadow },
+  proV3RouteShortcutTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  proV3RouteShortcutSub: { color: theme.colors.muted, fontSize: 12, marginTop: 4 },
   proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 21 },
   proV3Eyebrow: { color: '#C16F54', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
   proV3Hello: { color: '#152638', fontFamily: DISPLAY_FONT, fontSize: 33, fontWeight: '900', letterSpacing: -0.8, marginTop: 6 },
@@ -9473,11 +9474,11 @@ const styles = StyleSheet.create({
   proV3AvailabilityIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#E0ECE8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   proV3AvailabilityTitle: { color: '#1A2D3B', fontSize: 15, fontWeight: '900' },
   proV3AvailabilitySub: { color: '#637583', fontSize: 11, lineHeight: 16, marginTop: 4, paddingRight: 6 },
-  proV3ControlCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E7EB', padding: 16, marginBottom: 13 },
+  proV3ControlCard: { borderRadius: 24, backgroundColor: theme.colors.white, padding: 18, marginBottom: 13, ...theme.shadow },
   proV3ControlHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 11 },
-  proV3ControlTitle: { color: '#1B2E41', fontSize: 14, fontWeight: '800' },
-  proV3ControlSub: { color: '#71818D', fontSize: 11, lineHeight: 16, marginTop: 4, maxWidth: 235 },
-  proV3ControlValue: { color: '#B9674F', fontSize: 12, fontWeight: '900' },
+  proV3ControlTitle: { color: theme.colors.ink, fontSize: 15, fontWeight: '800' },
+  proV3ControlSub: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5, maxWidth: 235 },
+  proV3ControlValue: { color: theme.colors.coralText, fontSize: 13, fontWeight: '800' },
   proV3QuickGrid: { flexDirection: 'row', gap: 13, marginBottom: 22 },
   proV3QuickCard: { flex: 1, minHeight: 142, borderRadius: 19, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E8EC', padding: 15, justifyContent: 'space-between' },
   proV3QuickIcon: { width: 41, height: 41, borderRadius: 13, backgroundColor: '#F7E6DE', alignItems: 'center', justifyContent: 'center' },
@@ -9572,19 +9573,19 @@ const styles = StyleSheet.create({
   relayOption: { minHeight: 36, borderRadius: 13, backgroundColor: '#12362C', borderWidth: 1, borderColor: '#285044', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
   relayOptionText: { color: C.white, fontSize: 9, fontWeight: '800' },
 
-  radarCard: { borderRadius: 16, backgroundColor: '#F4EFE7', padding: 14, marginBottom: 11 },
+  radarCard: { borderRadius: 24, backgroundColor: theme.colors.white, padding: 17, marginBottom: 12, ...theme.shadow },
   radarTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
-  radarEyebrow: { color: '#B85C42', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
-  radarTitle: { color: '#1B2936', fontFamily: DISPLAY_FONT, fontSize: 18, fontWeight: '800', marginTop: 5 },
-  radarSub: { color: '#67727F', fontSize: 11, lineHeight: 16, marginTop: 5, marginBottom: 12 },
+  radarEyebrow: { color: theme.colors.coralText, fontSize: 12, fontWeight: '800', letterSpacing: 1.1 },
+  radarTitle: { color: theme.colors.ink, fontSize: 19, fontWeight: '800', marginTop: 6 },
+  radarSub: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 12 },
   radarPulse: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#E2EFDE', alignItems: 'center', justifyContent: 'center' },
   radarPulseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.green },
-  radarArea: { minHeight: 61, borderRadius: 12, backgroundColor: '#FFFCF6', borderWidth: 1, borderColor: '#E1DBD1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
+  radarArea: { minHeight: 66, borderRadius: 19, backgroundColor: theme.colors.proBackground, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, marginBottom: 8 },
   radarAreaCount: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#E8EEE7', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   radarAreaCountValue: { color: C.blue, fontSize: 16, fontWeight: '900' },
   radarAreaCountLabel: { color: C.muted, fontSize: 7, fontWeight: '700' },
-  radarAreaName: { color: '#1E3447', fontSize: 12, fontWeight: '900' },
-  radarAreaMeta: { color: '#657586', fontSize: 10, marginTop: 4 },
+  radarAreaName: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  radarAreaMeta: { color: theme.colors.muted, fontSize: 12, marginTop: 4 },
   radarAreaAction: { minWidth: 61, minHeight: 32, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   radarAreaActionText: { color: C.navy, fontSize: 8, fontWeight: '900' },
 
@@ -9695,8 +9696,8 @@ const styles = StyleSheet.create({
   premiumHeaderAvatarImage: { height: 54, width: 54, borderRadius: 27 },
   premiumHeaderAvatarText: { fontSize: 24, color: theme.colors.white, fontWeight: '800' },
   premiumHomeMap: { height: 260, borderRadius: 30, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 15, ...theme.shadow },
-  premiumMapPreview: { ...StyleSheet.absoluteFillObject },
-  premiumMapOpen: { ...StyleSheet.absoluteFillObject },
+  premiumMapPreview: { ...StyleSheet.absoluteFill },
+  premiumMapOpen: { ...StyleSheet.absoluteFill },
   premiumMapStatus: { position: 'absolute', top: 18, left: 18, right: 76, minHeight: 43, paddingHorizontal: 14, borderRadius: 23, backgroundColor: '#334A4E', alignItems: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#51696D' },
   premiumOnlineDot: { width: 10, height: 10, borderRadius: 5 },
   premiumMapStatusText: { color: theme.colors.white, fontSize: 14, fontWeight: '600', flexShrink: 1 },
