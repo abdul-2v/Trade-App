@@ -4,6 +4,8 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
 import { LEICESTER_SUPPLIER_SEEDS } from './TradeSuppliersLeicester';
+import { theme } from './theme';
+import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight } from 'lucide-react-native';
 
 type TradeName = 'Plumber' | 'Electrician' | 'Builder' | 'Heating' | 'Locksmith' | 'Carpenter' | 'Roofer';
 type Coordinates = { latitude: number; longitude: number };
@@ -23,9 +25,9 @@ type Supplier = {
 };
 type Filter = 'mine' | 'all' | 'general' | 'specialist';
 
-const INK = '#111C29';
-const LIGHT = '#F9F6EF';
-const ACCENT = '#E9784F';
+const INK = theme.colors.ink;
+const LIGHT = theme.colors.white;
+const ACCENT = theme.colors.coral;
 const LEICESTER: Coordinates = { latitude: 52.6369, longitude: -1.1398 };
 const ALL_TRADES: TradeName[] = ['Plumber', 'Electrician', 'Builder', 'Heating', 'Locksmith', 'Carpenter', 'Roofer'];
 const PLUMBING: TradeName[] = ['Plumber', 'Heating'];
@@ -243,12 +245,13 @@ function createMapHtml(centre: Coordinates) {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
-html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#E7EBEF}
+html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#0D282E}
+.maplibregl-canvas,.leaflet-tile-pane img{filter:brightness(.42) saturate(.84) sepia(.14) hue-rotate(115deg)}
 .leaflet-control-attribution{font-size:7px!important;background:rgba(255,255,255,.8)!important}
-.pin{width:34px;height:34px;border-radius:11px;background:#243F55;border:2px solid white;box-shadow:0 3px 12px #14263955;color:white;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900}
-.pin.general{background:#D3714E}.pin:hover{transform:scale(1.12)}
-.cluster{width:42px;height:42px;border-radius:14px;background:#FFFDF7;border:2px solid #294C66;box-shadow:0 2px 10px #14263944;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#19344C}
-.you-pin{width:24px;height:24px;border-radius:50%;background:#1677E8;border:5px solid #fff;box-shadow:0 0 0 6px #1677E832,0 2px 14px #1B467A77;box-sizing:border-box}
+.pin{width:34px;height:34px;border-radius:11px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 12px #14263955;color:#245758;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900}
+.pin.general{background:#E0704C}.pin:hover{transform:scale(1.12)}
+.cluster{width:42px;height:42px;border-radius:14px;background:#FFFDF7;border:2px solid #294C66;box-shadow:0 2px 10px #14263944;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#0C1F24}
+.you-pin{width:24px;height:24px;border-radius:50%;background:#E0704C;border:5px solid #fff;box-shadow:0 0 0 6px #E0704C33,0 2px 14px #1B467A77;box-sizing:border-box}
 .work-pin{border:2px solid #68788C;background:#F9FAFC;border-radius:9px;padding:4px 7px;color:#35465A;font-size:10px;font-weight:900;white-space:nowrap;box-shadow:0 2px 8px #233A4A33}
 </style></head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -281,7 +284,7 @@ window.updateLocations=function(points){
   if(current){
     if(current.accuracy && current.accuracy>25 && current.accuracy<1000){
       accuracyArea=L.circle([current.lat,current.lng],{
-        radius:current.accuracy,weight:1,color:'#1677E8',fillColor:'#1677E8',fillOpacity:.09,interactive:false
+        radius:current.accuracy,weight:1,color:'#E0704C',fillColor:'#E0704C',fillOpacity:.09,interactive:false
       }).addTo(map);
     }
     var icon=L.divIcon({className:'',html:'<div class="you-pin"></div>',iconSize:[24,24],iconAnchor:[12,12]});
@@ -327,7 +330,7 @@ window.focusSupplier=function(lat,lng){
   window.clearShopLine();
   if(userPoint){
     shopLink=L.polyline([[userPoint.lat,userPoint.lng],[lat,lng]],{
-      color:'#1677E8',weight:3,dashArray:'5,7',opacity:.8,interactive:false
+      color:'#E0704C',weight:3,dashArray:'5,7',opacity:.8,interactive:false
     }).addTo(map);
     var bounds=L.latLngBounds([[userPoint.lat,userPoint.lng],[lat,lng]]);
     map.fitBounds(bounds.pad(.45),{padding:[45,45],maxZoom:14.5,animate:true});
@@ -601,7 +604,7 @@ export default function TradeSuppliersMap() {
           </View>
           <Pressable style={S.radiusButton} onPress={() => setRadius(r => r === 5 ? 10 : r === 10 ? 20 : 5)}>
             <Text style={S.radiusNumber}>{radius} mi</Text>
-            <Text style={S.radiusCaption}>radius ↻</Text>
+            <View style={S.radiusCaptionRow}><Text style={S.radiusCaption}>radius</Text><RotateCw size={12} color={'#C7D6D5'} strokeWidth={2} /></View>
           </Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.filters}>
@@ -639,7 +642,7 @@ export default function TradeSuppliersMap() {
           accessibilityRole="button"
           accessibilityLabel="Show my current location on the map"
         >
-          <Text style={S.recenterText}>{usingGps ? '⌖ Centre on me' : '⌖ Use my location'}</Text>
+          <Crosshair size={23} color={INK} strokeWidth={2} />
         </Pressable>
         <View pointerEvents="none" style={S.counter}>
           <Text style={S.counterText}>{loading ? 'Finding shops…' : visible.length + ' shops on map'}</Text>
@@ -670,20 +673,20 @@ export default function TradeSuppliersMap() {
           {selected ? (
             <>
               <View style={S.storeHeader}>
-                <View style={S.storeGlyph}><Text style={S.storeGlyphText}>▣</Text></View>
+                <View style={S.storeGlyph}><Store size={22} color={theme.colors.teal} strokeWidth={2} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={S.storeTitle} numberOfLines={1}>{selected.name}</Text>
                   <Text style={S.storeMeta}>
                     {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
                   </Text>
                 </View>
-                <Pressable onPress={() => setSelected(null)} style={S.close}><Text style={S.closeText}>×</Text></Pressable>
+                <Pressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></Pressable>
               </View>
               <Text style={S.address} numberOfLines={2}>{selected.address}</Text>
               {selected.postcodeApproximate ? <Text style={S.pinDisclaimer}>Approximate map pin (postcode centre)</Text> : null}
               <View style={S.actions}>
                 <Pressable style={S.primaryButton} onPress={() => openDirections(selected)}>
-                  <Text style={S.primaryButtonText}>Get directions ↗</Text>
+                  <Navigation size={19} strokeWidth={2} color={theme.colors.white} /><Text style={S.primaryButtonText}>Get directions</Text>
                 </Pressable>
                 {selected.phone ? (
                   <Pressable style={S.secondaryButton} onPress={() => Linking.openURL('tel:' + selected.phone!.replace(/[^+\d]/g, ''))}>
@@ -708,7 +711,7 @@ export default function TradeSuppliersMap() {
                   >
                     <Text style={S.nearbyRank}>#{index + 1} CLOSEST</Text>
                     <Text style={S.nearbyTitle} numberOfLines={1}>{shop.name}</Text>
-                    <Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi {usingGps ? 'from you' : 'away'} · View</Text>
+                    <View style={S.nearbyLink}><Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi {usingGps ? 'from you' : 'away'}</Text><ChevronRight size={16} strokeWidth={2} color={theme.colors.teal} /></View>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -723,59 +726,59 @@ export default function TradeSuppliersMap() {
 }
 
 const S = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F8FA', paddingBottom: 81 },
-  header: { paddingTop: 21, paddingHorizontal: 20, paddingBottom: 15, backgroundColor: '#F7F8FA' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  eyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 1.5, color: '#B97059' },
-  title: { fontSize: 28, fontWeight: '900', color: '#1A2E3A', marginTop: 6, letterSpacing: -0.8 },
-  subtitle: { marginTop: 6, color: '#788995', fontSize: 12, lineHeight: 17 },
-  radiusButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DCE5E8', borderRadius: 14, alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, marginLeft: 4, minWidth: 76 },
-  radiusNumber: { color: '#2B555D', fontSize: 15, fontWeight: '900' },
-  radiusCaption: { color: '#8A979F', fontSize: 10, fontWeight: '700', marginTop: 3 },
-  filters: { paddingTop: 16, paddingRight: 18 },
-  chip: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E0E7EA', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginRight: 9 },
-  chipActive: { backgroundColor: '#DCEBEB', borderColor: '#9AC1BD' },
-  chipText: { color: '#748690', fontSize: 11, fontWeight: '800' },
-  chipTextActive: { color: '#2E6466' },
-  mapArea: { flex: 1, backgroundColor: '#E7EEF0', borderTopLeftRadius: 19, borderTopRightRadius: 19, overflow: 'hidden', borderTopWidth: 1, borderColor: '#DDE6E9' },
-  webView: { flex: 1, backgroundColor: '#E7EEF0' },
-  counter: { position: 'absolute', top: 15, left: 15, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 9, backgroundColor: '#FFFDF8F2', borderWidth: 1, borderColor: '#FFFFFF' },
-  locationLegend: { position: 'absolute', top: 15, right: 15, borderRadius: 11, backgroundColor: '#FFFDF8F2', borderWidth: 1, borderColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, maxWidth: 200 },
-  youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#1677E8', borderColor: '#FFFFFF', borderWidth: 2, marginRight: 6 },
-  workDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#738499', borderColor: '#FFFFFF', borderWidth: 2, marginRight: 6 },
-  legendText: { fontSize: 10, fontWeight: '800', color: '#2B4B59', flexShrink: 1 },
-  recenterButton: { position: 'absolute', top: 64, right: 15, backgroundColor: '#3A777A', borderRadius: 13, paddingVertical: 12, paddingHorizontal: 15, shadowColor: '#22434C', shadowOpacity: 0.14, shadowRadius: 8, elevation: 3 },
-  recenterText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
-  counterText: { fontSize: 11, color: '#294651', fontWeight: '900' },
-  loading: { position: 'absolute', left: 16, right: 16, top: 73, padding: 14, borderRadius: 14, backgroundColor: '#FFFDF9', flexDirection: 'row', alignItems: 'center', gap: 10 },
-  loadingText: { color: '#1E3444', fontSize: 11, fontWeight: '700' },
-  notice: { position: 'absolute', left: 16, right: 16, top: 75, padding: 14, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', borderWidth: 1, borderColor: '#E1E8EC' },
-  noticeText: { color: '#33485B', fontSize: 12, textAlign: 'center' },
-  noticeButton: { backgroundColor: '#3A777A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 11 },
+  root: { flex: 1, backgroundColor: theme.colors.darkTeal, paddingBottom: 0 },
+  header: { paddingTop: 23, paddingHorizontal: 24, paddingBottom: 14, backgroundColor: theme.colors.darkTeal },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  eyebrow: { fontSize: 12, fontWeight: '800', letterSpacing: 1.6, color: '#F4A184', marginBottom: 8 },
+  title: { fontSize: 29, fontWeight: '800', color: theme.colors.white, letterSpacing: -0.8 },
+  subtitle: { marginTop: 7, color: '#BDCFD0', fontSize: 13, lineHeight: 19 },
+  radiusButton: { backgroundColor: '#324A50', borderWidth: 1, borderColor: '#546A6F', borderRadius: 19, alignItems: 'center', paddingHorizontal: 9, paddingVertical: 10, marginLeft: 4, minWidth: 74, minHeight: 58, justifyContent: 'center' },
+  radiusNumber: { color: theme.colors.white, fontSize: 20, fontWeight: '800' },
+  radiusCaptionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  radiusCaption: { color: '#CED9D9', fontSize: 12, fontWeight: '500' },
+  filters: { paddingTop: 18, paddingRight: 18, paddingBottom: 5 },
+  chip: { backgroundColor: '#344B50', borderWidth: 1, borderColor: '#586D71', borderRadius: 24, minHeight: 45, paddingHorizontal: 17, paddingVertical: 12, marginRight: 9 },
+  chipActive: { backgroundColor: theme.colors.white, borderColor: theme.colors.white },
+  chipText: { color: '#ECF4F2', fontSize: 13, fontWeight: '700' },
+  chipTextActive: { color: theme.colors.ink },
+  mapArea: { flex: 1, backgroundColor: theme.colors.darkTeal, overflow: 'hidden' },
+  webView: { flex: 1, backgroundColor: theme.colors.darkTeal },
+  counter: { position: 'absolute', top: 16, left: 16, borderRadius: 20, minHeight: 43, paddingHorizontal: 13, paddingVertical: 11, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687' },
+  locationLegend: { position: 'absolute', top: 16, right: 76, borderRadius: 20, minHeight: 43, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687', flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, maxWidth: 190 },
+  youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: theme.colors.coral, borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
+  workDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#9BB8B6', borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
+  legendText: { fontSize: 12, fontWeight: '700', color: theme.colors.white, flexShrink: 1 },
+  recenterButton: { position: 'absolute', top: 13, right: 16, width: 48, height: 48, backgroundColor: theme.colors.white, borderRadius: 24, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  recenterText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
+  counterText: { fontSize: 12, color: theme.colors.white, fontWeight: '700' },
+  loading: { position: 'absolute', left: 16, right: 16, top: 74, padding: 15, borderRadius: 18, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  loadingText: { color: theme.colors.ink, fontSize: 13, fontWeight: '700' },
+  notice: { position: 'absolute', left: 16, right: 16, top: 76, padding: 15, borderRadius: 18, backgroundColor: theme.colors.white, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.line },
+  noticeText: { color: theme.colors.ink, fontSize: 13, textAlign: 'center' },
+  noticeButton: { backgroundColor: theme.colors.darkTeal, borderRadius: 22, paddingHorizontal: 17, paddingVertical: 12, marginTop: 11, minHeight: 44 },
   noticeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  noticeButtonText: { color: LIGHT, fontSize: 12, fontWeight: '800' },
-  bottomPanel: { position: 'absolute', bottom: 13, left: 13, right: 13, borderRadius: 19, paddingHorizontal: 17, paddingTop: 16, paddingBottom: 13, backgroundColor: '#FFFEFBF8', borderWidth: 1, borderColor: '#EBECE9', shadowColor: '#234652', shadowOpacity: 0.12, shadowRadius: 10, elevation: 4 },
-  storeHeader: { flexDirection: 'row', alignItems: 'center' },
-  storeGlyph: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#E2EFEF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  storeGlyphText: { color: '#3C7377', fontSize: 23, fontWeight: '900' },
-  storeTitle: { color: '#203843', fontSize: 17, fontWeight: '900' },
-  storeMeta: { color: '#748893', fontSize: 11, marginTop: 4 },
-  close: { padding: 5, marginLeft: 8 },
-  closeText: { fontSize: 24, color: '#67788A' },
-  address: { color: '#617284', fontSize: 11, marginTop: 8 },
-  actions: { flexDirection: 'row', marginTop: 12, gap: 9 },
-  primaryButton: { flex: 1, backgroundColor: '#3B797B', paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
-  secondaryButton: { backgroundColor: '#E8F0F0', paddingHorizontal: 17, borderRadius: 12, justifyContent: 'center' },
-  secondaryText: { color: '#345F66', fontSize: 12, fontWeight: '900' },
-  panelTitle: { color: '#203A47', fontSize: 16, fontWeight: '900' },
-  panelHint: { color: '#778993', marginTop: 5, fontSize: 11, lineHeight: 16 },
-  nearbyRow: { paddingTop: 13, paddingBottom: 5 },
-  nearbyShop: { width: 151, paddingVertical: 11, paddingHorizontal: 12, borderRadius: 13, backgroundColor: '#EAF2F3', marginRight: 9 },
-  nearbyRank: { color: '#B56D55', fontWeight: '900', letterSpacing: 0.8, fontSize: 9, marginBottom: 5 },
-  nearbyTitle: { color: '#24414D', fontSize: 12, fontWeight: '900' },
-  nearbyDistance: { color: '#748791', fontSize: 10, marginTop: 5 },
-  attribution: { marginTop: 6, fontSize: 8, color: '#87949A' },
-  sourceNote: { marginTop: 9, fontSize: 10, color: '#57767B', fontWeight: '800' },
-  pinDisclaimer: { marginTop: 4, fontSize: 9, color: '#8B674F' },
+  noticeButtonText: { color: LIGHT, fontSize: 13, fontWeight: '800' },
+  bottomPanel: { position: 'absolute', bottom: 12, left: 12, right: 12, borderRadius: 30, paddingHorizontal: 19, paddingTop: 19, paddingBottom: 17, backgroundColor: theme.colors.white, ...theme.shadow },
+  storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  storeGlyph: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  storeTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  storeMeta: { color: theme.colors.muted, fontSize: 13, marginTop: 4 },
+  close: { width: 44, height: 44, backgroundColor: theme.colors.soft, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  address: { color: theme.colors.muted, fontSize: 13, marginTop: 10 },
+  actions: { flexDirection: 'row', marginTop: 16, gap: 9 },
+  primaryButton: { flex: 1, minHeight: 54, backgroundColor: theme.colors.darkTeal, borderRadius: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  primaryButtonText: { color: theme.colors.white, fontSize: 15, fontWeight: '800' },
+  secondaryButton: { minHeight: 54, backgroundColor: theme.colors.soft, paddingHorizontal: 17, borderRadius: 27, justifyContent: 'center' },
+  secondaryText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
+  panelTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  panelHint: { color: theme.colors.muted, marginTop: 5, fontSize: 13, lineHeight: 19 },
+  nearbyRow: { paddingTop: 15, paddingBottom: 4 },
+  nearbyShop: { width: 166, minHeight: 113, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 22, backgroundColor: theme.colors.proBackground, marginRight: 10 },
+  nearbyRank: { color: theme.colors.coralText, fontWeight: '800', letterSpacing: 0.5, fontSize: 12, marginBottom: 8 },
+  nearbyTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  nearbyLink: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  nearbyDistance: { color: theme.colors.muted, fontSize: 12 },
+  attribution: { marginTop: 7, fontSize: 10, color: theme.colors.muted },
+  sourceNote: { marginTop: 10, fontSize: 12, color: theme.colors.teal, fontWeight: '700' },
+  pinDisclaimer: { marginTop: 5, fontSize: 12, color: theme.colors.coralText },
 });
