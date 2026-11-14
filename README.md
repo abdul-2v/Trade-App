@@ -23,7 +23,9 @@ TradeHub is a React Native / Expo application using Supabase for authentication,
 
 ```sh
 npm install
+npm run check:syntax
 npm run typecheck
+npx expo install --check
 npx expo start --tunnel
 ```
 
@@ -39,6 +41,7 @@ Current database migrations are in `supabase/migrations/`, including:
 - Saved tradespeople with owner-only access.
 - Owner-only support tickets.
 - Public map-presence rules hiding offline/stale live coordinates.
+- Least-privilege grants for real messaging, profiles and tradesperson availability. This corrects missing INSERT/UPDATE permissions while leaving verification badges and review scores protected.
 
 The older `supabase/schema.sql` is a **historical prototype**, not a complete representation of the current database. Do not use it as a replacement for the live schema without reconciling the migrations.
 
@@ -49,7 +52,7 @@ The older `supabase/schema.sql` is a **historical prototype**, not a complete re
 3. Live push notifications when the application is closed.
 4. Completed credential checks and honest verification badges.
 5. Real calendar scheduling, route optimisation and price/saving calculations for On My Way and Street Run.
-6. Password-reset/deep-link flow, support operations and account deletion.
+6. Password recovery screen exists (email code or copied link), but needs a real-device email test and production deep-link setup; support operations and account deletion are still missing.
 7. Supabase Auth leaked-password protection setting remains disabled pending project configuration.
 8. App Store / Play Store production builds, privacy notices, policies, safety and merchant-data reliability.
 9. Test customer map location fallback, supplier finder outside Leicester and GPS privacy on-device.
@@ -64,3 +67,13 @@ The support table is an early-access queue; it does not create an automatically 
 Precise job and tradesperson GPS must remain accessible only to authorised participants. Public marketplace pins should use softened location data. Never treat an approximate position as a guaranteed arrival ETA.
 
 No in-app payments / Stripe checkout are currently integrated. Prices and savings must be agreed with the provider until verified pricing and payment systems are implemented.
+
+## Password recovery during Expo Go testing
+
+The sign-in page now has **Forgot your password?**. The reset screen sends a recovery email through Supabase Auth. In Expo Go, copy the *link address* from that email (without opening it) and paste it into the app; alternatively enter a six-digit recovery code if the email template contains one. Once verified, set a new password. The latest recovery link is single-use and expires.
+
+A seamless tap-from-email link requires a native URL scheme, an allowed redirect URL in Supabase Auth, and a development/production build. This isn't implemented for Expo Go yet.
+
+## Build diagnostics
+
+The GitHub Actions workflow now performs syntax parsing, Expo package compatibility checking, and the full TypeScript check. The separate Expo automatic-preview native compatibility job still reports an error; its detailed logs must be inspected in the owner's Expo dashboard before marking builds healthy.
