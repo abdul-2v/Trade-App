@@ -34,12 +34,13 @@ export default function WorkAreaMapPreview({ latitude, longitude, showPin, trade
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
-html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#E8EFF1;}
+html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#0F2A30;}
+.maplibregl-canvas{filter:brightness(.38) saturate(.8) sepia(.14) hue-rotate(115deg)}
 body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;}
-#fallback{position:absolute;inset:0;z-index:2;display:flex;justify-content:center;align-items:center;color:#657B8D;
-background:repeating-linear-gradient(35deg,#E6ECEF 0px,#E6ECEF 29px,#F5F7F5 31px,#F5F7F5 50px);font-size:12px;}
-.shop-pin{width:14px;height:14px;border-radius:50%;border:3px solid #DDEAF1;background:#3C9AC5;box-shadow:0 2px 5px #27546A55;box-sizing:border-box;}
-.pin{width:23px;height:23px;border:5px solid white;border-radius:50%;background:#CE7052;
+#fallback{position:absolute;inset:0;z-index:2;display:flex;justify-content:center;align-items:center;color:#B9D2CF;
+background:repeating-linear-gradient(35deg,#102B31 0px,#102B31 29px,#174047 31px,#174047 50px);font-size:12px;}
+.shop-pin{width:14px;height:14px;border-radius:50%;border:3px solid #DDEAF1;background:#E0704C;box-shadow:0 2px 5px #27546A55;box-sizing:border-box;}
+.pin{width:23px;height:23px;border:5px solid white;border-radius:50%;background:#E0704C;
 box-shadow:0 0 0 6px rgba(206,112,82,.20),0 4px 14px #203E5555;box-sizing:border-box;}
 .maplibregl-control-container{display:none}
 #attribution{position:absolute;z-index:4;right:5px;bottom:3px;background:#ffffffc4;color:#637683;font-size:8px;padding:2px 4px;border-radius:4px}
@@ -83,6 +84,6 @@ try {
 }
 
 const styles = StyleSheet.create({
-  frame: { width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#E8EFF1' },
+  frame: { width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#0F2A30' },
   webview: { flex: 1, backgroundColor: '#E8EFF1' },
 });
