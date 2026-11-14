@@ -6072,6 +6072,7 @@ function TradeJobsScreen({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [marketJobs, setMarketJobs] = useState<MarketOfferJob[]>([]);
   const [loadingMarket, setLoadingMarket] = useState(true);
+  const [jobsView, setJobsView] = useState<'offers' | 'active'>('offers');
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
@@ -6599,31 +6600,48 @@ function TradeJobsScreen({
 
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.proSharedEyebrow}>YOUR WORK · JOBS</Text>
-        <View style={styles.proSharedHeadingRow}>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumScreenHeading}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tradePageTitle}>Jobs & opportunities</Text>
-            <Text style={styles.tradePageSub}>Nearby work, flexible offers and active bookings.</Text>
+            <Text style={styles.premiumEyebrow}>Your work</Text>
+            <Text style={styles.premiumPageTitle}>Jobs</Text>
+            <Text style={styles.premiumScreenSub}>Nearby work, flexible offers and active bookings.</Text>
           </View>
-          <Pressable style={styles.proSharedRefresh} accessibilityRole="button"
+          <Pressable style={styles.premiumHeaderRefresh} accessibilityRole="button"
             accessibilityLabel="Refresh job offers" onPress={() => {
               loadJobs(currentUserId || undefined);
               loadMarketJobs(currentUserId || undefined);
             }}>
-            <AppIcon icon={{ ios: 'arrow.clockwise', android: 'refresh' }} size={19} color="#3B6D73" />
+            <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </Pressable>
         </View>
-        <View style={styles.proJobsOverview}>
-          <View style={styles.proJobsOverviewIcon}>
-            <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={20} color="#D18A75" />
+        <View style={styles.premiumJobOverview}>
+          <View style={styles.premiumJobMetric}>
+            <Text style={styles.premiumJobMetricNumber}>{active.length + marketActive.length}</Text>
+            <Text style={styles.premiumJobMetricLabel}>Active</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.proJobsOverviewTitle}>{active.length + marketActive.length} active · {offered.length + marketOffered.length} new</Text>
-            <Text style={styles.proJobsOverviewSub}>Offers refresh automatically while the app is open.</Text>
+          <View style={styles.premiumJobDivider} />
+          <View style={styles.premiumJobMetric}>
+            <Text style={styles.premiumJobMetricNumber}>{offered.length + marketOffered.length}</Text>
+            <Text style={styles.premiumJobMetricLabel}>New</Text>
+          </View>
+          <View style={styles.premiumOverviewNote}>
+            <View style={styles.premiumOnlineDot} />
+            <Text style={styles.premiumOverviewNoteText}>Offers refresh automatically while the app is open</Text>
           </View>
         </View>
-
+        <View style={styles.premiumSegment}>
+          <Pressable onPress={() => setJobsView('offers')} style={[styles.premiumSegmentTab, jobsView === 'offers' && styles.premiumSegmentActive]}
+            accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'offers' }}>
+            <Text style={[styles.premiumSegmentText, jobsView === 'offers' && styles.premiumSegmentTextActive]}>Offers</Text>
+          </Pressable>
+          <Pressable onPress={() => setJobsView('active')} style={[styles.premiumSegmentTab, jobsView === 'active' && styles.premiumSegmentActive]}
+            accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'active' }}>
+            <Text style={[styles.premiumSegmentText, jobsView === 'active' && styles.premiumSegmentTextActive]}>Active</Text>
+          </Pressable>
+        </View>
+        {jobsView === 'active' ? (
+          <>
         {active.length ? (
           <>
             <Text style={styles.dispatchTradeSectionTitle}>Active job</Text>
@@ -6640,7 +6658,7 @@ function TradeJobsScreen({
                 <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
 
                 <View style={styles.dispatchTradeMetaRow}>
-                  <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                  <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
                   <Text style={styles.dispatchTradeMeta}>~{job.eta} min ETA</Text>
                 </View>
 
@@ -6696,7 +6714,7 @@ function TradeJobsScreen({
                 <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
 
                 <View style={styles.dispatchTradeMetaRow}>
-                  <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
+                  <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
                   {job.routePrice != null ? (
                     <Text style={styles.marketTradePrice}>£{job.routePrice}</Text>
                   ) : null}
@@ -6732,6 +6750,81 @@ function TradeJobsScreen({
             ))}
           </>
         ) : null}
+
+
+          {(active.length + marketActive.length) === 0 ? (
+            <View style={styles.premiumEmptyCard}>
+              <BriefcaseBusiness size={30} strokeWidth={2} color={theme.colors.teal} />
+              <Text style={styles.premiumEmptyTitle}>No active jobs yet</Text>
+              <Text style={styles.premiumEmptyText}>Accepted jobs and bookings will appear here.</Text>
+            </View>
+          ) : null}
+          </>
+        ) : (
+          <>
+        <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
+
+        {loading ? (
+          <View style={styles.tradeEmptyLarge}>
+            <ActivityIndicator color={C.cyan} />
+            <Text style={styles.tradeEmptyLargeText}>Checking for nearby requests…</Text>
+          </View>
+        ) : offered.length ? (
+          offered.map(job => (
+            <View key={job.offerId} style={styles.dispatchTradeOfferCard}>
+              <View style={styles.dispatchTradeTopRow}>
+                <View style={styles.dispatchTradeUrgentIcon}>
+                  <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={18} color={C.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dispatchTradeUrgency}>Urgent · {job.request.urgency}</Text>
+                  <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
+                </View>
+                <View style={styles.dispatchTradeEtaPill}>
+                  <Text style={styles.dispatchTradeEtaValue}>~{job.eta} min</Text>
+                  <Text style={styles.dispatchTradeEtaSmall}>estimated</Text>
+                </View>
+              </View>
+
+              <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+
+              <View style={styles.dispatchTradeMetaRow}>
+                <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
+                <Text style={styles.dispatchTradeMeta}>Location shown after acceptance</Text>
+              </View>
+
+              <View style={styles.dispatchTradeDecisionRow}>
+                <Pressable
+                  style={styles.dispatchTradeDecline}
+                  onPress={() => respondToOffer(job, 'declined')}
+                  disabled={busyId === job.offerId}
+                >
+                  <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.dispatchTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
+                  onPress={() => respondToOffer(job, 'accepted')}
+                  disabled={busyId === job.offerId}
+                >
+                  {busyId === job.offerId ? (
+                    <ActivityIndicator color={C.white} />
+                  ) : (
+                    <Text style={styles.dispatchTradeAcceptText}>Accept job</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.tradeEmptyLarge}>
+            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
+            <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
+            <Text style={styles.tradeEmptyLargeText}>
+              Matching urgent requests appear here while you're available.
+            </Text>
+          </View>
+        )}
+
 
         <Text style={styles.dispatchTradeSectionTitle}>Flexible & scheduled offers</Text>
 
@@ -6773,7 +6866,7 @@ function TradeJobsScreen({
               <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
 
               <View style={styles.dispatchTradeMetaRow}>
-                <Text style={styles.dispatchTradeMeta}>📍 approx. {job.distance.toFixed(1)} mi</Text>
+                <Text style={styles.dispatchTradeMeta}>approx. {job.distance.toFixed(1)} mi</Text>
                 <Text style={styles.dispatchTradeMeta}>
                   {job.detourMinutes != null ? '+' + job.detourMinutes + ' min route' : '~' + job.eta + ' min away'}
                 </Text>
@@ -6811,70 +6904,10 @@ function TradeJobsScreen({
           </View>
         )}
 
-        <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
 
-        {loading ? (
-          <View style={styles.tradeEmptyLarge}>
-            <ActivityIndicator color={C.cyan} />
-            <Text style={styles.tradeEmptyLargeText}>Checking for nearby requests…</Text>
-          </View>
-        ) : offered.length ? (
-          offered.map(job => (
-            <View key={job.offerId} style={styles.dispatchTradeOfferCard}>
-              <View style={styles.dispatchTradeTopRow}>
-                <View style={styles.dispatchTradeUrgentIcon}>
-                  <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={18} color={C.white} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.dispatchTradeUrgency}>Urgent · {job.request.urgency}</Text>
-                  <Text style={styles.dispatchTradeJobTitle}>{job.request.trade}</Text>
-                </View>
-                <View style={styles.dispatchTradeEtaPill}>
-                  <Text style={styles.dispatchTradeEtaValue}>~{job.eta} min</Text>
-                  <Text style={styles.dispatchTradeEtaSmall}>estimated</Text>
-                </View>
-              </View>
-
-              <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
-
-              <View style={styles.dispatchTradeMetaRow}>
-                <Text style={styles.dispatchTradeMeta}>📍 {job.distance.toFixed(1)} mi away</Text>
-                <Text style={styles.dispatchTradeMeta}>Location shown after acceptance</Text>
-              </View>
-
-              <View style={styles.dispatchTradeDecisionRow}>
-                <Pressable
-                  style={styles.dispatchTradeDecline}
-                  onPress={() => respondToOffer(job, 'declined')}
-                  disabled={busyId === job.offerId}
-                >
-                  <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.dispatchTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
-                  onPress={() => respondToOffer(job, 'accepted')}
-                  disabled={busyId === job.offerId}
-                >
-                  {busyId === job.offerId ? (
-                    <ActivityIndicator color={C.white} />
-                  ) : (
-                    <Text style={styles.dispatchTradeAcceptText}>Accept job</Text>
-                  )}
-                </Pressable>
-              </View>
-            </View>
-          ))
-        ) : (
-          <View style={styles.tradeEmptyLarge}>
-            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
-            <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
-            <Text style={styles.tradeEmptyLargeText}>
-              Matching urgent requests appear here while you're available.
-            </Text>
-          </View>
+          </>
         )}
-
-        <View style={{ height: 90 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
     </TradeShell>
   );
@@ -7083,7 +7116,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
     return (
       <TradeShell current="tradeMessages" navigate={navigate}>
         <View style={styles.tradeChatHeader}>
-          <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack}>
+          <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack} accessibilityRole="button" accessibilityLabel="Back to all messages">
             <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={19} color="#244A54" />
           </Pressable>
           <View>
@@ -7111,7 +7144,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
             placeholder="Type a message…"
             placeholderTextColor="#7890A4"
           />
-          <Pressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()}>
+          <Pressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message">
             <AppIcon icon={{ ios: 'arrow.up', android: 'arrow_upward' }} size={18} color={C.white} />
           </Pressable>
         </View>
@@ -7121,37 +7154,52 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
 
   return (
     <TradeShell current="tradeMessages" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.proSharedEyebrow}>YOUR WORK · INBOX</Text>
-        <View style={styles.proSharedHeadingRow}>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumScreenHeading}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tradePageTitle}>Messages</Text>
-            <Text style={styles.tradePageSub}>All your customer conversations in one place.</Text>
+            <Text style={styles.premiumEyebrow}>Your work</Text>
+            <Text style={styles.premiumPageTitle}>Messages</Text>
+            <Text style={styles.premiumScreenSub}>All your customer conversations in one place.</Text>
           </View>
-          <Pressable style={styles.proSharedRefresh} onPress={loadInbox}
+          <Pressable style={styles.premiumHeaderRefresh} onPress={loadInbox}
             accessibilityRole="button" accessibilityLabel="Refresh messages">
-            <AppIcon icon={{ ios: 'arrow.clockwise', android: 'refresh' }} size={19} color="#3B6D73" />
+            <RotateCw size={23} strokeWidth={2} color={theme.colors.tealMid} />
           </Pressable>
         </View>
 
         {loading ? (
-          <Text style={styles.darkMessageLast}>Loading messages…</Text>
+          <View style={styles.premiumEmptyCard}>
+            <ActivityIndicator color={theme.colors.teal} />
+            <Text style={styles.premiumEmptyText}>Loading messages…</Text>
+          </View>
         ) : conversations.length ? (
-          conversations.map(item => (
-            <Pressable key={item.id} style={styles.darkMessageRow} onPress={() => setSelected(item)}>
-              <View style={styles.darkAvatar}><Text style={styles.darkAvatarText}>{item.customerName.charAt(0).toUpperCase()}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.darkMessageName}>{item.customerName}</Text>
-                <Text style={styles.darkMessageLast} numberOfLines={1}>{item.lastMessage}</Text>
-              </View>
-              <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#7890A4" />
-            </Pressable>
-          ))
+          <View style={styles.premiumInboxCard}>
+            {conversations.map((item, index) => (
+              <Pressable key={item.id} style={[styles.premiumMessageRow, index > 0 && styles.premiumMessageDivider]}
+                onPress={() => setSelected(item)} accessibilityRole="button" accessibilityLabel={'Open conversation with ' + item.customerName}>
+                <View style={styles.premiumMessageAvatar}>
+                  <Text style={styles.premiumMessageInitials}>{item.customerName.trim().split(' ').slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.premiumMessageTitleRow}>
+                    <Text style={styles.premiumMessageName} numberOfLines={1}>{item.customerName}</Text>
+                    <Text style={styles.premiumMessageTime}>{new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
+                  </View>
+                  <Text style={styles.premiumMessagePreview} numberOfLines={2}>{item.lastMessage}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
         ) : (
-          <View style={styles.tradeEmptyLarge}>
-            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={25} color="#4B7779" /></View>
-            <Text style={styles.tradeEmptyLargeTitle}>No messages yet</Text>
-            <Text style={styles.tradeEmptyLargeText}>When a customer contacts you about a job, the conversation will appear here.</Text>
+          <View style={styles.premiumMessageEmpty}>
+            <View style={styles.premiumMessageEmptyIcon}><MessageCircle size={56} strokeWidth={1.7} color={theme.colors.darkTeal} /></View>
+            <Text style={styles.premiumMessageEmptyTitle}>No messages yet</Text>
+            <Text style={styles.premiumMessageEmptySub}>When a customer contacts you about a job, the conversation will appear here.</Text>
+            <Pressable style={styles.premiumMessageOnline} onPress={() => navigate('tradeHome')}
+              accessibilityRole="button" accessibilityLabel="Go to home to change availability">
+              <Power size={20} strokeWidth={2} color={theme.colors.white} />
+              <Text style={styles.premiumMessageOnlineText}>Go online</Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -9522,6 +9570,37 @@ const styles = StyleSheet.create({
   premiumShortcutIcon: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   premiumShortcutTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
   premiumShortcutSub: { color: theme.colors.muted, fontSize: 12, marginTop: 2 },
+
+  premiumScreenHeading: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 22 },
+  premiumScreenSub: { fontSize: 14, color: theme.colors.muted, lineHeight: 21, marginTop: 4 },
+  premiumHeaderRefresh: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumJobOverview: { minHeight: 136, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 24, paddingTop: 21, flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', overflow: 'hidden', ...theme.shadow },
+  premiumJobMetric: { width: 90, minHeight: 63 },
+  premiumJobMetricNumber: { color: theme.colors.white, fontSize: 39, fontWeight: '800', letterSpacing: -1.4, lineHeight: 42 },
+  premiumJobMetricLabel: { color: '#C0D1D2', fontSize: 14, marginTop: 1 },
+  premiumJobDivider: { width: 1, height: 60, marginRight: 22, backgroundColor: '#355258' },
+  premiumOverviewNote: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 },
+  premiumOverviewNoteText: { color: '#B4C5C5', fontSize: 12 },
+  premiumSegment: { minHeight: 55, borderRadius: 19, backgroundColor: '#E6ECEA', padding: 4, flexDirection: 'row', marginBottom: 14 },
+  premiumSegmentTab: { flex: 1, minHeight: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  premiumSegmentActive: { backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumSegmentText: { color: theme.colors.muted, fontSize: 15, fontWeight: '700' },
+  premiumSegmentTextActive: { color: theme.colors.ink, fontWeight: '800' },
+  premiumInboxCard: { borderRadius: 30, backgroundColor: theme.colors.white, overflow: 'hidden', ...theme.shadow },
+  premiumMessageRow: { minHeight: 89, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 14 },
+  premiumMessageDivider: { borderTopWidth: 1, borderTopColor: theme.colors.line },
+  premiumMessageAvatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  premiumMessageInitials: { color: theme.colors.teal, fontSize: 19, fontWeight: '800' },
+  premiumMessageTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, justifyContent: 'space-between' },
+  premiumMessageName: { color: theme.colors.ink, fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  premiumMessageTime: { color: theme.colors.muted, fontSize: 12 },
+  premiumMessagePreview: { color: theme.colors.muted, fontSize: 14, lineHeight: 19, marginTop: 5 },
+  premiumMessageEmpty: { paddingTop: 95, alignItems: 'center', paddingHorizontal: 24 },
+  premiumMessageEmptyIcon: { width: 142, height: 142, borderRadius: 71, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  premiumMessageEmptyTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.5 },
+  premiumMessageEmptySub: { color: theme.colors.muted, fontSize: 16, lineHeight: 24, marginTop: 12, textAlign: 'center', maxWidth: 300 },
+  premiumMessageOnline: { marginTop: 28, minHeight: 56, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 31, flexDirection: 'row', alignItems: 'center', gap: 12, ...theme.shadow },
+  premiumMessageOnlineText: { color: theme.colors.white, fontSize: 16, fontWeight: '800' },
 
 });
 
