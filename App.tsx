@@ -5363,6 +5363,11 @@ function TradeHomeScreen({
   const [profileTrade, setProfileTrade] = useState('Trade professional');
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+  const [previewArea, setPreviewArea] = useState<{
+    latitude: number;
+    longitude: number;
+    label: string;
+  } | null>(null);
   const [radarBusy, setRadarBusy] = useState<string | null>(null);
   const [incomingOffers, setIncomingOffers] = useState<
     Array<{
@@ -5386,11 +5391,11 @@ function TradeHomeScreen({
 
       if (!user || !active) return;
 
-      const [{ data: person }, { data: availability }, { data: tradeProfile }] = await Promise.all([
+      const [{ data: person }, { data: availability }, { data: tradeProfile }, { data: mapPresence }] = await Promise.all([
         supabase.from('profiles').select('first_name').eq('id', user.id).single(),
         supabase
           .from('trade_availability')
-          .select('is_available, radius_miles, available_until, location_mode')
+          .select('is_available, radius_miles, available_until, location_mode, work_area_latitude, work_area_longitude, work_area_label')
           .eq('user_id', user.id)
           .single(),
         supabase
@@ -5398,15 +5403,46 @@ function TradeHomeScreen({
           .select('display_name, primary_trade, avatar_url, bio, public_phone, is_verified, is_insured')
           .eq('user_id', user.id)
           .single(),
+        supabase.from('trade_map_presence')
+          .select('latitude, longitude, source_mode, updated_at')
+          .eq('user_id', user.id)
+          .maybeSingle(),
       ]);
 
       if (!active) return;
 
       if (person?.first_name) setFirstName(person.first_name);
       if (availability) {
-        setAvailable(Boolean(availability.is_available));
+        setAvailable(Boolean(
+          availability.is_available
+          && (!availability.available_until || new Date(availability.available_until).getTime() > Date.now())
+        ));
         setRadius(Number(availability.radius_miles) || 10);
         setLocationMode(availability.location_mode === 'live' ? 'live' : 'work_area');
+
+        const validCoordinates = (latitude: unknown, longitude: unknown) =>
+          typeof latitude === 'number' && Number.isFinite(latitude) && Math.abs(latitude) <= 90
+          && typeof longitude === 'number' && Number.isFinite(longitude) && Math.abs(longitude) <= 180;
+        const hasSavedArea = validCoordinates(availability.work_area_latitude, availability.work_area_longitude);
+        const recentPresence = validCoordinates(mapPresence?.latitude, mapPresence?.longitude)
+          && Boolean(mapPresence?.updated_at)
+          && Date.now() - new Date(mapPresence.updated_at).getTime() < 15 * 60 * 1000;
+
+        if (availability.location_mode === 'live' && recentPresence && mapPresence) {
+          setPreviewArea({
+            latitude: mapPresence.latitude,
+            longitude: mapPresence.longitude,
+            label: 'Approximate current area',
+          });
+        } else if (hasSavedArea) {
+          setPreviewArea({
+            latitude: availability.work_area_latitude,
+            longitude: availability.work_area_longitude,
+            label: availability.work_area_label || 'Your saved work area',
+          });
+        } else {
+          setPreviewArea(null);
+        }
       }
 
       if (tradeProfile) {
@@ -5616,11 +5652,12 @@ function TradeHomeScreen({
 
     if (error) {
       Alert.alert('Could not update availability', error.message);
+      return;
     }
+    setAvailable(nextAvailable);
   };
 
   const changeAvailable = async (value: boolean) => {
-    setAvailable(value);
     await saveAvailability(value);
   };
 
@@ -5673,7 +5710,8 @@ function TradeHomeScreen({
 
     setAvailable(true);
     setLocationMode('work_area');
-    Alert.alert('Demand area selected', 'New matching jobs can now find you around ' + area.name + '.');
+    setPreviewArea({ latitude: area.lat, longitude: area.lng, label: area.name });
+    Alert.alert('Work area updated', 'Matching jobs can now find you around ' + area.name + '.');
   };
 
   return (
