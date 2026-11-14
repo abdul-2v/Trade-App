@@ -4,6 +4,8 @@ import AuthScreen from './AuthScreen';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
+import { theme } from './theme';
+import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, Clock3, Send, Search, X } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -5363,31 +5365,36 @@ function TradeShell({
   current: TradeScreen;
   navigate: (screen: TradeScreen) => void;
 }) {
-  // Every tradesperson tab uses the same light design system.
-  const lightHome = true;
-  const items: { label: string; icon: AppSymbol; route: TradeScreen }[] = [
-    { label: 'Home', icon: { ios: 'house.fill', android: 'home' }, route: 'tradeHome' },
-    { label: 'Jobs', icon: { ios: 'briefcase.fill', android: 'work' }, route: 'tradeJobs' },
-    { label: 'Map', icon: { ios: 'map.fill', android: 'map' }, route: 'tradeMap' },
-    { label: 'Messages', icon: { ios: 'message.fill', android: 'chat_bubble' }, route: 'tradeMessages' },
-    { label: 'Profile', icon: { ios: 'person.fill', android: 'person' }, route: 'tradeProfile' },
+  const items = [
+    { label: 'Home', Icon: HomeIcon, route: 'tradeHome' as TradeScreen },
+    { label: 'Jobs', Icon: BriefcaseBusiness, route: 'tradeJobs' as TradeScreen },
+    { label: 'Map', Icon: MapIcon, route: 'tradeMap' as TradeScreen },
+    { label: 'Messages', Icon: MessageCircle, route: 'tradeMessages' as TradeScreen },
+    { label: 'Profile', Icon: UserRound, route: 'tradeProfile' as TradeScreen },
   ];
-
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: lightHome ? '#F7F8FA' : C.homeInk }]}>
-      <StatusBar barStyle={lightHome ? 'dark-content' : 'light-content'} />
-      <View style={[styles.screen, { backgroundColor: lightHome ? '#F7F8FA' : C.homeInk }]}>{children}</View>
-      <View style={[styles.tradeNav, lightHome && styles.proHomeBottomNav]}>
-        {items.map(item => (
-          <Pressable key={item.route} style={styles.navItem} onPress={() => navigate(item.route)}
-            accessibilityRole="tab" accessibilityLabel={item.label}
-            accessibilityState={{ selected: item.route === current }}>
-            <View style={[styles.navIconWrap, item.route === current && (lightHome ? styles.proHomeBottomActive : styles.tradeNavIconActive)]}>
-              <AppIcon icon={item.icon} size={21} color={item.route === current ? (lightHome ? '#253940' : C.white) : lightHome ? '#879399' : '#AABAC9'} />
-            </View>
-            <Text style={[styles.navLabel, { color: item.route === current ? (lightHome ? '#14292F' : '#F2AE93') : lightHome ? '#8C9498' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
-          </Pressable>
-        ))}
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>
+      <StatusBar barStyle="dark-content" />
+      <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
+      <View style={styles.premiumTabBar}>
+        {items.map(({ label, Icon, route }) => {
+          const active = current === route;
+          return (
+            <Pressable
+              key={route}
+              onPress={() => navigate(route)}
+              style={styles.premiumTab}
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: active }}
+            >
+              <View style={[styles.premiumTabIcon, active && styles.premiumTabIconActive]}>
+                <Icon size={23} strokeWidth={2} color={active ? theme.colors.white : theme.colors.muted} />
+              </View>
+              <Text style={[styles.premiumTabLabel, active && styles.premiumTabLabelActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
     </SafeAreaView>
   );
@@ -5798,35 +5805,22 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePageV3} showsVerticalScrollIndicator={false}>
-        <View style={styles.proReferenceHeader}>
-          <View style={styles.proReferenceGreetingArea}>
-            <Text style={styles.proReferenceEyebrow}>TRADEHUB · FOR PROS</Text>
-            <Text style={styles.proReferenceGreeting} numberOfLines={3} adjustsFontSizeToFit>
-              {greetingFirst}{'\n'}{greetingSecond + ','}{'\n'}{firstName}
-            </Text>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
+            <Text style={styles.premiumPageTitle} numberOfLines={1}>{firstName}</Text>
           </View>
-          <Pressable style={styles.proReferenceProfileCard} onPress={() => navigate('tradeProfile')}
-            accessibilityRole="button" accessibilityLabel="Complete your tradesperson profile">
-            <View style={styles.proReferenceProfileTopLine} />
-            <View style={styles.proReferenceAvatarWrap}>
-              {profileAvatar
-                ? <Image source={{ uri: profileAvatar }} style={styles.proReferenceAvatar} />
-                : <View style={styles.proReferenceAvatar}><Text style={styles.proReferenceAvatarLetter}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text></View>
-              }
-              <View style={styles.proReferenceProgressDot}>
-                <Text style={styles.proReferenceProgressDotText}>↗</Text>
-              </View>
-            </View>
-            <Text style={styles.proReferenceProfileLabel}>Profile readiness: <Text style={{ fontWeight: '900' }}>{profileCompletion}%</Text></Text>
-            <View style={styles.proReferenceSetupButton}>
-              <Text style={styles.proReferenceSetupText}>{profileCompletion === 100 ? 'View Profile' : 'Complete Setup'}</Text>
-            </View>
+          <Pressable style={styles.premiumHeaderAvatar} onPress={() => navigate('tradeProfile')}
+            accessibilityRole="button" accessibilityLabel="Open your profile">
+            {profileAvatar
+              ? <Image source={{ uri: profileAvatar }} style={styles.premiumHeaderAvatarImage} />
+              : <Text style={styles.premiumHeaderAvatarText}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text>}
           </Pressable>
         </View>
 
-        <View style={styles.proReferenceMapWrap}>
-          <View style={styles.proReferenceMapVisual} pointerEvents="none">
+        <View style={styles.premiumHomeMap}>
+          <View style={styles.premiumMapPreview} pointerEvents="none">
             <WorkAreaMapPreview
               latitude={previewArea?.latitude ?? 52.6369}
               longitude={previewArea?.longitude ?? -1.1398}
@@ -5834,89 +5828,91 @@ function TradeHomeScreen({
               trade={profileTrade}
             />
           </View>
-          <Pressable style={styles.proReferenceMapHit} onPress={() => navigate('tradeMap')}
-            accessibilityRole="button" accessibilityLabel="Open your work area and nearby suppliers" />
-          <View style={[styles.proReferenceStatusPill, available ? styles.proReferenceOnlinePill : styles.proReferenceOfflinePill]}>
-            <View style={styles.proReferenceStatusDot} />
-            <Text style={styles.proReferenceStatusText} numberOfLines={1}>
-              {savingAvailability ? 'Updating…' : available ? 'Online & available for new jobs' : 'Offline · not taking jobs'}
-            </Text>
-            <Switch
-              value={available}
-              onValueChange={changeAvailable}
-              trackColor={{ false: '#858B94', true: '#B87779' }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#858B94"
-              disabled={savingAvailability}
-              style={{ transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }], marginRight: -5 }}
-              accessibilityLabel="Available for new jobs"
-            />
+          <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
+          <View style={styles.premiumMapStatus}>
+            <View style={[styles.premiumOnlineDot, { backgroundColor: available ? theme.colors.success : '#A9B9BD' }]} />
+            <Text style={styles.premiumMapStatusText}>{available ? 'Online · looking for jobs' : 'Offline · not taking jobs'}</Text>
           </View>
-          <Pressable style={styles.proReferenceMapPlus}
-            onPress={() => navigate('tradeMap')}
-            accessibilityRole="button" accessibilityLabel="Open full nearby merchant map">
-            <AppIcon icon={{ ios: 'plus', android: 'add' }} size={30} color="#E7B1A7" />
+          <Pressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Find your location on the map">
+            <Crosshair size={21} color={theme.colors.white} strokeWidth={2} />
+          </Pressable>
+          <Pressable style={styles.premiumAvailabilityButton}
+            onPress={() => changeAvailable(!available)}
+            disabled={savingAvailability}
+            accessibilityRole="button" accessibilityLabel={available ? 'Go offline' : 'Go online'}>
+            {savingAvailability ? <ActivityIndicator color={theme.colors.darkTeal} /> : (
+              <>
+                <Power size={20} strokeWidth={2.2} color={theme.colors.darkTeal} />
+                <Text style={styles.premiumAvailabilityText}>{available ? 'Go offline' : 'Go online'}</Text>
+              </>
+            )}
           </Pressable>
         </View>
 
-        <View style={styles.proReferenceSectionHeader}>
-          <Text style={styles.proReferenceSectionTitle}>Incoming Opportunities</Text>
-        </View>
-        {incomingOffers.length ? (
-          <View style={styles.proReferenceOpportunityList}>
-            {incomingOffers.map(offer => (
-              <Pressable key={offer.offerId} style={styles.proReferenceOpportunityCard}
-                onPress={() => navigate('tradeJobs')} accessibilityRole="button">
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.proReferenceOpportunityName}>{offer.trade} · {offer.urgency}</Text>
-                  <Text style={styles.proReferenceOpportunityDetail} numberOfLines={2}>{offer.issue}</Text>
-                  <Text style={styles.proReferenceOpportunityDistance}>{offer.distance.toFixed(1)} mi away</Text>
-                </View>
-                <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={18} color="#4F727A" />
-              </Pressable>
-            ))}
+        <Pressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
+          accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
+          <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumProgressTitle}>{profileCompletion === 100 ? 'Your profile is complete' : 'Finish your profile'}</Text>
+            <Text style={styles.premiumProgressSub}>Help customers trust you</Text>
           </View>
-        ) : (
-          <View style={styles.proReferenceEmptyCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.proReferenceEmptyTitle}>No live opportunities</Text>
-              <Text style={styles.proReferenceEmptySub}>No new requests right now.{'\n'}Refresh to check again.</Text>
+          <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
+        </Pressable>
+
+        <View style={styles.premiumSectionRow}>
+          <Text style={styles.premiumSectionTitle}>Incoming opportunities</Text>
+          <Pressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
+            accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
+            <RotateCw size={17} strokeWidth={2} color={theme.colors.teal} />
+            <Text style={styles.premiumRefreshText}>Refresh</Text>
+          </Pressable>
+        </View>
+
+        {incomingOffers.length ? incomingOffers.map(offer => (
+          <Pressable key={offer.offerId} onPress={() => navigate('tradeJobs')}
+            style={styles.premiumOfferCard} accessibilityRole="button" accessibilityLabel={'View ' + offer.issue + ' job'}>
+            <View style={styles.premiumOfferHeading}>
+              <View style={styles.premiumUrgentTag}><Text style={styles.premiumUrgentText}>{offer.urgency || 'REQUEST'}</Text></View>
+              <Text style={styles.premiumOfferDistance}>{offer.distance.toFixed(1)} mi away</Text>
             </View>
-            <Pressable style={styles.proReferenceRefreshButton}
-              onPress={() => setOffersRefreshKey(value => value + 1)}
-              accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
-              <Text style={styles.proReferenceRefreshText}>Refresh</Text>
-            </Pressable>
+            <Text style={styles.premiumOfferTitle} numberOfLines={2}>{offer.issue}</Text>
+            <Text style={styles.premiumOfferMeta}>{offer.trade} · ~{offer.eta} min ETA</Text>
+            <View style={styles.premiumPrimaryButton}><Text style={styles.premiumPrimaryText}>View offer</Text></View>
+          </Pressable>
+        )) : (
+          <View style={styles.premiumEmptyCard}>
+            <View style={styles.premiumEmptyIcon}><Inbox size={27} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.premiumEmptyTitle}>No live opportunities</Text>
+            <Text style={styles.premiumEmptyText}>Go online and new requests will appear here.</Text>
           </View>
         )}
 
-        <View style={styles.proReferenceTiles}>
-          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#3D7478' }]}
-            onPress={() => navigate('tradeJobs')} accessibilityRole="button" accessibilityLabel="View active jobs">
-            <View style={styles.proReferenceTileIcon}>
-              <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} color="#E5A5A0" size={20} />
+        <View style={styles.premiumShortcuts}>
+          <Pressable style={styles.premiumShortcut} onPress={() => navigate('tradeJobs')}
+            accessibilityRole="button" accessibilityLabel="View active jobs">
+            <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.tealTint }]}>
+              <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
             </View>
-            <Text style={styles.proReferenceTileTitle}>Active Jobs</Text>
-            <Text style={styles.proReferenceTileSub} numberOfLines={2}>
-              {activeJobCount === null ? 'View your jobs' : activeJobCount === 1 ? '1 active job' : activeJobCount + ' active jobs'}
-            </Text>
+            <Text style={styles.premiumShortcutTitle}>Active jobs</Text>
+            <Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text>
           </Pressable>
-          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#2D555A' }]}
-            onPress={() => navigate('tradeMap')} accessibilityRole="button" accessibilityLabel="Find nearby trade merchants">
-            <View style={styles.proReferenceTileIcon}>
-              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} color="#E4A59B" size={20} />
+          <Pressable style={styles.premiumShortcut} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Find merchants">
+            <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.coralTint }]}>
+              <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
             </View>
-            <Text style={styles.proReferenceTileTitle}>Merchants</Text>
-            <Text style={styles.proReferenceTileSub} numberOfLines={2}>Find nearby suppliers</Text>
+            <Text style={styles.premiumShortcutTitle}>Merchants</Text>
+            <Text style={styles.premiumShortcutSub}>Suppliers</Text>
           </Pressable>
-          <Pressable style={[styles.proReferenceTile, { backgroundColor: '#1E383E' }]}
-            onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
-            accessibilityRole="button" accessibilityLabel="Open route and flexible job tools">
-            <View style={styles.proReferenceTileIcon}>
-              <AppIcon icon={{ ios: 'wrench.adjustable.fill', android: 'build' }} color="#E4A59B" size={20} />
+          <Pressable style={styles.premiumShortcut} onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
+            accessibilityRole="button" accessibilityLabel="Open route tools">
+            <View style={[styles.premiumShortcutIcon, { backgroundColor: '#E8EDF3' }]}>
+              <Route size={22} strokeWidth={2} color="#365875" />
             </View>
-            <Text style={styles.proReferenceTileTitle}>Route Tools</Text>
-            <Text style={styles.proReferenceTileSub} numberOfLines={2}>Flexible work</Text>
+            <Text style={styles.premiumShortcutTitle}>Route tools</Text>
+            <Text style={styles.premiumShortcutSub}>Flexible work</Text>
           </Pressable>
         </View>
 
@@ -9473,6 +9469,59 @@ const styles = StyleSheet.create({
   marketTradeAccept: { flex: 1, minHeight: 46, borderRadius: 12, backgroundColor: '#3C7475', alignItems: 'center', justifyContent: 'center' },
   marketTradeAcceptText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
   tradeEmptyCompact: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8EC', paddingVertical: 27, paddingHorizontal: 17, alignItems: 'center', marginBottom: 19, gap: 4 },
+
+  // Premium pro UI – shared across all five tabs.
+  premiumTabBar: { height: theme.shape.tabHeight, backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.line, flexDirection: 'row', paddingHorizontal: 7, paddingTop: 5, paddingBottom: 7 },
+  premiumTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  premiumTabIcon: { width: 48, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
+  premiumTabIconActive: { backgroundColor: theme.colors.darkTeal },
+  premiumTabLabel: { marginTop: 3, color: theme.colors.muted, fontSize: 12, fontWeight: '500' },
+  premiumTabLabelActive: { color: theme.colors.ink, fontWeight: '800' },
+  premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
+  premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 21 },
+  premiumEyebrow: { color: theme.colors.muted, fontSize: 16, fontWeight: '500' },
+  premiumPageTitle: { color: theme.colors.ink, fontSize: 34, lineHeight: 40, letterSpacing: -1.3, fontWeight: '800' },
+  premiumHeaderAvatar: { width: 54, height: 54, backgroundColor: theme.colors.darkTeal, borderRadius: 27, alignItems: 'center', justifyContent: 'center', shadowColor: theme.colors.ink, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
+  premiumHeaderAvatarImage: { height: 54, width: 54, borderRadius: 27 },
+  premiumHeaderAvatarText: { fontSize: 24, color: theme.colors.white, fontWeight: '800' },
+  premiumHomeMap: { height: 260, borderRadius: 30, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 15, ...theme.shadow },
+  premiumMapPreview: { ...StyleSheet.absoluteFillObject },
+  premiumMapOpen: { ...StyleSheet.absoluteFillObject },
+  premiumMapStatus: { position: 'absolute', top: 18, left: 18, right: 76, minHeight: 43, paddingHorizontal: 14, borderRadius: 23, backgroundColor: '#334A4E', alignItems: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#51696D' },
+  premiumOnlineDot: { width: 10, height: 10, borderRadius: 5 },
+  premiumMapStatusText: { color: theme.colors.white, fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  premiumMapLocate: { position: 'absolute', right: 16, top: 18, width: 44, height: 44, borderRadius: 23, backgroundColor: '#3C575B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#658083' },
+  premiumAvailabilityButton: { position: 'absolute', bottom: 19, left: 18, right: 18, height: 56, backgroundColor: theme.colors.white, borderRadius: 28, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 12 },
+  premiumAvailabilityText: { fontSize: 17, fontWeight: '800', color: theme.colors.ink },
+  premiumProgress: { minHeight: 78, backgroundColor: theme.colors.white, borderRadius: 26, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22, ...theme.shadow },
+  premiumProgressCircle: { width: 47, height: 47, borderRadius: 24, backgroundColor: theme.colors.tealTint, borderWidth: 4, borderColor: theme.colors.tealMid, alignItems: 'center', justifyContent: 'center' },
+  premiumProgressPercent: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
+  premiumProgressTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.ink },
+  premiumProgressSub: { fontSize: 13, color: theme.colors.muted, marginTop: 3 },
+  premiumSmallButton: { minHeight: 40, borderRadius: 22, paddingHorizontal: 17, backgroundColor: theme.colors.darkTeal, justifyContent: 'center' },
+  premiumSmallButtonText: { fontSize: 13, fontWeight: '800', color: theme.colors.white },
+  premiumSectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  premiumSectionTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.55, flexShrink: 1 },
+  premiumRefresh: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
+  premiumRefreshText: { color: theme.colors.teal, fontSize: 13, fontWeight: '700' },
+  premiumOfferCard: { backgroundColor: theme.colors.white, borderRadius: 28, padding: 18, marginBottom: 12, ...theme.shadow },
+  premiumOfferHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  premiumUrgentTag: { backgroundColor: theme.colors.coralTint, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  premiumUrgentText: { color: theme.colors.coralText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
+  premiumOfferDistance: { color: theme.colors.muted, fontSize: 12 },
+  premiumOfferTitle: { color: theme.colors.ink, fontSize: 19, fontWeight: '800', marginTop: 12 },
+  premiumOfferMeta: { fontSize: 13, color: theme.colors.muted, marginTop: 6 },
+  premiumPrimaryButton: { marginTop: 13, backgroundColor: theme.colors.darkTeal, minHeight: 48, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
+  premiumPrimaryText: { color: theme.colors.white, fontSize: 15, fontWeight: '800' },
+  premiumEmptyCard: { minHeight: 164, borderRadius: 29, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 22, marginBottom: 13, ...theme.shadow },
+  premiumEmptyIcon: { height: 45, width: 45, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
+  premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
+  premiumShortcuts: { flexDirection: 'row', gap: 10 },
+  premiumShortcut: { flex: 1, minHeight: 113, padding: 12, borderRadius: 24, backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumShortcutIcon: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  premiumShortcutTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  premiumShortcutSub: { color: theme.colors.muted, fontSize: 12, marginTop: 2 },
 
 });
 
