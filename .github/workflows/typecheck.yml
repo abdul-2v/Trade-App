@@ -25,5 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Check TypeScript
+      - name: Check TS and TSX syntax (Metro red-screen prevention)
+        run: npm run check:syntax
+
+      - name: Check TypeScript types
         run: npm run typecheck
