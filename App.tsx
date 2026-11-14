@@ -1774,6 +1774,7 @@ function MapScreen({
   const [showDemoProfiles, setShowDemoProfiles] = useState(false);
   const [marketError, setMarketError] = useState(false);
   const [reloadMarketplace, setReloadMarketplace] = useState(0);
+  const [distanceOrigin, setDistanceOrigin] = useState('Leicester centre');
 
   // Real profiles are the default. Demo data is an explicit preview, not marketplace supply.
   const marketplaceTrades = showDemoProfiles ? trades : liveTrades;
@@ -1794,6 +1795,7 @@ function MapScreen({
 
     const loadMarketplace = async () => {
       let reference = { latitude: 52.6369, longitude: -1.1398 };
+      setDistanceOrigin('Leicester centre');
 
       try {
         const permission = await Location.getForegroundPermissionsAsync();
@@ -1805,6 +1807,7 @@ function MapScreen({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           };
+          if (active) setDistanceOrigin('your current location');
         }
       } catch {
         // Fall back to Leicester centre for distance ordering.
@@ -2054,7 +2057,7 @@ function MapScreen({
         ) : marketIsLive ? (
           <View style={[styles.marketDataBanner, styles.marketDataBannerLive]}>
             <View style={styles.marketDataDot} />
-            <Text style={styles.marketDataBannerText}>Real registered tradespeople · availability varies</Text>
+            <Text style={styles.marketDataBannerText}>Real tradespeople · distances from {distanceOrigin}</Text>
           </View>
         ) : (
           <Pressable
@@ -2063,7 +2066,7 @@ function MapScreen({
             accessibilityRole="button"
           >
             <AppIcon icon={{ ios: 'info.circle', android: 'info_outline' }} size={15} color={C.blue} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>No real tradesperson locations found</Text>
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>No real profiles near {distanceOrigin}</Text>
             <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
           </Pressable>
         )}
