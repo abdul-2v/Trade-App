@@ -702,7 +702,7 @@ export default function App() {
               tradesperson_avatar_url: selectedTrade.image,
               updated_at: new Date().toISOString(),
             },
-            { onConflict: 'customer_id,tradesperson_id' }
+            { onConflict: 'customer_id,tradesperson_id', ignoreDuplicates: true }
           );
 
           if (error) {
