@@ -2523,7 +2523,7 @@ function MapMock({
   }[ch]));
 
   const addTradeMarker = (marker) => {
-    const isSafePhoto = typeof marker.image === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(marker.image);
+    const isSafePhoto = typeof marker.image === 'string' && marker.image.indexOf('https://') === 0 && marker.image.indexOf('"') === -1 && marker.image.indexOf('<') === -1 && marker.image.indexOf('>') === -1;
     const avatar = isSafePhoto
       ? '<img class="trade-avatar" loading="lazy" src="' + escapeMarkerText(marker.image) + '" />'
       : '<span class="trade-avatar" style="background:#DCE7ED;color:#315F7D;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px">' +
