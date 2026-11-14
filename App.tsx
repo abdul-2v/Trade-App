@@ -427,17 +427,29 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!active) return;
       setSession(nextSession);
 
-      if (nextSession?.user.id) {
+      if (!nextSession?.user.id) {
+        setAuthLoading(false);
+        setMode('customer');
+        return;
+      }
+
+      // Don't await another Supabase call from inside onAuthStateChange:
+      // the auth client can be holding a session lock during this callback.
+      const userId = nextSession.user.id;
+      setTimeout(async () => {
+        if (!active) return;
         const { data: profile } = await supabase
           .from('profiles')
           .select('account_type')
-          .eq('id', nextSession.user.id)
-          .single();
-
+          .eq('id', userId)
+          .maybeSingle();
+        if (!active) return;
+        const { data: current } = await supabase.auth.getSession();
+        if (!active || current.session?.user.id !== userId) return;
         if (profile?.account_type === 'tradesperson') {
           setAccountType('tradesperson');
           setMode('tradesperson');
@@ -445,9 +457,8 @@ export default function App() {
           setAccountType('customer');
           setMode('customer');
         }
-      }
-
-      setAuthLoading(false);
+        setAuthLoading(false);
+      }, 0);
     });
 
     return () => {
