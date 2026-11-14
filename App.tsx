@@ -1286,7 +1286,6 @@ function RouteSaverScreen({
   const [trade, setTrade] = useState<TradeCategory>(initialTrade);
   const [service, setService] = useState(initialService || serviceCatalog[initialTrade][0]);
   const [deadline, setDeadline] = useState<'Today' | '48 hours' | 'This week'>('48 hours');
-  const [selectedSlot, setSelectedSlot] = useState(0);
   const [streetRun, setStreetRun] = useState(false);
   const [reserving, setReserving] = useState(false);
 
@@ -1294,27 +1293,13 @@ function RouteSaverScreen({
     if (!serviceCatalog[trade].includes(service)) {
       setService(serviceCatalog[trade][0]);
     }
-    setSelectedSlot(0);
   }, [trade]);
 
-  const candidates = trades
-    .filter(item => item.role === trade && item.available)
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 3);
-
-  const dayLabel = deadline === 'Today' ? 'Today' : deadline === '48 hours' ? 'Tomorrow' : 'Thu';
-  const slots = candidates.map((item, index) => {
-    const standard = Math.max(item.callout, 55);
-    const saving = Math.max(12, Math.round(standard * (0.18 + index * 0.03)));
-    const routePrice = standard - saving;
-    const detour = Math.max(2, Math.round(item.distance * 2.2 + index));
-    const times = ['12:40–1:20pm', '3:10–4:00pm', '9:30–10:15am'];
-    return { item, standard, saving, routePrice, detour, slot: times[index] || 'Flexible slot' };
-  });
+  // Route slots and prices must be based on real accepted schedules, not demo profiles.
+  // Until scheduling is connected, this screen collects a genuine flexible request.
 
   const reserve = async () => {
-    const match = slots[selectedSlot];
-    if (!match || reserving) return;
+    if (reserving || !service.trim()) return;
 
     setReserving(true);
 
@@ -1380,8 +1365,8 @@ function RouteSaverScreen({
         .sort((a: any, b: any) => a.distance - b.distance)
         .slice(0, 8) as any[];
 
-      const extraStreetSaving = streetRun ? 8 : 0;
-      const timing = deadline + ' · flexible route slot';
+      // Price and detour are deliberately left unset until a real tradesperson confirms them.
+      const timing = 'Flexible request · ' + deadline;
 
       const { data: job, error: jobError } = await supabase
         .from('jobs')
@@ -1396,9 +1381,6 @@ function RouteSaverScreen({
           location_label: 'Approximate flexible job area',
           search_radius_miles: 15,
           status: liveCandidates.length ? 'offered' : 'posted',
-          standard_price: match.standard,
-          route_price: Math.max(1, match.routePrice - extraStreetSaving),
-          detour_minutes: match.detour,
         })
         .select('id')
         .single();
@@ -1424,9 +1406,6 @@ function RouteSaverScreen({
           tradesperson_id: candidate.profile.user_id,
           distance_miles: Number(candidate.distance.toFixed(2)),
           eta_minutes: candidate.eta,
-          quoted_price: match.standard,
-          route_price: Math.max(1, match.routePrice - extraStreetSaving),
-          detour_minutes: Math.max(2, Math.round(candidate.distance * 2.2)),
           status: 'offered',
         }));
 
@@ -1441,16 +1420,16 @@ function RouteSaverScreen({
         id: job.id,
         trade,
         issue: service,
-        urgency: (streetRun ? 'Street Run' : 'On My Way') + ' · ' + timing,
+        urgency: (streetRun ? 'Street Run interest' : 'On My Way') + ' · ' + timing,
         status: liveCandidates.length ? 'Waiting for tradesperson' : 'Posted — waiting for local supply',
         source: 'job',
       });
 
       Alert.alert(
-        streetRun ? 'Street Run request posted' : 'On My Way request posted',
+        streetRun ? 'Flexible group request posted' : 'Flexible request posted',
         liveCandidates.length
-          ? 'Sent to ' + liveCandidates.length + ' real available ' + trade.toLowerCase() + (liveCandidates.length === 1 ? '.' : 's.')
-          : 'Your job is saved, but no real available ' + trade.toLowerCase() + ' accounts are online inside the search area yet.'
+          ? 'Sent to ' + liveCandidates.length + ' available ' + trade.toLowerCase() + (liveCandidates.length === 1 ? '. ' : 's. ') + 'No price or arrival time is confirmed until a professional responds.'
+          : 'Your request is saved. There are no available ' + trade.toLowerCase() + 's in range yet, so no appointment or savings are confirmed.'
       );
       navigate('requests');
     } catch (error: any) {
@@ -1471,21 +1450,21 @@ function RouteSaverScreen({
             <Text style={styles.routeEyebrow}>TRADEHUB ROUTE</Text>
             <Text style={styles.routeTitle}>On My Way</Text>
           </View>
-          <View style={styles.routeSavePill}><Text style={styles.routeSavePillText}>SAVE</Text></View>
+          <View style={styles.routeSavePill}><Text style={styles.routeSavePillText}>FLEXIBLE</Text></View>
         </View>
 
         <View style={styles.routeExplainCard}>
           <View style={styles.routeExplainIcon}>
             <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={24} color={C.orange} />
           </View>
-          <Text style={styles.routeExplainTitle}>Pay less when you can be flexible.</Text>
+          <Text style={styles.routeExplainTitle}>Find work that fits your schedule.</Text>
           <Text style={styles.routeExplainText}>
-            We look for professionals already passing close to your area with a gap in their day. Less dead mileage means a cheaper slot for you.
+            Tell us what you need and when you're available. Nearby tradespeople can respond if they have space in their schedule. Any price or saving is agreed directly with them.
           </Text>
           <View style={styles.routeExplainSteps}>
             <Text style={styles.routeExplainStep}>1  Pick the job</Text>
             <Text style={styles.routeExplainStep}>2  Pick a deadline</Text>
-            <Text style={styles.routeExplainStep}>3  Take a route slot</Text>
+            <Text style={styles.routeExplainStep}>3  Review a real offer</Text>
           </View>
         </View>
 
@@ -1531,17 +1510,16 @@ function RouteSaverScreen({
           <Pressable
             style={[styles.streetRunCard, streetRun && styles.streetRunCardActive]}
             onPress={() => setStreetRun(value => !value)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: streetRun }}
           >
             <View style={styles.streetRunIcon}>
               <AppIcon icon={{ ios: 'house.and.flag.fill', android: 'location_city' }} size={20} color={streetRun ? C.navy : C.orange} />
             </View>
             <View style={{ flex: 1 }}>
-              <View style={styles.streetRunTitleRow}>
-                <Text style={styles.streetRunEyebrow}>STREET RUN</Text>
-                <View style={styles.streetRunSave}><Text style={styles.streetRunSaveText}>EXTRA £8 OFF</Text></View>
-              </View>
-              <Text style={styles.streetRunTitle}>Join nearby jobs on the same run.</Text>
-              <Text style={styles.streetRunText}>4 homes within about 1.2 miles are waiting for small jobs. Batch the route and everyone pays less.</Text>
+              <Text style={styles.streetRunEyebrow}>STREET RUN · OPTIONAL</Text>
+              <Text style={styles.streetRunTitle}>Open to a grouped visit?</Text>
+              <Text style={styles.streetRunText}>Allow a tradesperson to combine your visit with nearby work if a genuine opportunity comes up. No discount is guaranteed.</Text>
             </View>
             <View style={[styles.streetRunCheck, streetRun && styles.streetRunCheckActive]}>
               {streetRun ? <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={14} color={C.navy} /> : null}
@@ -1549,71 +1527,31 @@ function RouteSaverScreen({
           </Pressable>
         ) : null}
 
-        <View style={styles.routeMatchHeader}>
-          <View>
-            <Text style={styles.routeMatchTitle}>Best route matches</Text>
-            <Text style={styles.routeMatchSub}>Slots are based on nearby work already in their day.</Text>
-          </View>
-          <View style={styles.routeMatchCount}><Text style={styles.routeMatchCountText}>{slots.length}</Text></View>
+        <View style={styles.routeNoMatch}>
+          <Text style={styles.routeNoMatchTitle}>Request a flexible appointment</Text>
+          <Text style={styles.routeNoMatchText}>
+            We'll send your job to matching nearby professionals when available. There are no guaranteed route slots, estimated discounts or pre-agreed prices yet.
+          </Text>
+          <Text style={[styles.routeNoMatchText, { marginTop: 8 }]}>
+            {trade} · {service} · {deadline}
+          </Text>
         </View>
 
-        {slots.length ? slots.map((match, index) => (
-          <Pressable
-            key={match.item.id}
-            style={[styles.routeSlotCard, selectedSlot === index && styles.routeSlotCardActive]}
-            onPress={() => setSelectedSlot(index)}
-          >
-            <View style={styles.routeSlotTop}>
-              <Image source={{ uri: match.item.image }} style={styles.routeSlotAvatar} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.routeSlotName}>{match.item.name}</Text>
-                <Text style={styles.routeSlotMeta}>★ {match.item.rating} · {match.item.distance.toFixed(1)} mi away</Text>
-              </View>
-              <View style={styles.routeSlotSaving}><Text style={styles.routeSlotSavingText}>SAVE £{match.saving + (streetRun ? 8 : 0)}</Text></View>
-            </View>
+        <Pressable
+          style={[styles.routeReserveButton, reserving && { opacity: 0.6 }]}
+          onPress={reserve}
+          disabled={reserving}
+          accessibilityRole="button"
+        >
+          {reserving ? <ActivityIndicator color={C.navy} /> : (
+            <>
+              <Text style={styles.routeReserveText}>Post flexible request</Text>
+              <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
+            </>
+          )}
+        </Pressable>
 
-            <View style={styles.routeSlotJourney}>
-              <View style={styles.routeSlotJourneyItem}>
-                <Text style={styles.routeSlotJourneyLabel}>ROUTE SLOT</Text>
-                <Text style={styles.routeSlotJourneyValue}>{dayLabel} · {match.slot}</Text>
-              </View>
-              <View style={styles.routeSlotDivider} />
-              <View style={styles.routeSlotJourneyItem}>
-                <Text style={styles.routeSlotJourneyLabel}>EXTRA DETOUR</Text>
-                <Text style={styles.routeSlotJourneyValue}>+{match.detour} min</Text>
-              </View>
-            </View>
-
-            <View style={styles.routePriceRow}>
-              <Text style={styles.routeWasPrice}>Standard £{match.standard}</Text>
-              <Text style={styles.routePrice}>£{Math.max(1, match.routePrice - (streetRun ? 8 : 0))}</Text>
-            </View>
-          </Pressable>
-        )) : (
-          <View style={styles.routeNoMatch}>
-            <Text style={styles.routeNoMatchTitle}>No route slots yet</Text>
-            <Text style={styles.routeNoMatchText}>Try a wider deadline or another trade. Normal nearby professionals are still available in Explore.</Text>
-          </View>
-        )}
-
-        {slots.length ? (
-          <Pressable
-            style={[styles.routeReserveButton, reserving && { opacity: 0.6 }]}
-            onPress={reserve}
-            disabled={reserving}
-          >
-            {reserving ? (
-              <ActivityIndicator color={C.navy} />
-            ) : (
-              <>
-                <Text style={styles.routeReserveText}>Post flexible job</Text>
-                <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.navy} />
-              </>
-            )}
-          </Pressable>
-        ) : null}
-
-        <Text style={styles.routeFootnote}>Route slots are confirmed only after the professional accepts the stop in their schedule.</Text>
+        <Text style={styles.routeFootnote}>Submitting a request does not confirm a booking, price or discount. Discuss details with the tradesperson before accepting work.</Text>
       </ScrollView>
     </CustomerShell>
   );
