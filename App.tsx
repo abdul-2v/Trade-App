@@ -5374,7 +5374,7 @@ function TradeShell({
     { label: 'Profile', Icon: UserRound, route: 'tradeProfile' as TradeScreen },
   ];
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.white }}>
       <StatusBar barStyle="dark-content" />
       <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
       <View style={styles.premiumTabBar}>
@@ -5460,7 +5460,7 @@ function TradeHomeScreen({
           .single(),
         supabase
           .from('tradesperson_profiles')
-          .select('display_name, primary_trade, avatar_url, bio, public_phone, is_verified, is_insured')
+          .select('display_name, primary_trade, avatar_url, bio, public_phone')
           .eq('user_id', user.id)
           .single(),
         supabase.from('trade_map_presence')
@@ -5509,14 +5509,14 @@ function TradeHomeScreen({
         setProfileName(tradeProfile.display_name || person?.first_name || 'Your business');
         setProfileTrade(tradeProfile.primary_trade || 'Trade professional');
         setProfileAvatar(tradeProfile.avatar_url || null);
+        // Profile completion covers the editable public profile only.
+        // ID and insurance are not part of the setup checklist.
         const checks = [
-          tradeProfile.display_name,
-          tradeProfile.primary_trade,
-          tradeProfile.avatar_url,
-          tradeProfile.bio,
-          tradeProfile.public_phone,
-          tradeProfile.is_verified,
-          tradeProfile.is_insured,
+          Boolean(tradeProfile.display_name),
+          Boolean(tradeProfile.primary_trade),
+          Boolean(tradeProfile.avatar_url),
+          Boolean(tradeProfile.bio?.trim()),
+          Boolean(availability?.work_area_latitude != null && availability?.work_area_longitude != null),
         ];
         setProfileCompletion(Math.round((checks.filter(Boolean).length / checks.length) * 100));
       }
@@ -7230,12 +7230,11 @@ function TradeSettingsScreen({
   // Presentation-only subpages. All saved profile/location logic remains unchanged.
   const [profilePage, setProfilePage] = useState<'overview' | 'edit' | 'account' | 'preview'>('overview');
   const profileSteps = [
+    !!displayName.trim() && displayName !== 'Your trade profile',
+    customerCategoryOrder.includes(primaryTrade as TradeCategory),
     avatarUrl != null,
     !!bio.trim(),
     workAreaSaved,
-    !!publicPhone.trim(),
-    customerCategoryOrder.includes(primaryTrade as TradeCategory),
-    !!displayName.trim() && displayName !== 'Your trade profile',
   ];
   const completedProfileSteps = profileSteps.filter(Boolean).length;
   const profileProgress = Math.round(completedProfileSteps / profileSteps.length * 100);
@@ -7496,13 +7495,6 @@ function TradeSettingsScreen({
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted} />
               </Pressable>
-              <View style={styles.premiumProfileCheckRow}>
-                <View style={[styles.premiumChecklistIcon, { backgroundColor: '#F4ECDB' }]}><ShieldCheck size={21} color="#8E701C" /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumChecklistTitle}>Verify ID & insurance</Text>
-                  <Text style={styles.premiumChecklistSubtitle}>Verification upload coming soon</Text>
-                </View>
-              </View>
               <Pressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
                 accessibilityRole="button" accessibilityLabel="Complete profile setup">
                 <Text style={styles.premiumPrimaryText}>Complete setup</Text>
@@ -7647,23 +7639,6 @@ function TradeSettingsScreen({
               <View style={{ width: 44 }} />
             </View>
             <Text style={styles.premiumEyebrow}>Your business</Text>
-            <View style={styles.premiumAccountCard}>
-              <View style={styles.premiumAccountRow}>
-                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><ShieldCheck size={22} color={theme.colors.coralDark} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumChecklistTitle}>Get verified</Text>
-                  <Text style={styles.premiumChecklistSubtitle}>Show customers you're the real deal</Text>
-                </View>
-                <Text style={styles.premiumComingSoon}>Soon</Text>
-              </View>
-              {['Photo ID', 'Insurance', 'Qualifications'].map(item => (
-                <View style={styles.premiumAccountRow} key={item}>
-                  <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><ShieldCheck size={19} color={theme.colors.teal} /></View>
-                  <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
-                  <Text style={styles.premiumComingSoon}>Coming soon</Text>
-                </View>
-              ))}
-            </View>
             <Text style={styles.premiumSectionTitle}>Service area</Text>
         <View style={styles.locationSettingsCard}>
           <View style={styles.locationSettingsHeader}>
@@ -9412,7 +9387,7 @@ const styles = StyleSheet.create({
   proReferenceTileIcon: { width: 37, height: 37, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
   proReferenceTileTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '900', letterSpacing: -0.2 },
   proReferenceTileSub: { color: '#DAE1E0', fontSize: 10, lineHeight: 13, marginTop: 5 },
-  proReferenceSettingsList: { gap: 0 },
+  proReferenceSettingsList: { gap: 6, marginTop: 4 },
 
   proHomeBottomNav: { backgroundColor: '#FFFFFF', borderTopColor: '#E4E9ED' },
   proHomeBottomActive: { backgroundColor: '#E4ECEE', width: 39, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
@@ -9447,7 +9422,7 @@ const styles = StyleSheet.create({
   proHomeQuickTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   proHomeQuickAlt: { backgroundColor: '#EAF1F5', borderColor: '#DCE7ED' },
 
-  proV3DetailsToggle: { minHeight: 78, borderRadius: 25, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 13, marginBottom: 12, ...theme.shadow },
+  proV3DetailsToggle: { minHeight: 78, borderRadius: 25, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, paddingVertical: 13, marginBottom: 15, ...theme.shadow },
   proV3DetailsIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   proV3DetailsTitle: { color: theme.colors.ink, fontSize: 16, fontWeight: '800' },
   proV3DetailsSub: { color: theme.colors.muted, fontSize: 13, marginTop: 5 },
@@ -9682,7 +9657,7 @@ const styles = StyleSheet.create({
   tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
 
   // Premium pro UI – shared across all five tabs.
-  premiumTabBar: { height: theme.shape.tabHeight, backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.line, flexDirection: 'row', paddingHorizontal: 7, paddingTop: 5, paddingBottom: 7 },
+  premiumTabBar: { height: 78, backgroundColor: theme.colors.white, borderTopWidth: 0, flexDirection: 'row', paddingHorizontal: 7, paddingTop: 6, paddingBottom: 4 },
   premiumTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   premiumTabIcon: { width: 48, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
   premiumTabIconActive: { backgroundColor: theme.colors.darkTeal },
@@ -9704,14 +9679,14 @@ const styles = StyleSheet.create({
   premiumMapLocate: { position: 'absolute', right: 16, top: 18, width: 44, height: 44, borderRadius: 23, backgroundColor: '#3C575B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#658083' },
   premiumAvailabilityButton: { position: 'absolute', bottom: 19, left: 18, right: 18, height: 56, backgroundColor: theme.colors.white, borderRadius: 28, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 12 },
   premiumAvailabilityText: { fontSize: 17, fontWeight: '800', color: theme.colors.ink },
-  premiumProgress: { minHeight: 78, backgroundColor: theme.colors.white, borderRadius: 26, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22, ...theme.shadow },
+  premiumProgress: { minHeight: 78, backgroundColor: theme.colors.white, borderRadius: 26, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 30, ...theme.shadow },
   premiumProgressCircle: { width: 47, height: 47, borderRadius: 24, backgroundColor: theme.colors.tealTint, borderWidth: 4, borderColor: theme.colors.tealMid, alignItems: 'center', justifyContent: 'center' },
   premiumProgressPercent: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
   premiumProgressTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.ink },
   premiumProgressSub: { fontSize: 13, color: theme.colors.muted, marginTop: 3 },
   premiumSmallButton: { minHeight: 40, borderRadius: 22, paddingHorizontal: 17, backgroundColor: theme.colors.darkTeal, justifyContent: 'center' },
   premiumSmallButtonText: { fontSize: 13, fontWeight: '800', color: theme.colors.white },
-  premiumSectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  premiumSectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, marginBottom: 18 },
   premiumSectionTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.55, flexShrink: 1 },
   premiumRefresh: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 6 },
   premiumRefreshText: { color: theme.colors.teal, fontSize: 13, fontWeight: '700' },
@@ -9724,12 +9699,12 @@ const styles = StyleSheet.create({
   premiumOfferMeta: { fontSize: 13, color: theme.colors.muted, marginTop: 6 },
   premiumPrimaryButton: { marginTop: 13, backgroundColor: theme.colors.darkTeal, minHeight: 48, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   premiumPrimaryText: { color: theme.colors.white, fontSize: 15, fontWeight: '800' },
-  premiumEmptyCard: { minHeight: 164, borderRadius: 29, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 22, marginBottom: 13, ...theme.shadow },
+  premiumEmptyCard: { minHeight: 164, borderRadius: 29, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 22, marginBottom: 24, ...theme.shadow },
   premiumEmptyIcon: { height: 45, width: 45, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
   premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
-  premiumShortcuts: { flexDirection: 'row', gap: 10 },
-  premiumShortcut: { flex: 1, minHeight: 113, padding: 12, borderRadius: 24, backgroundColor: theme.colors.white, ...theme.shadow },
+  premiumShortcuts: { flexDirection: 'row', gap: 14, marginTop: 2, marginBottom: 26 },
+  premiumShortcut: { flex: 1, minHeight: 113, padding: 10, borderRadius: 22, backgroundColor: theme.colors.white, ...theme.shadow },
   premiumShortcutIcon: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   premiumShortcutTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
   premiumShortcutSub: { color: theme.colors.muted, fontSize: 12, marginTop: 2 },
@@ -9774,9 +9749,9 @@ const styles = StyleSheet.create({
   premiumProfileHeroName: { color: theme.colors.white, fontSize: 23, fontWeight: '800' },
   premiumProfileHeroTrade: { color: '#D1E2E1', fontSize: 14, marginTop: 4 },
   premiumProfileHeroNote: { marginTop: 8, color: '#A7C5C4', fontSize: 12 },
-  premiumProfileChecklist: { borderRadius: 30, backgroundColor: theme.colors.white, padding: 18, marginBottom: 18, ...theme.shadow },
+  premiumProfileChecklist: { borderRadius: 30, backgroundColor: theme.colors.white, padding: 18, marginBottom: 22, ...theme.shadow },
   premiumProfileProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 15 },
-  premiumProfileCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, borderTopWidth: 1, borderTopColor: theme.colors.line },
+  premiumProfileCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 17, borderTopWidth: 1, borderTopColor: theme.colors.line },
   premiumChecklistIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   premiumChecklistTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
   premiumChecklistSubtitle: { fontSize: 12, lineHeight: 18, color: theme.colors.muted, marginTop: 3 },
