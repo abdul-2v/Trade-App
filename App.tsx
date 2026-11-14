@@ -5333,9 +5333,9 @@ function TradeShell({
             accessibilityRole="tab" accessibilityLabel={item.label}
             accessibilityState={{ selected: item.route === current }}>
             <View style={[styles.navIconWrap, item.route === current && (lightHome ? styles.proHomeBottomActive : styles.tradeNavIconActive)]}>
-              <AppIcon icon={item.icon} size={21} color={item.route === current ? C.white : lightHome ? '#748391' : '#AABAC9'} />
+              <AppIcon icon={item.icon} size={21} color={item.route === current ? (lightHome ? '#253940' : C.white) : lightHome ? '#879399' : '#AABAC9'} />
             </View>
-            <Text style={[styles.navLabel, { color: item.route === current ? (lightHome ? '#BA624A' : '#F2AE93') : lightHome ? '#72808D' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
+            <Text style={[styles.navLabel, { color: item.route === current ? (lightHome ? '#14292F' : '#F2AE93') : lightHome ? '#8C9498' : '#AABAC9', fontWeight: item.route === current ? '900' : '600' }]}>{item.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -9170,7 +9170,7 @@ const styles = StyleSheet.create({
   proReferenceSettingsList: { gap: 0 },
 
   proHomeBottomNav: { backgroundColor: '#FFFFFF', borderTopColor: '#E4E9ED' },
-  proHomeBottomActive: { backgroundColor: '#C96F52', width: 39, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  proHomeBottomActive: { backgroundColor: '#E4ECEE', width: 39, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   proHomeHeroOrb: { position: 'absolute', width: 128, height: 128, top: -60, right: -46, borderRadius: 64, backgroundColor: '#28475E', opacity: 0.8 },
   proHomeHeroHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   proHomeHeroEyebrow: { color: '#C9D5DD', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
