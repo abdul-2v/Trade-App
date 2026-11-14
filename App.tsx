@@ -7226,6 +7226,19 @@ function TradeSettingsScreen({
   const [bio, setBio] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  // Presentation-only subpages. All saved profile/location logic remains unchanged.
+  const [profilePage, setProfilePage] = useState<'overview' | 'edit' | 'account' | 'preview'>('overview');
+  const profileSteps = [
+    avatarUrl != null,
+    !!bio.trim(),
+    workAreaSaved,
+    !!publicPhone.trim(),
+    customerCategoryOrder.includes(primaryTrade as TradeCategory),
+    !!displayName.trim() && displayName !== 'Your trade profile',
+  ];
+  const completedProfileSteps = profileSteps.filter(Boolean).length;
+  const profileProgress = Math.round(completedProfileSteps / profileSteps.length * 100);
+
 
   useEffect(() => {
     let active = true;
@@ -7424,26 +7437,107 @@ function TradeSettingsScreen({
 
   return (
     <TradeShell current="tradeProfile" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.proSharedEyebrow}>YOUR BUSINESS · PROFILE</Text>
-        <Text style={styles.tradePageTitle}>Your profile</Text>
-        <Text style={styles.tradePageSub}>Manage the details customers can see.</Text>
-
-        <View style={styles.proProfile}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.proProfileImage} />
-          ) : (
-            <View style={styles.proProfileFallback}>
-              <Text style={styles.proProfileFallbackText}>{displayName.charAt(0).toUpperCase()}</Text>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        {profilePage === 'overview' ? (
+          <>
+            <View style={styles.premiumScreenHeading}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumEyebrow}>Your business</Text>
+                <Text style={styles.premiumPageTitle}>Profile</Text>
+              </View>
+              <Pressable style={styles.premiumPreviewButton} onPress={() => setProfilePage('preview')}
+                accessibilityRole="button" accessibilityLabel="Preview public trade profile">
+                <UserRound size={18} strokeWidth={2} color={theme.colors.ink} />
+                <Text style={styles.premiumPreviewText}>Preview</Text>
+              </Pressable>
             </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.proName}>{displayName}</Text>
-            <Text style={styles.proRole}>{primaryTrade}</Text>
-            <Text style={styles.proVerify}>Profile linked to your TradeHub account</Text>
-          </View>
-        </View>
-
+            <View style={styles.premiumProfileHero}>
+              <View style={styles.premiumProfileHeroTop}>
+                {avatarUrl
+                  ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
+                  : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumProfileHeroName}>{displayName}</Text>
+                  <Text style={styles.premiumProfileHeroTrade}>{primaryTrade}</Text>
+                  <Text style={styles.premiumProfileHeroNote}>Your public trade profile</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.premiumProfileChecklist}>
+              <View style={styles.premiumProfileProgressRow}>
+                <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileProgress}%</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumProgressTitle}>Complete your profile</Text>
+                  <Text style={styles.premiumProgressSub}>{completedProfileSteps} of {profileSteps.length} steps done</Text>
+                </View>
+              </View>
+              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><Camera size={21} color={theme.colors.coralDark} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>{avatarUrl ? 'Profile photo added' : 'Add a profile photo'}</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Help customers recognise you</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted} />
+              </Pressable>
+              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><Pencil size={21} color={theme.colors.teal} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>{bio.trim() ? 'Business bio added' : 'Write your business bio'}</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>What you specialise in</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted} />
+              </Pressable>
+              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: '#E9EDF3' }]}><MapPin size={21} color="#365875" /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>{workAreaSaved ? 'Service area set' : 'Set your service area'}</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Where you take work</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted} />
+              </Pressable>
+              <View style={styles.premiumProfileCheckRow}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: '#F4ECDB' }]}><ShieldCheck size={21} color="#8E701C" /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>Verify ID & insurance</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Verification upload coming soon</Text>
+                </View>
+              </View>
+              <Pressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
+                accessibilityRole="button" accessibilityLabel="Complete profile setup">
+                <Text style={styles.premiumPrimaryText}>Complete setup</Text>
+              </Pressable>
+            </View>
+            <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}
+              accessibilityRole="button" accessibilityLabel="Open account settings">
+              <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><UserRound size={21} color={theme.colors.teal} /></View>
+              <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Account & settings</Text>
+              <ChevronRight size={20} color={theme.colors.muted} />
+            </Pressable>
+          </>
+        ) : profilePage === 'edit' ? (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+              </Pressable>
+              <Text style={styles.premiumProfileEditTitle}>Public profile</Text>
+              <Pressable onPress={savePublicProfile} disabled={savingProfile} style={styles.premiumProfileSaveTop}
+                accessibilityRole="button" accessibilityLabel="Save public profile">
+                <Text style={styles.premiumProfileSaveTopText}>Save</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.premiumProfileEditHint}>These are the details customers see when they explore tradespeople and after a match.</Text>
+            <View style={styles.premiumPhotoCard}>
+              {avatarUrl
+                ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
+                : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumChecklistTitle}>Profile photo</Text>
+                <Text style={styles.premiumChecklistSubtitle}>Your current customer-facing photo</Text>
+                <Text style={styles.premiumPhotoFootnote}>Photo upload is not available here yet</Text>
+              </View>
+            </View>
         <View style={styles.tradeEditCard}>
           <View style={styles.tradeEditHeader}>
             <View style={styles.tradeEditIcon}>
@@ -7509,13 +7603,67 @@ function TradeSettingsScreen({
               <ActivityIndicator color={C.white} />
             ) : (
               <>
-                <Text style={styles.tradeEditSaveText}>Save public profile</Text>
+                <Text style={styles.tradeEditSaveText}>Save changes</Text>
                 <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={15} color={C.white} />
               </>
             )}
           </Pressable>
         </View>
 
+
+          </>
+        ) : profilePage === 'preview' ? (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+              </Pressable>
+              <Text style={styles.premiumProfileEditTitle}>Public preview</Text>
+              <View style={{ width: 44 }} />
+            </View>
+            <View style={styles.premiumPhotoCard}>
+              {avatarUrl
+                ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
+                : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumChecklistTitle}>{displayName}</Text>
+                <Text style={styles.premiumChecklistSubtitle}>{primaryTrade}</Text>
+              </View>
+            </View>
+            {bio.trim() ? <Text style={styles.premiumProfileEditHint}>{bio}</Text> : null}
+            {publicPhone.trim() ? <Text style={styles.premiumProfileEditHint}>Contact: {publicPhone}</Text> : null}
+            <Text style={styles.premiumProfileEditHint}>Only saved details are visible to customers.</Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+              </Pressable>
+              <Text style={styles.premiumProfileEditTitle}>Account</Text>
+              <View style={{ width: 44 }} />
+            </View>
+            <Text style={styles.premiumEyebrow}>Your business</Text>
+            <View style={styles.premiumAccountCard}>
+              <View style={styles.premiumAccountRow}>
+                <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><ShieldCheck size={22} color={theme.colors.coralDark} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.premiumChecklistTitle}>Get verified</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Show customers you're the real deal</Text>
+                </View>
+                <Text style={styles.premiumComingSoon}>Soon</Text>
+              </View>
+              {['Photo ID', 'Insurance', 'Qualifications'].map(item => (
+                <View style={styles.premiumAccountRow} key={item}>
+                  <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><ShieldCheck size={19} color={theme.colors.teal} /></View>
+                  <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
+                  <Text style={styles.premiumComingSoon}>Coming soon</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.premiumSectionTitle}>Service area</Text>
         <View style={styles.locationSettingsCard}>
           <View style={styles.locationSettingsHeader}>
             <View style={styles.locationSettingsIcon}>
@@ -7589,20 +7737,34 @@ function TradeSettingsScreen({
           </Text>
         </View>
 
-        <Text style={styles.proProfileSectionLabel}>More settings</Text>
-        {['Verification', 'Services & prices', 'Notifications', 'Payouts'].map(item => (
-          <View key={item} style={styles.darkSettingsRow}>
-            <Text style={styles.darkSettingsLabel}>{item}</Text>
-            <Text style={styles.darkSettingsStatus}>Coming soon</Text>
-          </View>
-        ))}
 
-        <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}>
-          <Text style={styles.backCustomerText}>Switch to customer app</Text>
-        </Pressable>
-        <Pressable style={styles.signOutButton} onPress={signOut}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </Pressable>
+            <View style={styles.premiumAccountCard}>
+              <Pressable style={styles.premiumAccountRow} onPress={() => setProfilePage('edit')}>
+                <View style={styles.premiumChecklistIcon}><Pencil size={20} color={theme.colors.teal} /></View>
+                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Public profile</Text>
+                <ChevronRight size={21} color={theme.colors.muted} />
+              </Pressable>
+              <Pressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHome')}>
+                <View style={styles.premiumChecklistIcon}><Clock3 size={20} color={theme.colors.teal} /></View>
+                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & hours</Text>
+                <ChevronRight size={21} color={theme.colors.muted} />
+              </Pressable>
+              {['Payments & payouts', 'Notifications', 'Help & support'].map(item => (
+                <View style={styles.premiumAccountRow} key={item}>
+                  <View style={styles.premiumChecklistIcon}><UserRound size={19} color={theme.colors.teal} /></View>
+                  <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
+                  <Text style={styles.premiumComingSoon}>Coming soon</Text>
+                </View>
+              ))}
+            </View>
+            <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}>
+              <Text style={styles.backCustomerText}>Switch to customer app</Text>
+            </Pressable>
+            <Pressable style={styles.signOutButton} onPress={signOut}>
+              <Text style={styles.signOutText}>Log out</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </TradeShell>
   );
@@ -9601,6 +9763,33 @@ const styles = StyleSheet.create({
   premiumMessageEmptySub: { color: theme.colors.muted, fontSize: 16, lineHeight: 24, marginTop: 12, textAlign: 'center', maxWidth: 300 },
   premiumMessageOnline: { marginTop: 28, minHeight: 56, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 31, flexDirection: 'row', alignItems: 'center', gap: 12, ...theme.shadow },
   premiumMessageOnlineText: { color: theme.colors.white, fontSize: 16, fontWeight: '800' },
+
+  premiumPreviewButton: { minHeight: 44, paddingHorizontal: 15, borderRadius: 24, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, ...theme.shadow },
+  premiumPreviewText: { fontSize: 13, fontWeight: '800', color: theme.colors.ink },
+  premiumProfileHero: { borderRadius: 28, backgroundColor: theme.colors.darkTeal, padding: 20, minHeight: 147, marginBottom: 14, overflow: 'hidden', ...theme.shadow },
+  premiumProfileHeroTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  premiumProfileAvatar: { width: 74, height: 74, borderRadius: 37, backgroundColor: theme.colors.tealMid, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  premiumProfileAvatarLetter: { color: theme.colors.white, fontSize: 30, fontWeight: '800' },
+  premiumProfileHeroName: { color: theme.colors.white, fontSize: 23, fontWeight: '800' },
+  premiumProfileHeroTrade: { color: '#D1E2E1', fontSize: 14, marginTop: 4 },
+  premiumProfileHeroNote: { marginTop: 8, color: '#A7C5C4', fontSize: 12 },
+  premiumProfileChecklist: { borderRadius: 30, backgroundColor: theme.colors.white, padding: 18, marginBottom: 18, ...theme.shadow },
+  premiumProfileProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 15 },
+  premiumProfileCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, borderTopWidth: 1, borderTopColor: theme.colors.line },
+  premiumChecklistIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  premiumChecklistTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
+  premiumChecklistSubtitle: { fontSize: 12, lineHeight: 18, color: theme.colors.muted, marginTop: 3 },
+  premiumProfileEditHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  premiumBackButton: { backgroundColor: theme.colors.white, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  premiumProfileEditTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink },
+  premiumProfileSaveTop: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 },
+  premiumProfileSaveTopText: { fontSize: 15, fontWeight: '800', color: theme.colors.teal },
+  premiumProfileEditHint: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 18 },
+  premiumPhotoCard: { borderRadius: 26, backgroundColor: theme.colors.white, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 14, ...theme.shadow },
+  premiumPhotoFootnote: { color: theme.colors.teal, fontSize: 12, marginTop: 10 },
+  premiumAccountCard: { borderRadius: 28, backgroundColor: theme.colors.white, paddingHorizontal: 17, paddingVertical: 5, marginTop: 10, marginBottom: 20, ...theme.shadow },
+  premiumAccountRow: { minHeight: 65, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderColor: theme.colors.line },
+  premiumComingSoon: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
 
 });
 
