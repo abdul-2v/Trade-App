@@ -7331,8 +7331,10 @@ function TradeSettingsScreen({
 
   return (
     <TradeShell current="tradeProfile" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage}>
-        <Text style={styles.tradePageTitle}>Trade profile</Text>
+      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
+        <Text style={styles.proSharedEyebrow}>YOUR BUSINESS · PROFILE</Text>
+        <Text style={styles.tradePageTitle}>Your profile</Text>
+        <Text style={styles.tradePageSub}>Manage the details customers can see.</Text>
 
         <View style={styles.proProfile}>
           {avatarUrl ? (
@@ -7352,7 +7354,7 @@ function TradeSettingsScreen({
         <View style={styles.tradeEditCard}>
           <View style={styles.tradeEditHeader}>
             <View style={styles.tradeEditIcon}>
-              <AppIcon icon={{ ios: 'person.crop.rectangle', android: 'badge' }} size={20} color={C.orange} />
+              <AppIcon icon={{ ios: 'person.crop.rectangle', android: 'badge' }} size={20} color="#B96750" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.tradeEditTitle}>Public profile</Text>
@@ -7366,7 +7368,7 @@ function TradeSettingsScreen({
             onChangeText={setDisplayName}
             style={styles.tradeEditInput}
             placeholder="e.g. AJ Plumbing"
-            placeholderTextColor="#71877B"
+            placeholderTextColor="#92A0AA"
             maxLength={80}
           />
 
@@ -7389,7 +7391,7 @@ function TradeSettingsScreen({
             onChangeText={setPublicPhone}
             style={styles.tradeEditInput}
             placeholder="07..."
-            placeholderTextColor="#71877B"
+            placeholderTextColor="#92A0AA"
             keyboardType="phone-pad"
             maxLength={11}
           />
@@ -7400,7 +7402,7 @@ function TradeSettingsScreen({
             onChangeText={setBio}
             style={[styles.tradeEditInput, styles.tradeEditBio]}
             placeholder="What do you specialise in? What areas do you cover?"
-            placeholderTextColor="#71877B"
+            placeholderTextColor="#92A0AA"
             multiline
             maxLength={600}
           />
@@ -7411,11 +7413,11 @@ function TradeSettingsScreen({
             disabled={savingProfile}
           >
             {savingProfile ? (
-              <ActivityIndicator color={C.navy} />
+              <ActivityIndicator color={C.white} />
             ) : (
               <>
                 <Text style={styles.tradeEditSaveText}>Save public profile</Text>
-                <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={15} color={C.navy} />
+                <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={15} color={C.white} />
               </>
             )}
           </Pressable>
@@ -7424,7 +7426,7 @@ function TradeSettingsScreen({
         <View style={styles.locationSettingsCard}>
           <View style={styles.locationSettingsHeader}>
             <View style={styles.locationSettingsIcon}>
-              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={20} color={C.cyan} />
+              <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={20} color="#3D777B" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.locationSettingsTitle}>Map location</Text>
@@ -7494,10 +7496,11 @@ function TradeSettingsScreen({
           </Text>
         </View>
 
+        <Text style={styles.proProfileSectionLabel}>More settings</Text>
         {['Verification', 'Services & prices', 'Notifications', 'Payouts'].map(item => (
           <View key={item} style={styles.darkSettingsRow}>
             <Text style={styles.darkSettingsLabel}>{item}</Text>
-            <Text style={styles.darkSettingsStatus}>Setup later</Text>
+            <Text style={styles.darkSettingsStatus}>Coming soon</Text>
           </View>
         ))}
 
