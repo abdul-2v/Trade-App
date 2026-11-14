@@ -1759,8 +1759,10 @@ function MapScreen({
   const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [marketIsLive, setMarketIsLive] = useState(false);
+  const [showDemoProfiles, setShowDemoProfiles] = useState(false);
 
-  const marketplaceTrades = marketIsLive ? liveTrades : trades;
+  // Real profiles are the default. Demo data is an explicit preview, not marketplace supply.
+  const marketplaceTrades = showDemoProfiles ? trades : liveTrades;
 
   const filtered = marketplaceTrades.filter(trade => {
     const query = searchQuery.trim().toLowerCase();
@@ -1908,7 +1910,7 @@ function MapScreen({
     if (selectedMapTrade && !filtered.some(trade => trade.id === selectedMapTrade.id)) {
       setSelectedMapTrade(null);
     }
-  }, [selectedCategory, maxDistance, minRating, availableOnly]);
+  }, [selectedCategory, maxDistance, minRating, availableOnly, showDemoProfiles, liveTrades]);
 
   const clearFilters = () => {
     setMaxDistance(5);
@@ -1986,16 +1988,31 @@ function MapScreen({
             <ActivityIndicator size="small" color={C.green} />
             <Text style={styles.marketDataBannerText}>Loading live TradeHub professionals…</Text>
           </View>
+        ) : showDemoProfiles ? (
+          <Pressable
+            style={styles.marketDataBanner}
+            onPress={() => { setShowDemoProfiles(false); setSelectedMapTrade(null); }}
+            accessibilityRole="button"
+          >
+            <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={14} color={C.orange} />
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Sample profiles only · not real businesses</Text>
+            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Show real</Text>
+          </Pressable>
         ) : marketIsLive ? (
           <View style={[styles.marketDataBanner, styles.marketDataBannerLive]}>
             <View style={styles.marketDataDot} />
-            <Text style={styles.marketDataBannerText}>Live marketplace · real TradeHub accounts</Text>
+            <Text style={styles.marketDataBannerText}>Real registered tradespeople · availability varies</Text>
           </View>
         ) : (
-          <View style={styles.marketDataBanner}>
-            <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={14} color={C.orange} />
-            <Text style={styles.marketDataBannerText}>Demo profiles shown until a real trade account publishes a work area.</Text>
-          </View>
+          <Pressable
+            style={styles.marketDataBanner}
+            onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
+            accessibilityRole="button"
+          >
+            <AppIcon icon={{ ios: 'info.circle', android: 'info_outline' }} size={15} color={C.blue} />
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>No real tradesperson locations found</Text>
+            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
+          </Pressable>
         )}
 
         {intent ? (
@@ -2024,8 +2041,8 @@ function MapScreen({
             filtered.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)
           ) : (
             <View style={styles.noResults}>
-              <Text style={styles.noResultsTitle}>No tradespeople match those filters</Text>
-              <Text style={styles.noResultsSub}>Try increasing the distance or lowering the minimum rating.</Text>
+              <Text style={styles.noResultsTitle}>{marketIsLive || showDemoProfiles ? 'No tradespeople match those filters' : 'No real tradespeople found yet'}</Text>
+              <Text style={styles.noResultsSub}>{marketIsLive || showDemoProfiles ? 'Try expanding your distance or changing the filters.' : 'We are building local coverage. You can preview sample profiles with the option above.'}</Text>
             </View>
           )}
         </ScrollView>
@@ -2080,7 +2097,15 @@ function MapScreen({
               <View style={styles.mapPreviewActions}>
                 <Pressable
                   style={styles.mapPreviewSecondary}
-                  onPress={() => Linking.openURL('tel:' + selectedMapTrade.phone)}
+                  onPress={() => {
+                    if (!selectedMapTrade.id.startsWith('live-')) {
+                      Alert.alert('Sample profile', 'This is not a real business and cannot be contacted.');
+                    } else if (selectedMapTrade.phone) {
+                      Linking.openURL('tel:' + selectedMapTrade.phone);
+                    } else {
+                      Alert.alert('No public number', 'This tradesperson has not listed a public number.');
+                    }
+                  }
                 >
                   <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={17} color={C.navy2} />
                   <Text style={styles.mapPreviewSecondaryText}>Call</Text>
