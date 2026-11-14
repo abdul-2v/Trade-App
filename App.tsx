@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
+import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { supabase } from './lib/supabase';
@@ -396,6 +397,8 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [accountType, setAccountType] = useState<'customer' | 'tradesperson'>('customer');
+  const [recoveringPassword, setRecoveringPassword] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -428,8 +431,9 @@ export default function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
+      if (event === 'PASSWORD_RECOVERY') setRecoveringPassword(true);
       setSession(nextSession);
 
       if (!nextSession?.user.id) {
@@ -599,8 +603,33 @@ export default function App() {
     );
   }
 
+  if (recoveringPassword) {
+    return (
+      <PasswordRecoveryScreen
+        initialEmail={recoveryEmail}
+        onCancel={async () => {
+          // A verified recovery token signs the user in temporarily.
+          // Sign out if they leave without choosing a new password.
+          if (session) {
+            const { error } = await supabase.auth.signOut();
+            if (error) return;
+          }
+          setRecoveringPassword(false);
+          setRecoveryEmail('');
+        }}
+        onFinished={() => {
+          setRecoveringPassword(false);
+          setRecoveryEmail('');
+        }}
+      />
+    );
+  }
+
   if (!session) {
-    return <AuthScreen />;
+    return <AuthScreen onForgotPassword={value => {
+      setRecoveryEmail(value);
+      setRecoveringPassword(true);
+    }} />;
   }
 
   if (mode === 'tradesperson') {
