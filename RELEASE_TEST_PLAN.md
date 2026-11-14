@@ -9,7 +9,10 @@
 - [ ] New customer can register, verify email, sign in, sign out and sign back in
 - [ ] New tradesperson can register, select trade, verify email, and publish business profile
 - [ ] Correct role is restored after force-closing / restarting the app
-- [ ] Password reset and account deletion are not marked complete until implemented and tested
+- [ ] Forgot password email request works with a registered test account
+- [ ] Latest recovery link or six-digit code is accepted and new password works after sign-out
+- [ ] Old password is rejected after reset; expired/used links show clear errors
+- [ ] Account deletion and native deep links remain incomplete until implemented and tested
 
 ## B. Customer discovers a real tradesperson
 - [ ] With no real map presence, customer sees honest empty state, not fictional available professionals
@@ -28,6 +31,7 @@
 - [ ] Tradesperson accepts or declines; customer sees correct status
 - [ ] Two attempted accepts cannot assign a job to two tradespeople
 - [ ] Both sides can message each other and see their own message history
+- [ ] Database role can INSERT genuine messages but cannot UPDATE a sent message's author or text
 - [ ] Job moves through accepted, en_route, arrived and completed
 - [ ] Only assigned tradesperson can change job status
 - [ ] Customer can cancel subject to the correct current status
@@ -73,6 +77,8 @@
 - [ ] Enable leaked-password protection and verify
 - [ ] Audit RLS across jobs, offers, conversations, messages and exact location tables using distinct test accounts
 - [ ] Check the app doesn't expose service_role secrets
+- [ ] Verify authenticated writes on profiles, availability and message tables through the actual mobile client
+- [ ] Verify tradespeople cannot directly edit is_verified, is_insured, rating or review_count
 - [ ] Add privacy policy, terms, report/block and emergency escalation process
 - [ ] Test on smaller iPhone and Android, with poor internet and app force-close
 - [ ] Only launch after successful real end-to-end booking and user acceptance tests
