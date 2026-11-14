@@ -6555,10 +6555,29 @@ function TradeJobsScreen({
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
       <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
-        <Text style={styles.tradePageTitle}>Jobs nearby</Text>
-        <Text style={styles.tradePageSub}>
-          Urgent requests are offered to nearby available tradespeople. The first suitable professional to accept gets the job.
-        </Text>
+        <Text style={styles.proSharedEyebrow}>YOUR WORK · JOBS</Text>
+        <View style={styles.proSharedHeadingRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tradePageTitle}>Jobs & opportunities</Text>
+            <Text style={styles.tradePageSub}>Nearby work, flexible offers and active bookings.</Text>
+          </View>
+          <Pressable style={styles.proSharedRefresh} accessibilityRole="button"
+            accessibilityLabel="Refresh job offers" onPress={() => {
+              loadJobs(currentUserId || undefined);
+              loadMarketJobs(currentUserId || undefined);
+            }}>
+            <AppIcon icon={{ ios: 'arrow.clockwise', android: 'refresh' }} size={19} color="#3B6D73" />
+          </Pressable>
+        </View>
+        <View style={styles.proJobsOverview}>
+          <View style={styles.proJobsOverviewIcon}>
+            <AppIcon icon={{ ios: 'briefcase.fill', android: 'work' }} size={20} color="#D18A75" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proJobsOverviewTitle}>{active.length + marketActive.length} active · {offered.length + marketOffered.length} new</Text>
+            <Text style={styles.proJobsOverviewSub}>Offers refresh automatically while the app is open.</Text>
+          </View>
+        </View>
 
         {active.length ? (
           <>
@@ -6739,10 +6758,10 @@ function TradeJobsScreen({
           ))
         ) : (
           <View style={styles.tradeEmptyCompact}>
-            <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={26} color={C.green} />
+            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={25} color="#4B7779" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No flexible offers yet</Text>
             <Text style={styles.tradeEmptyLargeText}>
-              On My Way, Street Run and scheduled bookings inside your area will appear here automatically.
+              New flexible and scheduled requests will appear here when customers post them.
             </Text>
           </View>
         )}
@@ -6802,10 +6821,10 @@ function TradeJobsScreen({
           ))
         ) : (
           <View style={styles.tradeEmptyLarge}>
-            <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={30} color={C.cyan} />
+            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
             <Text style={styles.tradeEmptyLargeText}>
-              Keep your availability on. Matching requests inside your travel radius will appear here automatically.
+              Matching urgent requests appear here while you're available.
             </Text>
           </View>
         )}
@@ -7020,7 +7039,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
       <TradeShell current="tradeMessages" navigate={navigate}>
         <View style={styles.tradeChatHeader}>
           <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack}>
-            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={19} color={C.white} />
+            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={19} color="#244A54" />
           </Pressable>
           <View>
             <Text style={styles.tradeChatName}>{selected.customerName}</Text>
@@ -7057,9 +7076,18 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
 
   return (
     <TradeShell current="tradeMessages" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.tradePage}>
-        <Text style={styles.tradePageTitle}>Messages</Text>
-        <Text style={styles.tradePageSub}>Real customer conversations will appear here.</Text>
+      <ScrollView contentContainerStyle={styles.tradePage} showsVerticalScrollIndicator={false}>
+        <Text style={styles.proSharedEyebrow}>YOUR WORK · INBOX</Text>
+        <View style={styles.proSharedHeadingRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tradePageTitle}>Messages</Text>
+            <Text style={styles.tradePageSub}>All your customer conversations in one place.</Text>
+          </View>
+          <Pressable style={styles.proSharedRefresh} onPress={loadInbox}
+            accessibilityRole="button" accessibilityLabel="Refresh messages">
+            <AppIcon icon={{ ios: 'arrow.clockwise', android: 'refresh' }} size={19} color="#3B6D73" />
+          </Pressable>
+        </View>
 
         {loading ? (
           <Text style={styles.darkMessageLast}>Loading messages…</Text>
@@ -7076,9 +7104,9 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
           ))
         ) : (
           <View style={styles.tradeEmptyLarge}>
-            <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={30} color={C.cyan} />
+            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={25} color="#4B7779" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No messages yet</Text>
-            <Text style={styles.tradeEmptyLargeText}>When a customer starts a conversation with your real profile, it will show here.</Text>
+            <Text style={styles.tradeEmptyLargeText}>When a customer contacts you about a job, the conversation will appear here.</Text>
           </View>
         )}
       </ScrollView>
