@@ -4797,11 +4797,45 @@ function CustomerProfileScreen({
     default_address: '',
     notifications_enabled: true,
   });
-  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | null>(null);
+  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | 'help' | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedTrades, setSavedTrades] = useState<Trade[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [savedError, setSavedError] = useState('');
+  const [supportCategory, setSupportCategory] = useState<'account' | 'booking' | 'safety' | 'technical' | 'other'>('technical');
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [sendingSupport, setSendingSupport] = useState(false);
+
+  const submitSupport = async () => {
+    if (sendingSupport) return;
+    const subject = supportSubject.trim();
+    const message = supportMessage.trim();
+    if (subject.length < 4 || message.length < 10) {
+      Alert.alert('More detail needed', 'Add a short subject and at least 10 characters about the problem.');
+      return;
+    }
+    setSendingSupport(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Please sign in again.');
+      const { error } = await supabase.from('support_requests').insert({
+        submitted_by: user.id,
+        category: supportCategory,
+        subject,
+        message,
+      });
+      if (error) throw error;
+      setSupportSubject('');
+      setSupportMessage('');
+      setEditMode(null);
+      Alert.alert('Support request recorded', 'Your request has been saved. This early-access support queue is not monitored continuously, so do not use it for emergencies.');
+    } catch (error: any) {
+      Alert.alert('Could not send request', error?.message || 'Please try again.');
+    } finally {
+      setSendingSupport(false);
+    }
+  };
 
   const loadSavedTrades = async () => {
     setLoadingSaved(true);
@@ -5013,7 +5047,7 @@ function CustomerProfileScreen({
 
         <Pressable
           style={styles.settingsRow}
-          onPress={() => Alert.alert('Help & support', 'Support chat and help articles will be added before public launch.')}
+          onPress={() => setEditMode('help')}
         >
           <View style={styles.v2SettingIcon}>
             <AppIcon icon={{ ios: 'questionmark.circle', android: 'help_outline' }} size={19} color={C.blue} />
@@ -5116,6 +5150,50 @@ function CustomerProfileScreen({
               </>
             ) : null}
 
+            {editMode === 'help' ? (
+              <>
+                <Text style={styles.profileModalTitle}>Contact support</Text>
+                <Text style={styles.profileModalHint}>Tell us what's happened. Requests are saved to our early-access support queue.</Text>
+                <Text style={styles.profileFieldLabel}>What is this about?</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4, marginBottom: 12 }}>
+                  {(['account', 'booking', 'technical', 'safety', 'other'] as const).map(category => (
+                    <Pressable
+                      key={category}
+                      onPress={() => setSupportCategory(category)}
+                      accessibilityRole="button"
+                      style={{ borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, backgroundColor: supportCategory === category ? '#DCE7ED' : '#F2EEE7' }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '900', color: supportCategory === category ? '#315D76' : '#607386' }}>
+                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.profileFieldLabel}>Subject</Text>
+                <TextInput
+                  value={supportSubject}
+                  onChangeText={setSupportSubject}
+                  style={styles.profileField}
+                  maxLength={140}
+                  placeholder="Briefly describe the issue"
+                  placeholderTextColor="#97A3AF"
+                />
+                <Text style={styles.profileFieldLabel}>Details</Text>
+                <TextInput
+                  value={supportMessage}
+                  onChangeText={setSupportMessage}
+                  multiline
+                  maxLength={4000}
+                  style={[styles.profileField, { minHeight: 112, height: 112, textAlignVertical: 'top', paddingTop: 12 }]}
+                  placeholder="What happened and what were you trying to do?"
+                  placeholderTextColor="#97A3AF"
+                />
+                <Text style={[styles.profileModalHint, { marginTop: 10 }]}>
+                  This inbox is not monitored continuously. For emergencies, contact the appropriate emergency service directly.
+                </Text>
+              </>
+            ) : null}
+
             {editMode === 'saved' ? (
               <>
                 <Text style={styles.profileModalTitle}>Saved tradespeople</Text>
@@ -5158,11 +5236,11 @@ function CustomerProfileScreen({
             ) : null}
 
             <Pressable
-              style={[styles.largeBlueButton, saving && { opacity: 0.5 }]}
-              onPress={editMode === 'saved' ? () => setEditMode(null) : saveProfile}
-              disabled={saving}
+              style={[styles.largeBlueButton, (saving || sendingSupport) && { opacity: 0.5 }]}
+              onPress={editMode === 'saved' ? () => setEditMode(null) : editMode === 'help' ? submitSupport : saveProfile}
+              disabled={saving || sendingSupport}
             >
-              <Text style={styles.largeBlueText}>{editMode === 'saved' ? 'Done' : saving ? 'Saving…' : 'Save changes'}</Text>
+              <Text style={styles.largeBlueText}>{editMode === 'saved' ? 'Done' : editMode === 'help' ? (sendingSupport ? 'Sending…' : 'Send request') : saving ? 'Saving…' : 'Save changes'}</Text>
             </Pressable>
           </View>
         </View>
