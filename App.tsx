@@ -5726,7 +5726,7 @@ function TradeHomeScreen({
             </Text>
           </View>
           <Pressable style={styles.proV3CustomerButton} onPress={switchToCustomer} accessibilityRole="button" accessibilityLabel="Switch to customer view">
-            <AppIcon icon={{ ios: 'person.2.fill', android: 'group' }} size={17} color={C.white} />
+            <AppIcon icon={{ ios: 'person.2.fill', android: 'group' }} size={18} color="#365872" />
           </Pressable>
         </View>
 
@@ -5768,7 +5768,7 @@ function TradeHomeScreen({
             <AppIcon
               icon={{ ios: available ? 'checkmark.circle.fill' : 'moon.fill', android: available ? 'check_circle' : 'bedtime' }}
               size={22}
-              color={available ? '#23516D' : '#9BAFC0'}
+              color={available ? '#267955' : '#8EA1AC'}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -5786,15 +5786,17 @@ function TradeHomeScreen({
           <Switch
             value={available}
             onValueChange={changeAvailable}
-            trackColor={{ false: '#43556A', true: '#6A94AE' }}
+            trackColor={{ false: '#C2CCD2', true: '#86B6A2' }}
             thumbColor={available ? C.white : '#D8E0E6'}
             disabled={savingAvailability}
           />
         </View>
 
-        <View style={styles.tradeSectionHeader}>
-          <Text style={styles.tradeSectionTitle}>Incoming work</Text>
-          <Pressable onPress={() => navigate('tradeJobs')}><Text style={styles.tradeLink}>View all</Text></Pressable>
+        <View style={styles.proHomeIncomingHeading}>
+          <Text style={[styles.proHomeSectionTitle, { flex: 1 }]}>Incoming work</Text>
+          <Pressable onPress={() => navigate('tradeJobs')} accessibilityRole="button">
+            <Text style={styles.proHomeViewAll}>View all  ↗</Text>
+          </Pressable>
         </View>
 
         {incomingOffers.length ? (
@@ -9167,44 +9169,77 @@ const styles = StyleSheet.create({
   marketContinueDisabled: { opacity: 0.38 },
   marketContinueText: { color: C.white, fontSize: 13, fontWeight: '900' },
 
-  tradePageV3: { paddingHorizontal: 18, paddingTop: 15, paddingBottom: 112, backgroundColor: C.homeInk },
-  proV3DetailsToggle: { minHeight: 66, borderRadius: 15, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 11, marginBottom: 11 },
-  proV3DetailsIcon: { width: 37, height: 37, borderRadius: 11, backgroundColor: '#DEE8EF', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
-  proV3DetailsTitle: { color: '#F9F6EF', fontSize: 14, fontWeight: '900' },
-  proV3DetailsSub: { color: '#ABBDCC', fontSize: 11, marginTop: 4 },
+  tradePageV3: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 118, backgroundColor: '#F7F8FA' },
+  proHomeBottomNav: { backgroundColor: '#FFFFFF', borderTopColor: '#E4E9ED' },
+  proHomeBottomActive: { backgroundColor: '#C96F52', width: 39, height: 34, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  proHomeHeroOrb: { position: 'absolute', width: 128, height: 128, top: -60, right: -46, borderRadius: 64, backgroundColor: '#28475E', opacity: 0.8 },
+  proHomeHeroHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  proHomeHeroEyebrow: { color: '#C9D5DD', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
+  proHomeHeroProgressPill: { borderRadius: 9, backgroundColor: '#36556B', paddingHorizontal: 9, paddingVertical: 6 },
+  proHomeHeroProgressText: { color: '#F5BF9F', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  proHomeHeroBody: { flexDirection: 'row', alignItems: 'center' },
+  proHomeHeroArrow: { width: 32, height: 32, borderRadius: 11, backgroundColor: '#344E62', alignItems: 'center', justifyContent: 'center', marginLeft: 9 },
+  proHomeIncomingHeading: { flexDirection: 'row', alignItems: 'center', marginTop: 26, marginBottom: 13 },
+  proHomeSectionEyebrow: { color: '#C16C50', fontSize: 10, fontWeight: '900', letterSpacing: 1.35, marginBottom: 6 },
+  proHomeSectionTitle: { color: '#1A2B3D', fontFamily: DISPLAY_FONT, fontSize: 21, fontWeight: '900', letterSpacing: -0.5 },
+  proHomeViewAll: { color: '#B45D47', fontSize: 12, fontWeight: '900' },
+  proHomeEmptyJobs: { minHeight: 105, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E4EAEE', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center' },
+  proHomeEmptyIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: '#E8F0F4', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  proHomeEmptyTitle: { color: '#1F3344', fontSize: 14, fontWeight: '900' },
+  proHomeEmptySub: { color: '#738290', fontSize: 11, lineHeight: 17, marginTop: 6 },
+  proHomeMapSection: { marginTop: 29, marginBottom: 24 },
+  proHomeMapHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 13 },
+  proHomeMapLink: { color: '#B66047', fontSize: 12, fontWeight: '900', paddingBottom: 4 },
+  proHomeMapCard: { borderRadius: 21, borderWidth: 1, borderColor: '#DEE6EA', backgroundColor: '#FFFFFF', overflow: 'hidden' },
+  proHomeMapCanvas: { height: 166, backgroundColor: '#E4EDF0', overflow: 'hidden', position: 'relative' },
+  proHomeMapFlag: { position: 'absolute', top: 12, left: 12, backgroundColor: '#FFFDF7', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  proHomeMapFlagText: { color: '#243B4C', fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
+  proHomeMapFooter: { minHeight: 79, flexDirection: 'row', alignItems: 'center', padding: 14 },
+  proHomeMapFooterIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#E6EFF3', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  proHomeMapAreaTitle: { color: '#1B3042', fontSize: 15, fontWeight: '900' },
+  proHomeMapAreaSub: { color: '#718493', fontSize: 11, lineHeight: 15, marginTop: 5 },
+  proHomeMapFooterArrow: { width: 32, height: 32, borderRadius: 11, backgroundColor: '#F0F3F4', alignItems: 'center', justifyContent: 'center', marginLeft: 9 },
+  proHomeToolsHeader: { marginTop: 4, marginBottom: 14 },
+  proHomeQuickTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  proHomeQuickAlt: { backgroundColor: '#EAF1F5', borderColor: '#DCE7ED' },
+
+  proV3DetailsToggle: { minHeight: 80, borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E8EC', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 12, marginBottom: 13 },
+  proV3DetailsIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#EBF1F5', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  proV3DetailsTitle: { color: '#1A3042', fontSize: 15, fontWeight: '900' },
+  proV3DetailsSub: { color: '#718392', fontSize: 11, marginTop: 5 },
   proV3AreaIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#DDE7EC', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
-  proV3RouteShortcut: { minHeight: 71, borderRadius: 15, backgroundColor: '#E0E9EE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, marginBottom: 14 },
+  proV3RouteShortcut: { minHeight: 75, borderRadius: 16, backgroundColor: '#E5EFF3', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginBottom: 15 },
   proV3RouteShortcutTitle: { color: '#1B3448', fontSize: 14, fontWeight: '900' },
   proV3RouteShortcutSub: { color: '#607788', fontSize: 11, marginTop: 4 },
-  proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 17 },
-  proV3Eyebrow: { color: '#F2A78E', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
-  proV3Hello: { color: '#F9F6EF', fontFamily: DISPLAY_FONT, fontSize: 28, fontWeight: '800', letterSpacing: -0.7, marginTop: 3 },
-  proV3Sub: { color: '#B5C0CD', fontSize: 12, marginTop: 5 },
-  proV3CustomerButton: { width: 43, height: 43, borderRadius: 13, backgroundColor: '#203247', borderWidth: 1, borderColor: '#344B60', alignItems: 'center', justifyContent: 'center' },
-  proV3ProfileCard: { minHeight: 87, borderRadius: 16, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', padding: 12, flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
-  proV3Avatar: { width: 52, height: 52, borderRadius: 14, marginRight: 12 },
-  proV3AvatarFallback: { width: 52, height: 52, borderRadius: 14, backgroundColor: '#2D4961', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  proV3AvatarFallbackText: { color: C.white, fontSize: 21, fontWeight: '900' },
-  proV3ProfileName: { color: C.white, fontSize: 16, fontWeight: '900' },
-  proV3ProfileTrade: { color: '#B2C0CD', fontSize: 11, marginTop: 3 },
-  proV3ProgressTrack: { height: 4, borderRadius: 2, backgroundColor: '#3B5063', marginTop: 8, overflow: 'hidden' },
-  proV3ProgressFill: { height: 4, borderRadius: 2, backgroundColor: '#E5A080' },
-  proV3Completion: { color: '#A8B8C9', fontSize: 10, marginTop: 6, fontWeight: '700' },
-  proV3Availability: { minHeight: 88, borderRadius: 16, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  proV3AvailabilityLive: { backgroundColor: '#DEEAEF', borderColor: '#DEEAEF' },
-  proV3AvailabilityIcon: { width: 43, height: 43, borderRadius: 12, backgroundColor: 'rgba(116,148,177,0.13)', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
-  proV3AvailabilityTitle: { color: C.white, fontSize: 15, fontWeight: '900' },
-  proV3AvailabilitySub: { color: '#B2C1CE', fontSize: 11, lineHeight: 16, marginTop: 4, paddingRight: 6 },
-  proV3ControlCard: { borderRadius: 16, backgroundColor: '#1D3042', borderWidth: 1, borderColor: '#354C60', padding: 14, marginBottom: 10 },
+  proV3Header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 21 },
+  proV3Eyebrow: { color: '#C16F54', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
+  proV3Hello: { color: '#152638', fontFamily: DISPLAY_FONT, fontSize: 33, fontWeight: '900', letterSpacing: -0.8, marginTop: 6 },
+  proV3Sub: { color: '#6E7E8C', fontSize: 12, marginTop: 7 },
+  proV3CustomerButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E4E9EE', alignItems: 'center', justifyContent: 'center' },
+  proV3ProfileCard: { minHeight: 158, borderRadius: 22, backgroundColor: '#182E40', padding: 18, marginBottom: 18, overflow: 'hidden', position: 'relative' },
+  proV3Avatar: { width: 57, height: 57, borderRadius: 16, marginRight: 13 },
+  proV3AvatarFallback: { width: 57, height: 57, borderRadius: 16, backgroundColor: '#CB7555', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  proV3AvatarFallbackText: { color: C.white, fontSize: 24, fontWeight: '900' },
+  proV3ProfileName: { color: '#FFFEFC', fontSize: 17, fontWeight: '900', letterSpacing: -0.25 },
+  proV3ProfileTrade: { color: '#B7C7D2', fontSize: 12, marginTop: 4 },
+  proV3ProgressTrack: { height: 5, borderRadius: 3, backgroundColor: '#405A6D', marginTop: 12, overflow: 'hidden' },
+  proV3ProgressFill: { height: 5, borderRadius: 3, backgroundColor: '#F3A987' },
+  proV3Completion: { color: '#C5D2DA', fontSize: 10, marginTop: 7, fontWeight: '700' },
+  proV3Availability: { minHeight: 87, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E4E8EB', padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  proV3AvailabilityLive: { backgroundColor: '#EAF5F0', borderColor: '#D4E9DD' },
+  proV3AvailabilityIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#E0ECE8', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  proV3AvailabilityTitle: { color: '#1A2D3B', fontSize: 15, fontWeight: '900' },
+  proV3AvailabilitySub: { color: '#637583', fontSize: 11, lineHeight: 16, marginTop: 4, paddingRight: 6 },
+  proV3ControlCard: { borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E7EB', padding: 16, marginBottom: 13 },
   proV3ControlHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 11 },
-  proV3ControlTitle: { color: C.white, fontSize: 14, fontWeight: '800' },
-  proV3ControlSub: { color: '#B0BECC', fontSize: 11, lineHeight: 15, marginTop: 3, maxWidth: 235 },
-  proV3ControlValue: { color: '#F2AE93', fontSize: 12, fontWeight: '900' },
-  proV3QuickGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 12 },
-  proV3QuickCard: { width: '31.5%', minHeight: 105, borderRadius: 15, backgroundColor: '#F4EFE7', padding: 12 },
-  proV3QuickIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#E4DED4', alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
-  proV3QuickValue: { color: '#1B2936', fontSize: 15, fontWeight: '900', letterSpacing: -0.25 },
-  proV3QuickLabel: { color: '#667480', fontSize: 10, lineHeight: 14, marginTop: 4 },
+  proV3ControlTitle: { color: '#1B2E41', fontSize: 14, fontWeight: '800' },
+  proV3ControlSub: { color: '#71818D', fontSize: 11, lineHeight: 16, marginTop: 4, maxWidth: 235 },
+  proV3ControlValue: { color: '#B9674F', fontSize: 12, fontWeight: '900' },
+  proV3QuickGrid: { flexDirection: 'row', gap: 13, marginBottom: 22 },
+  proV3QuickCard: { flex: 1, minHeight: 142, borderRadius: 19, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E8EC', padding: 15, justifyContent: 'space-between' },
+  proV3QuickIcon: { width: 41, height: 41, borderRadius: 13, backgroundColor: '#F7E6DE', alignItems: 'center', justifyContent: 'center' },
+  proV3QuickValue: { color: '#1B3041', fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+  proV3QuickLabel: { color: '#657989', fontSize: 11, lineHeight: 15, marginTop: 4 },
 
   mapIntentCard: { minHeight: 58, borderRadius: 17, backgroundColor: '#F7F3E8', borderWidth: 1, borderColor: '#E1DCCF', marginBottom: 10, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center' },
   mapIntentIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#FFE4D8', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
