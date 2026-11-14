@@ -5314,7 +5314,8 @@ function TradeShell({
   current: TradeScreen;
   navigate: (screen: TradeScreen) => void;
 }) {
-  const lightHome = current === 'tradeHome';
+  // Every tradesperson tab uses the same light design system.
+  const lightHome = true;
   const items: { label: string; icon: AppSymbol; route: TradeScreen }[] = [
     { label: 'Home', icon: { ios: 'house.fill', android: 'home' }, route: 'tradeHome' },
     { label: 'Jobs', icon: { ios: 'briefcase.fill', android: 'work' }, route: 'tradeJobs' },
