@@ -678,7 +678,7 @@ export default function TradeSuppliersMap() {
               <View style={S.storeHeader}>
                 <View style={S.storeGlyph}><Store size={22} color={theme.colors.teal} strokeWidth={2} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={S.storeTitle} numberOfLines={1}>{selected.name}</Text>
+                  <Text style={S.storeTitle} numberOfLines={2}>{selected.name}</Text>
                   <Text style={S.storeMeta}>
                     {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
                   </Text>
@@ -700,8 +700,12 @@ export default function TradeSuppliersMap() {
             </>
           ) : (
             <>
-              <Text style={S.panelTitle}>Closest {primaryTrade ? primaryTrade.toLowerCase() + ' suppliers' : 'trade suppliers'}</Text>
-              <Text style={S.panelHint}>{usingGps ? 'Nearest first · straight-line miles from you' : 'Nearest first · approximate miles from ' + (savedWorkArea ? 'work area' : 'Leicester')}. Tap a shop to compare locations.</Text>
+              <View style={S.panelHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={S.panelTitle}>Closest {primaryTrade ? primaryTrade.toLowerCase() + ' suppliers' : 'trade suppliers'}</Text>
+                  <Text style={S.panelHint}>{usingGps ? 'Nearest to your location' : 'Nearest to ' + (savedWorkArea ? 'your work area' : 'Leicester')} · straight-line miles</Text>
+                </View>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow}>
                 {visible.slice(0, 8).map((shop, index) => (
                   <Pressable
@@ -713,15 +717,14 @@ export default function TradeSuppliersMap() {
                     }}
                   >
                     <Text style={S.nearbyRank}>#{index + 1} CLOSEST</Text>
-                    <Text style={S.nearbyTitle} numberOfLines={1}>{shop.name}</Text>
+                    <Text style={S.nearbyTitle} numberOfLines={2}>{shop.name}</Text>
                     <View style={S.nearbyLink}><Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi {usingGps ? 'from you' : 'away'}</Text><ChevronRight size={16} strokeWidth={2} color={theme.colors.teal} /></View>
                   </Pressable>
                 ))}
               </ScrollView>
             </>
           )}
-          {sourceNote ? <Text style={S.sourceNote}>{sourceNote}</Text> : null}
-          <Text style={S.attribution}>Map data © OpenStreetMap contributors · Directory pins approximate. Check stock and opening times.</Text>
+          {!selected ? <Text style={S.attribution} numberOfLines={1}>Approximate pins · check opening times before visiting</Text> : null}
         </View>
       </View>
     </View>
@@ -761,27 +764,28 @@ const S = StyleSheet.create({
   noticeButton: { backgroundColor: theme.colors.darkTeal, borderRadius: 22, paddingHorizontal: 17, paddingVertical: 12, marginTop: 11, minHeight: 44 },
   noticeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   noticeButtonText: { color: LIGHT, fontSize: 13, fontWeight: '800' },
-  bottomPanel: { position: 'absolute', bottom: 12, left: 12, right: 12, borderRadius: 30, paddingHorizontal: 19, paddingTop: 19, paddingBottom: 17, backgroundColor: theme.colors.white, ...theme.shadow },
+  bottomPanel: { position: 'absolute', bottom: 10, left: 12, right: 12, borderRadius: 26, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 11, backgroundColor: theme.colors.white, ...theme.shadow },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   storeGlyph: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
-  storeTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  storeMeta: { color: theme.colors.muted, fontSize: 13, marginTop: 4 },
+  storeTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800', lineHeight: 21, letterSpacing: -0.4 },
+  storeMeta: { color: theme.colors.muted, fontSize: 12, marginTop: 3 },
   close: { width: 44, height: 44, backgroundColor: theme.colors.soft, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  address: { color: theme.colors.muted, fontSize: 13, marginTop: 10 },
-  actions: { flexDirection: 'row', marginTop: 16, gap: 9 },
-  primaryButton: { flex: 1, minHeight: 54, backgroundColor: theme.colors.darkTeal, borderRadius: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  address: { color: theme.colors.muted, fontSize: 12, marginTop: 6 },
+  actions: { flexDirection: 'row', marginTop: 10, gap: 8 },
+  primaryButton: { flex: 1, minHeight: 48, backgroundColor: theme.colors.darkTeal, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   primaryButtonText: { color: theme.colors.white, fontSize: 15, fontWeight: '800' },
-  secondaryButton: { minHeight: 54, backgroundColor: theme.colors.soft, paddingHorizontal: 17, borderRadius: 27, justifyContent: 'center' },
+  secondaryButton: { minHeight: 48, backgroundColor: theme.colors.soft, paddingHorizontal: 14, borderRadius: 24, justifyContent: 'center' },
   secondaryText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
-  panelTitle: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  panelHint: { color: theme.colors.muted, marginTop: 5, fontSize: 13, lineHeight: 19 },
-  nearbyRow: { paddingTop: 15, paddingBottom: 4 },
-  nearbyShop: { width: 166, minHeight: 113, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 22, backgroundColor: theme.colors.proBackground, marginRight: 10 },
-  nearbyRank: { color: theme.colors.coralText, fontWeight: '800', letterSpacing: 0.5, fontSize: 12, marginBottom: 8 },
-  nearbyTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
-  nearbyLink: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  panelHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  panelTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.35 },
+  panelHint: { color: theme.colors.muted, marginTop: 3, fontSize: 12, lineHeight: 16 },
+  nearbyRow: { paddingTop: 9, paddingBottom: 3 },
+  nearbyShop: { width: 170, minHeight: 88, paddingVertical: 9, paddingHorizontal: 11, borderRadius: 18, backgroundColor: theme.colors.proBackground, marginRight: 9, justifyContent: 'space-between' },
+  nearbyRank: { color: theme.colors.coralText, fontWeight: '800', letterSpacing: 0.35, fontSize: 12, marginBottom: 4 },
+  nearbyTitle: { color: theme.colors.ink, fontSize: 13, lineHeight: 16, fontWeight: '800' },
+  nearbyLink: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 3 },
   nearbyDistance: { color: theme.colors.muted, fontSize: 12 },
-  attribution: { marginTop: 7, fontSize: 10, color: theme.colors.muted },
+  attribution: { marginTop: 3, fontSize: 12, color: theme.colors.muted },
   sourceNote: { marginTop: 10, fontSize: 12, color: theme.colors.teal, fontWeight: '700' },
   pinDisclaimer: { marginTop: 5, fontSize: 12, color: theme.colors.coralText },
 });
