@@ -26,7 +26,7 @@ const normaliseUkMobile = (value: string) => {
   return '07' + digits.slice(0, 9);
 };
 
-export default function AuthScreen() {
+export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (email: string) => void }) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'verify'>('signup');
   const [accountType, setAccountType] = useState<AccountType>('customer');
   const [primaryTrade, setPrimaryTrade] = useState('Plumber');
@@ -361,6 +361,17 @@ export default function AuthScreen() {
                 textContentType={mode === 'signup' ? 'newPassword' : 'password'}
               />
 
+              {mode === 'signin' ? (
+                <Pressable
+                  style={styles.forgotPasswordButton}
+                  onPress={() => onForgotPassword?.(email)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset forgotten password"
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+                </Pressable>
+              ) : null}
+
               {mode === 'signup' ? (
                 <>
                   <View style={styles.passwordRules}>
@@ -455,6 +466,8 @@ const styles = StyleSheet.create({
   switchButton: { paddingVertical: 15, alignItems: 'center' },
   switchText: { color: '#315D76', fontWeight: '800', fontSize: 13 },
   switchTextDisabled: { color: '#9B9E96' },
+  forgotPasswordButton: { alignSelf: 'flex-end', paddingVertical: 14, paddingLeft: 12 },
+  forgotPasswordText: { color: '#315D76', fontSize: 12, fontWeight: '900' },
   verifyCard: { backgroundColor: '#E5EBED', borderRadius: 15, padding: 16, marginBottom: 8 },
   verifyCardTitle: { color: '#172B3C', fontFamily: DISPLAY_FONT, fontSize: 15, fontWeight: '800' },
   verifyCardText: { color: '#586B79', fontSize: 12, lineHeight: 18, marginTop: 5 },
