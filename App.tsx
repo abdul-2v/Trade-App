@@ -846,6 +846,7 @@ export default function App() {
     return (
       <CustomerProfileScreen
         navigate={setCustomerScreen}
+        openTrade={openTrade}
         switchToTrade={() => {
           setMode('tradesperson');
           setTradeScreen('tradeHome');
@@ -4757,11 +4758,13 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
 
 function CustomerProfileScreen({
   navigate,
+  openTrade,
   switchToTrade,
   signOut,
   accountType,
 }: {
   navigate: (screen: CustomerScreen) => void;
+  openTrade: (trade: Trade) => void;
   switchToTrade: () => void;
   signOut: () => void;
   accountType: 'customer' | 'tradesperson';
@@ -4773,8 +4776,93 @@ function CustomerProfileScreen({
     default_address: '',
     notifications_enabled: true,
   });
-  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | null>(null);
+  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedTrades, setSavedTrades] = useState<Trade[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [savedError, setSavedError] = useState('');
+
+  const loadSavedTrades = async () => {
+    setLoadingSaved(true);
+    setSavedError('');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sign in to view saved tradespeople.');
+      const { data: saves, error: savesError } = await supabase
+        .from('saved_tradespeople')
+        .select('tradesperson_id')
+        .eq('customer_id', user.id)
+        .order('created_at', { ascending: false });
+      if (savesError) throw savesError;
+      const ids = (saves || []).map(row => row.tradesperson_id as string);
+      if (!ids.length) {
+        setSavedTrades([]);
+        return;
+      }
+      const [{ data: profiles, error: profilesError }, { data: availability }] = await Promise.all([
+        supabase.from('tradesperson_profiles')
+          .select('user_id, display_name, primary_trade, avatar_url, rating, review_count, is_verified, is_insured, public_phone, bio')
+          .in('user_id', ids),
+        supabase.from('trade_availability')
+          .select('user_id, is_available, available_until')
+          .in('user_id', ids),
+      ]);
+      if (profilesError) throw profilesError;
+      const profileById = new Map((profiles || []).map(profile => [profile.user_id, profile]));
+      const availableById = new Map((availability || []).map(item => [item.user_id, item]));
+      const items: Trade[] = ids.flatMap(id => {
+        const prof = profileById.get(id);
+        if (!prof || !customerCategoryOrder.includes(prof.primary_trade as TradeCategory)) return [];
+        const role = prof.primary_trade as TradeCategory;
+        const availability = availableById.get(id);
+        const active = Boolean(availability?.is_available &&
+          (!availability.available_until || new Date(availability.available_until).getTime() > Date.now()));
+        return [{
+          id: 'live-' + id,
+          name: prof.display_name || 'Local tradesperson',
+          role,
+          distance: -1,
+          eta: 0,
+          rating: Number(prof.rating) || 0,
+          reviews: Number(prof.review_count) || 0,
+          image: prof.avatar_url || '',
+          accent: C.orange,
+          callout: 0,
+          available: active,
+          verified: Boolean(prof.is_verified),
+          insured: Boolean(prof.is_insured),
+          response: 0,
+          years: 0,
+          phone: prof.public_phone || '',
+          about: prof.bio || 'TradeHub tradesperson profile.',
+          services: serviceCatalog[role].slice(0, 5),
+        }];
+      });
+      setSavedTrades(items);
+    } catch (error: any) {
+      setSavedError(error?.message || 'Could not load saved tradespeople.');
+    } finally {
+      setLoadingSaved(false);
+    }
+  };
+
+  const showSavedTrades = () => {
+    setEditMode('saved');
+    loadSavedTrades();
+  };
+
+  const removeSavedTrade = async (tradeId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from('saved_tradespeople').delete()
+      .eq('customer_id', user.id)
+      .eq('tradesperson_id', tradeId.replace('live-', ''));
+    if (error) {
+      Alert.alert('Could not remove', error.message);
+      return;
+    }
+    setSavedTrades(current => current.filter(item => item.id !== tradeId));
+  };
 
   const loadProfile = async () => {
     const {
@@ -4866,14 +4954,14 @@ function CustomerProfileScreen({
 
         <Pressable
           style={styles.settingsRow}
-          onPress={() => Alert.alert('Saved tradespeople', 'You have not saved any tradespeople yet.')}
+          onPress={showSavedTrades}
         >
           <View style={styles.v2SettingIcon}>
             <AppIcon icon={{ ios: 'heart', android: 'favorite_border' }} size={19} color={C.blue} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingsLabel}>Saved tradespeople</Text>
-            <Text style={styles.settingsSubText}>Your favourites will appear here</Text>
+            <Text style={styles.settingsSubText}>Your bookmarked professionals</Text>
           </View>
           <Text style={styles.settingsChevron}>›</Text>
         </Pressable>
@@ -5007,8 +5095,53 @@ function CustomerProfileScreen({
               </>
             ) : null}
 
-            <Pressable style={[styles.largeBlueButton, saving && { opacity: 0.5 }]} onPress={saveProfile} disabled={saving}>
-              <Text style={styles.largeBlueText}>{saving ? 'Saving…' : 'Save changes'}</Text>
+            {editMode === 'saved' ? (
+              <>
+                <Text style={styles.profileModalTitle}>Saved tradespeople</Text>
+                <Text style={styles.profileModalHint}>Only real TradeHub professionals can be saved.</Text>
+                {loadingSaved ? <ActivityIndicator color={C.orange} style={{ marginVertical: 22 }} /> : null}
+                {savedError ? <Text style={[styles.profileModalHint, { color: '#A44D3E' }]}>{savedError}</Text> : null}
+                {!loadingSaved && !savedError && !savedTrades.length ? (
+                  <Text style={[styles.profileModalHint, { marginVertical: 18 }]}>No saved professionals yet. Open a real tradesperson's profile and tap the heart to save them here.</Text>
+                ) : null}
+                <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  {savedTrades.map(item => (
+                    <View key={item.id} style={styles.savedTradeRow}>
+                      <View style={styles.savedTradeInitial}>
+                        <Text style={styles.savedTradeInitialText}>{item.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.savedTradeName} numberOfLines={1}>{item.name}</Text>
+                        <Text style={styles.savedTradeRole}>{item.role}</Text>
+                      </View>
+                      <Pressable
+                        style={styles.savedTradeAction}
+                        accessibilityRole="button"
+                        accessibilityLabel={'View ' + item.name}
+                        onPress={() => { setEditMode(null); openTrade(item); }}
+                      >
+                        <Text style={styles.savedTradeActionText}>View</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => removeSavedTrade(item.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={'Remove ' + item.name + ' from saved tradespeople'}
+                        style={{ padding: 9, marginLeft: 5 }}
+                      >
+                        <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={14} color={C.muted} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
+
+            <Pressable
+              style={[styles.largeBlueButton, saving && { opacity: 0.5 }]}
+              onPress={editMode === 'saved' ? () => setEditMode(null) : saveProfile}
+              disabled={saving}
+            >
+              <Text style={styles.largeBlueText}>{editMode === 'saved' ? 'Done' : saving ? 'Saving…' : 'Save changes'}</Text>
             </Pressable>
           </View>
         </View>
@@ -7553,6 +7686,13 @@ const styles = StyleSheet.create({
   profileModalRoot: { flex: 1, justifyContent: 'flex-end' },
   profileModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,27,49,0.35)' },
   profileModalSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
+  savedTradeRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E5E1D8', paddingVertical: 10 },
+  savedTradeInitial: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#DCE7ED', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  savedTradeInitialText: { color: '#385A71', fontSize: 17, fontWeight: '900' },
+  savedTradeName: { color: '#1B2C3B', fontSize: 14, fontWeight: '900' },
+  savedTradeRole: { color: '#677887', fontSize: 11, marginTop: 3 },
+  savedTradeAction: { paddingHorizontal: 13, paddingVertical: 9, backgroundColor: '#E4EBEF', borderRadius: 10 },
+  savedTradeActionText: { color: '#315D76', fontWeight: '900', fontSize: 11 },
   profileModalTitle: { color: C.text, fontSize: 21, fontWeight: '900', marginBottom: 10 },
   profileModalHint: { color: C.muted, fontSize: 12, lineHeight: 17, marginBottom: 12 },
   profileFieldLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 10, marginBottom: 6 },
