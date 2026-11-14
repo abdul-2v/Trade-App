@@ -1853,7 +1853,7 @@ function MapScreen({
             eta: estimatedDispatchEta(distance),
             rating: Number(profile.rating) || 0,
             reviews: Number(profile.review_count) || 0,
-            image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + profile.user_id,
+            image: profile.avatar_url || '',
             accent: C.green,
             callout: 0,
             available: isAvailable,
@@ -2058,7 +2058,13 @@ function MapScreen({
               </Pressable>
 
               <View style={styles.mapPreviewTop}>
-                <Image source={{ uri: selectedMapTrade.image }} style={styles.mapPreviewImage} />
+                {selectedMapTrade.image ? (
+                  <Image source={{ uri: selectedMapTrade.image }} style={styles.mapPreviewImage} />
+                ) : (
+                  <View style={[styles.mapPreviewImage, { backgroundColor: '#DCE7ED', alignItems: 'center', justifyContent: 'center' }]}>
+                    <Text style={{ color: '#315F7D', fontWeight: '900', fontSize: 23 }}>{selectedMapTrade.name.charAt(0)}</Text>
+                  </View>
+                )}
                 <View style={styles.mapPreviewMain}>
                   <View style={styles.mapPreviewNameRow}>
                     <Text style={styles.mapPreviewName}>{selectedMapTrade.name}</Text>
@@ -2512,10 +2518,19 @@ function MapMock({
     });
   };
 
+  const escapeMarkerText = value => String(value || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+
   const addTradeMarker = (marker) => {
+    const isSafePhoto = typeof marker.image === 'string' && /^https:\/\/[^\s"'<>]+$/i.test(marker.image);
+    const avatar = isSafePhoto
+      ? '<img class="trade-avatar" loading="lazy" src="' + escapeMarkerText(marker.image) + '" />'
+      : '<span class="trade-avatar" style="background:#DCE7ED;color:#315F7D;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px">' +
+        escapeMarkerText((marker.name || marker.role || '?').charAt(0)) + '</span>';
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><div class="trade-avatar-wrap"><img class="trade-avatar" loading="lazy" src="' + marker.image + '" /><span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + marker.role + '</div></div>',
+      html: '<div class="trade-pin"><div class="trade-avatar-wrap">' + avatar + '<span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
       iconSize: [56,58],
       iconAnchor: [28,29]
     });
@@ -2718,7 +2733,13 @@ function TradeProfileScreen({
     <CustomerShell>
       <ScrollView contentContainerStyle={{ paddingBottom: 95 }} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHero}>
-          <Image source={{ uri: trade.image }} style={styles.profileHeroImage} />
+          {trade.image ? (
+            <Image source={{ uri: trade.image }} style={styles.profileHeroImage} />
+          ) : (
+            <View style={[styles.profileHeroImage, { backgroundColor: '#DCE7ED', alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ color: '#315F7D', fontWeight: '900', fontSize: 90 }}>{trade.name.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
           <Pressable style={styles.backCircle} onPress={back}><Text style={styles.backText}>‹</Text></Pressable>
           <View style={styles.profileHeroActions}>
             <Pressable
@@ -2998,7 +3019,7 @@ function UrgentScreen({
           eta,
           rating: Number(profile.rating) || 0,
           reviews: Number(profile.review_count) || 0,
-          image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + profile.user_id,
+          image: profile.avatar_url || '',
           accent: C.blue,
           callout: 0,
           available: true,
@@ -3064,7 +3085,7 @@ function UrgentScreen({
       eta,
       rating: Number(profile.rating) || 0,
       reviews: Number(profile.review_count) || 0,
-      image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + userId,
+      image: profile.avatar_url || '',
       accent: C.blue,
       callout: 0,
       available: true,
@@ -3958,7 +3979,7 @@ function RequestDetailScreen({
       eta: Number(row.estimated_arrival_minutes || offer?.eta_minutes) || 10,
       rating: Number(profile.rating) || 0,
       reviews: Number(profile.review_count) || 0,
-      image: profile.avatar_url || 'https://i.pravatar.cc/600?u=' + userId,
+      image: profile.avatar_url || '',
       accent: C.blue,
       callout: 0,
       available: true,
