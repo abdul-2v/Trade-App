@@ -1761,6 +1761,8 @@ function MapScreen({
   const [marketLoading, setMarketLoading] = useState(true);
   const [marketIsLive, setMarketIsLive] = useState(false);
   const [showDemoProfiles, setShowDemoProfiles] = useState(false);
+  const [marketError, setMarketError] = useState(false);
+  const [reloadMarketplace, setReloadMarketplace] = useState(0);
 
   // Real profiles are the default. Demo data is an explicit preview, not marketplace supply.
   const marketplaceTrades = showDemoProfiles ? trades : liveTrades;
@@ -1797,22 +1799,51 @@ function MapScreen({
         // Fall back to Leicester centre for distance ordering.
       }
 
-      const [{ data: profiles, error: profileError }, { data: availability }, { data: presence }] =
-        await Promise.all([
-          supabase
-            .from('tradesperson_profiles')
+      // A failed network call must not be mistaken for zero local tradespeople.
+      // Give the user a retry action instead of a permanent loading indicator.
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      let profiles: any[] | null = null;
+      let availability: any[] | null = null;
+      let presence: any[] | null = null;
+      try {
+        const query = Promise.all([
+          supabase.from('tradesperson_profiles')
             .select('user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'),
-          supabase
-            .from('trade_availability')
+          supabase.from('trade_availability')
             .select('user_id, is_available, radius_miles, available_until, location_mode'),
-          supabase
-            .from('trade_map_presence')
+          supabase.from('trade_map_presence')
             .select('user_id, latitude, longitude, source_mode, updated_at'),
         ]);
+        const [{ data: profileRows, error: profileError },
+          { data: availabilityRows, error: availabilityError },
+          { data: presenceRows, error: presenceError }] = await Promise.race([
+          query,
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('Marketplace search timed out.')), 15000);
+          }),
+        ]);
+        if (profileError || availabilityError || presenceError) {
+          throw profileError || availabilityError || presenceError;
+        }
+        profiles = profileRows;
+        availability = availabilityRows;
+        presence = presenceRows;
+      } catch {
+        if (active) {
+          setMarketError(true);
+          setMarketLoading(false);
+          setLiveTrades([]);
+          setMarketIsLive(false);
+        }
+        return;
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
 
       if (!active) return;
+      setMarketError(false);
 
-      if (profileError || !profiles?.length) {
+      if (!profiles?.length) {
         setLiveTrades([]);
         setMarketIsLive(false);
         setMarketLoading(false);
@@ -1900,7 +1931,7 @@ function MapScreen({
       active = false;
       channels.forEach(channel => supabase.removeChannel(channel));
     };
-  }, []);
+  }, [reloadMarketplace]);
 
   const activeFilterCount =
     (maxDistance !== 5 ? 1 : 0) +
@@ -1989,6 +2020,16 @@ function MapScreen({
             <ActivityIndicator size="small" color={C.green} />
             <Text style={styles.marketDataBannerText}>Loading live TradeHub professionals…</Text>
           </View>
+        ) : marketError ? (
+          <Pressable
+            style={styles.marketDataBanner}
+            onPress={() => { setMarketLoading(true); setReloadMarketplace(value => value + 1); }}
+            accessibilityRole="button"
+          >
+            <AppIcon icon={{ ios: 'wifi.exclamationmark', android: 'wifi_off' }} size={15} color={C.orange} />
+            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Could not load live tradespeople</Text>
+            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Retry</Text>
+          </Pressable>
         ) : showDemoProfiles ? (
           <Pressable
             style={styles.marketDataBanner}
