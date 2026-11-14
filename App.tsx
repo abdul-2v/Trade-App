@@ -2167,7 +2167,7 @@ function MapScreen({
                     } else {
                       Alert.alert('No public number', 'This tradesperson has not listed a public number.');
                     }
-                  }
+                  }}
                 >
                   <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={17} color={C.navy2} />
                   <Text style={styles.mapPreviewSecondaryText}>Call</Text>
