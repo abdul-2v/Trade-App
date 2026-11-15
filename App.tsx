@@ -4553,6 +4553,7 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [inboxSearch, setInboxSearch] = useState('');
+  const [inboxSearch, setInboxSearch] = useState('');
   const shownConversations = conversations.filter(item => (item.name + ' ' + item.trade + ' ' + item.lastMessage).toLowerCase().includes(inboxSearch.trim().toLowerCase()));
 
   const loadInbox = async () => {
@@ -4735,66 +4736,58 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
     loadInbox();
   };
 
+  const matchingConversations = conversations.filter(item => {
+    const query = inboxSearch.trim().toLowerCase();
+    return !query || item.name.toLowerCase().includes(query) ||
+      item.trade.toLowerCase().includes(query) || item.lastMessage.toLowerCase().includes(query);
+  });
+
   if (selectedConversation) {
     return (
       <CustomerShell current="messages" navigate={navigate}>
-        <View style={styles.liveChatHeader}>
-          <Pressable style={styles.liveChatBack} onPress={() => setSelectedConversation(null)} accessibilityRole="button" accessibilityLabel="Back to Inbox">
+        <View style={styles.customerChatHeader}>
+          <Pressable style={styles.customerChatBack} onPress={() => setSelectedConversation(null)}
+            accessibilityRole="button" accessibilityLabel="Back to inbox">
             <ArrowLeft size={21} color={theme.colors.ink} strokeWidth={2} />
           </Pressable>
           {selectedConversation.avatar ? (
-            <Image source={{ uri: selectedConversation.avatar }} style={styles.liveChatAvatar} />
+            <Image source={{ uri: selectedConversation.avatar }} style={styles.customerChatAvatar} />
           ) : (
-            <View style={styles.liveChatAvatarFallback}>
-              <Text style={styles.liveChatAvatarText}>{selectedConversation.name.charAt(0).toUpperCase()}</Text>
-            </View>
+            <View style={styles.customerChatInitial}><Text style={styles.customerChatInitialText}>{selectedConversation.name.charAt(0).toUpperCase()}</Text></View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.liveChatName}>{selectedConversation.name}</Text>
-            <Text style={styles.liveChatRole}>{selectedConversation.trade}</Text>
+            <Text style={styles.customerChatName} numberOfLines={1}>{selectedConversation.name}</Text>
+            <Text style={styles.customerChatRole}>{selectedConversation.trade}</Text>
           </View>
         </View>
 
-        <ScrollView
-          style={styles.liveChatBody}
-          contentContainerStyle={styles.liveChatContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={styles.customerChatBody} contentContainerStyle={styles.customerChatContent} showsVerticalScrollIndicator={false}>
           {loadingThread ? (
-            <Text style={styles.messagesMuted}>Loading conversation…</Text>
+            <ActivityIndicator color={theme.colors.teal} />
           ) : thread.length ? (
             thread.map(item => {
               const mine = item.sender_id === currentUserId;
               return (
-                <View key={item.id} style={[styles.liveBubble, mine ? styles.liveBubbleMine : styles.liveBubbleTheirs]}>
-                  <Text style={[styles.liveBubbleText, mine && styles.liveBubbleTextMine]}>{item.body}</Text>
+                <View key={item.id} style={[styles.customerChatBubble, mine ? styles.customerChatBubbleMine : styles.customerChatBubbleTheirs]}>
+                  <Text style={[styles.customerChatBubbleText, mine && styles.customerChatBubbleTextMine]}>{item.body}</Text>
                 </View>
               );
             })
           ) : (
-            <View style={styles.threadEmpty}>
-              <Text style={styles.threadEmptyTitle}>Start the conversation</Text>
-              <Text style={styles.threadEmptySub}>Send a message about the job you need doing.</Text>
+            <View style={styles.customerChatWelcome}>
+              <MessageCircle size={30} color={theme.colors.teal} strokeWidth={1.8} />
+              <Text style={styles.customerInboxEmptyTitle}>Start the conversation</Text>
+              <Text style={styles.customerInboxEmptyText}>Send a message about the work you need doing.</Text>
             </View>
           )}
         </ScrollView>
 
-        <View style={styles.liveComposer}>
-          <TextInput
-            value={message}
-            onChangeText={setMessage}
-            style={styles.liveComposerInput}
-            placeholder="Type a message…"
-            placeholderTextColor="#9AA6B3"
-            multiline
-          />
-          <Pressable
-            style={[styles.liveSendButton, !message.trim() && styles.liveSendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!message.trim()}
-            accessibilityRole="button" accessibilityLabel="Send message"
-          >
-            <ArrowUp size={21} color="#FFFFFF" strokeWidth={2.3} />
+        <View style={styles.customerChatComposer}>
+          <TextInput value={message} onChangeText={setMessage} style={styles.customerChatInput}
+            placeholder="Write a message" placeholderTextColor={theme.colors.muted} multiline />
+          <Pressable onPress={sendMessage} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message"
+            style={[styles.customerChatSend, !message.trim() && { opacity: 0.5 }]}>
+            <ArrowUp size={22} color="#FFFFFF" strokeWidth={2.3} />
           </Pressable>
         </View>
       </CustomerShell>
@@ -4803,69 +4796,76 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
 
   return (
     <CustomerShell current="messages" navigate={navigate}>
-      <View style={styles.messagesPage}>
-        <View style={styles.messagesTitleRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.messagesTitle}>Inbox</Text>
-            <Text style={styles.messagesSub}>Chat with pros about your jobs</Text>
-          </View>
-        </View>
-        {conversations.length ? (
-          <>
-            <View style={styles.customerInboxSearchWrap}>
-              <Search size={20} strokeWidth={2} color={theme.colors.muted} />
-              <TextInput value={inboxSearch} onChangeText={setInboxSearch}
-                placeholder="Search messages" placeholderTextColor={theme.colors.muted}
-                style={styles.customerInboxSearchInput}
-                accessibilityLabel="Search conversations" />
-              {inboxSearch ? <Pressable accessibilityRole="button" accessibilityLabel="Clear inbox search"
-                style={styles.customerInboxClear} onPress={() => setInboxSearch('')}>
-                <X size={19} color={theme.colors.muted} strokeWidth={2} />
-              </Pressable> : null}
-            </View>
-            <View style={styles.customerInboxAllPill}><Text style={styles.customerInboxAllText}>All conversations · {conversations.length}</Text></View>
-          </>
-        ) : null}
+      <View style={styles.customerInboxPage}>
+        <Text style={styles.customerInboxTitle}>Inbox</Text>
+        <Text style={styles.customerInboxSubtitle}>Chat with pros about your jobs</Text>
+
         {loadingInbox ? (
-          <View style={styles.messagesLoading}>
-            <ActivityIndicator color={theme.colors.teal}/>
-            <Text style={styles.messagesMuted}>Loading messages…</Text>
+          <View style={styles.customerInboxEmptyCard}>
+            <ActivityIndicator size="large" color={theme.colors.teal} />
+            <Text style={styles.customerInboxEmptyText}>Loading conversations…</Text>
           </View>
         ) : conversations.length ? (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
-            {shownConversations.length ? shownConversations.map(item => (
-              <Pressable key={item.id} style={styles.inboxRow} onPress={() => setSelectedConversation(item)}
-                accessibilityRole="button" accessibilityLabel={'Open chat with ' + item.name}>
-                {item.avatar ? (
-                  <Image source={{ uri: item.avatar }} style={styles.inboxAvatar} />
-                ) : (
-                  <View style={styles.inboxAvatarFallback}>
-                    <Text style={styles.inboxAvatarFallbackText}>{item.name.trim().split(' ').slice(0,2).map(part => part.charAt(0)).join('').toUpperCase()}</Text>
+          <>
+            <View style={styles.customerInboxSearch}>
+              <Search size={20} color={theme.colors.muted} strokeWidth={2} />
+              <TextInput value={inboxSearch} onChangeText={setInboxSearch}
+                placeholder="Search messages" placeholderTextColor={theme.colors.muted}
+                style={styles.customerInboxSearchInput} autoCorrect={false} />
+              {inboxSearch ? (
+                <Pressable style={styles.customerInboxClear} onPress={() => setInboxSearch('')}
+                  accessibilityRole="button" accessibilityLabel="Clear search">
+                  <X size={19} color={theme.colors.muted} strokeWidth={2} />
+                </Pressable>
+              ) : null}
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              {matchingConversations.map(item => (
+                <Pressable key={item.id} style={styles.customerInboxRow}
+                  onPress={() => setSelectedConversation(item)}
+                  accessibilityRole="button" accessibilityLabel={'Open conversation with ' + item.name}>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.customerInboxAvatar} />
+                  ) : (
+                    <View style={styles.customerInboxInitial}><Text style={styles.customerInboxInitialText}>{item.name.charAt(0).toUpperCase()}</Text></View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.customerInboxRowTop}>
+                      <Text style={styles.customerInboxRowName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={styles.customerInboxDate}>{new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
+                    </View>
+                    <Text style={styles.customerInboxTrade}>{item.trade}</Text>
+                    <Text numberOfLines={2} style={styles.customerInboxSnippet}>{item.lastMessage}</Text>
                   </View>
-                )}
-                <View style={styles.inboxMain}>
-                  <View style={styles.inboxNameRow}>
-                    <Text style={styles.inboxName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.inboxTime}>{new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
-                  </View>
-                  <Text style={styles.inboxTrade}>{item.trade}</Text>
-                  <Text style={styles.inboxLast} numberOfLines={2}>{item.lastMessage}</Text>
+                </Pressable>
+              ))}
+              {!matchingConversations.length ? (
+                <View style={styles.customerInboxEmptyCard}>
+                  <Text style={styles.customerInboxEmptyTitle}>No matching messages</Text>
+                  <Text style={styles.customerInboxEmptyText}>Try a different name or keyword.</Text>
                 </View>
-              </Pressable>
-            )) : (
-              <View style={styles.customerInboxNoMatches}><Text style={styles.messagesEmptyTitle}>No matching conversations</Text><Text style={styles.messagesEmptySub}>Try another name or message.</Text></View>
-            )}
-          </ScrollView>
+              ) : null}
+            </ScrollView>
+          </>
         ) : (
-          <View style={styles.messagesEmpty}>
-            <View style={styles.customerInboxEmptyGraphic}><MessageCircle size={54} color={theme.colors.darkTeal} strokeWidth={1.7} /></View>
-            <Text style={styles.messagesEmptyTitle}>No messages yet</Text>
-            <Text style={styles.messagesEmptySub}>When you message a pro or they reply to your job, the conversation shows up here.</Text>
-            <Pressable style={styles.messagesBrowseButton} onPress={() => navigate('map')} accessibilityRole="button" accessibilityLabel="Find a tradesperson">
-              <MapIcon size={19} strokeWidth={2} color="#FFFFFF" />
-              <Text style={styles.messagesBrowseText}>Find a pro</Text>
-            </Pressable>
-          </View>
+          <>
+            <View style={styles.customerInboxEmptyCard}>
+              <View style={styles.customerInboxEmptyGraphic}>
+                <MessageCircle size={44} color="#FFFFFF" strokeWidth={2} />
+              </View>
+              <Text style={styles.customerInboxEmptyTitle}>No messages yet</Text>
+              <Text style={styles.customerInboxEmptyText}>When you message a pro or they reply to your job, the conversation shows up here.</Text>
+              <Pressable style={styles.customerInboxFindButton} onPress={() => navigate('map')}
+                accessibilityRole="button" accessibilityLabel="Find a tradesperson">
+                <MapIcon size={19} color="#FFFFFF" strokeWidth={2} />
+                <Text style={styles.customerInboxFindText}>Find a pro</Text>
+              </Pressable>
+            </View>
+            <View style={styles.customerInboxInfo}>
+              <Clock3 size={18} color={theme.colors.teal} strokeWidth={2} />
+              <Text style={styles.customerInboxInfoText}>Messages and replies will appear here once received.</Text>
+            </View>
+          </>
         )}
       </View>
     </CustomerShell>
@@ -9903,6 +9903,48 @@ const styles = StyleSheet.create({
   customerAccountProSwitch: { flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 23, backgroundColor: theme.colors.tealTint, padding: 17, minHeight: 69, marginBottom: 13 },
   customerAccountSignout: { minHeight: 55, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', ...theme.shadow },
   customerAccountSignoutText: { color: theme.colors.coralText, fontSize: 14, fontWeight: '800' },
+
+  customerInboxPage: { flex: 1, backgroundColor: theme.colors.customerBackground, paddingHorizontal: 23, paddingTop: 27 },
+  customerInboxTitle: { fontSize: 30, fontWeight: '800', letterSpacing: -0.8, color: theme.colors.ink },
+  customerInboxSubtitle: { fontSize: 14, color: theme.colors.muted, marginTop: 4, marginBottom: 22 },
+  customerInboxSearch: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 27, minHeight: 55, paddingHorizontal: 17, backgroundColor: '#FFFFFF', marginBottom: 15, ...theme.shadow },
+  customerInboxSearchInput: { flex: 1, minHeight: 52, fontSize: 15, color: theme.colors.ink },
+  customerInboxClear: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+  customerInboxRow: { flexDirection: 'row', gap: 13, minHeight: 97, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E9E4DC', paddingVertical: 13 },
+  customerInboxAvatar: { width: 52, height: 52, borderRadius: 26 },
+  customerInboxInitial: { width: 52, height: 52, borderRadius: 26, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  customerInboxInitialText: { color: theme.colors.teal, fontWeight: '800', fontSize: 19 },
+  customerInboxRowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  customerInboxRowName: { fontSize: 15, fontWeight: '800', color: theme.colors.ink, flexShrink: 1 },
+  customerInboxDate: { color: theme.colors.muted, fontSize: 12 },
+  customerInboxTrade: { color: theme.colors.teal, fontSize: 12, marginTop: 3, fontWeight: '700' },
+  customerInboxSnippet: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  customerInboxEmptyCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 25, alignItems: 'center', justifyContent: 'center', marginTop: 2, ...theme.shadow },
+  customerInboxEmptyGraphic: { width: 102, height: 102, borderRadius: 51, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', marginTop: 6, marginBottom: 23 },
+  customerInboxEmptyTitle: { color: theme.colors.ink, fontSize: 19, fontWeight: '800', textAlign: 'center' },
+  customerInboxEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 22, textAlign: 'center', marginTop: 10 },
+  customerInboxFindButton: { minHeight: 54, borderRadius: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: theme.colors.darkTeal, paddingHorizontal: 21, marginTop: 20, width: '100%' },
+  customerInboxFindText: { fontSize: 15, color: '#FFFFFF', fontWeight: '800' },
+  customerInboxInfo: { flexDirection: 'row', borderRadius: 23, backgroundColor: theme.colors.tealTint, padding: 15, gap: 9, marginTop: 17 },
+  customerInboxInfoText: { flex: 1, color: theme.colors.teal, lineHeight: 20, fontSize: 12 },
+  customerChatHeader: { flexDirection: 'row', gap: 11, alignItems: 'center', minHeight: 76, backgroundColor: theme.colors.customerBackground, borderBottomWidth: 1, borderBottomColor: '#E9E4DC', paddingHorizontal: 17 },
+  customerChatBack: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', ...theme.shadow },
+  customerChatAvatar: { width: 42, height: 42, borderRadius: 21 },
+  customerChatInitial: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  customerChatInitialText: { color: theme.colors.teal, fontSize: 16, fontWeight: '800' },
+  customerChatName: { fontSize: 16, fontWeight: '800', color: theme.colors.ink },
+  customerChatRole: { fontSize: 12, color: theme.colors.muted, marginTop: 3 },
+  customerChatBody: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerChatContent: { paddingHorizontal: 17, paddingTop: 26, paddingBottom: 28, gap: 10 },
+  customerChatBubble: { maxWidth: '85%', borderRadius: 21, paddingHorizontal: 16, paddingVertical: 13, ...theme.shadow },
+  customerChatBubbleMine: { alignSelf: 'flex-end', backgroundColor: theme.colors.darkTeal, borderBottomRightRadius: 7 },
+  customerChatBubbleTheirs: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderBottomLeftRadius: 7 },
+  customerChatBubbleText: { color: theme.colors.ink, fontSize: 14, lineHeight: 21 },
+  customerChatBubbleTextMine: { color: '#FFFFFF' },
+  customerChatWelcome: { alignItems: 'center', marginTop: 90, gap: 10 },
+  customerChatComposer: { minHeight: 75, backgroundColor: theme.colors.customerTabBar, flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: '#E9E4DC' },
+  customerChatInput: { flex: 1, minHeight: 48, maxHeight: 120, borderRadius: 25, backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 11, color: theme.colors.ink, fontSize: 14, borderWidth: 1, borderColor: '#EAE6DF' },
+  customerChatSend: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
 
 });
 
