@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
+import { MotionPressable } from './Motion';
 import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 
 type Step = 'request' | 'verify' | 'new-password';
@@ -129,10 +130,10 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-          <Pressable onPress={onCancel} accessibilityRole="button" style={styles.back}>
+          <MotionPressable onPress={onCancel} accessibilityRole="button" style={styles.back}>
             <ArrowLeft size={19} strokeWidth={2} color={theme.colors.teal} />
              <Text style={styles.backText}>Back to sign in</Text>
-          </Pressable>
+          </MotionPressable>
           <View style={styles.brandRow}>
             <View style={styles.logo}><Text style={styles.logoText}>T</Text></View>
             <Text style={styles.brand}>Trade<Text style={styles.brandAccent}>Hub</Text></Text>
@@ -164,10 +165,10 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
                 placeholder="you@example.com"
                 placeholderTextColor="#92A0AB"
               />
-              <Pressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
+              <MotionPressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={sendEmail} accessibilityRole="button">
                 <Text style={styles.primaryText}>{busy ? 'Sending…' : 'Send recovery email'}</Text><ArrowRight size={19} strokeWidth={2} color="#FFFFFF" />
-              </Pressable>
+              </MotionPressable>
             </>
           ) : step === 'verify' ? (
             <>
@@ -189,13 +190,13 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
                 multiline
                 textContentType="oneTimeCode"
               />
-              <Pressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
+              <MotionPressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={verifyRecovery} accessibilityRole="button">
                 <Text style={styles.primaryText}>{busy ? 'Checking…' : 'Verify recovery details'}</Text><ArrowRight size={19} strokeWidth={2} color="#FFFFFF" />
-              </Pressable>
-              <Pressable onPress={() => setStep('request')} disabled={busy} style={styles.secondary}>
+              </MotionPressable>
+              <MotionPressable onPress={() => setStep('request')} disabled={busy} style={styles.secondary}>
                 <Text style={styles.secondaryText}>Request another email</Text>
-              </Pressable>
+              </MotionPressable>
             </>
           ) : (
             <>
@@ -209,10 +210,10 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
                 style={styles.input} secureTextEntry autoCapitalize="none"
                 textContentType="newPassword" placeholder="Repeat your new password"
                 placeholderTextColor="#92A0AB" />
-              <Pressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
+              <MotionPressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={changePassword} accessibilityRole="button">
                 <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Save new password'}</Text><ArrowRight size={19} strokeWidth={2} color="#FFFFFF" />
-              </Pressable>
+              </MotionPressable>
             </>
           )}
         </ScrollView>
