@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
 import { LEICESTER_SUPPLIER_SEEDS } from './TradeSuppliersLeicester';
 import { theme } from './theme';
+import { MotionPressable } from './Motion';
 import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight } from 'lucide-react-native';
 
 type TradeName = 'Plumber' | 'Electrician' | 'Builder' | 'Heating' | 'Locksmith' | 'Carpenter' | 'Roofer';
@@ -613,10 +614,10 @@ export default function TradeSuppliersMap() {
             <Text style={S.title}>Merchants nearby</Text>
             <Text style={S.subtitle} numberOfLines={2}>{positionName} · {primaryTrade || 'All trades'}</Text>
           </View>
-          <Pressable style={S.radiusButton} onPress={() => setRadius(r => r === 5 ? 10 : r === 10 ? 20 : 5)}>
+          <MotionPressable style={S.radiusButton} onPress={() => setRadius(r => r === 5 ? 10 : r === 10 ? 20 : 5)}>
             <Text style={S.radiusNumber}>{radius} mi</Text>
             <View style={S.radiusCaptionRow}><Text style={S.radiusCaption}>radius</Text><RotateCw size={12} color={'#C7D6D5'} strokeWidth={2} /></View>
-          </Pressable>
+          </MotionPressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.filters}>
           {([
@@ -625,9 +626,9 @@ export default function TradeSuppliersMap() {
             ['specialist', 'Specialist merchants'],
             ['all', 'All shops'],
           ] as [Filter, string][]).map(([value, label]) => (
-            <Pressable key={value} style={[S.chip, filter === value && S.chipActive]} onPress={() => setFilter(value)}>
+            <MotionPressable key={value} style={[S.chip, filter === value && S.chipActive]} onPress={() => setFilter(value)}>
               <Text style={[S.chipText, filter === value && S.chipTextActive]}>{label}</Text>
-            </Pressable>
+            </MotionPressable>
           ))}
         </ScrollView>
       </View>
@@ -647,14 +648,14 @@ export default function TradeSuppliersMap() {
           <View style={usingGps ? S.youDot : S.workDot} />
           <Text style={S.legendText}>{savedWorkArea ? 'Work area' : usingGps ? 'My location' : 'Leicester area'}</Text>
         </View>
-        <Pressable
+        <MotionPressable
           style={S.recenterButton}
           onPress={centreOnMyLocation}
           accessibilityRole="button"
           accessibilityLabel="Show my current location on the map"
         >
           <Crosshair size={23} color={INK} strokeWidth={2} />
-        </Pressable>
+        </MotionPressable>
         <View pointerEvents="none" style={S.counter}>
           <Text style={S.counterText}>{loading ? 'Finding shops…' : visible.length + ' shops on map'}</Text>
         </View>
@@ -667,12 +668,12 @@ export default function TradeSuppliersMap() {
           <View style={S.notice}>
             <Text style={S.noticeText}>{problem}</Text>
             <View style={S.noticeActions}>
-              <Pressable style={S.noticeButton} onPress={() => { STORE_CACHE.clear(); setRefreshIndex(x => x + 1); }}>
+              <MotionPressable style={S.noticeButton} onPress={() => { STORE_CACHE.clear(); setRefreshIndex(x => x + 1); }}>
                 <Text style={S.noticeButtonText}>Retry</Text>
-              </Pressable>
-              <Pressable style={S.noticeButton} onPress={openShopsInMaps}>
+              </MotionPressable>
+              <MotionPressable style={S.noticeButton} onPress={openShopsInMaps}>
                 <Text style={S.noticeButtonText}>Find shops in Maps</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
         ) : !visible.length ? (
@@ -691,18 +692,18 @@ export default function TradeSuppliersMap() {
                     {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
                   </Text>
                 </View>
-                <Pressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></Pressable>
+                <MotionPressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></MotionPressable>
               </View>
               <Text style={S.address} numberOfLines={2}>{selected.address}</Text>
               {selected.postcodeApproximate ? <Text style={S.pinDisclaimer}>Approximate map pin (postcode centre)</Text> : null}
               <View style={S.actions}>
-                <Pressable style={S.primaryButton} onPress={() => openDirections(selected)}>
+                <MotionPressable style={S.primaryButton} onPress={() => openDirections(selected)}>
                   <Navigation size={19} strokeWidth={2} color={theme.colors.white} /><Text style={S.primaryButtonText}>Get directions</Text>
-                </Pressable>
+                </MotionPressable>
                 {selected.phone ? (
-                  <Pressable style={S.secondaryButton} onPress={() => Linking.openURL('tel:' + selected.phone!.replace(/[^+\d]/g, ''))}>
+                  <MotionPressable style={S.secondaryButton} onPress={() => Linking.openURL('tel:' + selected.phone!.replace(/[^+\d]/g, ''))}>
                     <Text style={S.secondaryText}>Call shop</Text>
-                  </Pressable>
+                  </MotionPressable>
                 ) : null}
               </View>
             </>
@@ -716,7 +717,7 @@ export default function TradeSuppliersMap() {
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow} style={S.nearbyScroll}>
                 {visible.slice(0, 8).map((shop, index) => (
-                  <Pressable
+                  <MotionPressable
                     key={shop.id}
                     style={S.nearbyShop}
                     onPress={() => {
@@ -727,7 +728,7 @@ export default function TradeSuppliersMap() {
                     <Text style={S.nearbyRank}>#{index + 1} CLOSEST</Text>
                     <Text style={S.nearbyTitle} numberOfLines={2}>{shop.name}</Text>
                     <View style={S.nearbyLink}><Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi {usingGps ? 'from you' : 'away'}</Text><ChevronRight size={16} strokeWidth={2} color={theme.colors.teal} /></View>
-                  </Pressable>
+                  </MotionPressable>
                 ))}
               </ScrollView>
             </>
