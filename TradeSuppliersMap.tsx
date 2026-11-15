@@ -262,6 +262,19 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 .cluster{width:38px;height:38px;border-radius:19px;background:#FFFDF7;border:2px solid #3B7377;box-shadow:0 3px 12px #0C202D66;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#0C1F24}
 .you-pin{width:24px;height:24px;border-radius:50%;background:#E0704C;border:5px solid #fff;box-shadow:0 0 0 6px #E0704C33,0 2px 14px #1B467A77;box-sizing:border-box}
 .work-pin{border:2px solid #68788C;background:#F9FAFC;border-radius:9px;padding:4px 7px;color:#35465A;font-size:10px;font-weight:900;white-space:nowrap;box-shadow:0 2px 8px #233A4A33}
+
+/* Distinctive pin drop, location sonar and moving route -- CSS-only inside the map WebView. */
+@keyframes markerDrop{0%{transform:translateY(-24px) scale(.65);opacity:0}65%{transform:translateY(3px) scale(1.07);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes sonar{0%{transform:scale(.7);opacity:.85}100%{transform:scale(3.6);opacity:0}}
+@keyframes routeMarch{to{stroke-dashoffset:-24}}
+.pin,.cluster{animation:markerDrop .48s cubic-bezier(.2,.85,.3,1.2) both}
+.pin{transition:transform .16s ease,box-shadow .16s ease}
+.pin:active,.cluster:active{transform:scale(.88)}
+.you-pin{position:relative;isolation:isolate}
+.you-pin:before,.you-pin:after{content:"";position:absolute;inset:-5px;border:2px solid #E0704C;border-radius:50%;pointer-events:none;animation:sonar 2.6s ease-out infinite}
+.you-pin:after{animation-delay:1.3s}
+.leaflet-interactive.route-active{animation:routeMarch 1s linear infinite}
+@media(prefers-reduced-motion:reduce){.pin,.cluster,.you-pin:before,.you-pin:after,.route-active{animation:none!important}.pin{transition:none!important}}
 </style></head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
@@ -303,7 +316,7 @@ window.updateLocations=function(points){
   }
 };
 window.centerOnMe=function(){
-  if(userPoint) map.flyTo([userPoint.lat,userPoint.lng],Math.max(14,map.getZoom()),{duration:.35});
+  if(userPoint) map.flyTo([userPoint.lat,userPoint.lng],Math.max(14,map.getZoom()),{duration:.85,easeLinearity:.3});
 };
 window.clearShopLine=function(){removeFeature(shopLink);shopLink=null};
 function draw(){
@@ -332,7 +345,7 @@ function draw(){
    var lon=group.reduce((t,s)=>t+s.lng,0)/group.length;
    var icon=L.divIcon({className:'',html:'<div class="cluster">'+group.length+'</div>',iconSize:[38,38],iconAnchor:[19,19]});
    L.marker([lat,lon],{icon:icon}).on('click',function(){
-    map.flyTo([lat,lon],Math.min(16,map.getZoom()+1.5),{duration:.28});
+    map.flyTo([lat,lon],Math.min(16,map.getZoom()+1.5),{duration:.75,easeLinearity:.3});
    }).addTo(layer);
   }
  });
@@ -342,12 +355,12 @@ window.focusSupplier=function(lat,lng){
   window.clearShopLine();
   if(userPoint){
     shopLink=L.polyline([[userPoint.lat,userPoint.lng],[lat,lng]],{
-      color:'#E0704C',weight:3,dashArray:'5,7',opacity:.8,interactive:false
+      color:'#E0704C',weight:4,dashArray:'8,9',opacity:.95,interactive:false,className:'route-active'
     }).addTo(map);
     var bounds=L.latLngBounds([[userPoint.lat,userPoint.lng],[lat,lng]]);
     map.fitBounds(bounds.pad(.45),{padding:[45,45],maxZoom:14.5,animate:true});
   } else {
-    map.flyTo([lat,lng],Math.max(14,map.getZoom()),{duration:.3});
+    map.flyTo([lat,lng],Math.max(14,map.getZoom()),{duration:.8,easeLinearity:.3});
   }
 };
 map.on('moveend zoomend resize',draw);
