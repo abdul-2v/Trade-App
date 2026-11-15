@@ -4552,6 +4552,8 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [inboxSearch, setInboxSearch] = useState('');
+  const shownConversations = conversations.filter(item => (item.name + ' ' + item.trade + ' ' + item.lastMessage).toLowerCase().includes(inboxSearch.trim().toLowerCase()));
 
   const loadInbox = async () => {
     setLoadingInbox(true);
@@ -4737,8 +4739,8 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
     return (
       <CustomerShell current="messages" navigate={navigate}>
         <View style={styles.liveChatHeader}>
-          <Pressable style={styles.liveChatBack} onPress={() => setSelectedConversation(null)}>
-            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={20} color={C.navy2} />
+          <Pressable style={styles.liveChatBack} onPress={() => setSelectedConversation(null)} accessibilityRole="button" accessibilityLabel="Back to Inbox">
+            <ArrowLeft size={21} color={theme.colors.ink} strokeWidth={2} />
           </Pressable>
           {selectedConversation.avatar ? (
             <Image source={{ uri: selectedConversation.avatar }} style={styles.liveChatAvatar} />
@@ -4790,8 +4792,9 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
             style={[styles.liveSendButton, !message.trim() && styles.liveSendButtonDisabled]}
             onPress={sendMessage}
             disabled={!message.trim()}
+            accessibilityRole="button" accessibilityLabel="Send message"
           >
-            <AppIcon icon={{ ios: 'arrow.up', android: 'arrow_upward' }} size={19} color={C.white} />
+            <ArrowUp size={21} color="#FFFFFF" strokeWidth={2.3} />
           </Pressable>
         </View>
       </CustomerShell>
@@ -4802,56 +4805,65 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
     <CustomerShell current="messages" navigate={navigate}>
       <View style={styles.messagesPage}>
         <View style={styles.messagesTitleRow}>
-          <View>
-            <Text style={styles.messagesTitle}>Messages</Text>
-            <Text style={styles.messagesSub}>Quotes, updates and conversations with tradespeople.</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.messagesTitle}>Inbox</Text>
+            <Text style={styles.messagesSub}>Chat with pros about your jobs</Text>
           </View>
         </View>
-
+        {conversations.length ? (
+          <>
+            <View style={styles.customerInboxSearchWrap}>
+              <Search size={20} strokeWidth={2} color={theme.colors.muted} />
+              <TextInput value={inboxSearch} onChangeText={setInboxSearch}
+                placeholder="Search messages" placeholderTextColor={theme.colors.muted}
+                style={styles.customerInboxSearchInput}
+                accessibilityLabel="Search conversations" />
+              {inboxSearch ? <Pressable accessibilityRole="button" accessibilityLabel="Clear inbox search"
+                style={styles.customerInboxClear} onPress={() => setInboxSearch('')}>
+                <X size={19} color={theme.colors.muted} strokeWidth={2} />
+              </Pressable> : null}
+            </View>
+            <View style={styles.customerInboxAllPill}><Text style={styles.customerInboxAllText}>All conversations · {conversations.length}</Text></View>
+          </>
+        ) : null}
         {loadingInbox ? (
           <View style={styles.messagesLoading}>
+            <ActivityIndicator color={theme.colors.teal}/>
             <Text style={styles.messagesMuted}>Loading messages…</Text>
           </View>
         ) : conversations.length ? (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-            {conversations.map(item => (
-              <Pressable
-                key={item.id}
-                style={styles.inboxRow}
-                onPress={() => setSelectedConversation(item)}
-              >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+            {shownConversations.length ? shownConversations.map(item => (
+              <Pressable key={item.id} style={styles.inboxRow} onPress={() => setSelectedConversation(item)}
+                accessibilityRole="button" accessibilityLabel={'Open chat with ' + item.name}>
                 {item.avatar ? (
                   <Image source={{ uri: item.avatar }} style={styles.inboxAvatar} />
                 ) : (
                   <View style={styles.inboxAvatarFallback}>
-                    <Text style={styles.inboxAvatarFallbackText}>{item.name.charAt(0).toUpperCase()}</Text>
+                    <Text style={styles.inboxAvatarFallbackText}>{item.name.trim().split(' ').slice(0,2).map(part => part.charAt(0)).join('').toUpperCase()}</Text>
                   </View>
                 )}
                 <View style={styles.inboxMain}>
                   <View style={styles.inboxNameRow}>
-                    <Text style={styles.inboxName}>{item.name}</Text>
-                    <Text style={styles.inboxTime}>
-                      {new Date(item.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-                    </Text>
+                    <Text style={styles.inboxName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.inboxTime}>{new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
                   </View>
                   <Text style={styles.inboxTrade}>{item.trade}</Text>
-                  <Text style={styles.inboxLast} numberOfLines={1}>{item.lastMessage}</Text>
+                  <Text style={styles.inboxLast} numberOfLines={2}>{item.lastMessage}</Text>
                 </View>
-                <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color="#A5AFBA" />
               </Pressable>
-            ))}
+            )) : (
+              <View style={styles.customerInboxNoMatches}><Text style={styles.messagesEmptyTitle}>No matching conversations</Text><Text style={styles.messagesEmptySub}>Try another name or message.</Text></View>
+            )}
           </ScrollView>
         ) : (
           <View style={styles.messagesEmpty}>
-            <View style={styles.messagesEmptyIcon}>
-              <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={30} color={C.blue} />
-            </View>
+            <View style={styles.customerInboxEmptyGraphic}><MessageCircle size={54} color={theme.colors.darkTeal} strokeWidth={1.7} /></View>
             <Text style={styles.messagesEmptyTitle}>No messages yet</Text>
-            <Text style={styles.messagesEmptySub}>
-              When you contact a tradesperson, the conversation will appear here.
-            </Text>
-            <Pressable style={styles.messagesBrowseButton} onPress={() => navigate('map')}>
-              <Text style={styles.messagesBrowseText}>Find a tradesperson</Text>
+            <Text style={styles.messagesEmptySub}>When you message a pro or they reply to your job, the conversation shows up here.</Text>
+            <Pressable style={styles.messagesBrowseButton} onPress={() => navigate('map')} accessibilityRole="button" accessibilityLabel="Find a tradesperson">
+              <MapIcon size={19} strokeWidth={2} color="#FFFFFF" />
+              <Text style={styles.messagesBrowseText}>Find a pro</Text>
             </Pressable>
           </View>
         )}
@@ -8103,48 +8115,48 @@ const styles = StyleSheet.create({
   composerInput: { flex: 1, height: 45, borderRadius: 22, backgroundColor: C.pale, paddingHorizontal: 16 },
   sendButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   sendText: { color: C.white, fontSize: 23, fontWeight: '900' },
-  messagesPage: { flex: 1, backgroundColor: C.canvas, paddingHorizontal: 20, paddingTop: 22 },
-  messagesTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  messagesTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 32, fontWeight: '800', letterSpacing: -1.1 },
-  messagesSub: { color: C.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
+  messagesPage: { flex: 1, backgroundColor: theme.colors.customerBackground, paddingHorizontal: 23, paddingTop: 28 },
+  messagesTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 17 },
+  messagesTitle: { color: theme.colors.ink, fontSize: 32, fontWeight: '800', letterSpacing: -1.1 },
+  messagesSub: { color: theme.colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5 },
   messagesLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  messagesMuted: { color: C.muted, fontSize: 13 },
-  inboxRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#EEF1F4', paddingVertical: 11 },
-  inboxAvatar: { width: 52, height: 52, borderRadius: 18, marginRight: 12 },
-  inboxAvatarFallback: { width: 52, height: 52, borderRadius: 18, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  inboxAvatarFallbackText: { color: C.blue, fontSize: 20, fontWeight: '900' },
+  messagesMuted: { color: theme.colors.muted, fontSize: 13, marginTop: 9 },
+  inboxRow: { minHeight: 91, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E8E1D7', paddingVertical: 13 },
+  inboxAvatar: { width: 53, height: 53, borderRadius: 27, marginRight: 13 },
+  inboxAvatarFallback: { width: 53, height: 53, borderRadius: 27, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  inboxAvatarFallbackText: { color: theme.colors.teal, fontSize: 18, fontWeight: '800' },
   inboxMain: { flex: 1, paddingRight: 8 },
   inboxNameRow: { flexDirection: 'row', alignItems: 'center' },
-  inboxName: { flex: 1, color: C.text, fontSize: 15, fontWeight: '900' },
-  inboxTime: { color: '#9AA5B1', fontSize: 10, fontWeight: '700' },
-  inboxTrade: { color: C.blue, fontSize: 11, fontWeight: '700', marginTop: 2 },
-  inboxLast: { color: C.muted, fontSize: 12, marginTop: 4 },
-  messagesEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34, paddingBottom: 80 },
+  inboxName: { flex: 1, color: theme.colors.ink, fontSize: 15, fontWeight: '800' },
+  inboxTime: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
+  inboxTrade: { color: theme.colors.teal, fontSize: 12, fontWeight: '700', marginTop: 3 },
+  inboxLast: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  messagesEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 60 },
   messagesEmptyIcon: { width: 66, height: 66, borderRadius: 22, backgroundColor: C.cyan, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  messagesEmptyTitle: { color: C.text, fontFamily: DISPLAY_FONT, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
-  messagesEmptySub: { color: C.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 7, maxWidth: 280 },
-  messagesBrowseButton: { height: 50, borderRadius: 16, backgroundColor: C.navy, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center', marginTop: 22 },
-  messagesBrowseText: { color: C.white, fontSize: 13, fontWeight: '900' },
-  liveChatHeader: { minHeight: 70, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#EEF1F4', backgroundColor: C.white },
-  liveChatBack: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', marginRight: 9 },
-  liveChatAvatar: { width: 44, height: 44, borderRadius: 15, marginRight: 10 },
-  liveChatAvatarFallback: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  liveChatAvatarText: { color: C.blue, fontWeight: '900', fontSize: 17 },
-  liveChatName: { color: C.text, fontSize: 15, fontWeight: '900' },
-  liveChatRole: { color: C.muted, fontSize: 11, marginTop: 2 },
-  liveChatBody: { flex: 1, backgroundColor: '#F6F8FB' },
-  liveChatContent: { padding: 14, paddingBottom: 24 },
-  liveBubble: { maxWidth: '80%', paddingHorizontal: 13, paddingVertical: 10, borderRadius: 17, marginBottom: 8 },
-  liveBubbleMine: { alignSelf: 'flex-end', backgroundColor: C.blue, borderBottomRightRadius: 5 },
-  liveBubbleTheirs: { alignSelf: 'flex-start', backgroundColor: C.white, borderBottomLeftRadius: 5, borderWidth: 1, borderColor: '#EDF0F4' },
-  liveBubbleText: { color: C.text, fontSize: 14, lineHeight: 19 },
-  liveBubbleTextMine: { color: C.white },
-  threadEmpty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 30 },
-  threadEmptyTitle: { color: C.text, fontSize: 17, fontWeight: '900' },
-  threadEmptySub: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 5 },
-  liveComposer: { minHeight: 68, flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingTop: 9, paddingBottom: 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: '#EEF1F4' },
-  liveComposerInput: { flex: 1, minHeight: 44, maxHeight: 100, borderRadius: 20, backgroundColor: '#F3F5F8', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, color: C.text, fontSize: 14 },
-  liveSendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  messagesEmptyTitle: { color: theme.colors.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.4, textAlign: 'center' },
+  messagesEmptySub: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 9, maxWidth: 300 },
+  messagesBrowseButton: { minHeight: 54, borderRadius: 27, backgroundColor: theme.colors.darkTeal, paddingHorizontal: 25, alignItems: 'center', justifyContent: 'center', marginTop: 23, flexDirection: 'row', gap: 10 },
+  messagesBrowseText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  liveChatHeader: { minHeight: 73, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: '#EAE5DB', backgroundColor: theme.colors.customerBackground },
+  liveChatBack: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginRight: 11, ...theme.shadow },
+  liveChatAvatar: { width: 45, height: 45, borderRadius: 23, marginRight: 11 },
+  liveChatAvatarFallback: { width: 45, height: 45, borderRadius: 23, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  liveChatAvatarText: { color: theme.colors.teal, fontWeight: '800', fontSize: 18 },
+  liveChatName: { color: theme.colors.ink, fontSize: 16, fontWeight: '800' },
+  liveChatRole: { color: theme.colors.muted, fontSize: 12, marginTop: 3 },
+  liveChatBody: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  liveChatContent: { padding: 18, paddingBottom: 30 },
+  liveBubble: { maxWidth: '82%', paddingHorizontal: 15, paddingVertical: 12, borderRadius: 23, marginBottom: 10, ...theme.shadow },
+  liveBubbleMine: { alignSelf: 'flex-end', backgroundColor: theme.colors.darkTeal, borderBottomRightRadius: 6 },
+  liveBubbleTheirs: { alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderBottomLeftRadius: 6 },
+  liveBubbleText: { color: theme.colors.ink, fontSize: 14, lineHeight: 21 },
+  liveBubbleTextMine: { color: '#FFFFFF' },
+  threadEmpty: { alignItems: 'center', paddingTop: 75, paddingHorizontal: 30 },
+  threadEmptyTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800' },
+  threadEmptySub: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 6 },
+  liveComposer: { minHeight: 75, flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 15, paddingTop: 11, paddingBottom: 11, backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#EAE4DA', gap: 8 },
+  liveComposerInput: { flex: 1, minHeight: 49, maxHeight: 125, borderRadius: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EAE4DA', paddingHorizontal: 16, paddingTop: 13, paddingBottom: 11, color: theme.colors.ink, fontSize: 14 },
+  liveSendButton: { width: 49, height: 49, borderRadius: 25, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
   liveSendButtonDisabled: { opacity: 0.35 },
   customerProfileCard: { backgroundColor: '#12362C', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', marginTop: 18, marginBottom: 18, borderWidth: 1, borderColor: '#275044' },
   customerAvatar: { width: 58, height: 58, borderRadius: 20, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
@@ -9882,6 +9894,14 @@ const styles = StyleSheet.create({
   customerActivityExplainIcon: { width: 43, height: 43, borderRadius: 15, backgroundColor: '#EDEAE0', alignItems: 'center', justifyContent: 'center' },
   customerActivityExplainTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
   customerActivityExplainSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
+
+  customerInboxSearchWrap: { minHeight: 52, borderRadius: 26, paddingHorizontal: 15, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', marginBottom: 13, ...theme.shadow },
+  customerInboxSearchInput: { flex: 1, minHeight: 50, marginLeft: 9, color: theme.colors.ink, fontSize: 14 },
+  customerInboxClear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  customerInboxAllPill: { backgroundColor: theme.colors.darkTeal, borderRadius: 18, paddingHorizontal: 14, alignSelf: 'flex-start', marginBottom: 10, minHeight: 35, justifyContent: 'center' },
+  customerInboxAllText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
+  customerInboxEmptyGraphic: { width: 139, height: 139, borderRadius: 70, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 26 },
+  customerInboxNoMatches: { alignItems: 'center', marginTop: 80 },
 
 });
 
