@@ -4963,6 +4963,7 @@ function CustomerProfileScreen({
   });
   const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | 'help' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [accountEmail, setAccountEmail] = useState('');
   const [savedTrades, setSavedTrades] = useState<Trade[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [savedError, setSavedError] = useState('');
@@ -5089,6 +5090,7 @@ function CustomerProfileScreen({
     } = await supabase.auth.getUser();
 
     if (!user) return;
+    setAccountEmail(user.email || '');
 
     const { data } = await supabase
       .from('profiles')
@@ -5226,20 +5228,30 @@ function CustomerProfileScreen({
         </Pressable>
       </ScrollView>
 
-      <Modal
-        visible={editMode !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setEditMode(null)}
-      >
-        <View style={styles.profileModalRoot}>
-          <Pressable style={styles.profileModalBackdrop} onPress={() => setEditMode(null)} />
-          <View style={styles.profileModalSheet}>
-            <View style={styles.filterSheetHandle} />
+      <Modal visible={editMode !== null} animationType="slide" transparent={false}
+        onRequestClose={() => setEditMode(null)}>
+        <SafeAreaView style={styles.customerAccountEditorSafe}>
+          <StatusBar barStyle="dark-content" />
+          <View style={styles.customerAccountEditorHeader}>
+            <Pressable style={styles.customerAccountEditorBack} onPress={() => setEditMode(null)}
+              accessibilityRole="button" accessibilityLabel="Back to account">
+              <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+            </Pressable>
+            <Text style={styles.customerAccountEditorTopTitle}>Account settings</Text>
+            <View style={{ width: 44 }} />
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.customerAccountEditorContent}
+            keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
             {editMode === 'details' ? (
               <>
                 <Text style={styles.profileModalTitle}>Personal details</Text>
+                <View style={styles.customerAccountEditorAvatar}>
+                  <View style={styles.customerAccountEditorAvatarCircle}>
+                    <Text style={styles.customerAccountEditorAvatarInitial}>{initial}</Text>
+                  </View>
+                  <Text style={styles.customerAccountEditorAvatarCaption}>Your account details</Text>
+                </View>
                 <Text style={styles.profileFieldLabel}>First name</Text>
                 <TextInput
                   style={styles.profileField}
@@ -5254,6 +5266,11 @@ function CustomerProfileScreen({
                   onChangeText={value => setProfile(current => ({ ...current, last_name: value }))}
                   autoCapitalize="words"
                 />
+                <Text style={styles.profileFieldLabel}>Email</Text>
+                <View style={[styles.profileField, styles.customerAccountEditorReadOnly]}>
+                  <Text style={styles.customerAccountEditorEmail} numberOfLines={1}>{accountEmail || 'Email unavailable'}</Text>
+                </View>
+                <Text style={styles.customerAccountEditorNote}>Email changes are managed through your sign-in account.</Text>
                 <Text style={styles.profileFieldLabel}>Mobile number</Text>
                 <TextInput
                   style={styles.profileField}
@@ -5282,7 +5299,9 @@ function CustomerProfileScreen({
             {editMode === 'notifications' ? (
               <>
                 <Text style={styles.profileModalTitle}>Notifications</Text>
-                <View style={styles.notificationSettingRow}>
+                <Text style={styles.customerAccountEditorSection}>MESSAGES & BOOKINGS</Text>
+                <View style={styles.customerAccountEditorNotifyCard}>
+                  <View style={styles.customerAccountEditorNotifyIcon}><Bell color={theme.colors.teal} size={20} strokeWidth={2} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.settingsLabel}>TradeHub notifications</Text>
                     <Text style={styles.settingsSubText}>Messages, booking updates and job responses</Text>
@@ -5290,8 +5309,11 @@ function CustomerProfileScreen({
                   <Switch
                     value={profile.notifications_enabled}
                     onValueChange={value => setProfile(current => ({ ...current, notifications_enabled: value }))}
+                    trackColor={{ false: '#D6D2C7', true: theme.colors.success }}
+                    thumbColor="#FFFFFF"
                   />
                 </View>
+                <Text style={styles.customerAccountEditorNote}>Notification types share one setting for now. Individual preferences are not available yet.</Text>
               </>
             ) : null}
 
@@ -5380,15 +5402,19 @@ function CustomerProfileScreen({
               </>
             ) : null}
 
+          </ScrollView>
+          <View style={styles.customerAccountEditorFooter}>
             <Pressable
-              style={[styles.largeBlueButton, (saving || sendingSupport) && { opacity: 0.5 }]}
+              style={[styles.customerAccountEditorSave, (saving || sendingSupport) && { opacity: 0.5 }]}
               onPress={editMode === 'saved' ? () => setEditMode(null) : editMode === 'help' ? submitSupport : saveProfile}
               disabled={saving || sendingSupport}
-            >
-              <Text style={styles.largeBlueText}>{editMode === 'saved' ? 'Done' : editMode === 'help' ? (sendingSupport ? 'Sending…' : 'Send request') : saving ? 'Saving…' : 'Save changes'}</Text>
+              accessibilityRole="button" accessibilityLabel={editMode === 'saved' ? 'Done' : editMode === 'help' ? 'Send support request' : 'Save changes'}>
+              <Text style={styles.customerAccountEditorSaveText}>
+                {editMode === 'saved' ? 'Done' : editMode === 'help' ? (sendingSupport ? 'Sending…' : 'Send request') : saving ? 'Saving…' : 'Save changes'}
+              </Text>
             </Pressable>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </CustomerShell>
   );
@@ -9973,6 +9999,25 @@ const styles = StyleSheet.create({
   customerRequestStepEmpty: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFFFFF' },
   customerRequestStepText: { color: theme.colors.muted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   customerRequestStepTextReached: { color: theme.colors.ink, fontWeight: '800' },
+
+  customerAccountEditorSafe: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerAccountEditorHeader: { minHeight: 69, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E5DFD5' },
+  customerAccountEditorBack: { height: 44, width: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF', ...theme.shadow },
+  customerAccountEditorTopTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink },
+  customerAccountEditorContent: { paddingHorizontal: 24, paddingTop: 17, paddingBottom: 40 },
+  customerAccountEditorAvatar: { alignItems: 'center', marginBottom: 14 },
+  customerAccountEditorAvatarCircle: { height: 90, width: 90, borderRadius: 45, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center' },
+  customerAccountEditorAvatarInitial: { color: theme.colors.coralDark, fontWeight: '800', fontSize: 34 },
+  customerAccountEditorAvatarCaption: { color: theme.colors.teal, fontSize: 12, fontWeight: '700', marginTop: 9 },
+  customerAccountEditorReadOnly: { justifyContent: 'center', backgroundColor: '#EEEAE3' },
+  customerAccountEditorEmail: { color: theme.colors.muted, fontSize: 14 },
+  customerAccountEditorNote: { color: theme.colors.muted, fontSize: 12, lineHeight: 19, marginTop: 12, marginBottom: 8 },
+  customerAccountEditorSection: { fontSize: 11, color: theme.colors.muted, fontWeight: '800', letterSpacing: 1.2, marginTop: 15, marginBottom: 10 },
+  customerAccountEditorNotifyCard: { backgroundColor: '#FFFFFF', borderRadius: 26, paddingHorizontal: 16, paddingVertical: 18, flexDirection: 'row', alignItems: 'center', gap: 12, ...theme.shadow },
+  customerAccountEditorNotifyIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  customerAccountEditorFooter: { paddingHorizontal: 22, paddingTop: 11, paddingBottom: 13, backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#E5DFD5' },
+  customerAccountEditorSave: { minHeight: 56, borderRadius: 28, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
+  customerAccountEditorSaveText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 
 });
 
