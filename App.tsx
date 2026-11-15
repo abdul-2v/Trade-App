@@ -5,7 +5,7 @@ import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, RadarBeacon, MovingArrow } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
 import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -2498,8 +2498,34 @@ function MapMock({
     border-width:2.5px;
   }
   .dot {
-    width:15px; height:15px; border-radius:8px; background:#1684F8;
+    position:relative; width:16px; height:16px; border-radius:50%; background:#1684F8;
     border:3px solid white; box-shadow:0 2px 8px rgba(22,132,248,.28);
+  }
+  @keyframes customerSonar {
+    0% { transform:scale(.7); opacity:.85 }
+    100% { transform:scale(4.5); opacity:0 }
+  }
+  @keyframes tradeMarkerIn {
+    0% { opacity:0; transform:translateY(-24px) scale(.6) }
+    65% { opacity:1; transform:translateY(4px) scale(1.08) }
+    100% { opacity:1; transform:translateY(0) scale(1) }
+  }
+  @keyframes activeTradeRing {
+    0%,100% { box-shadow:0 3px 10px rgba(7,27,49,.18), 0 0 0 0 rgba(22,185,129,.32) }
+    55% { box-shadow:0 3px 10px rgba(7,27,49,.18), 0 0 0 8px rgba(22,185,129,0) }
+  }
+  .dot:before,.dot:after {
+    content:"";position:absolute;inset:-3px;border:2px solid #1684F8;
+    border-radius:50%;animation:customerSonar 2.6s ease-out infinite;pointer-events:none;
+  }
+  .dot:after { animation-delay:1.3s }
+  .trade-pin, .cluster-bubble { animation:tradeMarkerIn .48s cubic-bezier(.18,.82,.25,1.12) both }
+  .trade-pin { animation-delay:var(--entrance-delay,0ms) }
+  .trade-pin.is-available .trade-avatar-wrap { animation:activeTradeRing 2.5s ease-in-out infinite }
+  .trade-pin:active .trade-avatar-wrap,.cluster-bubble:active { transform:scale(.9) }
+  .trade-avatar-wrap,.cluster-bubble { transition:transform .16s ease }
+  @media(prefers-reduced-motion:reduce) {
+    .dot:before,.dot:after,.trade-pin,.cluster-bubble,.trade-pin.is-available .trade-avatar-wrap { animation:none!important }
   }
 </style>
 </head>
@@ -2603,7 +2629,7 @@ function MapMock({
         escapeMarkerText((marker.name || marker.role || '?').charAt(0)) + '</span>';
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin"><div class="trade-avatar-wrap">' + avatar + '<span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
+      html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') + '"><div class="trade-avatar-wrap">' + avatar + '<span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
       iconSize: [56,58],
       iconAnchor: [28,29]
     });
@@ -2643,7 +2669,7 @@ function MapMock({
           const only = group.members[0];
           if (only) {
             map.flyTo([only.lat, only.lng], Math.min(15, map.getZoom() + 2), {
-              duration: 0.28
+              duration: 0.8
             });
           }
           return;
@@ -2653,7 +2679,7 @@ function MapMock({
         const nextZoom = Math.min(14.75, Math.max(map.getZoom() + 1.35, map.getBoundsZoom(bounds, false, [70,70])));
 
         map.flyTo([group.lat, group.lng], nextZoom, {
-          duration: 0.32
+          duration: 0.85
         });
       })
       .addTo(tradeLayer);
@@ -5878,7 +5904,6 @@ function TradeHomeScreen({
               showPin={Boolean(previewArea)}
               trade={profileTrade}
             />
-            <RadarBeacon active={available} />
           </View>
           <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
