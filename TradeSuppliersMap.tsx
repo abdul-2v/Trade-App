@@ -249,11 +249,14 @@ function createMapHtml(centre: Coordinates) {
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
 html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#0D282E}
-.maplibregl-canvas,.leaflet-tile-pane img{filter:brightness(.42) saturate(.84) sepia(.14) hue-rotate(115deg)}
-.leaflet-control-attribution{font-size:7px!important;background:rgba(255,255,255,.8)!important}
-.pin{width:34px;height:34px;border-radius:11px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 12px #14263955;color:#245758;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900}
+.maplibregl-canvas{filter:sepia(.15) hue-rotate(128deg) saturate(.85) brightness(1.08)}
+.leaflet-tile-pane img{filter:brightness(.43) sepia(.2) hue-rotate(128deg)}
+.leaflet-control-attribution{font-size:8px!important;background:rgba(13,37,43,.87)!important;color:#A9C1C1!important;padding:2px 5px!important;border-top-left-radius:5px!important}
+.leaflet-control-attribution a{color:#B5CFCC!important;text-decoration:none!important}
+.you-label{border-radius:13px;background:rgba(39,80,83,.92);border:1px solid #547A7D;padding:4px 8px;color:#fff;font:700 10px sans-serif;white-space:nowrap;text-align:center;box-shadow:0 3px 10px #0b272844}
+.pin{width:32px;height:32px;border-radius:10px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 10px #0B262A70;color:#245758;display:flex;align-items:center;justify-content:center}
 .pin.general{background:#E0704C}.pin:hover{transform:scale(1.12)}
-.cluster{width:42px;height:42px;border-radius:14px;background:#FFFDF7;border:2px solid #294C66;box-shadow:0 2px 10px #14263944;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#0C1F24}
+.cluster{width:38px;height:38px;border-radius:19px;background:#FFFDF7;border:2px solid #3B7377;box-shadow:0 3px 12px #0C202D66;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#0C1F24}
 .you-pin{width:24px;height:24px;border-radius:50%;background:#E0704C;border:5px solid #fff;box-shadow:0 0 0 6px #E0704C33,0 2px 14px #1B467A77;box-sizing:border-box}
 .work-pin{border:2px solid #68788C;background:#F9FAFC;border-radius:9px;padding:4px 7px;color:#35465A;font-size:10px;font-weight:900;white-space:nowrap;box-shadow:0 2px 8px #233A4A33}
 </style></head><body><div id="map"></div>
@@ -261,9 +264,9 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#0D282
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
 <script>
-var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:0.25}).setView([${centre.latitude},${centre.longitude}],12.3);
+var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:0.25}).setView([${centre.latitude},${centre.longitude}],12.6);
 if(L.maplibreGL){
-  try { L.maplibreGL({style:'https://tiles.openfreemap.org/styles/liberty'}).addTo(map); }
+  try { L.maplibreGL({style:'https://tiles.openfreemap.org/styles/dark'}).addTo(map); }
   catch(e) { L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map); }
 } else {
   // Low-volume fallback for development when the vector plugin does not load.
@@ -273,11 +276,11 @@ map.attributionControl.setPrefix('');
 map.attributionControl.addAttribution('© OpenStreetMap contributors · OpenFreeMap');
 var layer=L.layerGroup().addTo(map);
 var shops=[];
-var userPoint=null, userMarker=null, workMarker=null, accuracyArea=null, shopLink=null;
+var userPoint=null, userMarker=null, userLabelMarker=null, workMarker=null, accuracyArea=null, shopLink=null;
 function removeFeature(feature){if(feature && map.hasLayer(feature))map.removeLayer(feature);}
 window.updateLocations=function(points){
-  removeFeature(userMarker);removeFeature(workMarker);removeFeature(accuracyArea);
-  userMarker=null;workMarker=null;accuracyArea=null;
+  removeFeature(userMarker);removeFeature(userLabelMarker);removeFeature(workMarker);removeFeature(accuracyArea);
+  userMarker=null;userLabelMarker=null;workMarker=null;accuracyArea=null;
   var current=points&&points.current, work=points&&points.workArea;
   userPoint=current||null;
   if(work && (!current || Math.abs(current.lat-work.lat)+Math.abs(current.lng-work.lng)>.001)){
@@ -292,6 +295,8 @@ window.updateLocations=function(points){
     }
     var icon=L.divIcon({className:'',html:'<div class="you-pin"></div>',iconSize:[24,24],iconAnchor:[12,12]});
     userMarker=L.marker([current.lat,current.lng],{icon:icon,interactive:false,zIndexOffset:1100}).addTo(map);
+    var label=L.divIcon({className:'',html:'<div class="you-label">You are here</div>',iconSize:[94,24],iconAnchor:[47,-17]});
+    userLabelMarker=L.marker([current.lat,current.lng],{icon:label,interactive:false,zIndexOffset:1100}).addTo(map);
   }
 };
 window.centerOnMe=function(){
@@ -313,15 +318,16 @@ function draw(){
   var group=buckets[key];
   if(group.length===1){
    var s=group[0];
-   var html='<div class="pin'+(s.general?' general':'')+'">▣</div>';
-   var icon=L.divIcon({className:'',html:html,iconSize:[34,34],iconAnchor:[17,17]});
+   var shopSvg='<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 10 5 4h14l2 6v2a2 2 0 0 1-4 0 2 2 0 0 1-4 0 2 2 0 0 1-4 0 2 2 0 0 1-4 0v-2Z"/><path d="M5 14v6h14v-6M9 20v-5h6v5"/></svg>';
+    var html='<div class="pin'+(s.general?' general':'')+'">'+shopSvg+'</div>';
+   var icon=L.divIcon({className:'',html:html,iconSize:[32,32],iconAnchor:[16,16]});
    L.marker([s.lat,s.lng],{icon:icon}).on('click',function(){
     window.ReactNativeWebView.postMessage(JSON.stringify({type:'supplier',id:s.id}));
    }).addTo(layer);
   }else{
    var lat=group.reduce((t,s)=>t+s.lat,0)/group.length;
    var lon=group.reduce((t,s)=>t+s.lng,0)/group.length;
-   var icon=L.divIcon({className:'',html:'<div class="cluster">'+group.length+'</div>',iconSize:[42,42],iconAnchor:[21,21]});
+   var icon=L.divIcon({className:'',html:'<div class="cluster">'+group.length+'</div>',iconSize:[38,38],iconAnchor:[19,19]});
    L.marker([lat,lon],{icon:icon}).on('click',function(){
     map.flyTo([lat,lon],Math.min(16,map.getZoom()+1.5),{duration:.28});
    }).addTo(layer);
@@ -637,7 +643,7 @@ export default function TradeSuppliersMap() {
         />
         <View pointerEvents="none" style={S.locationLegend}>
           <View style={usingGps ? S.youDot : S.workDot} />
-          <Text style={S.legendText}>{usingGps ? 'You are here' : savedWorkArea ? 'Using saved work area' : 'Using Leicester as fallback'}</Text>
+          <Text style={S.legendText}>{savedWorkArea ? 'Work area' : usingGps ? 'My location' : 'Leicester area'}</Text>
         </View>
         <Pressable
           style={S.recenterButton}
@@ -706,7 +712,7 @@ export default function TradeSuppliersMap() {
                   <Text style={S.panelHint}>{usingGps ? 'Nearest to your location' : 'Nearest to ' + (savedWorkArea ? 'your work area' : 'Leicester')} · straight-line miles</Text>
                 </View>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow} style={S.nearbyScroll}>
                 {visible.slice(0, 8).map((shop, index) => (
                   <Pressable
                     key={shop.id}
@@ -724,7 +730,7 @@ export default function TradeSuppliersMap() {
               </ScrollView>
             </>
           )}
-          {!selected ? <Text style={S.attribution} numberOfLines={1}>Approximate pins · check opening times before visiting</Text> : null}
+          <View pointerEvents="none" style={S.sheetHandle} />
         </View>
       </View>
     </View>
@@ -733,30 +739,30 @@ export default function TradeSuppliersMap() {
 
 const S = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.darkTeal, paddingBottom: 0 },
-  header: { paddingTop: 23, paddingHorizontal: 24, paddingBottom: 14, backgroundColor: theme.colors.darkTeal },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  eyebrow: { fontSize: 12, fontWeight: '800', letterSpacing: 1.6, color: '#F4A184', marginBottom: 8 },
-  title: { fontSize: 29, fontWeight: '800', color: theme.colors.white, letterSpacing: -0.8 },
-  subtitle: { marginTop: 7, color: '#BDCFD0', fontSize: 13, lineHeight: 19 },
-  radiusButton: { backgroundColor: '#324A50', borderWidth: 1, borderColor: '#546A6F', borderRadius: 19, alignItems: 'center', paddingHorizontal: 9, paddingVertical: 10, marginLeft: 4, minWidth: 74, minHeight: 58, justifyContent: 'center' },
-  radiusNumber: { color: theme.colors.white, fontSize: 20, fontWeight: '800' },
+  header: { paddingTop: 14, paddingHorizontal: 22, paddingBottom: 8, backgroundColor: theme.colors.darkTeal },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.45, color: '#F4A184', marginBottom: 5 },
+  title: { fontSize: 26, fontWeight: '800', color: theme.colors.white, letterSpacing: -0.8 },
+  subtitle: { marginTop: 5, color: '#BDCFD0', fontSize: 12, lineHeight: 17 },
+  radiusButton: { backgroundColor: '#324A50', borderWidth: 1, borderColor: '#546A6F', borderRadius: 17, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 7, marginLeft: 4, minWidth: 69, minHeight: 52, justifyContent: 'center' },
+  radiusNumber: { color: theme.colors.white, fontSize: 18, fontWeight: '800' },
   radiusCaptionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   radiusCaption: { color: '#CED9D9', fontSize: 12, fontWeight: '500' },
-  filters: { paddingTop: 18, paddingRight: 18, paddingBottom: 5 },
-  chip: { backgroundColor: '#344B50', borderWidth: 1, borderColor: '#586D71', borderRadius: 24, minHeight: 45, paddingHorizontal: 17, paddingVertical: 12, marginRight: 9 },
+  filters: { paddingTop: 12, paddingRight: 18, paddingBottom: 3 },
+  chip: { backgroundColor: '#344B50', borderWidth: 1, borderColor: '#586D71', borderRadius: 24, minHeight: 41, paddingHorizontal: 15, paddingVertical: 10, marginRight: 8 },
   chipActive: { backgroundColor: theme.colors.white, borderColor: theme.colors.white },
-  chipText: { color: '#ECF4F2', fontSize: 13, fontWeight: '700' },
+  chipText: { color: '#ECF4F2', fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: theme.colors.ink },
   mapArea: { flex: 1, backgroundColor: theme.colors.darkTeal, overflow: 'hidden' },
   webView: { flex: 1, backgroundColor: theme.colors.darkTeal },
-  counter: { position: 'absolute', top: 16, left: 16, borderRadius: 20, minHeight: 43, paddingHorizontal: 13, paddingVertical: 11, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687' },
-  locationLegend: { position: 'absolute', top: 16, right: 76, borderRadius: 20, minHeight: 43, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687', flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, maxWidth: 190 },
+  counter: { position: 'absolute', top: 13, left: 14, borderRadius: 18, minHeight: 39, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687' },
+  locationLegend: { position: 'absolute', top: 13, left: 142, borderRadius: 18, minHeight: 39, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687', flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, maxWidth: 120 },
   youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: theme.colors.coral, borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
   workDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#9BB8B6', borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
-  legendText: { fontSize: 12, fontWeight: '700', color: theme.colors.white, flexShrink: 1 },
-  recenterButton: { position: 'absolute', top: 13, right: 16, width: 48, height: 48, backgroundColor: theme.colors.white, borderRadius: 24, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  legendText: { fontSize: 11, fontWeight: '700', color: theme.colors.white, flexShrink: 1 },
+  recenterButton: { position: 'absolute', top: 11, right: 14, width: 44, height: 44, backgroundColor: theme.colors.white, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
   recenterText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
-  counterText: { fontSize: 12, color: theme.colors.white, fontWeight: '700' },
+  counterText: { fontSize: 11, color: theme.colors.white, fontWeight: '700' },
   loading: { position: 'absolute', left: 16, right: 16, top: 74, padding: 15, borderRadius: 18, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', gap: 10 },
   loadingText: { color: theme.colors.ink, fontSize: 13, fontWeight: '700' },
   notice: { position: 'absolute', left: 16, right: 16, top: 76, padding: 15, borderRadius: 18, backgroundColor: theme.colors.white, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.line },
@@ -764,7 +770,7 @@ const S = StyleSheet.create({
   noticeButton: { backgroundColor: theme.colors.darkTeal, borderRadius: 22, paddingHorizontal: 17, paddingVertical: 12, marginTop: 11, minHeight: 44 },
   noticeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   noticeButtonText: { color: LIGHT, fontSize: 13, fontWeight: '800' },
-  bottomPanel: { position: 'absolute', bottom: 10, left: 12, right: 12, borderRadius: 26, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 11, backgroundColor: theme.colors.white, ...theme.shadow },
+  bottomPanel: { position: 'absolute', bottom: 12, left: 12, right: 12, borderRadius: 26, paddingHorizontal: 14, paddingTop: 19, paddingBottom: 11, backgroundColor: theme.colors.white, ...theme.shadow },
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   storeGlyph: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   storeTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800', lineHeight: 21, letterSpacing: -0.4 },
@@ -777,13 +783,15 @@ const S = StyleSheet.create({
   secondaryButton: { minHeight: 48, backgroundColor: theme.colors.soft, paddingHorizontal: 14, borderRadius: 24, justifyContent: 'center' },
   secondaryText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
   panelHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  panelTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.35 },
-  panelHint: { color: theme.colors.muted, marginTop: 3, fontSize: 12, lineHeight: 16 },
-  nearbyRow: { paddingTop: 9, paddingBottom: 3 },
-  nearbyShop: { width: 170, minHeight: 88, paddingVertical: 9, paddingHorizontal: 11, borderRadius: 18, backgroundColor: theme.colors.proBackground, marginRight: 9, justifyContent: 'space-between' },
-  nearbyRank: { color: theme.colors.coralText, fontWeight: '800', letterSpacing: 0.35, fontSize: 12, marginBottom: 4 },
+  panelTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
+  panelHint: { color: theme.colors.muted, marginTop: 3, fontSize: 12, lineHeight: 17 },
+  sheetHandle: { position: 'absolute', top: 6, width: 32, height: 4, borderRadius: 2, backgroundColor: '#D5DEDB', alignSelf: 'center' },
+  nearbyScroll: { flexGrow: 0 },
+  nearbyRow: { paddingTop: 10, paddingBottom: 1 },
+  nearbyShop: { width: 155, minHeight: 86, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 18, backgroundColor: theme.colors.proBackground, marginRight: 9, justifyContent: 'space-between' },
+  nearbyRank: { color: theme.colors.coralText, fontWeight: '800', letterSpacing: 0.35, fontSize: 11, marginBottom: 5 },
   nearbyTitle: { color: theme.colors.ink, fontSize: 13, lineHeight: 16, fontWeight: '800' },
-  nearbyLink: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  nearbyLink: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
   nearbyDistance: { color: theme.colors.muted, fontSize: 12 },
   attribution: { marginTop: 3, fontSize: 12, color: theme.colors.muted },
   sourceNote: { marginTop: 10, fontSize: 12, color: theme.colors.teal, fontWeight: '700' },
