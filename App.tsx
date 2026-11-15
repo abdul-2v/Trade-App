@@ -2803,116 +2803,145 @@ function TradeProfileScreen({
 
   return (
     <CustomerShell>
-      <ScrollView style={styles.customerProfileScroll} contentContainerStyle={styles.customerTradeProfileContent}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.customerProfileHero}>
-          <View style={styles.customerProfileToolbar}>
-            <Pressable style={styles.customerHeroCircle} onPress={back} accessibilityRole="button" accessibilityLabel="Back to Explore">
-              <ArrowLeft size={22} color="#FFFFFF" strokeWidth={2} />
+      <ScrollView style={styles.customerPublicProfile} contentContainerStyle={{ paddingBottom: 114 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.customerPublicHero}>
+          <View style={styles.customerPublicTopButtons}>
+            <Pressable style={styles.customerPublicIconButton} onPress={back} accessibilityRole="button" accessibilityLabel="Back to Explore">
+              <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2} />
             </Pressable>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable style={styles.customerHeroCircle} onPress={shareProfile} accessibilityRole="button" accessibilityLabel="Share tradesperson profile">
-                <ArrowUp size={21} color="#FFFFFF" strokeWidth={2} />
+            <View style={{ flexDirection: 'row', gap: 9 }}>
+              <Pressable style={styles.customerPublicIconButton} accessibilityRole="button" accessibilityLabel="Share this tradesperson"
+                onPress={() => Share.share({ message: trade.name + ' — ' + trade.role + ' on TradeHub.' })}>
+                <ArrowUp size={20} color="#FFFFFF" strokeWidth={2} />
               </Pressable>
-              <Pressable style={styles.customerHeroCircle} onPress={toggleFavourite} disabled={savingFavourite} accessibilityRole="button" accessibilityLabel={saved ? 'Remove saved tradesperson' : 'Save tradesperson'}>
-                <Heart size={21} color="#FFFFFF" strokeWidth={2} fill={saved ? '#FFFFFF' : 'none'} />
+              <Pressable style={styles.customerPublicIconButton} accessibilityRole="button"
+                accessibilityLabel={saved ? 'Remove from saved tradespeople' : 'Save this tradesperson'}
+                disabled={savingFavourite} onPress={toggleFavourite}>
+                <Heart size={20} color={saved ? theme.colors.coral : '#FFFFFF'} fill={saved ? theme.colors.coral : 'none'} strokeWidth={2} />
               </Pressable>
             </View>
           </View>
-          <View style={styles.customerProfileIdentity}>
-            {trade.image
-              ? <Image source={{ uri: trade.image }} style={styles.customerProfilePortrait} />
-              : <View style={styles.customerProfilePortraitFallback}><Text style={styles.customerProfilePortraitInitials}>{trade.name.trim().split(' ').slice(0, 2).map(x => x.charAt(0)).join('').toUpperCase()}</Text></View>}
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                <Text style={styles.customerProfileHeroName}>{trade.name}</Text>
-                {isDemo ? <Text style={styles.customerDemoBadge}>DEMO</Text> : null}
+          <View style={styles.customerPublicIdentity}>
+            {trade.image ? <Image style={styles.customerPublicAvatar} source={{ uri: trade.image }} /> : (
+              <View style={styles.customerPublicAvatarFallback}>
+                <Text style={styles.customerPublicAvatarInitials}>{trade.name.trim().split(' ').slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase()}</Text>
               </View>
-              <Text style={styles.customerProfileHeroRole}>{trade.role}{trade.distance >= 0 ? ' · ' + trade.distance.toFixed(1) + ' mi away' : ''}</Text>
+            )}
+            <View style={{ flex: 1 }}>
+              <View style={styles.customerPublicNameRow}>
+                <Text style={styles.customerPublicName} numberOfLines={2}>{trade.name}</Text>
+                {!isLiveProfile ? <Text style={styles.customerPublicDemo}>DEMO</Text> : null}
+              </View>
+              <Text style={styles.customerPublicRole}>{trade.role}{trade.distance >= 0 ? ' · ' + trade.distance.toFixed(1) + ' mi away' : ''}</Text>
             </View>
           </View>
-          <View style={styles.customerProfileBadges}>
-            {trade.verified ? <View style={styles.customerProfileBadge}><ShieldCheck size={14} color="#D6E8E5" /><Text style={styles.customerProfileBadgeText}>ID verified</Text></View> : null}
-            {trade.insured ? <View style={styles.customerProfileBadge}><ShieldCheck size={14} color="#D6E8E5" /><Text style={styles.customerProfileBadgeText}>Insured</Text></View> : null}
-            {trade.gasSafe ? <View style={styles.customerProfileBadge}><CheckCircle2 size={14} color="#D6E8E5" /><Text style={styles.customerProfileBadgeText}>Gas Safe</Text></View> : null}
-          </View>
+          {(trade.verified || trade.insured || trade.gasSafe) ? (
+            <View style={styles.customerPublicBadges}>
+              {trade.verified ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>ID verified</Text></View> : null}
+              {trade.insured ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Insured</Text></View> : null}
+              {trade.gasSafe ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Gas Safe</Text></View> : null}
+            </View>
+          ) : null}
         </View>
 
-        {trade.reviews > 0 || !isLiveProfile ? (
-          <View style={styles.customerProfileStats}>
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={styles.customerProfileStatsValue}>{trade.reviews > 0 ? trade.rating.toFixed(1) + ' ★' : 'New'}</Text>
-              <Text style={styles.customerProfileStatsLabel}>{trade.reviews > 0 ? trade.reviews + ' reviews' : 'No reviews yet'}</Text>
-            </View>
-            {isDemo ? <View style={styles.customerProfileStatsDivider} /> : null}
-            {isDemo ? <View style={{ flex: 1, alignItems: 'center' }}><Text style={styles.customerProfileStatsValue}>DEMO</Text><Text style={styles.customerProfileStatsLabel}>Example information</Text></View> : null}
-          </View>
-        ) : null}
-
-        <View style={styles.customerTradeProfileBody}>
-          <View style={styles.customerProfileAvailability}>
-            <View style={[styles.customerAvailableDot, !trade.available && { backgroundColor: theme.colors.muted }]} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerProfileAvailableText}>{trade.available ? 'Available now' : 'Currently unavailable'}</Text>
-              <Text style={styles.customerProfileAvailableSub}>{trade.available ? 'Message to discuss your job and timing' : 'Ask about their next available appointment'}</Text>
-            </View>
-            <ChevronRight color={theme.colors.teal} size={19} />
-          </View>
-          <Text style={styles.customerProfileSection}>About</Text>
-          <Text style={styles.customerProfileAbout}>{trade.about}</Text>
-          <Text style={styles.customerProfileSection}>Services</Text>
-          {isDemo ? (
-            <View style={styles.customerProfileServiceWrap}>
-              {trade.services.map(service => (
-                <View key={service} style={styles.customerProfileServicePill}><Text style={styles.customerProfileServiceText}>{service}</Text></View>
-              ))}
+        <View style={styles.customerPublicStats}>
+          {trade.reviews > 0 ? (
+            <View style={styles.customerPublicStat}>
+              <Text style={styles.customerPublicStatNumber}>{trade.rating.toFixed(1)} <Text style={{ color: '#E69A0F', fontSize: 17 }}>★</Text></Text>
+              <Text style={styles.customerPublicStatLabel}>{trade.reviews} reviews</Text>
             </View>
           ) : (
-            <View style={styles.customerProfileNeutralCard}>
-              <Text style={styles.customerProfileAbout}>Ask this tradesperson which specific services they cover. Their full service list hasn't been confirmed yet.</Text>
+            <View style={styles.customerPublicStat}>
+              <Text style={styles.customerPublicStatNumber}>New</Text>
+              <Text style={styles.customerPublicStatLabel}>No reviews yet</Text>
             </View>
           )}
-
-          {trade.verified || trade.insured || trade.gasSafe ? (
-            <>
-              <Text style={styles.customerProfileSection}>Profile credentials</Text>
-              <View style={styles.customerProfileCredentialCard}>
-                {trade.verified ? <View style={styles.customerProfileCredentialRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerProfileCredentialName}>Photo ID verified</Text><CheckCircle2 size={20} color={theme.colors.success}/></View> : null}
-                {trade.insured ? <View style={styles.customerProfileCredentialRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerProfileCredentialName}>Insurance recorded</Text><CheckCircle2 size={20} color={theme.colors.success}/></View> : null}
-                {trade.gasSafe ? <View style={styles.customerProfileCredentialRow}><CheckCircle2 size={21} color={theme.colors.teal} /><Text style={styles.customerProfileCredentialName}>Gas Safe status</Text><CheckCircle2 size={20} color={theme.colors.success}/></View> : null}
-              </View>
-              {isDemo ? <Text style={styles.customerProfileFootnote}>DEMO: these badges are illustrative, not actual credential checks.</Text> : null}
-            </>
-          ) : null}
-
-          <Text style={styles.customerProfileSection}>Reviews</Text>
-          <View style={styles.customerProfileNeutralCard}>
-            {trade.reviews > 0 ? (
-              <>
-                <Text style={styles.customerProfileReviewRating}>★ {trade.rating.toFixed(1)} <Text style={styles.customerProfileReviewCount}>· {trade.reviews} reviews</Text></Text>
-                <Text style={styles.customerProfileAbout}>{isDemo ? 'Example ratings shown for demonstration only.' : 'Ratings come from completed TradeHub jobs. Written review details are not available in this view yet.'}</Text>
-              </>
-            ) : (
-              <Text style={styles.customerProfileAbout}>No reviews yet. Reviews appear after completed jobs.</Text>
-            )}
+          <View style={styles.customerPublicStatSeparator} />
+          <View style={styles.customerPublicStat}>
+            <Text style={styles.customerPublicStatNumber}>{trade.available ? 'Online' : 'Offline'}</Text>
+            <Text style={styles.customerPublicStatLabel}>Availability</Text>
           </View>
-          {trade.mapLatitude != null && trade.mapLongitude != null ? (
+          {!isLiveProfile && trade.response > 0 ? (
             <>
-              <Text style={styles.customerProfileSection}>Approximate service area</Text>
-              <View style={styles.customerProfileNeutralCard}>
-                <Text style={styles.customerProfileAbout}>{trade.role} in your local area. Public map locations are approximate, and exact job addresses remain private.</Text>
+              <View style={styles.customerPublicStatSeparator} />
+              <View style={styles.customerPublicStat}>
+                <Text style={styles.customerPublicStatNumber}>~{trade.response}m</Text>
+                <Text style={styles.customerPublicStatLabel}>Demo response</Text>
               </View>
             </>
           ) : null}
-          {isDemo ? <Text style={styles.customerProfileFootnote}>This is a fictional demonstration profile. Messaging and bookings are available only for real registered professionals.</Text> : null}
         </View>
+
+        <View style={[styles.customerPublicAvailability, !trade.available && { backgroundColor: '#E9ECE9' }]}>
+          <View style={styles.customerPublicAvailabilityDot} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.customerPublicAvailabilityTitle}>{trade.available ? 'Available now' : 'Not currently available'}</Text>
+            <Text style={styles.customerPublicAvailabilityText}>Message to discuss your job and arrange a time.</Text>
+          </View>
+          <ChevronRight size={21} strokeWidth={2} color={theme.colors.teal} />
+        </View>
+
+        <Text style={styles.customerPublicSectionTitle}>About</Text>
+        <Text style={styles.customerPublicAbout}>{trade.about || 'Contact this tradesperson to learn more about their work.'}</Text>
+
+        {trade.services.length ? (
+          <>
+            <Text style={styles.customerPublicSectionTitle}>Services</Text>
+            <View style={styles.customerPublicServiceChips}>
+              {trade.services.map(service => <View key={service} style={styles.customerPublicServiceChip}>
+                <Text style={styles.customerPublicServiceText}>{service}</Text>
+              </View>)}
+            </View>
+            {isLiveProfile ? <Text style={styles.customerPublicNote}>Ask this tradesperson to confirm which services they offer.</Text> : null}
+          </>
+        ) : null}
+
+        {(trade.verified || trade.insured || trade.gasSafe) ? (
+          <>
+            <Text style={styles.customerPublicSectionTitle}>Profile information</Text>
+            <View style={styles.customerPublicInformationCard}>
+              {trade.verified ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Photo ID marked verified</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
+              {trade.insured ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Insurance recorded</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
+              {trade.gasSafe ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Gas Safe listed</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
+            </View>
+            {!isLiveProfile ? <Text style={styles.customerPublicNote}>Demo credentials are examples only.</Text> : null}
+          </>
+        ) : null}
+
+        <Text style={styles.customerPublicSectionTitle}>Reviews</Text>
+        <View style={styles.customerPublicReviewsCard}>
+          {trade.reviews > 0 ? (
+            <>
+              <Text style={styles.customerPublicReviewScore}>{trade.rating.toFixed(1)} <Text style={{ color: '#E69A0F' }}>★★★★★</Text></Text>
+              <Text style={styles.customerPublicAbout}>{trade.reviews} {isLiveProfile ? 'reported' : 'demo'} reviews. Individual review details are not available here yet.</Text>
+            </>
+          ) : (
+            <Text style={styles.customerPublicAbout}>No reviews yet. Reviews appear after completed jobs.</Text>
+          )}
+        </View>
+
+        {trade.distance >= 0 ? (
+          <>
+            <Text style={styles.customerPublicSectionTitle}>Service area</Text>
+            <View style={styles.customerPublicAreaCard}>
+              <MapPin size={24} color={theme.colors.teal} strokeWidth={2} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.customerPublicAreaTitle}>Approximately {trade.distance.toFixed(1)} mi away</Text>
+                <Text style={styles.customerPublicAreaSub}>Approximate map location · precise address not shown</Text>
+              </View>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
-      <View style={styles.customerTradeProfileBottom}>
-        <Pressable style={styles.customerProfileMessageButton} onPress={message} accessibilityRole="button" accessibilityLabel={'Message ' + trade.name}>
-          <MessageCircle size={18} color={theme.colors.ink} strokeWidth={2} /><Text style={styles.customerProfileMessageText}>Message</Text>
+
+      <View style={styles.customerPublicActionBar}>
+        <Pressable style={styles.customerPublicMessageButton} onPress={message} accessibilityRole="button">
+          <MessageCircle size={18} color={theme.colors.ink} strokeWidth={2} />
+          <Text style={styles.customerPublicMessageText}>Message</Text>
         </Pressable>
-        <Pressable style={styles.customerProfileQuoteButton} onPress={book} accessibilityRole="button" accessibilityLabel={'Request a quote from ' + trade.name}>
-          <ClipboardList size={18} color="#FFFFFF" strokeWidth={2} /><Text style={styles.customerProfileQuoteText}>Request a quote</Text>
+        <Pressable style={styles.customerPublicQuoteButton} onPress={book} accessibilityRole="button">
+          <ClipboardList size={18} color="#FFFFFF" strokeWidth={2} />
+          <Text style={styles.customerPublicQuoteText}>Request a quote</Text>
         </Pressable>
       </View>
     </CustomerShell>
@@ -9941,6 +9970,50 @@ const styles = StyleSheet.create({
   customerChatComposer: { minHeight: 75, backgroundColor: theme.colors.customerTabBar, flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: '#E9E4DC' },
   customerChatInput: { flex: 1, minHeight: 48, maxHeight: 120, borderRadius: 25, backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 11, color: theme.colors.ink, fontSize: 14, borderWidth: 1, borderColor: '#EAE6DF' },
   customerChatSend: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
+
+  customerPublicProfile: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerPublicHero: { backgroundColor: theme.colors.darkTeal, paddingHorizontal: 22, paddingTop: 18, paddingBottom: 29, borderBottomLeftRadius: 34, borderBottomRightRadius: 34 },
+  customerPublicTopButtons: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 26 },
+  customerPublicIconButton: { width: 45, height: 45, backgroundColor: '#35545A', borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#5B747A' },
+  customerPublicIdentity: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  customerPublicAvatar: { width: 78, height: 78, borderRadius: 39, borderWidth: 2, borderColor: '#FFFFFF' },
+  customerPublicAvatarFallback: { width: 78, height: 78, borderRadius: 39, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center' },
+  customerPublicAvatarInitials: { fontSize: 26, fontWeight: '800', color: theme.colors.coralText },
+  customerPublicNameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  customerPublicName: { color: '#FFFFFF', fontSize: 25, fontWeight: '800', letterSpacing: -0.6, flexShrink: 1 },
+  customerPublicDemo: { color: '#C8D7D7', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, backgroundColor: '#36565A', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  customerPublicRole: { color: '#BDCDCD', fontSize: 14, marginTop: 6 },
+  customerPublicBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 24 },
+  customerPublicBadge: { borderRadius: 19, paddingHorizontal: 10, minHeight: 32, flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: '#325056', borderWidth: 1, borderColor: '#4D7074' },
+  customerPublicBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  customerPublicStats: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', backgroundColor: '#FFFFFF', borderRadius: 28, marginHorizontal: 20, marginTop: -10, paddingVertical: 19, paddingHorizontal: 8, ...theme.shadow },
+  customerPublicStat: { flex: 1, alignItems: 'center' },
+  customerPublicStatNumber: { fontSize: 20, fontWeight: '800', color: theme.colors.ink },
+  customerPublicStatLabel: { fontSize: 11, color: theme.colors.muted, marginTop: 5 },
+  customerPublicStatSeparator: { height: 35, width: 1, backgroundColor: '#EEE8DE' },
+  customerPublicAvailability: { marginHorizontal: 20, marginTop: 16, marginBottom: 9, minHeight: 69, borderRadius: 22, backgroundColor: '#E3F2E9', paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  customerPublicAvailabilityDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: theme.colors.success },
+  customerPublicAvailabilityTitle: { fontWeight: '800', color: theme.colors.teal, fontSize: 14 },
+  customerPublicAvailabilityText: { color: theme.colors.muted, fontSize: 12, marginTop: 4, lineHeight: 17 },
+  customerPublicSectionTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800', marginTop: 22, marginBottom: 10, marginHorizontal: 22 },
+  customerPublicAbout: { fontSize: 14, color: theme.colors.muted, lineHeight: 22, marginHorizontal: 22 },
+  customerPublicServiceChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginHorizontal: 22 },
+  customerPublicServiceChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 11, backgroundColor: '#FFFFFF', ...theme.shadow },
+  customerPublicServiceText: { fontSize: 13, fontWeight: '700', color: theme.colors.ink },
+  customerPublicNote: { fontSize: 12, marginHorizontal: 22, marginTop: 9, lineHeight: 18, color: theme.colors.muted },
+  customerPublicInformationCard: { borderRadius: 24, backgroundColor: '#FFFFFF', paddingHorizontal: 16, marginHorizontal: 20, ...theme.shadow },
+  customerPublicInformationRow: { flexDirection: 'row', gap: 12, alignItems: 'center', minHeight: 58, borderBottomWidth: 1, borderBottomColor: '#F0EBE5' },
+  customerPublicInformationText: { color: theme.colors.ink, fontSize: 13, fontWeight: '700', flex: 1 },
+  customerPublicReviewsCard: { marginHorizontal: 20, padding: 17, borderRadius: 25, backgroundColor: '#FFFFFF', ...theme.shadow },
+  customerPublicReviewScore: { color: theme.colors.ink, fontSize: 20, fontWeight: '800', marginBottom: 8 },
+  customerPublicAreaCard: { marginHorizontal: 20, padding: 18, gap: 13, flexDirection: 'row', alignItems: 'center', borderRadius: 25, backgroundColor: '#FFFFFF', ...theme.shadow },
+  customerPublicAreaTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  customerPublicAreaSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
+  customerPublicActionBar: { minHeight: 79, flexDirection: 'row', gap: 10, alignItems: 'center', paddingHorizontal: 20, backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#E9E4DC' },
+  customerPublicMessageButton: { minHeight: 53, flex: 1, backgroundColor: '#E8EEED', borderRadius: 27, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 9 },
+  customerPublicMessageText: { color: theme.colors.ink, fontWeight: '800', fontSize: 14 },
+  customerPublicQuoteButton: { minHeight: 53, flex: 1.45, backgroundColor: theme.colors.darkTeal, borderRadius: 27, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  customerPublicQuoteText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
 
 });
 
