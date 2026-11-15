@@ -4340,11 +4340,6 @@ function RequestDetailScreen({
     : ['Matched', 'Accepted'].includes(liveStatus) ? 2
     : ['Cancelled', 'Expired'].includes(liveStatus) ? 0 : 1;
 
-  // Derived entirely from saved job status; no sample quotes or invented milestones.
-  const stageIndex = ['completed'].includes(rawStatus) ? 4
-    : ['in_progress', 'en_route', 'arrived'].includes(rawStatus) ? 3
-    : ['accepted', 'matched'].includes(rawStatus) ? 2 : 1;
-
   return (
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.requestDetailPage, styles.customerRequestDetailLayout]} showsVerticalScrollIndicator={false}>
@@ -4388,22 +4383,6 @@ function RequestDetailScreen({
                 <Text style={styles.customerRequestStatusDetail}>{liveStatus}</Text>
               </View>
             </View>
-
-            {liveStatus !== 'Cancelled' ? (
-              <View style={styles.customerRequestStepper}>
-                {(['Posted', 'Matched', 'In progress', 'Done'] as const).map((label, index) => {
-                  const reached = index < stageIndex;
-                  return (
-                    <View key={label} style={styles.customerRequestStep}>
-                      <View style={[styles.customerRequestStepDot, reached && styles.customerRequestStepDotReached]}>
-                        {reached ? <CheckCircle2 size={19} color="#FFFFFF" strokeWidth={2.3} /> : <View style={styles.customerRequestStepEmpty} />}
-                      </View>
-                      <Text style={[styles.customerRequestStepText, reached && styles.customerRequestStepTextReached]}>{label}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : null}
 
             {isDemo && !isRoute ? (
               <View style={styles.requestDemoNotice}>
