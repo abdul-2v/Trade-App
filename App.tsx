@@ -4334,15 +4334,20 @@ function RequestDetailScreen({
   const canCancel = isMarketJob
     ? ['posted', 'offered'].includes(rawStatus)
     : !['completed', 'cancelled', 'expired'].includes(rawStatus);
+  // UI-only milestones from actual request state, not assumed bookings or quotes.
+  const currentMilestone = liveStatus === 'Completed' ? 4
+    : ['In progress', 'Arrived', 'On the way'].includes(liveStatus) ? 3
+    : ['Matched', 'Accepted'].includes(liveStatus) ? 2
+    : ['Cancelled', 'Expired'].includes(liveStatus) ? 0 : 1;
 
   return (
     <CustomerShell current="requests" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.requestDetailPage} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.requestDetailPage, styles.customerRequestDetailLayout]} showsVerticalScrollIndicator={false}>
         <View style={styles.requestDetailHeader}>
-          <Pressable style={styles.dispatchBackButton} onPress={() => navigate('requests')}>
-            <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
+          <Pressable style={styles.dispatchBackButton} onPress={() => navigate('requests')} accessibilityRole="button" accessibilityLabel="Back to Activity">
+            <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
           </Pressable>
-          <Text style={styles.requestDetailHeaderTitle}>Request details</Text>
+          <Text style={styles.requestDetailHeaderTitle}>Request</Text>
           <View style={{ width: 42 }} />
         </View>
 
@@ -4353,18 +4358,30 @@ function RequestDetailScreen({
           </View>
         ) : (
           <>
-            <View style={styles.requestDetailStatusCard}>
-              <View style={styles.requestDetailStatusTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.requestDetailTrade}>{details?.trade || request.trade}</Text>
-                  <Text style={styles.requestDetailUrgency}>{displayUrgency}</Text>
+            <Text style={styles.customerRequestTitle}>{displayIssue}</Text>
+            <View style={styles.customerRequestTags}>
+              <View style={styles.customerRequestTradeTag}><Text style={styles.customerRequestTradeTagText}>{details?.trade || request.trade}</Text></View>
+              <View style={styles.customerRequestStateTag}><Text style={styles.customerRequestStateTagText}>{isDemo ? liveStatus + ' · DEMO' : liveStatus}</Text></View>
+            </View>
+            <Text style={styles.customerRequestTiming}>{displayUrgency}</Text>
+            <View style={styles.customerRequestTimeline}>
+              {['Posted', 'Matched', 'In progress', 'Done'].map((label, index) => (
+                <View key={label} style={styles.customerRequestTimelineItem}>
+                  <View style={[styles.customerRequestTimelineCircle, index < currentMilestone && styles.customerRequestTimelineComplete]}>
+                    {index < currentMilestone
+                      ? <Check size={14} color="#FFFFFF" strokeWidth={2.4} />
+                      : <Text style={styles.customerRequestTimelineDigit}>{index + 1}</Text>}
+                  </View>
+                  <Text style={[styles.customerRequestTimelineLabel, index < currentMilestone && styles.customerRequestTimelineLabelActive]} numberOfLines={1}>{label}</Text>
                 </View>
-                <Badge
-                  text={isRoute ? liveStatus : isDemo ? 'Matched (demo)' : liveStatus}
-                  green={['Matched', 'Accepted', 'On the way', 'Arrived', 'In progress', 'Completed'].includes(liveStatus)}
-                />
+              ))}
+            </View>
+            <View style={styles.customerRequestStatusBox}>
+              <View style={styles.customerRequestStatusIcon}><Clock3 size={20} color={theme.colors.teal} strokeWidth={2} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.customerRequestStatusTitle}>Current status</Text>
+                <Text style={styles.customerRequestStatusDetail}>{liveStatus}</Text>
               </View>
-              <Text style={styles.requestDetailIssue}>{displayIssue}</Text>
             </View>
 
             {isDemo && !isRoute ? (
@@ -10014,6 +10031,26 @@ const styles = StyleSheet.create({
   customerPublicMessageText: { color: theme.colors.ink, fontWeight: '800', fontSize: 14 },
   customerPublicQuoteButton: { minHeight: 53, flex: 1.45, backgroundColor: theme.colors.darkTeal, borderRadius: 27, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
   customerPublicQuoteText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+
+  customerRequestDetailLayout: { backgroundColor: theme.colors.customerBackground, paddingHorizontal: 23, paddingTop: 7 },
+  customerRequestTitle: { fontSize: 27, lineHeight: 34, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.8 },
+  customerRequestTags: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  customerRequestTradeTag: { backgroundColor: theme.colors.tealTint, borderRadius: 17, paddingHorizontal: 11, paddingVertical: 7 },
+  customerRequestTradeTagText: { fontSize: 12, fontWeight: '800', color: theme.colors.teal },
+  customerRequestStateTag: { backgroundColor: theme.colors.coralTint, borderRadius: 17, paddingHorizontal: 11, paddingVertical: 7 },
+  customerRequestStateTagText: { fontSize: 12, fontWeight: '800', color: theme.colors.coralText },
+  customerRequestTiming: { fontSize: 13, color: theme.colors.muted, marginTop: 10, marginBottom: 18 },
+  customerRequestTimeline: { backgroundColor: '#FFFFFF', borderRadius: 28, paddingVertical: 18, paddingHorizontal: 8, flexDirection: 'row', ...theme.shadow },
+  customerRequestTimelineItem: { flex: 1, alignItems: 'center', gap: 8 },
+  customerRequestTimelineCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#DED8CE', alignItems: 'center', justifyContent: 'center' },
+  customerRequestTimelineComplete: { backgroundColor: theme.colors.darkTeal, borderColor: theme.colors.darkTeal },
+  customerRequestTimelineDigit: { fontSize: 12, fontWeight: '700', color: theme.colors.muted },
+  customerRequestTimelineLabel: { fontSize: 10, color: theme.colors.muted, fontWeight: '600', textAlign: 'center' },
+  customerRequestTimelineLabelActive: { fontWeight: '800', color: theme.colors.ink },
+  customerRequestStatusBox: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 15, minHeight: 75, flexDirection: 'row', alignItems: 'center', gap: 12, ...theme.shadow },
+  customerRequestStatusIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: theme.colors.tealTint, justifyContent: 'center', alignItems: 'center' },
+  customerRequestStatusTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
+  customerRequestStatusDetail: { fontSize: 13, color: theme.colors.muted, marginTop: 3 },
 
 });
 
