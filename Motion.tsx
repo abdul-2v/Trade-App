@@ -31,7 +31,7 @@ export function MotionPressable({
   onPressIn,
   onPressOut,
   disabled,
-  pressScale = 0.97,
+  pressScale = 0.89,
   ...rest
 }: MotionPressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -44,8 +44,8 @@ export function MotionPressable({
     Animated.spring(scale, {
       toValue: value,
       useNativeDriver: true,
-      speed: 25,
-      bounciness: value === 1 ? 5 : 0,
+      speed: value === 1 ? 15 : 28,
+      bounciness: value === 1 ? 17 : 0,
     }).start();
   };
 
@@ -75,11 +75,11 @@ export function FadeSlideIn({ children, delay = 70 }: React.PropsWithChildren<{ 
       progress.setValue(1);
       return;
     }
-    const transition = Animated.timing(progress, {
+    const transition = Animated.spring(progress, {
       toValue: 1,
-      duration: 460,
       delay,
-      easing: Easing.out(Easing.cubic),
+      speed: 10,
+      bounciness: 9,
       useNativeDriver: true,
     });
     transition.start();
@@ -91,7 +91,7 @@ export function FadeSlideIn({ children, delay = 70 }: React.PropsWithChildren<{ 
       style={{
         opacity: progress,
         transform: [{
-          translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [13, 0] }),
+          translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }),
         }],
       }}
     >
@@ -149,5 +149,54 @@ export function LiveStatusDot({
         },
       ]}
     />
+  );
+}
+
+/** Visible animated CTA arrow: glides forward and returns while the hero is visible. */
+export function MovingArrow({ children }: React.PropsWithChildren) {
+  const travel = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.delay(700),
+      Animated.timing(travel, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(travel, { toValue: 0, duration: 480, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.delay(1800),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [travel]);
+  return <Animated.View style={{ transform: [{ translateX: travel.interpolate({ inputRange: [0, 1], outputRange: [0, 12] }) }] }}>{children}</Animated.View>;
+}
+
+/** Radar on the home map: an unmistakable double wave, not a decorative dot. */
+export function RadarBeacon({ active = true }: { active?: boolean }) {
+  const wave = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    wave.stopAnimation();
+    wave.setValue(0);
+    if (!active || prefersReducedMotion) return;
+    const loop = Animated.loop(Animated.timing(wave, {
+      toValue: 1, duration: 2300, easing: Easing.linear, useNativeDriver: true,
+    }));
+    loop.start();
+    return () => loop.stop();
+  }, [active, wave]);
+  return (
+    <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      style={{ position: 'absolute', top: '42%', left: '45%', width: 46, height: 46, alignItems: 'center', justifyContent: 'center' }}>
+      {[0, 0.5].map((offset, index) => {
+        const phase = Animated.modulo(Animated.add(wave, offset), 1);
+        return (
+          <Animated.View key={index} style={{
+            position: 'absolute', width: 38, height: 38, borderRadius: 19,
+            borderColor: '#F07850', borderWidth: 2.5, backgroundColor: '#F0785014',
+            opacity: phase.interpolate({ inputRange: [0, 0.2, 0.75, 1], outputRange: [0, 0.85, 0.25, 0] }),
+            transform: [{ scale: phase.interpolate({ inputRange: [0, 1], outputRange: [0.45, 3.2] }) }],
+          }} />
+        );
+      })}
+      <Animated.View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#F07850', borderWidth: 3, borderColor: '#FFFFFF', elevation: 4 }} />
+    </Animated.View>
   );
 }
