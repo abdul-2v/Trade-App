@@ -42,6 +42,15 @@ background:repeating-linear-gradient(35deg,#102B31 0px,#102B31 29px,#174047 31px
 .shop-pin{width:14px;height:14px;border-radius:50%;border:3px solid #DDEAF1;background:#E0704C;box-shadow:0 2px 5px #27546A55;box-sizing:border-box;}
 .pin{width:23px;height:23px;border:5px solid white;border-radius:50%;background:#E0704C;
 box-shadow:0 0 0 6px rgba(206,112,82,.20),0 4px 14px #203E5555;box-sizing:border-box;}
+/* Visible animated location sonar plus a staggered reveal of nearby merchants. */
+@keyframes homeSonar{0%{transform:scale(.55);opacity:.75}100%{transform:scale(4);opacity:0}}
+@keyframes merchantPop{0%{transform:translateY(18px) scale(.35);opacity:0}60%{transform:translateY(-3px) scale(1.15);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes merchantGlow{0%,100%{box-shadow:0 0 0 3px #E0704C26}50%{box-shadow:0 0 0 8px #E0704C16}}
+.pin{position:relative;isolation:isolate;overflow:visible}
+.pin:before,.pin:after{content:"";position:absolute;left:-5px;top:-5px;width:23px;height:23px;box-sizing:border-box;border:2.5px solid #F07850;border-radius:50%;pointer-events:none;animation:homeSonar 2.8s ease-out infinite}
+.pin:after{animation-delay:1.4s}
+.shop-pin{animation:merchantPop .65s cubic-bezier(.2,.8,.25,1.15) both,merchantGlow 3s ease-in-out 1s infinite;animation-delay:var(--delay,0ms),calc(var(--delay,0ms) + 750ms)}
+@media(prefers-reduced-motion:reduce){.pin:before,.pin:after,.shop-pin{animation:none!important}}
 .maplibregl-control-container{display:none}
 #attribution{position:absolute;z-index:4;right:5px;bottom:3px;background:#ffffffc4;color:#637683;font-size:8px;padding:2px 4px;border-radius:4px}
 </style></head><body>
@@ -57,8 +66,8 @@ try {
   map.on('load',function(){
     document.getElementById('fallback').style.display='none';
     var shops = ${JSON.stringify(nearby)};
-    shops.forEach(function(coords){
-      var pin=document.createElement('div');pin.className='shop-pin';
+    shops.forEach(function(coords,index){
+      var pin=document.createElement('div');pin.className='shop-pin';pin.style.setProperty('--delay',(index*95)+'ms');
       new maplibregl.Marker({element:pin,anchor:'center'}).setLngLat(coords).addTo(map);
     });
     if(${showPin ? 'true' : 'false'}){
