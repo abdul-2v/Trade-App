@@ -34,8 +34,8 @@ export default function WorkAreaMapPreview({ latitude, longitude, showPin, trade
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
-html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#0F2A30;}
-.maplibregl-canvas{filter:brightness(.38) saturate(.8) sepia(.14) hue-rotate(115deg)}
+html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#738E90;}
+.maplibregl-canvas{filter:brightness(.76) contrast(.98) saturate(.85) sepia(.15) hue-rotate(125deg)}
 body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;}
 #fallback{position:absolute;inset:0;z-index:2;display:flex;justify-content:center;align-items:center;color:#B9D2CF;
 background:repeating-linear-gradient(35deg,#102B31 0px,#102B31 29px,#174047 31px,#174047 50px);font-size:12px;}
