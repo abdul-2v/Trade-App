@@ -248,12 +248,14 @@ function createMapHtml(centre: Coordinates) {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
-html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#0D282E}
-.maplibregl-canvas{filter:sepia(.15) hue-rotate(128deg) saturate(.85) brightness(1.08)}
-.leaflet-tile-pane img{filter:brightness(.43) sepia(.2) hue-rotate(128deg)}
+/* Mid-tone slate-teal map: readable streets/labels without the black night-map effect.
+   Filters apply to basemap imagery only; interactive markers retain full contrast. */
+html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E90}
+.maplibregl-canvas{filter:brightness(.76) contrast(.98) saturate(.85) sepia(.15) hue-rotate(125deg)}
+.leaflet-tile-pane img{filter:brightness(.76) contrast(.98) saturate(.85) sepia(.15) hue-rotate(125deg)}
 .leaflet-control-attribution{font-size:8px!important;background:rgba(13,37,43,.87)!important;color:#A9C1C1!important;padding:2px 5px!important;border-top-left-radius:5px!important}
 .leaflet-control-attribution a{color:#B5CFCC!important;text-decoration:none!important}
-.you-label{border-radius:13px;background:rgba(39,80,83,.92);border:1px solid #547A7D;padding:4px 8px;color:#fff;font:700 10px sans-serif;white-space:nowrap;text-align:center;box-shadow:0 3px 10px #0b272844}
+.you-label{border-radius:13px;background:rgba(15,42,48,.94);border:1px solid #5E8588;padding:4px 8px;color:#fff;font:700 10px sans-serif;white-space:nowrap;text-align:center;box-shadow:0 3px 10px #0b272844}
 .pin{width:32px;height:32px;border-radius:10px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 10px #0B262A70;color:#245758;display:flex;align-items:center;justify-content:center}
 .pin.general{background:#E0704C}.pin:hover{transform:scale(1.12)}
 .cluster{width:38px;height:38px;border-radius:19px;background:#FFFDF7;border:2px solid #3B7377;box-shadow:0 3px 12px #0C202D66;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#0C1F24}
@@ -266,7 +268,7 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#0D282
 <script>
 var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:0.25}).setView([${centre.latitude},${centre.longitude}],12.6);
 if(L.maplibreGL){
-  try { L.maplibreGL({style:'https://tiles.openfreemap.org/styles/dark'}).addTo(map); }
+  try { L.maplibreGL({style:'https://tiles.openfreemap.org/styles/liberty'}).addTo(map); }
   catch(e) { L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map); }
 } else {
   // Low-volume fallback for development when the vector plugin does not load.
@@ -753,8 +755,8 @@ const S = StyleSheet.create({
   chipActive: { backgroundColor: theme.colors.white, borderColor: theme.colors.white },
   chipText: { color: '#ECF4F2', fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: theme.colors.ink },
-  mapArea: { flex: 1, backgroundColor: theme.colors.darkTeal, overflow: 'hidden' },
-  webView: { flex: 1, backgroundColor: theme.colors.darkTeal },
+  mapArea: { flex: 1, backgroundColor: '#738E90', overflow: 'hidden' },
+  webView: { flex: 1, backgroundColor: '#738E90' },
   counter: { position: 'absolute', top: 13, left: 14, borderRadius: 18, minHeight: 39, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687' },
   locationLegend: { position: 'absolute', top: 13, left: 142, borderRadius: 18, minHeight: 39, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687', flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, maxWidth: 120 },
   youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: theme.colors.coral, borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
