@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   logoText: { color: '#FFFFFF', fontSize: 23, fontWeight: '800' },
   brand: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '800', letterSpacing: -1.15 },
   brandBlue: { color: theme.colors.coralDark },
-  brandCaption: { marginTop: 1, color: theme.colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
+  brandCaption: { marginTop: 1, color: theme.colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.6 },
   title: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 34, lineHeight: 42, fontWeight: '800', letterSpacing: -1.15 },
   sub: { color: theme.colors.muted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 26 },
   label: { color: theme.colors.ink, fontSize: 13, fontWeight: '700', marginTop: 15, marginBottom: 8 },
