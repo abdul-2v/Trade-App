@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { supabase } from './lib/supabase';
+import { theme } from './theme';
+import { Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 
 type AccountType = 'customer' | 'tradesperson';
 
@@ -40,6 +42,8 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
   const [loading, setLoading] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const passwordChecks = useMemo(
     () => ({
@@ -207,7 +211,10 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
           <View style={styles.brandRow}>
             <View style={styles.logo}><Text style={styles.logoText}>T</Text></View>
-            <Text style={styles.brand}>Trade<Text style={styles.brandBlue}>Hub</Text></Text>
+            <View>
+              <Text style={styles.brand}>Trade<Text style={styles.brandBlue}>Hub</Text></Text>
+              <Text style={styles.brandCaption}>LOCAL HELP. MADE SIMPLE.</Text>
+            </View>
           </View>
 
           <Text style={styles.title}>
@@ -243,6 +250,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 <Text style={styles.primaryButtonText}>
                   {loading ? 'Checking…' : "I've verified my email"}
                 </Text>
+                {!loading ? <ArrowRight color="#FFFFFF" size={19} strokeWidth={2.2} /> : null}
               </Pressable>
 
               <Pressable
@@ -264,7 +272,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
             </>
           ) : mode === 'signup' ? (
             <>
-              <Text style={styles.label}>I am joining as</Text>
+              <Text style={styles.segmentLabel}>I'M JOINING AS</Text>
               <View style={styles.segment}>
                 <Pressable
                   style={[styles.segmentButton, accountType === 'customer' && styles.segmentActive]}
@@ -352,14 +360,19 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
               />
 
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                style={styles.input}
-                secureTextEntry
-                autoCapitalize="none"
-                textContentType={mode === 'signup' ? 'newPassword' : 'password'}
-              />
+              <View style={styles.passwordInputWrap}>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  style={styles.passwordInput}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  textContentType={mode === 'signup' ? 'newPassword' : 'password'}
+                />
+                <Pressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(v => !v)}>
+                  {showPassword ? <EyeOff color={theme.colors.muted} size={21} strokeWidth={2} /> : <Eye color={theme.colors.muted} size={21} strokeWidth={2} />}
+                </Pressable>
+              </View>
 
               {mode === 'signin' ? (
                 <Pressable
@@ -381,14 +394,19 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                   </View>
 
                   <Text style={styles.label}>Confirm password</Text>
-                  <TextInput
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    style={styles.input}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    textContentType="newPassword"
-                  />
+                  <View style={styles.passwordInputWrap}>
+                    <TextInput
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      style={styles.passwordInput}
+                      secureTextEntry={!showConfirm}
+                      autoCapitalize="none"
+                      textContentType="newPassword"
+                    />
+                    <Pressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showConfirm ? 'Hide confirmation password' : 'Show confirmation password'} onPress={() => setShowConfirm(v => !v)}>
+                      {showConfirm ? <EyeOff color={theme.colors.muted} size={21} strokeWidth={2} /> : <Eye color={theme.colors.muted} size={21} strokeWidth={2} />}
+                    </Pressable>
+                  </View>
 
                   <Pressable
                     style={styles.termsRow}
@@ -412,6 +430,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 <Text style={styles.primaryButtonText}>
                   {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
                 </Text>
+                {!loading ? <ArrowRight color="#FFFFFF" size={19} strokeWidth={2.2} /> : null}
               </Pressable>
 
               <Pressable
@@ -437,46 +456,51 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
 const DISPLAY_FONT = Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif';
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F3EC' },
-  page: { paddingHorizontal: 22, paddingTop: 22, paddingBottom: 46 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 34 },
-  logo: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#D66F4F', alignItems: 'center', justifyContent: 'center' },
-  logoText: { color: '#FFFFFF', fontSize: 19, fontWeight: '900' },
-  brand: { marginLeft: 10, color: '#111C29', fontFamily: DISPLAY_FONT, fontSize: 26, fontWeight: '900', letterSpacing: -0.6 },
-  brandBlue: { color: '#C86748' },
-  title: { color: '#111C29', fontFamily: DISPLAY_FONT, fontSize: 31, lineHeight: 38, fontWeight: '800', letterSpacing: -0.9 },
-  sub: { color: '#657485', fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 24 },
-  label: { color: '#344659', fontSize: 12, fontWeight: '800', marginTop: 15, marginBottom: 7 },
-  segment: { flexDirection: 'row', backgroundColor: '#E9E6E0', borderRadius: 14, padding: 4 },
-  segmentButton: { flex: 1, minHeight: 47, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  segmentActive: { backgroundColor: '#111C29' },
-  segmentText: { color: '#6B7885', fontWeight: '800' },
-  segmentTextActive: { color: '#FFFDF8' },
-  tradeRow: { paddingRight: 15 },
-  tradeChip: { paddingHorizontal: 13, paddingVertical: 11, backgroundColor: '#FFFCF7', borderWidth: 1, borderColor: '#E0D9CF', borderRadius: 12, marginRight: 7 },
-  tradeChipActive: { backgroundColor: '#DCE7ED', borderColor: '#A9C4D4' },
-  tradeChipText: { color: '#5F635B', fontSize: 12, fontWeight: '700' },
-  tradeChipTextActive: { color: '#24465D' },
-  input: { height: 55, borderRadius: 13, backgroundColor: '#FFFCF7', borderWidth: 1, borderColor: '#DDD9D1', color: '#111C29', paddingHorizontal: 15, fontSize: 16 },
-  twoCol: { flexDirection: 'row', gap: 10 },
+  safe: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  page: { paddingHorizontal: 25, paddingTop: 27, paddingBottom: 65 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 39, gap: 11 },
+  logo: { width: 47, height: 47, borderRadius: 15, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center' },
+  logoText: { color: '#FFFFFF', fontSize: 23, fontWeight: '800' },
+  brand: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '800', letterSpacing: -1.15 },
+  brandBlue: { color: theme.colors.coralDark },
+  brandCaption: { marginTop: 1, color: theme.colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
+  title: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 34, lineHeight: 42, fontWeight: '800', letterSpacing: -1.15 },
+  sub: { color: theme.colors.muted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 26 },
+  label: { color: theme.colors.ink, fontSize: 13, fontWeight: '700', marginTop: 15, marginBottom: 8 },
+  segmentLabel: { color: theme.colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.1, marginTop: 7, marginBottom: 10 },
+  segment: { flexDirection: 'row', backgroundColor: '#EAE7E0', borderRadius: 21, padding: 5, marginBottom: 6 },
+  segmentButton: { flex: 1, minHeight: 49, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  segmentActive: { backgroundColor: theme.colors.darkTeal },
+  segmentText: { color: theme.colors.muted, fontSize: 14, fontWeight: '800' },
+  segmentTextActive: { color: '#FFFFFF' },
+  tradeRow: { paddingRight: 15, paddingVertical: 2 },
+  tradeChip: { paddingHorizontal: 15, paddingVertical: 12, backgroundColor: '#FFFFFF', borderRadius: 21, marginRight: 8 },
+  tradeChipActive: { backgroundColor: theme.colors.tealTint, borderWidth: 1, borderColor: theme.colors.teal },
+  tradeChipText: { color: theme.colors.muted, fontSize: 13, fontWeight: '700' },
+  tradeChipTextActive: { color: theme.colors.teal },
+  input: { minHeight: 56, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2DFD7', color: theme.colors.ink, paddingHorizontal: 16, fontSize: 16 },
+  passwordInputWrap: { minHeight: 56, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2DFD7', borderRadius: 20 },
+  passwordInput: { flex: 1, minHeight: 54, color: theme.colors.ink, fontSize: 16, paddingHorizontal: 16 },
+  eyeButton: { width: 48, minHeight: 54, alignItems: 'center', justifyContent: 'center' },
+  twoCol: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
-  primaryButton: { height: 56, borderRadius: 14, backgroundColor: '#111C29', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
-  primaryButtonText: { color: '#FFFDF8', fontSize: 15, fontWeight: '900' },
-  disabled: { opacity: 0.45 },
-  switchButton: { paddingVertical: 15, alignItems: 'center' },
-  switchText: { color: '#315D76', fontWeight: '800', fontSize: 13 },
-  switchTextDisabled: { color: '#9B9E96' },
-  forgotPasswordButton: { alignSelf: 'flex-end', paddingVertical: 14, paddingLeft: 12 },
-  forgotPasswordText: { color: '#315D76', fontSize: 12, fontWeight: '900' },
-  verifyCard: { backgroundColor: '#E5EBED', borderRadius: 15, padding: 16, marginBottom: 8 },
-  verifyCardTitle: { color: '#172B3C', fontFamily: DISPLAY_FONT, fontSize: 15, fontWeight: '800' },
-  verifyCardText: { color: '#586B79', fontSize: 12, lineHeight: 18, marginTop: 5 },
-  passwordRules: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, gap: 8 },
-  ruleText: { color: '#8A8D85', fontSize: 10, fontWeight: '700' },
-  ruleDone: { color: '#2F8A67' },
-  termsRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 },
-  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: '#AAA99F', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  checkboxActive: { backgroundColor: '#C96E52', borderColor: '#C96E52' },
-  checkboxTick: { color: '#FFFDF8', fontWeight: '900', fontSize: 13 },
-  termsText: { flex: 1, color: '#687786', fontSize: 11, lineHeight: 17 },
+  primaryButton: { minHeight: 56, borderRadius: 28, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 13, marginTop: 27, ...theme.shadow },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  disabled: { opacity: 0.5 },
+  switchButton: { minHeight: 44, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  switchText: { color: theme.colors.teal, fontWeight: '800', fontSize: 14 },
+  switchTextDisabled: { color: theme.colors.muted },
+  forgotPasswordButton: { alignSelf: 'flex-end', minHeight: 44, paddingVertical: 12, paddingLeft: 12 },
+  forgotPasswordText: { color: theme.colors.teal, fontSize: 13, fontWeight: '700' },
+  verifyCard: { backgroundColor: '#FFFFFF', borderRadius: 25, padding: 20, marginBottom: 10, ...theme.shadow },
+  verifyCardTitle: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 19, fontWeight: '800' },
+  verifyCardText: { color: theme.colors.muted, fontSize: 14, lineHeight: 22, marginTop: 7 },
+  passwordRules: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 9, gap: 10 },
+  ruleText: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
+  ruleDone: { color: theme.colors.success },
+  termsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 19, minHeight: 44 },
+  checkbox: { width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: '#B2B7B1', alignItems: 'center', justifyContent: 'center', marginRight: 11 },
+  checkboxActive: { backgroundColor: theme.colors.teal, borderColor: theme.colors.teal },
+  checkboxTick: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  termsText: { flex: 1, color: theme.colors.muted, fontSize: 13, lineHeight: 18 },
 });
