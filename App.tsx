@@ -1956,7 +1956,7 @@ function MapScreen({
       <View style={styles.mapTop}>
         <View style={styles.mapSearchRow}>
           <View style={styles.mapSearch}>
-            <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={18} color={C.muted} />
+            <Search size={20} strokeWidth={2} color={theme.colors.muted} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -1976,12 +1976,9 @@ function MapScreen({
           <Pressable
             style={[styles.mapControlButton, showFilters && styles.mapControlButtonActive]}
             onPress={() => setShowFilters(true)}
+            accessibilityRole="button" accessibilityLabel="Filter nearby tradespeople"
           >
-            <AppIcon
-              icon={{ ios: 'slider.horizontal.3', android: 'tune' }}
-              size={20}
-              color={showFilters ? C.white : C.navy2}
-            />
+            <SlidersHorizontal size={21} strokeWidth={2} color={showFilters ? '#FFFFFF' : theme.colors.ink} />
             {activeFilterCount > 0 ? (
               <View style={styles.filterBadge}>
                 <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -1991,18 +1988,13 @@ function MapScreen({
 
           <Pressable
             style={styles.mapControlButton}
+            accessibilityRole="button" accessibilityLabel={listMode ? 'Show map view' : 'Show list view'}
             onPress={() => {
               setSelectedMapTrade(null);
               setListMode(v => !v);
             }}
           >
-            <AppIcon
-              icon={listMode
-                ? { ios: 'map.fill', android: 'map' }
-                : { ios: 'list.bullet', android: 'view_list' }}
-              size={20}
-              color={C.navy2}
-            />
+            {listMode ? <MapIcon size={21} strokeWidth={2} color={theme.colors.ink} /> : <ListIcon size={21} strokeWidth={2} color={theme.colors.ink} />}
           </Pressable>
         </View>
 
@@ -2107,7 +2099,7 @@ function MapScreen({
 
           {selectedMapTrade ? (
             <View style={styles.mapPreviewCard}>
-              <Pressable style={styles.mapPreviewClose} onPress={() => setSelectedMapTrade(null)}>
+              <Pressable style={styles.mapPreviewClose} onPress={() => setSelectedMapTrade(null)} accessibilityRole="button" accessibilityLabel="Close tradesperson preview">
                 <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={14} color={C.muted} />
               </Pressable>
 
@@ -2128,7 +2120,9 @@ function MapScreen({
                   </View>
                   <Text style={styles.mapPreviewRole}>{selectedMapTrade.role}</Text>
                   <Text style={styles.mapPreviewMeta}>
-                    ★ {selectedMapTrade.rating} ({selectedMapTrade.reviews}) · {selectedMapTrade.distance} mi · ~{selectedMapTrade.eta} min
+                    {selectedMapTrade.reviews > 0 ? '★ ' + selectedMapTrade.rating.toFixed(1) + ' · ' : ''}
+                    {selectedMapTrade.distance >= 0 ? selectedMapTrade.distance + ' mi away' : 'Location unavailable'}
+                    {!selectedMapTrade.id.startsWith('live-') ? ' · DEMO' : ''}
                   </Text>
                 </View>
               </View>
@@ -2176,6 +2170,23 @@ function MapScreen({
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={C.white} />
                 </Pressable>
               </View>
+            </View>
+          ) : !marketLoading && !marketError && filtered.length === 0 ? (
+            <View style={styles.customerExploreEmpty}>
+              <View style={styles.customerExploreEmptyHeading}>
+                <View style={styles.customerExploreEmptyIcon}><MapPin size={23} color={theme.colors.coralDark} strokeWidth={2} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.customerExploreEmptyTitle}>{showDemoProfiles ? 'No matching demo pros' : 'No pros near you yet'}</Text>
+                  <Text style={styles.customerExploreEmptyText}>{showDemoProfiles ? 'Try changing your trade or filters.' : 'No real profiles match your current location and filters.'}</Text>
+                </View>
+              </View>
+              {!showDemoProfiles ? (
+                <Pressable style={styles.customerExploreDemoButton} onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
+                  accessibilityRole="button" accessibilityLabel="Preview fictional tradespeople on the map">
+                  <Text style={styles.customerExploreDemoText}>Preview demo</Text>
+                </Pressable>
+              ) : <Pressable style={styles.customerExploreDemoButton} onPress={clearFilters} accessibilityRole="button"><Text style={styles.customerExploreDemoText}>Clear filters</Text></Pressable>}
+              {!showDemoProfiles ? <Text style={styles.customerExploreDemoNote}>Demo profiles are examples, not real businesses.</Text> : null}
             </View>
           ) : null}
         </View>
@@ -7848,23 +7859,23 @@ const styles = StyleSheet.create({
   navIcon: { fontSize: 24, color: '#7C8795' },
   navLabel: { fontSize: 11, color: '#AEBACA', marginTop: 4, fontWeight: '700' },
   navActive: { color: C.blue, fontWeight: '800' },
-  mapTop: { paddingHorizontal: 14, paddingTop: 10, backgroundColor: C.white, zIndex: 5, borderBottomWidth: 1, borderBottomColor: '#EEF1F5' },
-  mapSearchRow: { flexDirection: 'row', alignItems: 'center' },
-  mapSearch: { flex: 1, height: 48, borderRadius: 16, backgroundColor: '#F4F6F9', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center' },
+  mapTop: { paddingHorizontal: 20, paddingTop: 15, backgroundColor: theme.colors.customerBackground, zIndex: 5, paddingBottom: 6 },
+  mapSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  mapSearch: { flex: 1, height: 53, borderRadius: 27, backgroundColor: '#FFFFFF', paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', ...theme.shadow },
   mapSearchText: { marginLeft: 9, color: C.muted, fontSize: 15 },
-  mapSearchInput: { flex: 1, marginLeft: 9, color: C.text, fontSize: 15, paddingVertical: 0 },
-  mapControlButton: { width: 48, height: 48, marginLeft: 8, borderRadius: 16, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  mapControlButtonActive: { backgroundColor: C.navy2 },
+  mapSearchInput: { flex: 1, marginLeft: 10, color: theme.colors.ink, fontSize: 14, paddingVertical: 0 },
+  mapControlButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', position: 'relative', ...theme.shadow },
+  mapControlButtonActive: { backgroundColor: theme.colors.darkTeal },
   filterBadge: { position: 'absolute', right: -3, top: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.blue, borderWidth: 2, borderColor: C.white, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   filterBadgeText: { color: C.white, fontSize: 9, fontWeight: '900' },
-  chipRow: { paddingVertical: 10 },
-  chip: { backgroundColor: '#F3F5F8', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, marginRight: 7 },
-  chipActive: { backgroundColor: C.navy },
-  chipText: { color: C.text, fontSize: 12, fontWeight: '700' },
-  chipTextActive: { color: C.white },
+  chipRow: { paddingTop: 13, paddingBottom: 6, paddingRight: 10 },
+  chip: { backgroundColor: '#FFFFFF', borderRadius: 21, minHeight: 42, paddingHorizontal: 15, paddingVertical: 11, marginRight: 8, ...theme.shadow },
+  chipActive: { backgroundColor: theme.colors.darkTeal },
+  chipText: { color: theme.colors.ink, fontSize: 12, fontWeight: '800' },
+  chipTextActive: { color: '#FFFFFF' },
   filterModalRoot: { flex: 1, justifyContent: 'flex-end' },
   filterModalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
-  filterSheet: { backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30, shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 } },
+  filterSheet: { backgroundColor: theme.colors.customerBackground, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 33, ...theme.shadow },
   filterSheetHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#D8DEE6', alignSelf: 'center', marginBottom: 16 },
   filterPanelHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
   filterPanelTitle: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.4 },
@@ -7872,11 +7883,11 @@ const styles = StyleSheet.create({
   clearFiltersText: { color: C.blue, fontSize: 12, fontWeight: '800', paddingTop: 4 },
   filterSectionLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 11, marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.5 },
   filterOptionRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
-  filterOption: { minHeight: 36, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F4F6F9', alignItems: 'center', justifyContent: 'center', margin: 3 },
-  filterOptionActive: { backgroundColor: C.navy2 },
+  filterOption: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', margin: 4 },
+  filterOptionActive: { backgroundColor: theme.colors.darkTeal },
   filterOptionText: { color: C.text, fontSize: 12, fontWeight: '700' },
   filterOptionTextActive: { color: C.white },
-  filterApplyButton: { height: 52, borderRadius: 15, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  filterApplyButton: { height: 56, borderRadius: 28, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', marginTop: 22 },
   filterApplyText: { color: C.white, fontSize: 15, fontWeight: '900' },
   mapMock: { flex: 1, minHeight: 420, backgroundColor: '#E9EEF3', position: 'relative' },
   mapCanvas: { ...StyleSheet.absoluteFill, backgroundColor: '#E9EEF3' },
@@ -7885,25 +7896,25 @@ const styles = StyleSheet.create({
   mapLocationText: { marginLeft: 7, color: C.navy2, fontSize: 12, fontWeight: '700' },
   mapResultsPill: { position: 'absolute', top: 14, right: 14, minHeight: 38, borderRadius: 19, paddingHorizontal: 13, backgroundColor: '#FFFFFFEE', flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   mapResultsText: { color: C.navy2, fontSize: 12, fontWeight: '800' },
-  mapReferenceLocationButton: { position: 'absolute', right: 14, bottom: 16, width: 46, height: 46, borderRadius: 23, backgroundColor: '#FFFFFFF2', alignItems: 'center', justifyContent: 'center', shadowColor: '#071B31', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
-  mapPreviewCard: { position: 'absolute', left: 14, right: 14, bottom: 14, backgroundColor: C.white, borderRadius: 22, padding: 14, shadowColor: '#071B31', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, borderWidth: 1, borderColor: '#EEF1F5' },
-  mapPreviewClose: { position: 'absolute', right: 12, top: 12, zIndex: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3F5F8', alignItems: 'center', justifyContent: 'center' },
+  mapReferenceLocationButton: { position: 'absolute', right: 14, bottom: 18, width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFFFFFF5', alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  mapPreviewCard: { position: 'absolute', left: 14, right: 14, bottom: 12, backgroundColor: '#FFFFFF', borderRadius: 29, padding: 16, ...theme.shadow },
+  mapPreviewClose: { position: 'absolute', right: 12, top: 12, zIndex: 2, width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.proBackground, alignItems: 'center', justifyContent: 'center' },
   mapPreviewTop: { flexDirection: 'row', alignItems: 'center', paddingRight: 30 },
-  mapPreviewImage: { width: 58, height: 58, borderRadius: 18, marginRight: 12 },
+  mapPreviewImage: { width: 58, height: 58, borderRadius: 29, marginRight: 13 },
   mapPreviewMain: { flex: 1 },
   mapPreviewNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  mapPreviewName: { color: C.text, fontSize: 17, fontWeight: '900', letterSpacing: -0.25 },
+  mapPreviewName: { color: theme.colors.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.25 },
   mapPreviewRole: { color: C.muted, fontSize: 12, fontWeight: '700', marginTop: 2 },
-  mapPreviewMeta: { color: C.text, fontSize: 11, marginTop: 5 },
+  mapPreviewMeta: { color: theme.colors.muted, fontSize: 12, marginTop: 5 },
   mapPreviewInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
   mapPreviewAvailable: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.greenSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
   mapPreviewDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.green, marginRight: 6 },
   mapPreviewAvailableText: { color: '#087A4E', fontSize: 10, fontWeight: '800' },
   mapPreviewPrice: { color: C.text, fontSize: 11, fontWeight: '800' },
-  mapPreviewActions: { flexDirection: 'row', marginTop: 12, gap: 8 },
-  mapPreviewSecondary: { height: 44, paddingHorizontal: 16, borderRadius: 13, backgroundColor: '#F3F5F8', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  mapPreviewActions: { flexDirection: 'row', marginTop: 14, gap: 9 },
+  mapPreviewSecondary: { minHeight: 47, paddingHorizontal: 16, borderRadius: 24, backgroundColor: theme.colors.proBackground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   mapPreviewSecondaryText: { color: C.navy2, fontSize: 12, fontWeight: '800' },
-  mapPreviewPrimary: { flex: 1, height: 44, borderRadius: 13, backgroundColor: C.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  mapPreviewPrimary: { flex: 1, minHeight: 47, borderRadius: 24, backgroundColor: theme.colors.darkTeal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   mapPreviewPrimaryText: { color: C.white, fontSize: 12, fontWeight: '900' },
   mapMockCompact: { height: 320, minHeight: 320 },
   mapGridV1: { position: 'absolute', top: -40, bottom: -40, left: '22%', width: 30, backgroundColor: '#FFFFFF', transform: [{ rotate: '10deg' }] },
@@ -7933,14 +7944,14 @@ const styles = StyleSheet.create({
   summaryMeta: { color: C.text, fontSize: 11, marginTop: 4 },
   summaryPrice: { fontSize: 20, fontWeight: '900', color: C.text },
   summaryCallout: { fontSize: 10, color: C.muted },
-  directoryList: { flex: 1, backgroundColor: C.white, paddingHorizontal: 16 },
+  directoryList: { flex: 1, backgroundColor: theme.colors.customerBackground, paddingHorizontal: 20 },
   directoryHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 7 },
   directoryTitle: { fontSize: 21, fontWeight: '900', color: C.text },
   directoryCount: { color: C.muted, fontSize: 12, fontWeight: '700' },
   noResults: { paddingVertical: 54, paddingHorizontal: 24, alignItems: 'center' },
   noResultsTitle: { color: C.text, fontSize: 17, fontWeight: '900', textAlign: 'center' },
   noResultsSub: { color: C.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 7 },
-  directoryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.line },
+  directoryRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 24, backgroundColor: '#FFFFFF', marginVertical: 6, ...theme.shadow },
   directoryAvatar: { width: 56, height: 56, borderRadius: 28, marginRight: 12 },
   directoryName: { fontWeight: '900', fontSize: 15, color: C.text },
   directoryRole: { fontSize: 11, color: C.muted, marginTop: 2 },
@@ -9773,6 +9784,15 @@ const styles = StyleSheet.create({
   customerStepDigit: { fontSize: 16, fontWeight: '800', color: theme.colors.teal },
   customerStepTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
   customerStepSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
+
+  customerExploreEmpty: { position: 'absolute', left: 13, right: 13, bottom: 12, backgroundColor: '#FFFFFF', borderRadius: 29, padding: 20, ...theme.shadow },
+  customerExploreEmptyHeading: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  customerExploreEmptyIcon: { width: 51, height: 51, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.coralTint },
+  customerExploreEmptyTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800' },
+  customerExploreEmptyText: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  customerExploreDemoButton: { marginTop: 17, backgroundColor: theme.colors.darkTeal, borderRadius: 27, minHeight: 51, alignItems: 'center', justifyContent: 'center' },
+  customerExploreDemoText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  customerExploreDemoNote: { color: theme.colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10, lineHeight: 17 },
 
 });
 
