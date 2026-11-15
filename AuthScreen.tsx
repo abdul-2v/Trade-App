@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
+import { MotionPressable } from './Motion';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 
 type AccountType = 'customer' | 'tradesperson';
@@ -242,7 +243,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 </Text>
               </View>
 
-              <Pressable
+              <MotionPressable
                 style={[styles.primaryButton, loading && styles.disabled]}
                 disabled={loading}
                 onPress={continueAfterVerification}
@@ -251,9 +252,9 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                   {loading ? 'Checking…' : "I've verified my email"}
                 </Text>
                 {!loading ? <ArrowRight color="#FFFFFF" size={19} strokeWidth={2.2} /> : null}
-              </Pressable>
+              </MotionPressable>
 
-              <Pressable
+              <MotionPressable
                 style={styles.switchButton}
                 onPress={resendVerificationCode}
                 disabled={loading || resendSeconds > 0}
@@ -261,35 +262,35 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 <Text style={[styles.switchText, resendSeconds > 0 && styles.switchTextDisabled]}>
                   {resendSeconds > 0 ? `Resend email in ${resendSeconds}s` : 'Resend verification email'}
                 </Text>
-              </Pressable>
+              </MotionPressable>
 
-              <Pressable
+              <MotionPressable
                 style={styles.switchButton}
                 onPress={() => setMode('signup')}
               >
                 <Text style={styles.switchText}>Use a different email</Text>
-              </Pressable>
+              </MotionPressable>
             </>
           ) : mode === 'signup' ? (
             <>
               <Text style={styles.segmentLabel}>I'M JOINING AS</Text>
               <View style={styles.segment}>
-                <Pressable
+                <MotionPressable
                   style={[styles.segmentButton, accountType === 'customer' && styles.segmentActive]}
                   onPress={() => setAccountType('customer')}
                 >
                   <Text style={[styles.segmentText, accountType === 'customer' && styles.segmentTextActive]}>
                     Customer
                   </Text>
-                </Pressable>
-                <Pressable
+                </MotionPressable>
+                <MotionPressable
                   style={[styles.segmentButton, accountType === 'tradesperson' && styles.segmentActive]}
                   onPress={() => setAccountType('tradesperson')}
                 >
                   <Text style={[styles.segmentText, accountType === 'tradesperson' && styles.segmentTextActive]}>
                     Tradesperson
                   </Text>
-                </Pressable>
+                </MotionPressable>
               </View>
 
               {accountType === 'tradesperson' ? (
@@ -297,7 +298,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                   <Text style={styles.label}>Primary trade</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tradeRow}>
                     {trades.map(item => (
-                      <Pressable
+                      <MotionPressable
                         key={item}
                         style={[styles.tradeChip, primaryTrade === item && styles.tradeChipActive]}
                         onPress={() => setPrimaryTrade(item)}
@@ -305,7 +306,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                         <Text style={[styles.tradeChipText, primaryTrade === item && styles.tradeChipTextActive]}>
                           {item}
                         </Text>
-                      </Pressable>
+                      </MotionPressable>
                     ))}
                   </ScrollView>
                 </>
@@ -369,20 +370,20 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                   autoCapitalize="none"
                   textContentType={mode === 'signup' ? 'newPassword' : 'password'}
                 />
-                <Pressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(v => !v)}>
+                <MotionPressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(v => !v)}>
                   {showPassword ? <EyeOff color={theme.colors.muted} size={21} strokeWidth={2} /> : <Eye color={theme.colors.muted} size={21} strokeWidth={2} />}
-                </Pressable>
+                </MotionPressable>
               </View>
 
               {mode === 'signin' ? (
-                <Pressable
+                <MotionPressable
                   style={styles.forgotPasswordButton}
                   onPress={() => onForgotPassword?.(email)}
                   accessibilityRole="button"
                   accessibilityLabel="Reset forgotten password"
                 >
                   <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-                </Pressable>
+                </MotionPressable>
               ) : null}
 
               {mode === 'signup' ? (
@@ -403,12 +404,12 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                       autoCapitalize="none"
                       textContentType="newPassword"
                     />
-                    <Pressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showConfirm ? 'Hide confirmation password' : 'Show confirmation password'} onPress={() => setShowConfirm(v => !v)}>
+                    <MotionPressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showConfirm ? 'Hide confirmation password' : 'Show confirmation password'} onPress={() => setShowConfirm(v => !v)}>
                       {showConfirm ? <EyeOff color={theme.colors.muted} size={21} strokeWidth={2} /> : <Eye color={theme.colors.muted} size={21} strokeWidth={2} />}
-                    </Pressable>
+                    </MotionPressable>
                   </View>
 
-                  <Pressable
+                  <MotionPressable
                     style={styles.termsRow}
                     onPress={() => setAcceptedTerms(value => !value)}
                   >
@@ -418,11 +419,11 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                     <Text style={styles.termsText}>
                       I agree to the Terms of Service and Privacy Policy.
                     </Text>
-                  </Pressable>
+                  </MotionPressable>
                 </>
               ) : null}
 
-              <Pressable
+              <MotionPressable
                 style={[styles.primaryButton, loading && styles.disabled]}
                 disabled={loading}
                 onPress={mode === 'signup' ? signUp : signIn}
@@ -431,9 +432,9 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                   {loading ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
                 </Text>
                 {!loading ? <ArrowRight color="#FFFFFF" size={19} strokeWidth={2.2} /> : null}
-              </Pressable>
+              </MotionPressable>
 
-              <Pressable
+              <MotionPressable
                 style={styles.switchButton}
                 onPress={() => {
                   setMode(mode === 'signup' ? 'signin' : 'signup');
@@ -444,7 +445,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 <Text style={styles.switchText}>
                   {mode === 'signup' ? 'Already have an account? Sign in' : "Don't have an account? Create one"}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             </>
           ) : null}
         </ScrollView>
