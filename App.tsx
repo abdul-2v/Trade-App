@@ -5,7 +5,7 @@ import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
-import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, Clock3, Send, Search, X } from 'lucide-react-native';
+import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -933,9 +933,9 @@ function CustomerShell({
   dark?: boolean;
 }) {
   return (
-    <SafeAreaView style={[styles.safe, dark && { backgroundColor: C.homeInk }]}>
-      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
-      <View style={[styles.screen, dark && { backgroundColor: C.homeInk }]}>{children}</View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.customerTabBar }}>
+      <StatusBar barStyle="dark-content" />
+      <View style={{ flex: 1, backgroundColor: theme.colors.customerBackground }}>{children}</View>
       {current && navigate ? <CustomerNav current={current} navigate={navigate} /> : null}
     </SafeAreaView>
   );
@@ -948,60 +948,24 @@ function CustomerNav({
   current: CustomerScreen;
   navigate: (screen: CustomerScreen) => void;
 }) {
-  const items: { icon: AppSymbol; activeIcon: AppSymbol; label: string; route: CustomerScreen }[] = [
-    {
-      icon: { ios: 'house', android: 'home' },
-      activeIcon: { ios: 'house.fill', android: 'home' },
-      label: 'Home',
-      route: 'home',
-    },
-    {
-      icon: { ios: 'map', android: 'map' },
-      activeIcon: { ios: 'map.fill', android: 'map' },
-      label: 'Explore',
-      route: 'map',
-    },
-    {
-      icon: { ios: 'clock', android: 'history' },
-      activeIcon: { ios: 'clock.fill', android: 'history' },
-      label: 'Activity',
-      route: 'requests',
-    },
-    {
-      icon: { ios: 'message', android: 'chat_bubble' },
-      activeIcon: { ios: 'message.fill', android: 'chat_bubble' },
-      label: 'Inbox',
-      route: 'messages',
-    },
-    {
-      icon: { ios: 'person', android: 'person' },
-      activeIcon: { ios: 'person.fill', android: 'person' },
-      label: 'Account',
-      route: 'customerProfile',
-    },
+  const items = [
+    { label: 'Home', Icon: HomeIcon, route: 'home' as CustomerScreen },
+    { label: 'Explore', Icon: MapIcon, route: 'map' as CustomerScreen },
+    { label: 'Activity', Icon: Clock3, route: 'requests' as CustomerScreen },
+    { label: 'Inbox', Icon: MessageCircle, route: 'messages' as CustomerScreen },
+    { label: 'Account', Icon: UserRound, route: 'customerProfile' as CustomerScreen },
   ];
-
   return (
-    <View style={styles.v2Nav}>
-      {items.map(item => {
-        const active = current === item.route || (current === 'profile' && item.route === 'map');
+    <View style={styles.customerNav}>
+      {items.map(({ label, Icon, route }) => {
+        const active = current === route || (current === 'profile' && route === 'map');
         return (
-          <Pressable
-            key={item.route}
-            style={styles.v2NavItem}
-            onPress={() => navigate(item.route)}
-            accessibilityRole="tab"
-            accessibilityLabel={item.label}
-            accessibilityState={{ selected: active }}
-          >
-            <View style={[styles.v2NavIconWrap, active && styles.v2NavIconWrapActive]}>
-              <AppIcon
-                icon={active ? item.activeIcon : item.icon}
-                size={20}
-                color={active ? C.white : '#A8B3C0'}
-              />
+          <Pressable key={route} onPress={() => navigate(route)} style={styles.customerNavItem}
+            accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }}>
+            <View style={[styles.customerNavIcon, active && styles.customerNavIconActive]}>
+              <Icon size={22} strokeWidth={2} color={active ? '#FFFFFF' : theme.colors.muted} />
             </View>
-            <Text style={[styles.v2NavLabel, active && styles.v2NavLabelActive]}>{item.label}</Text>
+            <Text style={[styles.customerNavText, active && styles.customerNavTextActive]}>{label}</Text>
           </Pressable>
         );
       })}
@@ -1076,143 +1040,126 @@ function MarketplaceHomeScreen({
   };
 
   return (
-    <CustomerShell current="home" navigate={navigate} dark>
-      <ScrollView
-        style={styles.marketHome}
-        contentContainerStyle={styles.marketHomeContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.marketHeader}>
-          <View>
-            <Text style={styles.marketGreeting}>{firstName ? 'Hi ' + firstName : 'TradeHub'}</Text>
-            <Text style={styles.marketGreetingSub}>Find the right help, without the hassle.</Text>
+    <CustomerShell current="home" navigate={navigate}>
+      <ScrollView style={styles.customerHome} contentContainerStyle={styles.customerHomeContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.customerHomeHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.customerHomeGreeting}>{firstName ? 'Hi ' + firstName : 'Welcome to TradeHub'}</Text>
+            <Text style={styles.customerHomeSub}>Find the right help, without the hassle.</Text>
           </View>
-          <Pressable style={styles.marketAccountButton} onPress={() => navigate('customerProfile')}>
-            <AppIcon icon={{ ios: 'person.fill', android: 'person' }} size={18} color={C.white} />
+          <Pressable style={styles.customerHomeAvatar} onPress={() => navigate('customerProfile')}
+            accessibilityRole="button" accessibilityLabel="Open account">
+            <Text style={styles.customerHomeAvatarText}>{(firstName || 'T').charAt(0).toUpperCase()}</Text>
           </Pressable>
         </View>
 
-        <Pressable style={styles.marketAddressCard} onPress={() => navigate('customerProfile')}>
-          <View style={styles.marketAddressIcon}>
-            <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={22} color={C.white} />
-          </View>
+        <Pressable style={styles.customerAddress} onPress={() => navigate('customerProfile')}
+          accessibilityRole="button" accessibilityLabel="Choose or update your address">
+          <View style={styles.customerAddressIcon}><Navigation2 color={theme.colors.teal} size={22} strokeWidth={2} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.marketAddressEyebrow}>WHERE YOU NEED HELP</Text>
-            <Text style={styles.marketAddressText} numberOfLines={1}>
-              {address || 'Choose an address'}
-            </Text>
+            <Text style={styles.customerAddressEyebrow}>WHERE YOU NEED HELP</Text>
+            <Text style={styles.customerAddressText} numberOfLines={1}>{address || 'Choose an address'}</Text>
           </View>
-          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#98A69E" />
+          <ChevronRight color={theme.colors.muted} size={19} strokeWidth={2} />
         </Pressable>
 
-        <Pressable style={styles.marketSearchCard} onPress={() => beginFlow()}>
-          <View style={styles.marketSearchIcon}>
-            <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={20} color={C.navy} />
-          </View>
+        <View style={styles.customerJobHero}>
+          <Pressable onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Describe a job"
+            style={styles.customerJobHeroMain}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.customerJobHeroTitle}>What needs doing?</Text>
+              <Text style={styles.customerJobHeroSub}>Tell us a little about the job</Text>
+            </View>
+            <View style={styles.customerJobHeroArrow}><ArrowRight color={theme.colors.ink} size={23} strokeWidth={2.3} /></View>
+          </Pressable>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.customerQuickChips}>
+            {([
+              ['Taps & pipework', 'Plumber'],
+              ['Sockets & switches', 'Electrician'],
+              ['No heating', 'Heating'],
+            ] as [string, TradeCategory][]).map(([label, trade]) => (
+              <Pressable key={label} style={styles.customerQuickChip} onPress={() => beginFlow(trade)}
+                accessibilityRole="button" accessibilityLabel={'Start ' + label + ' request'}>
+                <Text style={styles.customerQuickChipText}>{label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.customerActionRow}>
+          <Pressable style={[styles.customerActionCard, styles.customerUrgent]} onPress={() => beginFlow(undefined, true)}
+            accessibilityRole="button" accessibilityLabel="Find urgent help">
+            <View style={styles.customerActionTop}>
+              <View style={styles.customerUrgentIcon}><Zap size={23} color="#FFFFFF" strokeWidth={2} /></View>
+              <ArrowRight color="#FFFFFF" size={21} strokeWidth={2} />
+            </View>
+            <Text style={styles.customerActionTitleWhite}>Need help now?</Text>
+            <Text style={styles.customerActionBodyWhite}>Send an urgent request to nearby pros.</Text>
+          </Pressable>
+          <Pressable style={[styles.customerActionCard, styles.customerFlexible]} onPress={onOpenRoute}
+            accessibilityRole="button" accessibilityLabel="Find a flexible appointment">
+            <View style={styles.customerActionTop}>
+              <View style={styles.customerFlexIcon}><Route size={23} color={theme.colors.ink} strokeWidth={2} /></View>
+              <ArrowRight color={theme.colors.ink} size={21} strokeWidth={2} />
+            </View>
+            <Text style={styles.customerActionTitle}>I'm flexible</Text>
+            <Text style={styles.customerActionBody}>Find a slot on a tradesperson's route.</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.customerSectionHeading}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.marketSearchTitle}>What needs doing?</Text>
-            <Text style={styles.marketSearchSub}>Tell us a little about the job</Text>
+            <Text style={styles.customerSectionTitle}>Browse by trade</Text>
+            <Text style={styles.customerSectionSub}>Choose a service to get started</Text>
           </View>
-          <View style={styles.marketSearchArrow}>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.white} />
-          </View>
-        </Pressable>
-
-        <View style={styles.marketActionPair}>
-          <Pressable style={[styles.marketActionCard, styles.marketActionUrgent]} onPress={() => beginFlow(undefined, true)}
-            accessibilityRole="button" accessibilityLabel="Find urgent help now">
-            <View style={styles.marketActionTop}>
-              <View style={styles.marketActionUrgentIcon}>
-                <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={21} color={C.white} />
-              </View>
-              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color={C.white} />
-            </View>
-            <Text style={styles.marketActionUrgentTitle}>Need help now?</Text>
-            <Text style={styles.marketActionUrgentSub}>Send an urgent request to nearby pros.</Text>
-          </Pressable>
-          <Pressable style={[styles.marketActionCard, styles.marketActionFlexible]} onPress={onOpenRoute}
-            accessibilityRole="button" accessibilityLabel="Find a flexible route booking">
-            <View style={styles.marketActionTop}>
-              <View style={styles.marketActionFlexibleIcon}>
-                <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={21} color="#27465E" />
-              </View>
-              <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color="#27465E" />
-            </View>
-            <Text style={styles.marketActionFlexibleTitle}>I'm flexible</Text>
-            <Text style={styles.marketActionFlexibleSub}>Find a slot on a tradesperson's route.</Text>
+          <Pressable style={styles.customerSeeAll} onPress={() => { setSelectedCategory('All'); navigate('map'); }}
+            accessibilityRole="button" accessibilityLabel="See all tradespeople">
+            <Text style={styles.customerSeeAllText}>See all</Text>
+            <ChevronRight size={16} color={theme.colors.teal} strokeWidth={2} />
           </Pressable>
         </View>
-
-        <View style={styles.marketSectionHead}>
-          <View>
-            <Text style={styles.marketSectionTitle}>Browse by trade</Text>
-            <Text style={styles.marketSectionSub}>Choose a service to get started</Text>
-          </View>
-        </View>
-
-        <View style={styles.marketCategoryGrid}>
-          {customerCategoryOrder.slice(0, 6).map((category, index) => {
+        <View style={styles.customerTradeGrid}>
+          {customerCategoryOrder.slice(0, 4).map((category, index) => {
             const meta = categories.find(item => item.label === category);
+            const Icon = category === 'Plumber' ? Wrench : category === 'Electrician' ? PlugZap : category === 'Builder' ? Hammer : Flame;
             return (
-              <Pressable
-                key={category}
-                style={[styles.marketCategoryCard, index % 3 === 1 && styles.marketCategoryCardAlt]}
-                onPress={() => beginFlow(category)}
-                accessibilityRole="button"
-                accessibilityLabel={'Find a ' + category.toLowerCase()}
-              >
-                <View style={styles.marketCategoryTop}>
-                  <View style={styles.marketCategoryIcon}>
-                    {meta ? <AppIcon icon={meta.icon} size={23} color="#C66A4A" /> : null}
+              <Pressable key={category} style={styles.customerTradeCard} onPress={() => beginFlow(category)}
+                accessibilityRole="button" accessibilityLabel={'Find a ' + category.toLowerCase()}>
+                <View style={styles.customerTradeIconRow}>
+                  <View style={[styles.customerTradeIcon, index % 2 ? styles.customerTradeIconCool : styles.customerTradeIconWarm]}>
+                    <Icon size={22} strokeWidth={2} color={index % 2 ? theme.colors.teal : theme.colors.coralDark} />
                   </View>
-                  <Text style={styles.marketCategoryIndex}>{String(index + 1).padStart(2, '0')}</Text>
+                  <Text style={styles.customerTradeIndex}>{String(index + 1).padStart(2, '0')}</Text>
                 </View>
-                <Text style={styles.marketCategoryTitle}>{category}</Text>
-                <View style={styles.marketCategoryFoot}>
-                  <Text style={styles.marketCategorySub} numberOfLines={2}>{categoryDescriptions[category]}</Text>
-                  <View style={styles.marketCategoryGo}>
-                    <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={15} color="#1A2C3C" />
-                  </View>
-                </View>
+                <Text style={styles.customerTradeName}>{category}</Text>
+                <Text style={styles.customerTradeDesc} numberOfLines={3}>{categoryDescriptions[category]}</Text>
               </Pressable>
             );
           })}
         </View>
-
-        <Pressable style={styles.marketMoreServices} onPress={() => beginFlow()}>
-          <View style={styles.marketMoreIcon}>
-            <AppIcon icon={{ ios: 'square.grid.2x2.fill', android: 'apps' }} size={18} color={C.navy} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.marketMoreTitle}>More trades & services</Text>
-            <Text style={styles.marketMoreSub}>Roofing, specialist repairs and more</Text>
-          </View>
-          <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={17} color="#89978F" />
+        <Pressable style={styles.customerMoreTrades} onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Browse more trades">
+          <View style={styles.customerAddressIcon}><Wrench size={20} color={theme.colors.teal} strokeWidth={2} /></View>
+          <Text style={[styles.customerTradeName, { flex: 1, marginTop: 0 }]}>More trades & services</Text>
+          <ChevronRight size={20} color={theme.colors.teal} />
         </Pressable>
 
-        <Pressable style={styles.marketExploreCard}
-          onPress={() => { setSelectedCategory('All'); navigate('map'); }}
-          accessibilityRole="button" accessibilityLabel="Explore tradespeople in your area">
-          <View style={styles.marketExploreIcon}>
-            <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={23} color="#375D79" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.marketExploreTitle}>Explore nearby tradespeople</Text>
-            <Text style={styles.marketExploreSub}>View profiles, locations and availability</Text>
-          </View>
-          <View style={styles.marketExploreArrow}>
-            <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={18} color="#263B4E" />
-          </View>
-        </Pressable>
-
-        <View style={styles.marketTrustCard}>
-          <View style={styles.marketTrustIcon}>
-            <AppIcon icon={{ ios: 'checkmark.shield.fill', android: 'verified_user' }} size={20} color={'#355E78'} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.marketTrustTitle}>Know who you're contacting</Text>
-            <Text style={styles.marketTrustSub}>Check reviews, insurance and credentials on each profile when available.</Text>
-          </View>
+        <Text style={[styles.customerSectionTitle, { marginTop: 28, marginBottom: 14 }]}>How it works</Text>
+        <View style={styles.customerSteps}>
+          {[
+            ['Describe the job', 'Tell us what needs doing and where.'],
+            ['Get matched', 'Nearby pros can respond to your request.'],
+            ['Chat and arrange', 'Agree the details with your chosen pro.'],
+          ].map(([title, copy], index) => (
+            <View key={title} style={styles.customerStepRow}>
+              <View style={[styles.customerStepNumber, index === 0 && styles.customerStepNumberFirst]}>
+                <Text style={[styles.customerStepDigit, index === 0 && { color: '#FFFFFF' }]}>{index + 1}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.customerStepTitle}>{title}</Text>
+                <Text style={styles.customerStepSub}>{copy}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       </ScrollView>
 
@@ -9766,6 +9713,66 @@ const styles = StyleSheet.create({
   premiumAccountCard: { borderRadius: 28, backgroundColor: theme.colors.white, paddingHorizontal: 17, paddingVertical: 5, marginTop: 10, marginBottom: 20, ...theme.shadow },
   premiumAccountRow: { minHeight: 65, flexDirection: 'row', gap: 12, alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderColor: theme.colors.line },
   premiumComingSoon: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
+
+  // Customer redesign - warm cream palette and compact premium navigation.
+  customerNav: { height: 78, flexDirection: 'row', backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#E9E4DA', paddingHorizontal: 7, paddingTop: 5, paddingBottom: 5 },
+  customerNavItem: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
+  customerNavIcon: { width: 50, height: 35, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  customerNavIconActive: { backgroundColor: theme.colors.darkTeal },
+  customerNavText: { fontSize: 12, fontWeight: '500', color: theme.colors.muted, marginTop: 3 },
+  customerNavTextActive: { fontWeight: '800', color: theme.colors.ink },
+  customerHome: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerHomeContent: { paddingHorizontal: 23, paddingTop: 27, paddingBottom: 40 },
+  customerHomeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 22 },
+  customerHomeGreeting: { color: theme.colors.ink, fontSize: 29, fontWeight: '800', letterSpacing: -0.9 },
+  customerHomeSub: { color: theme.colors.muted, fontSize: 14, marginTop: 5 },
+  customerHomeAvatar: { width: 51, height: 51, borderRadius: 26, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  customerHomeAvatarText: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+  customerAddress: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: '#FFFFFF', borderRadius: 25, paddingHorizontal: 15, marginBottom: 14, ...theme.shadow },
+  customerAddressIcon: { width: 45, height: 45, backgroundColor: theme.colors.tealTint, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  customerAddressEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.1, color: theme.colors.muted },
+  customerAddressText: { fontSize: 16, fontWeight: '800', color: theme.colors.ink, marginTop: 4 },
+  customerJobHero: { backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18, marginBottom: 15, overflow: 'hidden', ...theme.shadow },
+  customerJobHeroMain: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 66 },
+  customerJobHeroTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.55 },
+  customerJobHeroSub: { fontSize: 14, color: '#B8CCCC', marginTop: 5 },
+  customerJobHeroArrow: { width: 50, height: 50, borderRadius: 18, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center' },
+  customerQuickChips: { paddingTop: 17, gap: 8, paddingRight: 8 },
+  customerQuickChip: { borderRadius: 21, backgroundColor: '#334E52', borderWidth: 1, borderColor: '#597478', paddingHorizontal: 13, minHeight: 39, justifyContent: 'center' },
+  customerQuickChipText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  customerActionRow: { flexDirection: 'row', gap: 13, marginBottom: 26 },
+  customerActionCard: { flex: 1, minHeight: 165, borderRadius: 27, padding: 15, justifyContent: 'space-between', ...theme.shadow },
+  customerUrgent: { backgroundColor: '#C44E2B' },
+  customerFlexible: { backgroundColor: '#DCEBEA' },
+  customerActionTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  customerUrgentIcon: { width: 43, height: 43, backgroundColor: '#DF7351', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  customerFlexIcon: { width: 43, height: 43, backgroundColor: '#C5D9D8', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  customerActionTitleWhite: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.4 },
+  customerActionBodyWhite: { fontSize: 12, color: '#FFF0E8', lineHeight: 17, marginTop: 4 },
+  customerActionTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.4 },
+  customerActionBody: { fontSize: 12, color: theme.colors.muted, lineHeight: 17, marginTop: 4 },
+  customerSectionHeading: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 15 },
+  customerSectionTitle: { color: theme.colors.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 },
+  customerSectionSub: { fontSize: 13, color: theme.colors.muted, marginTop: 4 },
+  customerSeeAll: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 44 },
+  customerSeeAllText: { fontSize: 13, color: theme.colors.teal, fontWeight: '800' },
+  customerTradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  customerTradeCard: { width: '48%', backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, minHeight: 152, ...theme.shadow },
+  customerTradeIconRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 13 },
+  customerTradeIcon: { width: 47, height: 47, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  customerTradeIconCool: { backgroundColor: theme.colors.tealTint },
+  customerTradeIconWarm: { backgroundColor: theme.colors.coralTint },
+  customerTradeIndex: { fontSize: 12, color: '#8A999C', fontWeight: '800', letterSpacing: 0.7 },
+  customerTradeName: { color: theme.colors.ink, fontSize: 17, fontWeight: '800' },
+  customerTradeDesc: { color: theme.colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5 },
+  customerMoreTrades: { flexDirection: 'row', alignItems: 'center', gap: 13, marginTop: 12, padding: 14, backgroundColor: '#FFFFFF', borderRadius: 23, minHeight: 65, ...theme.shadow },
+  customerSteps: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 18, ...theme.shadow },
+  customerStepRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  customerStepNumber: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  customerStepNumberFirst: { backgroundColor: theme.colors.darkTeal },
+  customerStepDigit: { fontSize: 16, fontWeight: '800', color: theme.colors.teal },
+  customerStepTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  customerStepSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
 
 });
 
