@@ -5,6 +5,7 @@ import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
+import { MotionPressable, FadeSlideIn, LiveStatusDot } from './Motion';
 import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -960,13 +961,13 @@ function CustomerNav({
       {items.map(({ label, Icon, route }) => {
         const active = current === route || (current === 'profile' && route === 'map');
         return (
-          <Pressable key={route} onPress={() => navigate(route)} style={styles.customerNavItem}
+          <MotionPressable key={route} onPress={() => navigate(route)} style={styles.customerNavItem}
             accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }}>
             <View style={[styles.customerNavIcon, active && styles.customerNavIconActive]}>
               <Icon size={22} strokeWidth={2} color={active ? '#FFFFFF' : theme.colors.muted} />
             </View>
             <Text style={[styles.customerNavText, active && styles.customerNavTextActive]}>{label}</Text>
-          </Pressable>
+          </MotionPressable>
         );
       })}
     </View>
@@ -1047,13 +1048,13 @@ function MarketplaceHomeScreen({
             <Text style={styles.customerHomeGreeting}>{firstName ? 'Hi ' + firstName : 'Welcome to TradeHub'}</Text>
             <Text style={styles.customerHomeSub}>Find the right help, without the hassle.</Text>
           </View>
-          <Pressable style={styles.customerHomeAvatar} onPress={() => navigate('customerProfile')}
+          <MotionPressable style={styles.customerHomeAvatar} onPress={() => navigate('customerProfile')}
             accessibilityRole="button" accessibilityLabel="Open account">
             <Text style={styles.customerHomeAvatarText}>{(firstName || 'T').charAt(0).toUpperCase()}</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
-        <Pressable style={styles.customerAddress} onPress={() => navigate('customerProfile')}
+        <MotionPressable style={styles.customerAddress} onPress={() => navigate('customerProfile')}
           accessibilityRole="button" accessibilityLabel="Choose or update your address">
           <View style={styles.customerAddressIcon}><Navigation2 color={theme.colors.teal} size={22} strokeWidth={2} /></View>
           <View style={{ flex: 1 }}>
@@ -1061,37 +1062,39 @@ function MarketplaceHomeScreen({
             <Text style={styles.customerAddressText} numberOfLines={1}>{address || 'Choose an address'}</Text>
           </View>
           <ChevronRight color={theme.colors.muted} size={19} strokeWidth={2} />
-        </Pressable>
+        </MotionPressable>
 
+        <FadeSlideIn>
         <View style={styles.customerJobHero}>
-          <Pressable onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Describe a job"
+          <MotionPressable onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Describe a job"
             style={styles.customerJobHeroMain}>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerJobHeroTitle}>Stop chasing tradespeople.</Text>
               <Text style={styles.customerJobHeroSub}>Post your job once. Nearby pros can respond.</Text>
             </View>
             <View style={styles.customerJobHeroArrow}><ArrowRight color={theme.colors.ink} size={23} strokeWidth={2.3} /></View>
-          </Pressable>
+          </MotionPressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.customerQuickChips}>
             {([
               ['Taps & pipework', 'Plumber'],
               ['Sockets & switches', 'Electrician'],
               ['No heating', 'Heating'],
             ] as [string, TradeCategory][]).map(([label, trade]) => (
-              <Pressable key={label} style={styles.customerQuickChip} onPress={() => beginFlow(trade)}
+              <MotionPressable key={label} style={styles.customerQuickChip} onPress={() => beginFlow(trade)}
                 accessibilityRole="button" accessibilityLabel={'Start ' + label + ' request'}>
                 <Text style={styles.customerQuickChipText}>{label}</Text>
-              </Pressable>
+              </MotionPressable>
             ))}
           </ScrollView>
         </View>
+        </FadeSlideIn>
 
         <View style={styles.customerUSPHeading}>
           <Text style={styles.customerUSPTitle}>Two ways to get the job done</Text>
           <Text style={styles.customerUSPSubtitle}>Urgent help or flexible timing — you choose.</Text>
         </View>
         <View style={styles.customerActionRow}>
-          <Pressable style={[styles.customerActionCard, styles.customerUrgent]} onPress={() => beginFlow(undefined, true)}
+          <MotionPressable style={[styles.customerActionCard, styles.customerUrgent]} onPress={() => beginFlow(undefined, true)}
             accessibilityRole="button" accessibilityLabel="Find urgent help">
             <View style={styles.customerActionTop}>
               <View style={styles.customerUrgentIcon}><Zap size={23} color="#FFFFFF" strokeWidth={2} /></View>
@@ -1099,8 +1102,8 @@ function MarketplaceHomeScreen({
             </View>
             <Text style={styles.customerActionTitleWhite}>Help ASAP</Text>
             <Text style={styles.customerActionBodyWhite}>Send your job to available tradespeople nearby.</Text>
-          </Pressable>
-          <Pressable style={[styles.customerActionCard, styles.customerFlexible]} onPress={onOpenRoute}
+          </MotionPressable>
+          <MotionPressable style={[styles.customerActionCard, styles.customerFlexible]} onPress={onOpenRoute}
             accessibilityRole="button" accessibilityLabel="Find a flexible appointment">
             <View style={styles.customerActionTop}>
               <View style={styles.customerFlexIcon}><Route size={23} color={theme.colors.ink} strokeWidth={2} /></View>
@@ -1108,7 +1111,7 @@ function MarketplaceHomeScreen({
             </View>
             <Text style={styles.customerActionTitle}>Fit a local route</Text>
             <Text style={styles.customerActionBody}>Nearby pros may fit your job around other work.</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <View style={styles.customerSectionHeading}>
@@ -1116,18 +1119,18 @@ function MarketplaceHomeScreen({
             <Text style={styles.customerSectionTitle}>Browse by trade</Text>
             <Text style={styles.customerSectionSub}>Choose a service to get started</Text>
           </View>
-          <Pressable style={styles.customerSeeAll} onPress={() => { setSelectedCategory('All'); navigate('map'); }}
+          <MotionPressable style={styles.customerSeeAll} onPress={() => { setSelectedCategory('All'); navigate('map'); }}
             accessibilityRole="button" accessibilityLabel="See all tradespeople">
             <Text style={styles.customerSeeAllText}>See all</Text>
             <ChevronRight size={16} color={theme.colors.teal} strokeWidth={2} />
-          </Pressable>
+          </MotionPressable>
         </View>
         <View style={styles.customerTradeGrid}>
           {customerCategoryOrder.slice(0, 4).map((category, index) => {
             const meta = categories.find(item => item.label === category);
             const Icon = category === 'Plumber' ? Wrench : category === 'Electrician' ? PlugZap : category === 'Builder' ? Hammer : Flame;
             return (
-              <Pressable key={category} style={styles.customerTradeCard} onPress={() => beginFlow(category)}
+              <MotionPressable key={category} style={styles.customerTradeCard} onPress={() => beginFlow(category)}
                 accessibilityRole="button" accessibilityLabel={'Find a ' + category.toLowerCase()}>
                 <View style={styles.customerTradeIconRow}>
                   <View style={[styles.customerTradeIcon, index % 2 ? styles.customerTradeIconCool : styles.customerTradeIconWarm]}>
@@ -1137,15 +1140,15 @@ function MarketplaceHomeScreen({
                 </View>
                 <Text style={styles.customerTradeName}>{category}</Text>
                 <Text style={styles.customerTradeDesc} numberOfLines={3}>{categoryDescriptions[category]}</Text>
-              </Pressable>
+              </MotionPressable>
             );
           })}
         </View>
-        <Pressable style={styles.customerMoreTrades} onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Browse more trades">
+        <MotionPressable style={styles.customerMoreTrades} onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Browse more trades">
           <View style={styles.customerAddressIcon}><Wrench size={20} color={theme.colors.teal} strokeWidth={2} /></View>
           <Text style={[styles.customerTradeName, { flex: 1, marginTop: 0 }]}>More trades & services</Text>
           <ChevronRight size={20} color={theme.colors.teal} />
-        </Pressable>
+        </MotionPressable>
 
         <Text style={[styles.customerSectionTitle, { marginTop: 28, marginBottom: 14 }]}>How it works</Text>
         <View style={styles.customerSteps}>
@@ -1179,9 +1182,9 @@ function MarketplaceHomeScreen({
                   {flowStep === 1 ? 'Choose a trade' : flowStep === 2 ? 'What needs doing?' : 'When do you need them?'}
                 </Text>
               </View>
-              <Pressable style={styles.marketFlowClose} onPress={() => setFlowOpen(false)}>
+              <MotionPressable style={styles.marketFlowClose} onPress={() => setFlowOpen(false)}>
                 <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={17} color={C.text} />
-              </Pressable>
+              </MotionPressable>
             </View>
 
             <View style={styles.marketFlowProgress}>
@@ -1195,7 +1198,7 @@ function MarketplaceHomeScreen({
                 {customerCategoryOrder.map(category => {
                   const meta = categories.find(item => item.label === category);
                   return (
-                    <Pressable key={category} style={styles.marketFlowRow} onPress={() => chooseTrade(category)}>
+                    <MotionPressable key={category} style={styles.marketFlowRow} onPress={() => chooseTrade(category)}>
                       <View style={styles.marketFlowRowIcon}>
                         {meta ? <AppIcon icon={meta.icon} size={19} color={C.blue} /> : null}
                       </View>
@@ -1204,7 +1207,7 @@ function MarketplaceHomeScreen({
                         <Text style={styles.marketFlowRowSub}>{categoryDescriptions[category]}</Text>
                       </View>
                       <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={16} color="#969C95" />
-                    </Pressable>
+                    </MotionPressable>
                   );
                 })}
               </ScrollView>
@@ -1212,32 +1215,32 @@ function MarketplaceHomeScreen({
 
             {flowStep === 2 && flowTrade ? (
               <ScrollView style={styles.marketFlowList} showsVerticalScrollIndicator={false}>
-                <Pressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(1)}>
+                <MotionPressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(1)}>
                   <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={15} color={C.blue} />
                   <Text style={styles.marketFlowBackText}>{flowTrade}</Text>
-                </Pressable>
+                </MotionPressable>
                 {serviceCatalog[flowTrade].map(service => (
-                  <Pressable key={service} style={styles.marketFlowServiceRow} onPress={() => chooseService(service)}>
+                  <MotionPressable key={service} style={styles.marketFlowServiceRow} onPress={() => chooseService(service)}>
                     <Text style={styles.marketFlowServiceText}>{service}</Text>
                     <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={16} color="#969C95" />
-                  </Pressable>
+                  </MotionPressable>
                 ))}
               </ScrollView>
             ) : null}
 
             {flowStep === 3 ? (
               <View>
-                <Pressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(2)}>
+                <MotionPressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(2)}>
                   <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={15} color={C.blue} />
                   <Text style={styles.marketFlowBackText}>{flowService}</Text>
-                </Pressable>
+                </MotionPressable>
                 {[
                   ['Now', 'Find someone available for an urgent job'],
                   ['Today', 'Show tradespeople who can fit you in today'],
                   ['Next few days', 'Compare nearby pros and arrange a time'],
                   ['Flexible', 'Let nearby pros fit your job around work already in the area'],
                 ].map(([timing, copy]) => (
-                  <Pressable
+                  <MotionPressable
                     key={timing}
                     style={[styles.marketTimingRow, flowTiming === timing && styles.marketTimingRowActive]}
                     onPress={() => setFlowTiming(timing)}
@@ -1250,16 +1253,16 @@ function MarketplaceHomeScreen({
                       <Text style={styles.marketTimingSub}>{copy}</Text>
                     </View>
                     {timing === 'Now' ? <View style={styles.marketUrgentMini}><Text style={styles.marketUrgentMiniText}>FAST</Text></View> : null}
-                  </Pressable>
+                  </MotionPressable>
                 ))}
-                <Pressable
+                <MotionPressable
                   style={[styles.marketContinue, !flowTiming && styles.marketContinueDisabled]}
                   onPress={finishFlow}
                   disabled={!flowTiming}
                 >
                   <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : flowTiming === 'Flexible' ? 'Post a flexible job request' : 'Show matching tradespeople'}</Text>
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.white} />
-                </Pressable>
+                </MotionPressable>
               </View>
             ) : null}
           </View>
@@ -1443,9 +1446,9 @@ function RouteSaverScreen({
     <CustomerShell current="home" navigate={navigate}>
       <ScrollView style={styles.routeScreen} contentContainerStyle={styles.routeScreenContent} showsVerticalScrollIndicator={false}>
         <View style={styles.routeHeader}>
-          <Pressable style={styles.routeBack} onPress={back}>
+          <MotionPressable style={styles.routeBack} onPress={back}>
             <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={18} color={C.text} />
-          </Pressable>
+          </MotionPressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.routeEyebrow}>TRADEHUB ROUTE</Text>
             <Text style={styles.routeTitle}>On My Way</Text>
@@ -1471,43 +1474,43 @@ function RouteSaverScreen({
         <Text style={styles.routeSectionLabel}>WHAT NEEDS DOING</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.routeTradeRow}>
           {customerCategoryOrder.map(item => (
-            <Pressable
+            <MotionPressable
               key={item}
               style={[styles.routeTradeChip, trade === item && styles.routeTradeChipActive]}
               onPress={() => setTrade(item)}
             >
               <Text style={[styles.routeTradeChipText, trade === item && styles.routeTradeChipTextActive]}>{item}</Text>
-            </Pressable>
+            </MotionPressable>
           ))}
         </ScrollView>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.routeServiceRow}>
           {serviceCatalog[trade].map(item => (
-            <Pressable
+            <MotionPressable
               key={item}
               style={[styles.routeServiceChip, service === item && styles.routeServiceChipActive]}
               onPress={() => setService(item)}
             >
               <Text style={[styles.routeServiceChipText, service === item && styles.routeServiceChipTextActive]}>{item}</Text>
-            </Pressable>
+            </MotionPressable>
           ))}
         </ScrollView>
 
         <Text style={styles.routeSectionLabel}>HOW FLEXIBLE ARE YOU?</Text>
         <View style={styles.routeDeadlineRow}>
           {(['Today', '48 hours', 'This week'] as const).map(item => (
-            <Pressable
+            <MotionPressable
               key={item}
               style={[styles.routeDeadline, deadline === item && styles.routeDeadlineActive]}
               onPress={() => setDeadline(item)}
             >
               <Text style={[styles.routeDeadlineText, deadline === item && styles.routeDeadlineTextActive]}>{item}</Text>
-            </Pressable>
+            </MotionPressable>
           ))}
         </View>
 
         {deadline !== 'Today' ? (
-          <Pressable
+          <MotionPressable
             style={[styles.streetRunCard, streetRun && styles.streetRunCardActive]}
             onPress={() => setStreetRun(value => !value)}
             accessibilityRole="checkbox"
@@ -1524,7 +1527,7 @@ function RouteSaverScreen({
             <View style={[styles.streetRunCheck, streetRun && styles.streetRunCheckActive]}>
               {streetRun ? <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={14} color={C.navy} /> : null}
             </View>
-          </Pressable>
+          </MotionPressable>
         ) : null}
 
         <View style={styles.routeNoMatch}>
@@ -1537,7 +1540,7 @@ function RouteSaverScreen({
           </Text>
         </View>
 
-        <Pressable
+        <MotionPressable
           style={[styles.routeReserveButton, reserving && { opacity: 0.6 }]}
           onPress={reserve}
           disabled={reserving}
@@ -1549,7 +1552,7 @@ function RouteSaverScreen({
               <ArrowRight size={18} color="#FFFFFF" strokeWidth={2} />
             </>
           )}
-        </Pressable>
+        </MotionPressable>
 
         <Text style={styles.routeFootnote}>Submitting a request does not confirm a booking, price or discount. Discuss details with the tradesperson before accepting work.</Text>
       </ScrollView>
@@ -1589,10 +1592,10 @@ function HomeScreen({
             </View>
           </View>
 
-          <Pressable style={styles.v2LocationPill} onPress={() => navigate('map')}>
+          <MotionPressable style={styles.v2LocationPill} onPress={() => navigate('map')}>
             <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={14} color={C.blue} />
             <Text style={styles.v2LocationText}>Near you</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <View style={styles.v2HeroCard}>
@@ -1614,7 +1617,7 @@ function HomeScreen({
             Find trusted tradespeople nearby, compare who is available and get help when you actually need it.
           </Text>
 
-          <Pressable style={styles.v2Search} onPress={() => navigate('map')}>
+          <MotionPressable style={styles.v2Search} onPress={() => navigate('map')}>
             <View style={styles.v2SearchIcon}>
               <AppIcon icon={{ ios: 'magnifyingglass', android: 'search' }} size={19} color={C.navy2} />
             </View>
@@ -1622,7 +1625,7 @@ function HomeScreen({
             <View style={styles.v2SearchGo}>
               <AppIcon icon={{ ios: 'arrow.up.right', android: 'north_east' }} size={17} color={C.navy} />
             </View>
-          </Pressable>
+          </MotionPressable>
 
           <View style={styles.v2TrustRow}>
             <View style={styles.v2TrustItem}>
@@ -1642,16 +1645,16 @@ function HomeScreen({
             <Text style={styles.v2SectionEyebrow}>START HERE</Text>
             <Text style={styles.v2SectionTitle}>What do you need?</Text>
           </View>
-          <Pressable onPress={() => navigate('map')}>
+          <MotionPressable onPress={() => navigate('map')}>
             <Text style={styles.v2SectionLink}>See all</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <View style={styles.v2CategoryGrid}>
           {categories.map(item => {
             const active = selectedCategory === item.label;
             return (
-              <Pressable
+              <MotionPressable
                 key={item.label}
                 style={[styles.v2CategoryTile, active && styles.v2CategoryTileActive]}
                 onPress={() => {
@@ -1667,12 +1670,12 @@ function HomeScreen({
                   <AppIcon icon={item.icon} size={21} color={active ? C.navy : C.blue} />
                 </View>
                 <Text style={styles.v2CategoryLabel}>{item.label}</Text>
-              </Pressable>
+              </MotionPressable>
             );
           })}
         </View>
 
-        <Pressable style={styles.v2UrgentCard} onPress={() => navigate('urgent')}>
+        <MotionPressable style={styles.v2UrgentCard} onPress={() => navigate('urgent')}>
           <View style={styles.v2UrgentLeft}>
             <View style={styles.v2UrgentTag}>
               <View style={styles.v2UrgentTagDot} />
@@ -1686,21 +1689,21 @@ function HomeScreen({
           <View style={styles.v2UrgentAction}>
             <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={22} color={C.navy} />
           </View>
-        </Pressable>
+        </MotionPressable>
 
         <View style={styles.v2SectionHead}>
           <View>
             <Text style={styles.v2SectionEyebrow}>AVAILABLE NOW</Text>
             <Text style={styles.v2SectionTitle}>Nearby professionals</Text>
           </View>
-          <Pressable onPress={() => navigate('map')}>
+          <MotionPressable onPress={() => navigate('map')}>
             <Text style={styles.v2SectionLink}>Map</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.v2NearbyRow}>
           {nearby.map(trade => (
-            <Pressable key={trade.id} style={styles.v2NearbyCard} onPress={() => openTrade(trade)}>
+            <MotionPressable key={trade.id} style={styles.v2NearbyCard} onPress={() => openTrade(trade)}>
               <View style={styles.v2NearbyImageWrap}>
                 <Image source={{ uri: trade.image }} style={styles.v2NearbyImage} />
                 <View style={styles.v2OnlineDot} />
@@ -1718,11 +1721,11 @@ function HomeScreen({
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={15} color={C.navy} />
                 </View>
               </View>
-            </Pressable>
+            </MotionPressable>
           ))}
         </ScrollView>
 
-        <Pressable style={styles.v2MapCallout} onPress={() => navigate('map')}>
+        <MotionPressable style={styles.v2MapCallout} onPress={() => navigate('map')}>
           <View style={styles.v2MapGlyph}>
             <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={21} color={C.blue} />
           </View>
@@ -1731,7 +1734,7 @@ function HomeScreen({
             <Text style={styles.v2MapCalloutSub}>See available tradespeople grouped neatly on the live map.</Text>
           </View>
           <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color={C.muted} />
-        </Pressable>
+        </MotionPressable>
       </ScrollView>
     </CustomerShell>
   );
@@ -1971,13 +1974,13 @@ function MapScreen({
               returnKeyType="search"
             />
             {searchQuery ? (
-              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <MotionPressable onPress={() => setSearchQuery('')} hitSlop={8}>
                 <AppIcon icon={{ ios: 'xmark.circle.fill', android: 'cancel' }} size={17} color="#A3ADB8" />
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </View>
 
-          <Pressable
+          <MotionPressable
             style={[styles.mapControlButton, showFilters && styles.mapControlButtonActive]}
             onPress={() => setShowFilters(true)}
             accessibilityRole="button" accessibilityLabel="Filter nearby tradespeople"
@@ -1988,9 +1991,9 @@ function MapScreen({
                 <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
               </View>
             ) : null}
-          </Pressable>
+          </MotionPressable>
 
-          <Pressable
+          <MotionPressable
             style={styles.mapControlButton}
             accessibilityRole="button" accessibilityLabel={listMode ? 'Show map view' : 'Show list view'}
             onPress={() => {
@@ -1999,7 +2002,7 @@ function MapScreen({
             }}
           >
             {listMode ? <MapIcon size={21} strokeWidth={2} color={theme.colors.ink} /> : <ListIcon size={21} strokeWidth={2} color={theme.colors.ink} />}
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -2013,7 +2016,7 @@ function MapScreen({
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
         {showDemoProfiles ? (
-          <Pressable
+          <MotionPressable
             style={styles.marketDataBanner}
             onPress={() => { setShowDemoProfiles(false); setSelectedMapTrade(null); }}
             accessibilityRole="button"
@@ -2024,7 +2027,7 @@ function MapScreen({
               DEMO PREVIEW · {trades.length} fictional profiles
             </Text>
             <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Show real</Text>
-          </Pressable>
+          </MotionPressable>
         ) : marketLoading ? (
           <View style={styles.marketDataBanner}>
             <ActivityIndicator size="small" color={C.green} />
@@ -2034,17 +2037,17 @@ function MapScreen({
           <View style={styles.marketDataBanner}>
             <AppIcon icon={{ ios: 'wifi.exclamationmark', android: 'wifi_off' }} size={15} color={C.orange} />
             <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Could not load real tradespeople</Text>
-            <Pressable onPress={() => { setMarketLoading(true); setReloadMarketplace(value => value + 1); }}
+            <MotionPressable onPress={() => { setMarketLoading(true); setReloadMarketplace(value => value + 1); }}
               accessibilityRole="button" accessibilityLabel="Retry loading real profiles">
               <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Retry</Text>
-            </Pressable>
-            <Pressable onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
+            </MotionPressable>
+            <MotionPressable onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
               accessibilityRole="button" accessibilityLabel="Show demo profiles">
               <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11, marginLeft: 11 }}>Demo</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         ) : marketIsLive ? (
-          <Pressable
+          <MotionPressable
             style={[styles.marketDataBanner, styles.marketDataBannerLive]}
             onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
             accessibilityRole="button"
@@ -2053,9 +2056,9 @@ function MapScreen({
             <View style={styles.marketDataDot} />
             <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Real tradespeople · {distanceOrigin}</Text>
             <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
-          </Pressable>
+          </MotionPressable>
         ) : (
-          <Pressable
+          <MotionPressable
             style={styles.marketDataBanner}
             onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
             accessibilityRole="button"
@@ -2063,7 +2066,7 @@ function MapScreen({
             <AppIcon icon={{ ios: 'info.circle', android: 'info_outline' }} size={15} color={C.blue} />
             <Text style={[styles.marketDataBannerText, { flex: 1 }]}>No real profiles near {distanceOrigin}</Text>
             <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
-          </Pressable>
+          </MotionPressable>
         )}
 
         {intent ? (
@@ -2103,9 +2106,9 @@ function MapScreen({
 
           {selectedMapTrade ? (
             <View style={styles.mapPreviewCard}>
-              <Pressable style={styles.mapPreviewClose} onPress={() => setSelectedMapTrade(null)} accessibilityRole="button" accessibilityLabel="Close tradesperson preview">
+              <MotionPressable style={styles.mapPreviewClose} onPress={() => setSelectedMapTrade(null)} accessibilityRole="button" accessibilityLabel="Close tradesperson preview">
                 <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={14} color={C.muted} />
-              </Pressable>
+              </MotionPressable>
 
               <View style={styles.mapPreviewTop}>
                 {selectedMapTrade.image ? (
@@ -2154,7 +2157,7 @@ function MapScreen({
               </View>
 
               <View style={styles.mapPreviewActions}>
-                <Pressable
+                <MotionPressable
                   style={styles.mapPreviewSecondary}
                   onPress={() => {
                     if (!selectedMapTrade.id.startsWith('live-')) {
@@ -2168,11 +2171,11 @@ function MapScreen({
                 >
                   <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={17} color={C.navy2} />
                   <Text style={styles.mapPreviewSecondaryText}>Call</Text>
-                </Pressable>
-                <Pressable style={styles.mapPreviewPrimary} onPress={() => openTrade(selectedMapTrade)}>
+                </MotionPressable>
+                <MotionPressable style={styles.mapPreviewPrimary} onPress={() => openTrade(selectedMapTrade)}>
                   <Text style={styles.mapPreviewPrimaryText}>View profile</Text>
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={C.white} />
-                </Pressable>
+                </MotionPressable>
               </View>
             </View>
           ) : !marketLoading && !marketError && filtered.length === 0 ? (
@@ -2185,11 +2188,11 @@ function MapScreen({
                 </View>
               </View>
               {!showDemoProfiles ? (
-                <Pressable style={styles.customerExploreDemoButton} onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
+                <MotionPressable style={styles.customerExploreDemoButton} onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
                   accessibilityRole="button" accessibilityLabel="Preview fictional tradespeople on the map">
                   <Text style={styles.customerExploreDemoText}>Preview demo</Text>
-                </Pressable>
-              ) : <Pressable style={styles.customerExploreDemoButton} onPress={clearFilters} accessibilityRole="button"><Text style={styles.customerExploreDemoText}>Clear filters</Text></Pressable>}
+                </MotionPressable>
+              ) : <MotionPressable style={styles.customerExploreDemoButton} onPress={clearFilters} accessibilityRole="button"><Text style={styles.customerExploreDemoText}>Clear filters</Text></MotionPressable>}
               {!showDemoProfiles ? <Text style={styles.customerExploreDemoNote}>Demo profiles are examples, not real businesses.</Text> : null}
             </View>
           ) : null}
@@ -2211,31 +2214,31 @@ function MapScreen({
                 <Text style={styles.filterPanelTitle}>Filter tradespeople</Text>
                 <Text style={styles.filterPanelSub}>Only show people who fit what you need.</Text>
               </View>
-              <Pressable onPress={clearFilters}>
+              <MotionPressable onPress={clearFilters}>
                 <Text style={styles.clearFiltersText}>Reset</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
 
             <Text style={styles.filterSectionLabel}>Availability</Text>
             <View style={styles.filterOptionRow}>
-              <Pressable
+              <MotionPressable
                 style={[styles.filterOption, availableOnly && styles.filterOptionActive]}
                 onPress={() => setAvailableOnly(true)}
               >
                 <Text style={[styles.filterOptionText, availableOnly && styles.filterOptionTextActive]}>Available now</Text>
-              </Pressable>
-              <Pressable
+              </MotionPressable>
+              <MotionPressable
                 style={[styles.filterOption, !availableOnly && styles.filterOptionActive]}
                 onPress={() => setAvailableOnly(false)}
               >
                 <Text style={[styles.filterOptionText, !availableOnly && styles.filterOptionTextActive]}>Show all</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
 
             <Text style={styles.filterSectionLabel}>Maximum distance</Text>
             <View style={styles.filterOptionRow}>
               {[1, 3, 5, 10].map(distance => (
-                <Pressable
+                <MotionPressable
                   key={distance}
                   style={[styles.filterOption, maxDistance === distance && styles.filterOptionActive]}
                   onPress={() => setMaxDistance(distance)}
@@ -2243,7 +2246,7 @@ function MapScreen({
                   <Text style={[styles.filterOptionText, maxDistance === distance && styles.filterOptionTextActive]}>
                     {distance} mi
                   </Text>
-                </Pressable>
+                </MotionPressable>
               ))}
             </View>
 
@@ -2255,7 +2258,7 @@ function MapScreen({
                 { label: '4.5+', value: 4.5 },
                 { label: '4.8+', value: 4.8 },
               ].map(item => (
-                <Pressable
+                <MotionPressable
                   key={item.label}
                   style={[styles.filterOption, minRating === item.value && styles.filterOptionActive]}
                   onPress={() => setMinRating(item.value)}
@@ -2263,13 +2266,13 @@ function MapScreen({
                   <Text style={[styles.filterOptionText, minRating === item.value && styles.filterOptionTextActive]}>
                     {item.label}
                   </Text>
-                </Pressable>
+                </MotionPressable>
               ))}
             </View>
 
-            <Pressable style={styles.filterApplyButton} onPress={() => setShowFilters(false)}>
+            <MotionPressable style={styles.filterApplyButton} onPress={() => setShowFilters(false)}>
               <Text style={styles.filterApplyText}>Show {filtered.length} tradespeople</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         </View>
       </Modal>
@@ -2725,13 +2728,13 @@ function MapMock({
         }}
       />
 
-      <Pressable
+      <MotionPressable
         style={styles.mapReferenceLocationButton}
         onPress={() => setRecenterNonce(value => value + 1)}
         accessibilityLabel="Recenter map on my location"
       >
         <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={20} color={C.navy2} />
-      </Pressable>
+      </MotionPressable>
     </View>
   );
 }
@@ -2811,19 +2814,19 @@ function TradeProfileScreen({
       <ScrollView style={styles.customerPublicProfile} contentContainerStyle={{ paddingBottom: 114 }} showsVerticalScrollIndicator={false}>
         <View style={styles.customerPublicHero}>
           <View style={styles.customerPublicTopButtons}>
-            <Pressable style={styles.customerPublicIconButton} onPress={back} accessibilityRole="button" accessibilityLabel="Back to Explore">
+            <MotionPressable style={styles.customerPublicIconButton} onPress={back} accessibilityRole="button" accessibilityLabel="Back to Explore">
               <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2} />
-            </Pressable>
+            </MotionPressable>
             <View style={{ flexDirection: 'row', gap: 9 }}>
-              <Pressable style={styles.customerPublicIconButton} accessibilityRole="button" accessibilityLabel="Share this tradesperson"
+              <MotionPressable style={styles.customerPublicIconButton} accessibilityRole="button" accessibilityLabel="Share this tradesperson"
                 onPress={() => Share.share({ message: trade.name + ' — ' + trade.role + ' on TradeHub.' })}>
                 <ArrowUp size={20} color="#FFFFFF" strokeWidth={2} />
-              </Pressable>
-              <Pressable style={styles.customerPublicIconButton} accessibilityRole="button"
+              </MotionPressable>
+              <MotionPressable style={styles.customerPublicIconButton} accessibilityRole="button"
                 accessibilityLabel={saved ? 'Remove from saved tradespeople' : 'Save this tradesperson'}
                 disabled={savingFavourite} onPress={toggleFavourite}>
                 <Heart size={20} color={saved ? theme.colors.coral : '#FFFFFF'} fill={saved ? theme.colors.coral : 'none'} strokeWidth={2} />
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
           <View style={styles.customerPublicIdentity}>
@@ -2940,14 +2943,14 @@ function TradeProfileScreen({
       </ScrollView>
 
       <View style={styles.customerPublicActionBar}>
-        <Pressable style={styles.customerPublicMessageButton} onPress={message} accessibilityRole="button">
+        <MotionPressable style={styles.customerPublicMessageButton} onPress={message} accessibilityRole="button">
           <MessageCircle size={18} color={theme.colors.ink} strokeWidth={2} />
           <Text style={styles.customerPublicMessageText}>Message</Text>
-        </Pressable>
-        <Pressable style={styles.customerPublicQuoteButton} onPress={book} accessibilityRole="button">
+        </MotionPressable>
+        <MotionPressable style={styles.customerPublicQuoteButton} onPress={book} accessibilityRole="button">
           <ClipboardList size={18} color="#FFFFFF" strokeWidth={2} />
           <Text style={styles.customerPublicQuoteText}>Request a quote</Text>
-        </Pressable>
+        </MotionPressable>
       </View>
     </CustomerShell>
   );
@@ -3443,9 +3446,9 @@ function UrgentScreen({
       <CustomerShell>
         <View style={styles.dispatchSearchingPage}>
           <View style={styles.dispatchTopBar}>
-            <Pressable style={styles.dispatchBackButton} onPress={cancelSearch}>
+            <MotionPressable style={styles.dispatchBackButton} onPress={cancelSearch}>
               <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
-            </Pressable>
+            </MotionPressable>
             <Text style={styles.dispatchTopTitle}>Finding someone now</Text>
             <View style={{ width: 42 }} />
           </View>
@@ -3487,9 +3490,9 @@ function UrgentScreen({
             </View>
           </View>
 
-          <Pressable style={styles.dispatchCancelButton} onPress={cancelSearch}>
+          <MotionPressable style={styles.dispatchCancelButton} onPress={cancelSearch}>
             <Text style={styles.dispatchCancelText}>Cancel request</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       </CustomerShell>
     );
@@ -3500,9 +3503,9 @@ function UrgentScreen({
       <CustomerShell>
         <ScrollView contentContainerStyle={styles.dispatchMatchedPage} showsVerticalScrollIndicator={false}>
           <View style={styles.dispatchTopBar}>
-            <Pressable style={styles.dispatchBackButton} onPress={back}>
+            <MotionPressable style={styles.dispatchBackButton} onPress={back}>
               <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
-            </Pressable>
+            </MotionPressable>
             <Text style={styles.dispatchTopTitle}>Availability check</Text>
             <View style={{ width: 42 }} />
           </View>
@@ -3512,15 +3515,15 @@ function UrgentScreen({
               We couldn't find an online {trade.toLowerCase()} within the search radius. No request has been sent and no booking has been made.
             </Text>
           </View>
-          <Pressable style={styles.findButton} onPress={() => setStage('form')}>
+          <MotionPressable style={styles.findButton} onPress={() => setStage('form')}>
             <Text style={styles.findButtonText}>Try the search again</Text>
-          </Pressable>
-          <Pressable style={styles.dispatchCancelOutline} onPress={() => navigate('route')}>
+          </MotionPressable>
+          <MotionPressable style={styles.dispatchCancelOutline} onPress={() => navigate('route')}>
             <Text style={styles.dispatchCancelOutlineText}>Post a flexible request instead</Text>
-          </Pressable>
-          <Pressable style={styles.dispatchCancelOutline} onPress={() => navigate('map')}>
+          </MotionPressable>
+          <MotionPressable style={styles.dispatchCancelOutline} onPress={() => navigate('map')}>
             <Text style={styles.dispatchCancelOutlineText}>Browse tradespeople</Text>
-          </Pressable>
+          </MotionPressable>
         </ScrollView>
       </CustomerShell>
     );
@@ -3534,9 +3537,9 @@ function UrgentScreen({
       <CustomerShell>
         <ScrollView contentContainerStyle={styles.dispatchMatchedPage} showsVerticalScrollIndicator={false}>
           <View style={styles.dispatchTopBar}>
-            <Pressable style={styles.dispatchBackButton} onPress={back}>
+            <MotionPressable style={styles.dispatchBackButton} onPress={back}>
               <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={21} color={C.navy2} />
-            </Pressable>
+            </MotionPressable>
             <Text style={styles.dispatchTopTitle}>Your urgent request</Text>
             <View style={{ width: 42 }} />
           </View>
@@ -3610,7 +3613,7 @@ function UrgentScreen({
             </Text>
 
             <View style={styles.dispatchActionRow}>
-              <Pressable
+              <MotionPressable
                 style={styles.dispatchSecondaryAction}
                 onPress={() => {
                   if (demoMode) {
@@ -3622,14 +3625,14 @@ function UrgentScreen({
               >
                 <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={18} color={C.navy2} />
                 <Text style={styles.dispatchSecondaryText}>Call</Text>
-              </Pressable>
-              <Pressable style={styles.dispatchSecondaryAction} onPress={messageMatchedTrade}>
+              </MotionPressable>
+              <MotionPressable style={styles.dispatchSecondaryAction} onPress={messageMatchedTrade}>
                 <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={18} color={C.navy2} />
                 <Text style={styles.dispatchSecondaryText}>Message</Text>
-              </Pressable>
-              <Pressable style={styles.dispatchPrimaryAction} onPress={() => openTrade(matchedTrade)}>
+              </MotionPressable>
+              <MotionPressable style={styles.dispatchPrimaryAction} onPress={() => openTrade(matchedTrade)}>
                 <Text style={styles.dispatchPrimaryText}>View profile</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
 
@@ -3640,13 +3643,13 @@ function UrgentScreen({
           </View>
 
           {matchStatus !== 'completed' ? (
-            <Pressable style={styles.dispatchCancelOutline} onPress={cancelSearch}>
+            <MotionPressable style={styles.dispatchCancelOutline} onPress={cancelSearch}>
               <Text style={styles.dispatchCancelOutlineText}>Cancel request</Text>
-            </Pressable>
+            </MotionPressable>
           ) : (
-            <Pressable style={styles.findButton} onPress={back}>
+            <MotionPressable style={styles.findButton} onPress={back}>
               <Text style={styles.findButtonText}>Back to TradeHub</Text>
-            </Pressable>
+            </MotionPressable>
           )}
         </ScrollView>
       </CustomerShell>
@@ -3657,7 +3660,7 @@ function UrgentScreen({
     <CustomerShell>
       <ScrollView contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <View style={styles.urgentHeader}>
-          <Pressable onPress={back}><Text style={styles.urgentBack}>‹</Text></Pressable>
+          <MotionPressable onPress={back}><Text style={styles.urgentBack}>‹</Text></MotionPressable>
           <View style={styles.greenBoltCircle}>
             <AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color={C.white} />
           </View>
@@ -3705,7 +3708,7 @@ function UrgentScreen({
                 ['Today', 'Same day', 'clock.fill', 'schedule'],
                 ['This week', 'Flexible', 'calendar', 'calendar_today'],
               ].map(([name, sub, ios, android]) => (
-                <Pressable
+                <MotionPressable
                   key={name}
                   style={[styles.urgencyCard, urgency === name && styles.urgencyCardActive]}
                   onPress={() => setUrgency(name)}
@@ -3713,13 +3716,13 @@ function UrgentScreen({
                   <AppIcon icon={{ ios, android }} size={19} color={urgency === name ? '#087A4E' : C.navy2} />
                   <Text style={[styles.urgencyName, urgency === name && { color: '#087A4E' }]}>{name}</Text>
                   <Text style={styles.urgencySub}>{sub}</Text>
-                </Pressable>
+                </MotionPressable>
               ))}
             </View>
           </FormStep>
 
           <FormStep number="4" title="Confirm the job location">
-            <Pressable style={styles.locationField} onPress={resolveCurrentLocation} disabled={locating}>
+            <MotionPressable style={styles.locationField} onPress={resolveCurrentLocation} disabled={locating}>
               <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={18} color={jobLocation ? C.green : C.blue} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.locationFieldText}>
@@ -3730,14 +3733,14 @@ function UrgentScreen({
                 </Text>
               </View>
               <Text style={{ color: jobLocation ? C.green : C.muted }}>{jobLocation ? '✓' : '›'}</Text>
-            </Pressable>
+            </MotionPressable>
           </FormStep>
 
           <View style={styles.dispatchEstimate}>
             <Text style={styles.dispatchEstimateNote}>You'll agree the price and scope directly with a real tradesperson before work begins. No call-out price is guaranteed.</Text>
           </View>
 
-          <Pressable
+          <MotionPressable
             style={[styles.findButton, submitting && { opacity: 0.65 }]}
             onPress={find}
             disabled={submitting}
@@ -3747,7 +3750,7 @@ function UrgentScreen({
             ) : (
               <Text style={styles.findButtonText}>Find someone now →</Text>
             )}
-          </Pressable>
+          </MotionPressable>
         </View>
       </ScrollView>
     </CustomerShell>
@@ -3805,39 +3808,39 @@ function BookingScreen({
         <Text style={styles.contentHeading}>What service do you need?</Text>
 
         {Array.from(new Set([...(initialService ? [initialService] : []), ...trade.services, 'Emergency call-out', 'Other'])).map(item => (
-          <Pressable key={item} style={[styles.radioRow, service === item && styles.radioRowActive]} onPress={() => setService(item)}>
+          <MotionPressable key={item} style={[styles.radioRow, service === item && styles.radioRowActive]} onPress={() => setService(item)}>
             <View style={[styles.radio, service === item && styles.radioActive]}>{service === item ? <View style={styles.radioDot} /> : null}</View>
             <Text style={styles.radioText}>{item}</Text>
-          </Pressable>
+          </MotionPressable>
         ))}
 
         <Text style={styles.contentHeading}>When?</Text>
         <View style={styles.twoCol}>
-          <Pressable
+          <MotionPressable
             style={styles.pickCard}
             onPress={() => setDateIndex(index => (index + 1) % dates.length)}
           >
             <Text style={styles.pickLabel}>Date</Text>
             <Text style={styles.pickValue}>{dates[dateIndex]}</Text>
             <Text style={styles.pickHint}>Tap to change</Text>
-          </Pressable>
-          <Pressable
+          </MotionPressable>
+          <MotionPressable
             style={styles.pickCard}
             onPress={() => setTimeIndex(index => (index + 1) % times.length)}
           >
             <Text style={styles.pickLabel}>Time</Text>
             <Text style={styles.pickValue}>{times[timeIndex]}</Text>
             <Text style={styles.pickHint}>Tap to change</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
-        <Pressable
+        <MotionPressable
           style={[styles.largeBlueButton, submitting && { opacity: 0.55 }]}
           onPress={submitBooking}
           disabled={submitting}
         >
           {submitting ? <ActivityIndicator color={C.white} /> : <Text style={styles.largeBlueText}>Send booking request</Text>}
-        </Pressable>
+        </MotionPressable>
       </ScrollView>
     </CustomerShell>
   );
@@ -3937,14 +3940,14 @@ function RequestsScreen({
         <Text style={styles.customerActivityTitle}>Activity</Text>
         <Text style={styles.customerActivitySub}>{active.length ? active.length + ' open request' + (active.length === 1 ? '' : 's') : 'Your requests and bookings'}</Text>
         <View style={styles.customerActivitySegment}>
-          <Pressable onPress={() => setView('active')} style={[styles.customerActivityTab, view === 'active' && styles.customerActivityTabActive]}
+          <MotionPressable onPress={() => setView('active')} style={[styles.customerActivityTab, view === 'active' && styles.customerActivityTabActive]}
             accessibilityRole="tab" accessibilityLabel="Active requests" accessibilityState={{ selected: view === 'active' }}>
             <Text style={[styles.customerActivityTabText, view === 'active' && styles.customerActivityTabTextActive]}>Active{active.length ? ' · ' + active.length : ''}</Text>
-          </Pressable>
-          <Pressable onPress={() => setView('past')} style={[styles.customerActivityTab, view === 'past' && styles.customerActivityTabActive]}
+          </MotionPressable>
+          <MotionPressable onPress={() => setView('past')} style={[styles.customerActivityTab, view === 'past' && styles.customerActivityTabActive]}
             accessibilityRole="tab" accessibilityLabel="Past requests" accessibilityState={{ selected: view === 'past' }}>
             <Text style={[styles.customerActivityTabText, view === 'past' && styles.customerActivityTabTextActive]}>Past{past.length ? ' · ' + past.length : ''}</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         {loading ? (
@@ -3955,7 +3958,7 @@ function RequestsScreen({
         ) : shown.length ? (
           <>
             {shown.map(item => (
-              <Pressable key={item.id} style={styles.customerActivityCard} onPress={() => openRequest(item)}
+              <MotionPressable key={item.id} style={styles.customerActivityCard} onPress={() => openRequest(item)}
                 accessibilityRole="button" accessibilityLabel={'View ' + item.issue + ' request'}>
                 <View style={styles.customerActivityCardHeader}>
                   <View style={styles.customerActivityCardIcon}><Wrench size={21} color={theme.colors.coralDark} strokeWidth={2} /></View>
@@ -3971,13 +3974,13 @@ function RequestsScreen({
                   </View>
                   <Text style={styles.customerActivityViewText}>View details</Text>
                 </View>
-              </Pressable>
+              </MotionPressable>
             ))}
             {view === 'active' ? (
-              <Pressable style={styles.customerActivityPostButton} onPress={() => navigate('home')} accessibilityRole="button" accessibilityLabel="Post another job">
+              <MotionPressable style={styles.customerActivityPostButton} onPress={() => navigate('home')} accessibilityRole="button" accessibilityLabel="Post another job">
                 <Plus size={19} color="#FFFFFF" strokeWidth={2.3} />
                 <Text style={styles.customerActivityPostText}>Post a job</Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </>
         ) : (
@@ -3992,10 +3995,10 @@ function RequestsScreen({
                 ? 'Post a job and nearby pros can respond. Compare your options and choose who suits you.'
                 : 'Completed and cancelled requests will appear here.'}</Text>
               {view === 'active' ? (
-                <Pressable style={styles.customerActivityPostButton} onPress={() => navigate('home')} accessibilityRole="button" accessibilityLabel="Post a job">
+                <MotionPressable style={styles.customerActivityPostButton} onPress={() => navigate('home')} accessibilityRole="button" accessibilityLabel="Post a job">
                   <Plus size={20} color="#FFFFFF" strokeWidth={2.4} />
                   <Text style={styles.customerActivityPostText}>Post a job</Text>
-                </Pressable>
+                </MotionPressable>
               ) : null}
             </View>
             {view === 'active' ? (
@@ -4349,9 +4352,9 @@ function RequestDetailScreen({
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.requestDetailPage, styles.customerRequestDetailLayout]} showsVerticalScrollIndicator={false}>
         <View style={styles.requestDetailHeader}>
-          <Pressable style={styles.dispatchBackButton} onPress={() => navigate('requests')} accessibilityRole="button" accessibilityLabel="Back to Activity">
+          <MotionPressable style={styles.dispatchBackButton} onPress={() => navigate('requests')} accessibilityRole="button" accessibilityLabel="Back to Activity">
             <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
-          </Pressable>
+          </MotionPressable>
           <Text style={styles.requestDetailHeaderTitle}>Request</Text>
           <View style={{ width: 42 }} />
         </View>
@@ -4432,7 +4435,7 @@ function RequestDetailScreen({
                 </View>
 
                 <View style={styles.requestDetailActions}>
-                  <Pressable
+                  <MotionPressable
                     style={styles.requestDetailSecondary}
                     onPress={() => {
                       if (isDemo) {
@@ -4444,16 +4447,16 @@ function RequestDetailScreen({
                   >
                     <AppIcon icon={{ ios: 'phone.fill', android: 'call' }} size={18} color={C.navy2} />
                     <Text style={styles.requestDetailSecondaryText}>Call</Text>
-                  </Pressable>
+                  </MotionPressable>
 
-                  <Pressable style={styles.requestDetailSecondary} onPress={messageTrade}>
+                  <MotionPressable style={styles.requestDetailSecondary} onPress={messageTrade}>
                     <AppIcon icon={{ ios: 'message.fill', android: 'chat_bubble' }} size={18} color={C.navy2} />
                     <Text style={styles.requestDetailSecondaryText}>Message</Text>
-                  </Pressable>
+                  </MotionPressable>
 
-                  <Pressable style={styles.requestDetailPrimary} onPress={() => openTrade(matchedTrade)}>
+                  <MotionPressable style={styles.requestDetailPrimary} onPress={() => openTrade(matchedTrade)}>
                     <Text style={styles.requestDetailPrimaryText}>Profile</Text>
-                  </Pressable>
+                  </MotionPressable>
                 </View>
               </>
             ) : (
@@ -4504,13 +4507,13 @@ function RequestDetailScreen({
                     <Text style={styles.reviewText}>Rate {matchedTrade.name}. This can only be submitted after a completed real job.</Text>
                     <View style={styles.reviewStars}>
                       {[1, 2, 3, 4, 5].map(value => (
-                        <Pressable
+                        <MotionPressable
                           key={value}
                           style={styles.reviewStarButton}
                           onPress={() => setReviewRating(value)}
                         >
                           <Text style={[styles.reviewStar, value <= reviewRating && styles.reviewStarActive]}>★</Text>
-                        </Pressable>
+                        </MotionPressable>
                       ))}
                     </View>
                     <TextInput
@@ -4522,13 +4525,13 @@ function RequestDetailScreen({
                       multiline
                       maxLength={500}
                     />
-                    <Pressable
+                    <MotionPressable
                       style={[styles.reviewSubmit, (!reviewRating || reviewBusy) && { opacity: 0.45 }]}
                       onPress={submitReview}
                       disabled={!reviewRating || reviewBusy}
                     >
                       {reviewBusy ? <ActivityIndicator color={C.navy} /> : <Text style={styles.reviewSubmitText}>Submit review</Text>}
-                    </Pressable>
+                    </MotionPressable>
                   </>
                 )}
               </View>
@@ -4556,23 +4559,23 @@ function RequestDetailScreen({
                         ? (['Electrician', 'Plumber', 'Builder'] as TradeCategory[])
                         : (['Plumber', 'Electrician', 'Builder'] as TradeCategory[])
                   ).map(nextTrade => (
-                    <Pressable
+                    <MotionPressable
                       key={nextTrade}
                       style={styles.relayOption}
                       onPress={() => startRelay(nextTrade, 'Follow-on work after ' + request.trade + ': ' + request.issue)}
                     >
                       <Text style={styles.relayOptionText}>{nextTrade}</Text>
                       <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={13} color={C.orange} />
-                    </Pressable>
+                    </MotionPressable>
                   ))}
                 </View>
               </View>
             ) : null}
 
             {canCancel && liveStatus !== 'Cancelled' ? (
-              <Pressable style={styles.requestDetailCancel} onPress={cancelRequest}>
+              <MotionPressable style={styles.requestDetailCancel} onPress={cancelRequest}>
                 <Text style={styles.requestDetailCancelText}>Cancel request</Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </>
         )}
@@ -4799,10 +4802,10 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
     return (
       <CustomerShell current="messages" navigate={navigate}>
         <View style={styles.customerChatHeader}>
-          <Pressable style={styles.customerChatBack} onPress={() => setSelectedConversation(null)}
+          <MotionPressable style={styles.customerChatBack} onPress={() => setSelectedConversation(null)}
             accessibilityRole="button" accessibilityLabel="Back to inbox">
             <ArrowLeft size={21} color={theme.colors.ink} strokeWidth={2} />
-          </Pressable>
+          </MotionPressable>
           {selectedConversation.avatar ? (
             <Image source={{ uri: selectedConversation.avatar }} style={styles.customerChatAvatar} />
           ) : (
@@ -4838,10 +4841,10 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
         <View style={styles.customerChatComposer}>
           <TextInput value={message} onChangeText={setMessage} style={styles.customerChatInput}
             placeholder="Write a message" placeholderTextColor={theme.colors.muted} multiline />
-          <Pressable onPress={sendMessage} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message"
+          <MotionPressable onPress={sendMessage} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message"
             style={[styles.customerChatSend, !message.trim() && { opacity: 0.5 }]}>
             <ArrowUp size={22} color="#FFFFFF" strokeWidth={2.3} />
-          </Pressable>
+          </MotionPressable>
         </View>
       </CustomerShell>
     );
@@ -4866,15 +4869,15 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
                 placeholder="Search messages" placeholderTextColor={theme.colors.muted}
                 style={styles.customerInboxSearchInput} autoCorrect={false} />
               {inboxSearch ? (
-                <Pressable style={styles.customerInboxClear} onPress={() => setInboxSearch('')}
+                <MotionPressable style={styles.customerInboxClear} onPress={() => setInboxSearch('')}
                   accessibilityRole="button" accessibilityLabel="Clear search">
                   <X size={19} color={theme.colors.muted} strokeWidth={2} />
-                </Pressable>
+                </MotionPressable>
               ) : null}
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
               {matchingConversations.map(item => (
-                <Pressable key={item.id} style={styles.customerInboxRow}
+                <MotionPressable key={item.id} style={styles.customerInboxRow}
                   onPress={() => setSelectedConversation(item)}
                   accessibilityRole="button" accessibilityLabel={'Open conversation with ' + item.name}>
                   {item.avatar ? (
@@ -4890,7 +4893,7 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
                     <Text style={styles.customerInboxTrade}>{item.trade}</Text>
                     <Text numberOfLines={2} style={styles.customerInboxSnippet}>{item.lastMessage}</Text>
                   </View>
-                </Pressable>
+                </MotionPressable>
               ))}
               {!matchingConversations.length ? (
                 <View style={styles.customerInboxEmptyCard}>
@@ -4908,11 +4911,11 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
               </View>
               <Text style={styles.customerInboxEmptyTitle}>No messages yet</Text>
               <Text style={styles.customerInboxEmptyText}>When you message a pro or they reply to your job, the conversation shows up here.</Text>
-              <Pressable style={styles.customerInboxFindButton} onPress={() => navigate('map')}
+              <MotionPressable style={styles.customerInboxFindButton} onPress={() => navigate('map')}
                 accessibilityRole="button" accessibilityLabel="Find a tradesperson">
                 <MapIcon size={19} color="#FFFFFF" strokeWidth={2} />
                 <Text style={styles.customerInboxFindText}>Find a pro</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
             <View style={styles.customerInboxInfo}>
               <Clock3 size={18} color={theme.colors.teal} strokeWidth={2} />
@@ -5143,20 +5146,20 @@ function CustomerProfileScreen({
             <Text style={styles.customerAccountName}>{fullName}</Text>
             <Text style={styles.customerAccountMeta}>{accountType === 'tradesperson' ? 'Tradesperson & customer' : 'Customer account'}</Text>
           </View>
-          <Pressable style={styles.customerAccountHeroEdit} onPress={() => setEditMode('details')}
+          <MotionPressable style={styles.customerAccountHeroEdit} onPress={() => setEditMode('details')}
             accessibilityRole="button" accessibilityLabel="Edit personal details">
             <Pencil size={19} strokeWidth={2} color="#FFFFFF" />
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <View style={styles.customerAccountGroup}>
-          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('details')}
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('details')}
             accessibilityRole="button" accessibilityLabel="Edit personal details">
             <View style={styles.customerAccountRowIcon}><UserRound size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.customerAccountRowText}>Personal details</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </Pressable>
-          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('address')}
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('address')}
             accessibilityRole="button" accessibilityLabel="Edit your saved address">
             <View style={styles.customerAccountRowIcon}><MapPin size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <View style={{ flex: 1 }}>
@@ -5164,40 +5167,40 @@ function CustomerProfileScreen({
               {profile.default_address ? <Text numberOfLines={1} style={styles.customerAccountRowDetail}>{profile.default_address}</Text> : null}
             </View>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </Pressable>
-          <Pressable style={styles.customerAccountRow} onPress={showSavedTrades}
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={showSavedTrades}
             accessibilityRole="button" accessibilityLabel="View saved tradespeople">
             <View style={styles.customerAccountRowIcon}><Heart size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.customerAccountRowText}>Saved tradespeople</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <Text style={styles.customerAccountSectionLabel}>SETTINGS</Text>
         <View style={styles.customerAccountGroup}>
-          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('notifications')}
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('notifications')}
             accessibilityRole="button" accessibilityLabel="Manage notifications">
             <View style={styles.customerAccountRowIcon}><Bell size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.customerAccountRowText}>Notifications</Text>
             <Text style={styles.customerAccountRowStatus}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </Pressable>
-          <Pressable style={styles.customerAccountRow} onPress={() => Alert.alert('Privacy & security', 'Your account is secured by email and password. Use the sign-in screen to reset your password.')}
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => Alert.alert('Privacy & security', 'Your account is secured by email and password. Use the sign-in screen to reset your password.')}
             accessibilityRole="button" accessibilityLabel="Privacy and security information">
             <View style={styles.customerAccountRowIcon}><LockKeyhole size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.customerAccountRowText}>Privacy & security</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </Pressable>
-          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('help')}
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('help')}
             accessibilityRole="button" accessibilityLabel="Contact help and support">
             <View style={styles.customerAccountRowIcon}><CircleHelp size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.customerAccountRowText}>Help & support</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </Pressable>
+          </MotionPressable>
         </View>
 
         {accountType === 'tradesperson' ? (
-          <Pressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
+          <MotionPressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
             accessibilityRole="button" accessibilityLabel="Switch to TradeHub Pro">
             <BriefcaseBusiness size={21} strokeWidth={2} color={theme.colors.teal} />
             <View style={{ flex: 1 }}>
@@ -5205,11 +5208,11 @@ function CustomerProfileScreen({
               <Text style={styles.customerAccountRowDetail}>Manage jobs and availability</Text>
             </View>
             <ChevronRight size={20} color={theme.colors.teal} />
-          </Pressable>
+          </MotionPressable>
         ) : null}
-        <Pressable style={styles.customerAccountSignout} onPress={signOut} accessibilityRole="button" accessibilityLabel="Log out">
+        <MotionPressable style={styles.customerAccountSignout} onPress={signOut} accessibilityRole="button" accessibilityLabel="Log out">
           <Text style={styles.customerAccountSignoutText}>Log out</Text>
-        </Pressable>
+        </MotionPressable>
       </ScrollView>
 
       <Modal visible={editMode !== null} animationType="slide" transparent={false}
@@ -5217,10 +5220,10 @@ function CustomerProfileScreen({
         <SafeAreaView style={styles.customerAccountEditorSafe}>
           <StatusBar barStyle="dark-content" />
           <View style={styles.customerAccountEditorHeader}>
-            <Pressable style={styles.customerAccountEditorBack} onPress={() => setEditMode(null)}
+            <MotionPressable style={styles.customerAccountEditorBack} onPress={() => setEditMode(null)}
               accessibilityRole="button" accessibilityLabel="Back to account">
               <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
-            </Pressable>
+            </MotionPressable>
             <Text style={styles.customerAccountEditorTopTitle}>Account settings</Text>
             <View style={{ width: 44 }} />
           </View>
@@ -5308,7 +5311,7 @@ function CustomerProfileScreen({
                 <Text style={styles.profileFieldLabel}>What is this about?</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4, marginBottom: 12 }}>
                   {(['account', 'booking', 'technical', 'safety', 'other'] as const).map(category => (
-                    <Pressable
+                    <MotionPressable
                       key={category}
                       onPress={() => setSupportCategory(category)}
                       accessibilityRole="button"
@@ -5317,7 +5320,7 @@ function CustomerProfileScreen({
                       <Text style={{ fontSize: 11, fontWeight: '900', color: supportCategory === category ? '#315D76' : '#607386' }}>
                         {category.charAt(0).toUpperCase() + category.slice(1)}
                       </Text>
-                    </Pressable>
+                    </MotionPressable>
                   ))}
                 </View>
                 <Text style={styles.profileFieldLabel}>Subject</Text>
@@ -5364,22 +5367,22 @@ function CustomerProfileScreen({
                         <Text style={styles.savedTradeName} numberOfLines={1}>{item.name}</Text>
                         <Text style={styles.savedTradeRole}>{item.role}</Text>
                       </View>
-                      <Pressable
+                      <MotionPressable
                         style={styles.savedTradeAction}
                         accessibilityRole="button"
                         accessibilityLabel={'View ' + item.name}
                         onPress={() => { setEditMode(null); openTrade(item); }}
                       >
                         <Text style={styles.savedTradeActionText}>View</Text>
-                      </Pressable>
-                      <Pressable
+                      </MotionPressable>
+                      <MotionPressable
                         onPress={() => removeSavedTrade(item.id)}
                         accessibilityRole="button"
                         accessibilityLabel={'Remove ' + item.name + ' from saved tradespeople'}
                         style={{ padding: 9, marginLeft: 5 }}
                       >
                         <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={14} color={C.muted} />
-                      </Pressable>
+                      </MotionPressable>
                     </View>
                   ))}
                 </ScrollView>
@@ -5388,7 +5391,7 @@ function CustomerProfileScreen({
 
           </ScrollView>
           <View style={styles.customerAccountEditorFooter}>
-            <Pressable
+            <MotionPressable
               style={[styles.customerAccountEditorSave, (saving || sendingSupport) && { opacity: 0.5 }]}
               onPress={editMode === 'saved' ? () => setEditMode(null) : editMode === 'help' ? submitSupport : saveProfile}
               disabled={saving || sendingSupport}
@@ -5396,7 +5399,7 @@ function CustomerProfileScreen({
               <Text style={styles.customerAccountEditorSaveText}>
                 {editMode === 'saved' ? 'Done' : editMode === 'help' ? (sendingSupport ? 'Sending…' : 'Send request') : saving ? 'Saving…' : 'Save changes'}
               </Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         </SafeAreaView>
       </Modal>
@@ -5428,7 +5431,7 @@ function TradeShell({
         {items.map(({ label, Icon, route }) => {
           const active = current === route;
           return (
-            <Pressable
+            <MotionPressable
               key={route}
               onPress={() => navigate(route)}
               style={styles.premiumTab}
@@ -5440,7 +5443,7 @@ function TradeShell({
                 <Icon size={23} strokeWidth={2} color={active ? theme.colors.white : theme.colors.muted} />
               </View>
               <Text style={[styles.premiumTabLabel, active && styles.premiumTabLabelActive]}>{label}</Text>
-            </Pressable>
+            </MotionPressable>
           );
         })}
       </View>
@@ -5859,12 +5862,12 @@ function TradeHomeScreen({
             <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
             <Text style={styles.premiumPageTitle} numberOfLines={1}>{firstName}</Text>
           </View>
-          <Pressable style={styles.premiumHeaderAvatar} onPress={() => navigate('tradeProfile')}
+          <MotionPressable style={styles.premiumHeaderAvatar} onPress={() => navigate('tradeProfile')}
             accessibilityRole="button" accessibilityLabel="Open your profile">
             {profileAvatar
               ? <Image source={{ uri: profileAvatar }} style={styles.premiumHeaderAvatarImage} />
               : <Text style={styles.premiumHeaderAvatarText}>{(profileName || firstName || 'T').charAt(0).toUpperCase()}</Text>}
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <View style={styles.premiumHomeMap}>
@@ -5879,14 +5882,14 @@ function TradeHomeScreen({
           <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
           <View style={styles.premiumMapStatus}>
-            <View style={[styles.premiumOnlineDot, { backgroundColor: available ? theme.colors.success : '#A9B9BD' }]} />
+            <LiveStatusDot online={available} style={styles.premiumOnlineDot} />
             <Text style={styles.premiumMapStatusText}>{available ? 'Online · receiving nearby job offers' : 'Offline · go online for local work'}</Text>
           </View>
-          <Pressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
+          <MotionPressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Find your location on the map">
             <Crosshair size={21} color={theme.colors.white} strokeWidth={2} />
-          </Pressable>
-          <Pressable style={styles.premiumAvailabilityButton}
+          </MotionPressable>
+          <MotionPressable style={styles.premiumAvailabilityButton}
             onPress={() => changeAvailable(!available)}
             disabled={savingAvailability}
             accessibilityRole="button" accessibilityLabel={available ? 'Go offline' : 'Go online'}>
@@ -5896,10 +5899,10 @@ function TradeHomeScreen({
                 <Text style={styles.premiumAvailabilityText}>{available ? 'Go offline' : 'Go online'}</Text>
               </>
             )}
-          </Pressable>
+          </MotionPressable>
         </View>
 
-        <Pressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
+        <MotionPressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
           accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
           <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
           <View style={{ flex: 1 }}>
@@ -5907,19 +5910,19 @@ function TradeHomeScreen({
             <Text style={styles.premiumProgressSub}>Help customers trust you</Text>
           </View>
           <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
-        </Pressable>
+        </MotionPressable>
 
         <View style={styles.premiumSectionRow}>
           <Text style={styles.premiumSectionTitle}>Incoming opportunities</Text>
-          <Pressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
+          <MotionPressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
             accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
             <RotateCw size={17} strokeWidth={2} color={theme.colors.teal} />
             <Text style={styles.premiumRefreshText}>Refresh</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         {incomingOffers.length ? incomingOffers.map(offer => (
-          <Pressable key={offer.offerId} onPress={() => navigate('tradeJobs')}
+          <MotionPressable key={offer.offerId} onPress={() => navigate('tradeJobs')}
             style={styles.premiumOfferCard} accessibilityRole="button" accessibilityLabel={'View ' + offer.issue + ' job'}>
             <View style={styles.premiumOfferHeading}>
               <View style={styles.premiumUrgentTag}><Text style={styles.premiumUrgentText}>{offer.urgency || 'REQUEST'}</Text></View>
@@ -5928,7 +5931,7 @@ function TradeHomeScreen({
             <Text style={styles.premiumOfferTitle} numberOfLines={2}>{offer.issue}</Text>
             <Text style={styles.premiumOfferMeta}>{offer.trade} · ~{offer.eta} min ETA</Text>
             <View style={styles.premiumPrimaryButton}><Text style={styles.premiumPrimaryText}>View offer</Text></View>
-          </Pressable>
+          </MotionPressable>
         )) : (
           <View style={styles.premiumEmptyCard}>
             <View style={styles.premiumEmptyIcon}><Inbox size={27} strokeWidth={2} color={theme.colors.teal} /></View>
@@ -5938,34 +5941,34 @@ function TradeHomeScreen({
         )}
 
         <View style={styles.premiumShortcuts}>
-          <Pressable style={styles.premiumShortcut} onPress={() => navigate('tradeJobs')}
+          <MotionPressable style={styles.premiumShortcut} onPress={() => navigate('tradeJobs')}
             accessibilityRole="button" accessibilityLabel="View active jobs">
             <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.tealTint }]}>
               <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
             </View>
             <Text style={styles.premiumShortcutTitle}>Active jobs</Text>
             <Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text>
-          </Pressable>
-          <Pressable style={styles.premiumShortcut} onPress={() => navigate('tradeMap')}
+          </MotionPressable>
+          <MotionPressable style={styles.premiumShortcut} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Find merchants">
             <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.coralTint }]}>
               <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
             </View>
             <Text style={styles.premiumShortcutTitle}>Merchants</Text>
             <Text style={styles.premiumShortcutSub}>Find supplies nearby</Text>
-          </Pressable>
-          <Pressable style={styles.premiumShortcut} onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
+          </MotionPressable>
+          <MotionPressable style={styles.premiumShortcut} onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
             accessibilityRole="button" accessibilityLabel="Open route tools">
             <View style={[styles.premiumShortcutIcon, { backgroundColor: '#E8EDF3' }]}>
               <Route size={22} strokeWidth={2} color="#365875" />
             </View>
             <Text style={styles.premiumShortcutTitle}>Route tools</Text>
             <Text style={styles.premiumShortcutSub}>Flexible work</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
 
         <View style={styles.proReferenceSettingsList}>
-        <Pressable
+        <MotionPressable
           style={styles.proV3DetailsToggle}
           onPress={() => setShowWorkSettings(value => !value)}
           accessibilityRole="button"
@@ -5979,7 +5982,7 @@ function TradeHomeScreen({
             <Text style={styles.proV3DetailsSub}>{duration} · {radius} mi</Text>
           </View>
           <AppIcon icon={{ ios: showWorkSettings ? 'chevron.up' : 'chevron.down', android: showWorkSettings ? 'expand_less' : 'expand_more' }} size={18} color="#9EB0C2" />
-        </Pressable>
+        </MotionPressable>
         {showWorkSettings ? (
           <>
         <View style={styles.proV3ControlCard}>
@@ -5992,13 +5995,13 @@ function TradeHomeScreen({
           </View>
           <View style={styles.tradeChipWrap}>
             {['1 hour', '2 hours', '4 hours', 'All day'].map(item => (
-              <Pressable
+              <MotionPressable
                 key={item}
                 style={[styles.tradeChip, duration === item && styles.tradeChipActive]}
                 onPress={() => changeDuration(item)}
               >
                 <Text style={[styles.tradeChipText, duration === item && { color: C.white }]}>{item}</Text>
-              </Pressable>
+              </MotionPressable>
             ))}
           </View>
         </View>
@@ -6013,13 +6016,13 @@ function TradeHomeScreen({
           </View>
           <View style={styles.radiusOptions}>
             {[5, 10, 15, 25].map(value => (
-              <Pressable
+              <MotionPressable
                 key={value}
                 onPress={() => changeRadius(value)}
                 style={[styles.radiusDot, radius === value && styles.radiusDotActive]}
               >
                 <Text style={[styles.radiusDotText, radius === value && { color: C.white }]}>{value}</Text>
-              </Pressable>
+              </MotionPressable>
             ))}
           </View>
         </View>
@@ -6027,7 +6030,7 @@ function TradeHomeScreen({
           </>
         ) : null}
 
-        <Pressable
+        <MotionPressable
           style={styles.proV3DetailsToggle}
           onPress={() => setShowPlanning(value => !value)}
           accessibilityRole="button"
@@ -6041,7 +6044,7 @@ function TradeHomeScreen({
             <Text style={styles.proV3DetailsSub}>Work areas, scheduling & tools</Text>
           </View>
           <AppIcon icon={{ ios: showPlanning ? 'chevron.up' : 'chevron.down', android: showPlanning ? 'expand_less' : 'expand_more' }} size={18} color="#9EB0C2" />
-        </Pressable>
+        </MotionPressable>
         {showPlanning ? (
           <>
             <View style={styles.radarCard}>
@@ -6049,7 +6052,7 @@ function TradeHomeScreen({
               <Text style={styles.radarTitle}>Where would you like to work?</Text>
               <Text style={styles.radarSub}>Select an area to update where customers can find you. These are suggested areas, not live demand figures.</Text>
               {demandAreas.map(area => (
-                <Pressable
+                <MotionPressable
                   key={area.name}
                   style={styles.radarArea}
                   onPress={() => workDemandArea(area)}
@@ -6065,10 +6068,10 @@ function TradeHomeScreen({
                   {radarBusy === area.name
                     ? <ActivityIndicator size="small" color={C.blue} />
                     : <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color="#375D79" />}
-                </Pressable>
+                </MotionPressable>
               ))}
             </View>
-            <Pressable style={styles.proV3RouteShortcut} onPress={() => navigate('tradeJobs')}>
+            <MotionPressable style={styles.proV3RouteShortcut} onPress={() => navigate('tradeJobs')}>
               <View style={styles.proV3AreaIcon}>
                 <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={20} color="#375D79" />
               </View>
@@ -6077,7 +6080,7 @@ function TradeHomeScreen({
                 <Text style={styles.proV3RouteShortcutSub}>See flexible jobs you could take alongside nearby work</Text>
               </View>
               <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color="#375D79" />
-            </Pressable>
+            </MotionPressable>
           </>
         ) : null}
 
@@ -6655,13 +6658,13 @@ function TradeJobsScreen({
             <Text style={styles.premiumPageTitle}>Jobs</Text>
             <Text style={styles.premiumScreenSub}>Nearby work, flexible offers and active bookings.</Text>
           </View>
-          <Pressable style={styles.premiumHeaderRefresh} accessibilityRole="button"
+          <MotionPressable style={styles.premiumHeaderRefresh} accessibilityRole="button"
             accessibilityLabel="Refresh job offers" onPress={() => {
               loadJobs(currentUserId || undefined);
               loadMarketJobs(currentUserId || undefined);
             }}>
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
-          </Pressable>
+          </MotionPressable>
         </View>
         <View style={styles.premiumJobOverview}>
           <View style={styles.premiumJobMetric}>
@@ -6679,14 +6682,14 @@ function TradeJobsScreen({
           </View>
         </View>
         <View style={styles.premiumSegment}>
-          <Pressable onPress={() => setJobsView('offers')} style={[styles.premiumSegmentTab, jobsView === 'offers' && styles.premiumSegmentActive]}
+          <MotionPressable onPress={() => setJobsView('offers')} style={[styles.premiumSegmentTab, jobsView === 'offers' && styles.premiumSegmentActive]}
             accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'offers' }}>
             <Text style={[styles.premiumSegmentText, jobsView === 'offers' && styles.premiumSegmentTextActive]}>Offers</Text>
-          </Pressable>
-          <Pressable onPress={() => setJobsView('active')} style={[styles.premiumSegmentTab, jobsView === 'active' && styles.premiumSegmentActive]}
+          </MotionPressable>
+          <MotionPressable onPress={() => setJobsView('active')} style={[styles.premiumSegmentTab, jobsView === 'active' && styles.premiumSegmentActive]}
             accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'active' }}>
             <Text style={[styles.premiumSegmentText, jobsView === 'active' && styles.premiumSegmentTextActive]}>Active</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
         {jobsView === 'active' ? (
           <>
@@ -6711,13 +6714,13 @@ function TradeJobsScreen({
                 </View>
 
                 <View style={styles.dispatchTradeActionRow}>
-                  <Pressable style={styles.dispatchTradeDirections} onPress={() => openDirections(job)}>
+                  <MotionPressable style={styles.dispatchTradeDirections} onPress={() => openDirections(job)}>
                     <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={17} color={C.navy2} />
                     <Text style={styles.dispatchTradeDirectionsText}>Directions</Text>
-                  </Pressable>
+                  </MotionPressable>
 
                   {job.request.status !== 'completed' ? (
-                    <Pressable
+                    <MotionPressable
                       style={[styles.dispatchTradeAdvance, busyId === job.offerId && { opacity: 0.6 }]}
                       onPress={() => advanceJob(job)}
                       disabled={busyId === job.offerId}
@@ -6731,7 +6734,7 @@ function TradeJobsScreen({
                               ? 'Complete job'
                               : 'Update'}
                       </Text>
-                    </Pressable>
+                    </MotionPressable>
                   ) : null}
                 </View>
               </View>
@@ -6769,13 +6772,13 @@ function TradeJobsScreen({
                 </View>
 
                 <View style={styles.dispatchTradeActionRow}>
-                  <Pressable style={styles.dispatchTradeDirections} onPress={() => openMarketDirections(job)}>
+                  <MotionPressable style={styles.dispatchTradeDirections} onPress={() => openMarketDirections(job)}>
                     <AppIcon icon={{ ios: 'map.fill', android: 'map' }} size={17} color={C.navy2} />
                     <Text style={styles.dispatchTradeDirectionsText}>Directions</Text>
-                  </Pressable>
+                  </MotionPressable>
 
                   {job.request.status !== 'completed' ? (
-                    <Pressable
+                    <MotionPressable
                       style={[styles.dispatchTradeAdvance, busyId === job.offerId && { opacity: 0.6 }]}
                       onPress={() => advanceMarketJob(job)}
                       disabled={busyId === job.offerId}
@@ -6791,7 +6794,7 @@ function TradeJobsScreen({
                                 ? 'Complete job'
                                 : 'Update'}
                       </Text>
-                    </Pressable>
+                    </MotionPressable>
                   ) : null}
                 </View>
               </View>
@@ -6842,14 +6845,14 @@ function TradeJobsScreen({
               </View>
 
               <View style={styles.dispatchTradeDecisionRow}>
-                <Pressable
+                <MotionPressable
                   style={styles.dispatchTradeDecline}
                   onPress={() => respondToOffer(job, 'declined')}
                   disabled={busyId === job.offerId}
                 >
                   <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
-                </Pressable>
-                <Pressable
+                </MotionPressable>
+                <MotionPressable
                   style={[styles.dispatchTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
                   onPress={() => respondToOffer(job, 'accepted')}
                   disabled={busyId === job.offerId}
@@ -6859,7 +6862,7 @@ function TradeJobsScreen({
                   ) : (
                     <Text style={styles.dispatchTradeAcceptText}>Accept job</Text>
                   )}
-                </Pressable>
+                </MotionPressable>
               </View>
             </View>
           ))
@@ -6921,14 +6924,14 @@ function TradeJobsScreen({
               </View>
 
               <View style={styles.dispatchTradeDecisionRow}>
-                <Pressable
+                <MotionPressable
                   style={styles.dispatchTradeDecline}
                   onPress={() => respondToMarketOffer(job, 'declined')}
                   disabled={busyId === job.offerId}
                 >
                   <Text style={styles.dispatchTradeDeclineText}>Decline</Text>
-                </Pressable>
-                <Pressable
+                </MotionPressable>
+                <MotionPressable
                   style={[styles.marketTradeAccept, busyId === job.offerId && { opacity: 0.6 }]}
                   onPress={() => respondToMarketOffer(job, 'accepted')}
                   disabled={busyId === job.offerId}
@@ -6938,7 +6941,7 @@ function TradeJobsScreen({
                   ) : (
                     <Text style={styles.marketTradeAcceptText}>Accept job</Text>
                   )}
-                </Pressable>
+                </MotionPressable>
               </View>
             </View>
           ))
@@ -7164,9 +7167,9 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
     return (
       <TradeShell current="tradeMessages" navigate={navigate}>
         <View style={styles.tradeChatHeader}>
-          <Pressable onPress={() => setSelected(null)} style={styles.tradeChatBack} accessibilityRole="button" accessibilityLabel="Back to all messages">
+          <MotionPressable onPress={() => setSelected(null)} style={styles.tradeChatBack} accessibilityRole="button" accessibilityLabel="Back to all messages">
             <AppIcon icon={{ ios: 'chevron.left', android: 'arrow_back' }} size={19} color="#244A54" />
-          </Pressable>
+          </MotionPressable>
           <View>
             <Text style={styles.tradeChatName}>{selected.customerName}</Text>
             <Text style={styles.tradeChatSub}>Customer conversation</Text>
@@ -7192,9 +7195,9 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
             placeholder="Type a message…"
             placeholderTextColor="#7890A4"
           />
-          <Pressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message">
+          <MotionPressable style={[styles.tradeChatSend, !message.trim() && { opacity: 0.35 }]} onPress={send} disabled={!message.trim()} accessibilityRole="button" accessibilityLabel="Send message">
             <AppIcon icon={{ ios: 'arrow.up', android: 'arrow_upward' }} size={18} color={C.white} />
-          </Pressable>
+          </MotionPressable>
         </View>
       </TradeShell>
     );
@@ -7209,10 +7212,10 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
             <Text style={styles.premiumPageTitle}>Messages</Text>
             <Text style={styles.premiumScreenSub}>All your customer conversations in one place.</Text>
           </View>
-          <Pressable style={styles.premiumHeaderRefresh} onPress={loadInbox}
+          <MotionPressable style={styles.premiumHeaderRefresh} onPress={loadInbox}
             accessibilityRole="button" accessibilityLabel="Refresh messages">
             <RotateCw size={23} strokeWidth={2} color={theme.colors.tealMid} />
-          </Pressable>
+          </MotionPressable>
         </View>
 
         {loading ? (
@@ -7223,7 +7226,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
         ) : conversations.length ? (
           <View style={styles.premiumInboxCard}>
             {conversations.map((item, index) => (
-              <Pressable key={item.id} style={[styles.premiumMessageRow, index > 0 && styles.premiumMessageDivider]}
+              <MotionPressable key={item.id} style={[styles.premiumMessageRow, index > 0 && styles.premiumMessageDivider]}
                 onPress={() => setSelected(item)} accessibilityRole="button" accessibilityLabel={'Open conversation with ' + item.customerName}>
                 <View style={styles.premiumMessageAvatar}>
                   <Text style={styles.premiumMessageInitials}>{item.customerName.trim().split(' ').slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase()}</Text>
@@ -7235,7 +7238,7 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
                   </View>
                   <Text style={styles.premiumMessagePreview} numberOfLines={2}>{item.lastMessage}</Text>
                 </View>
-              </Pressable>
+              </MotionPressable>
             ))}
           </View>
         ) : (
@@ -7243,11 +7246,11 @@ function TradeMessagesScreen({ navigate }: { screen: TradeScreen; navigate: (scr
             <View style={styles.premiumMessageEmptyIcon}><MessageCircle size={56} strokeWidth={1.7} color={theme.colors.darkTeal} /></View>
             <Text style={styles.premiumMessageEmptyTitle}>No messages yet</Text>
             <Text style={styles.premiumMessageEmptySub}>When a customer contacts you about a job, the conversation will appear here.</Text>
-            <Pressable style={styles.premiumMessageOnline} onPress={() => navigate('tradeHome')}
+            <MotionPressable style={styles.premiumMessageOnline} onPress={() => navigate('tradeHome')}
               accessibilityRole="button" accessibilityLabel="Go to home to change availability">
               <Power size={20} strokeWidth={2} color={theme.colors.white} />
               <Text style={styles.premiumMessageOnlineText}>Go online</Text>
-            </Pressable>
+            </MotionPressable>
           </View>
         )}
       </ScrollView>
@@ -7492,11 +7495,11 @@ function TradeSettingsScreen({
                 <Text style={styles.premiumEyebrow}>Your business</Text>
                 <Text style={styles.premiumPageTitle}>Profile</Text>
               </View>
-              <Pressable style={styles.premiumPreviewButton} onPress={() => setProfilePage('preview')}
+              <MotionPressable style={styles.premiumPreviewButton} onPress={() => setProfilePage('preview')}
                 accessibilityRole="button" accessibilityLabel="Preview public trade profile">
                 <UserRound size={18} strokeWidth={2} color={theme.colors.ink} />
                 <Text style={styles.premiumPreviewText}>Preview</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
             <View style={styles.premiumProfileHero}>
               <View style={styles.premiumProfileHeroTop}>
@@ -7518,54 +7521,54 @@ function TradeSettingsScreen({
                   <Text style={styles.premiumProgressSub}>{completedProfileSteps} of {profileSteps.length} steps done</Text>
                 </View>
               </View>
-              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
+              <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
                 <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><Camera size={21} color={theme.colors.coralDark} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.premiumChecklistTitle}>{avatarUrl ? 'Profile photo added' : 'Add a profile photo'}</Text>
                   <Text style={styles.premiumChecklistSubtitle}>Help customers recognise you</Text>
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted} />
-              </Pressable>
-              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
                 <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><Pencil size={21} color={theme.colors.teal} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.premiumChecklistTitle}>{bio.trim() ? 'Business bio added' : 'Write your business bio'}</Text>
                   <Text style={styles.premiumChecklistSubtitle}>What you specialise in</Text>
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted} />
-              </Pressable>
-              <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}>
                 <View style={[styles.premiumChecklistIcon, { backgroundColor: '#E9EDF3' }]}><MapPin size={21} color="#365875" /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.premiumChecklistTitle}>{workAreaSaved ? 'Service area set' : 'Set your service area'}</Text>
                   <Text style={styles.premiumChecklistSubtitle}>Where you take work</Text>
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted} />
-              </Pressable>
-              <Pressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
+              </MotionPressable>
+              <MotionPressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
                 accessibilityRole="button" accessibilityLabel="Complete profile setup">
                 <Text style={styles.premiumPrimaryText}>Complete setup</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
-            <Pressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}
+            <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}
               accessibilityRole="button" accessibilityLabel="Open account settings">
               <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.tealTint }]}><UserRound size={21} color={theme.colors.teal} /></View>
               <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Account & settings</Text>
               <ChevronRight size={20} color={theme.colors.muted} />
-            </Pressable>
+            </MotionPressable>
           </>
         ) : profilePage === 'edit' ? (
           <>
             <View style={styles.premiumProfileEditHeader}>
-              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+              <MotionPressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
                 accessibilityRole="button" accessibilityLabel="Back to profile">
                 <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
-              </Pressable>
+              </MotionPressable>
               <Text style={styles.premiumProfileEditTitle}>Public profile</Text>
-              <Pressable onPress={savePublicProfile} disabled={savingProfile} style={styles.premiumProfileSaveTop}
+              <MotionPressable onPress={savePublicProfile} disabled={savingProfile} style={styles.premiumProfileSaveTop}
                 accessibilityRole="button" accessibilityLabel="Save public profile">
                 <Text style={styles.premiumProfileSaveTopText}>Save</Text>
-              </Pressable>
+              </MotionPressable>
             </View>
             <Text style={styles.premiumProfileEditHint}>These are the details customers see when they explore tradespeople and after a match.</Text>
             <View style={styles.premiumPhotoCard}>
@@ -7602,13 +7605,13 @@ function TradeSettingsScreen({
           <Text style={styles.tradeEditLabel}>Main trade</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tradeEditTradeRow}>
             {customerCategoryOrder.map(item => (
-              <Pressable
+              <MotionPressable
                 key={item}
                 style={[styles.tradeEditChip, primaryTrade === item && styles.tradeEditChipActive]}
                 onPress={() => setPrimaryTrade(item)}
               >
                 <Text style={[styles.tradeEditChipText, primaryTrade === item && styles.tradeEditChipTextActive]}>{item}</Text>
-              </Pressable>
+              </MotionPressable>
             ))}
           </ScrollView>
 
@@ -7634,7 +7637,7 @@ function TradeSettingsScreen({
             maxLength={600}
           />
 
-          <Pressable
+          <MotionPressable
             style={[styles.tradeEditSave, savingProfile && { opacity: 0.5 }]}
             onPress={savePublicProfile}
             disabled={savingProfile}
@@ -7647,7 +7650,7 @@ function TradeSettingsScreen({
                 <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={15} color={C.white} />
               </>
             )}
-          </Pressable>
+          </MotionPressable>
         </View>
 
 
@@ -7655,10 +7658,10 @@ function TradeSettingsScreen({
         ) : profilePage === 'preview' ? (
           <>
             <View style={styles.premiumProfileEditHeader}>
-              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+              <MotionPressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
                 accessibilityRole="button" accessibilityLabel="Back to profile">
                 <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
-              </Pressable>
+              </MotionPressable>
               <Text style={styles.premiumProfileEditTitle}>Public preview</Text>
               <View style={{ width: 44 }} />
             </View>
@@ -7678,10 +7681,10 @@ function TradeSettingsScreen({
         ) : (
           <>
             <View style={styles.premiumProfileEditHeader}>
-              <Pressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
+              <MotionPressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
                 accessibilityRole="button" accessibilityLabel="Back to profile">
                 <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
-              </Pressable>
+              </MotionPressable>
               <Text style={styles.premiumProfileEditTitle}>Account</Text>
               <View style={{ width: 44 }} />
             </View>
@@ -7698,7 +7701,7 @@ function TradeSettingsScreen({
             </View>
           </View>
 
-          <Pressable
+          <MotionPressable
             style={[styles.locationChoice, locationMode === 'work_area' && styles.locationChoiceActive]}
             onPress={() => setModeOnly('work_area')}
           >
@@ -7714,10 +7717,10 @@ function TradeSettingsScreen({
                 Show customers a general area you work in instead of your exact position.
               </Text>
             </View>
-          </Pressable>
+          </MotionPressable>
 
           {locationMode === 'work_area' ? (
-            <Pressable
+            <MotionPressable
               style={styles.locationSaveButton}
               onPress={() => saveCurrentPosition('work_area')}
               disabled={savingLocation}
@@ -7725,10 +7728,10 @@ function TradeSettingsScreen({
               <Text style={styles.locationSaveButtonText}>
                 {savingLocation ? 'Saving…' : workAreaSaved ? 'Update my work area' : 'Set my current area as work area'}
               </Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
 
-          <Pressable
+          <MotionPressable
             style={[styles.locationChoice, locationMode === 'live' && styles.locationChoiceActive, { marginTop: 10 }]}
             onPress={() => setModeOnly('live')}
           >
@@ -7741,10 +7744,10 @@ function TradeSettingsScreen({
                 Use your current position while you are available. Browsing customers still see a softened position; exact tracking can be shared after a job is accepted.
               </Text>
             </View>
-          </Pressable>
+          </MotionPressable>
 
           {locationMode === 'live' ? (
-            <Pressable
+            <MotionPressable
               style={styles.locationSaveButton}
               onPress={() => saveCurrentPosition('live')}
               disabled={savingLocation}
@@ -7752,7 +7755,7 @@ function TradeSettingsScreen({
               <Text style={styles.locationSaveButtonText}>
                 {savingLocation ? 'Updating…' : 'Update live position now'}
               </Text>
-            </Pressable>
+            </MotionPressable>
           ) : null}
 
           <Text style={styles.locationPrivacyNote}>
@@ -7762,16 +7765,16 @@ function TradeSettingsScreen({
 
 
             <View style={styles.premiumAccountCard}>
-              <Pressable style={styles.premiumAccountRow} onPress={() => setProfilePage('edit')}>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => setProfilePage('edit')}>
                 <View style={styles.premiumChecklistIcon}><Pencil size={20} color={theme.colors.teal} /></View>
                 <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Public profile</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
-              </Pressable>
-              <Pressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHome')}>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHome')}>
                 <View style={styles.premiumChecklistIcon}><Clock3 size={20} color={theme.colors.teal} /></View>
                 <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & hours</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
-              </Pressable>
+              </MotionPressable>
               {['Payments & payouts', 'Notifications', 'Help & support'].map(item => (
                 <View style={styles.premiumAccountRow} key={item}>
                   <View style={styles.premiumChecklistIcon}><UserRound size={19} color={theme.colors.teal} /></View>
@@ -7780,12 +7783,12 @@ function TradeSettingsScreen({
                 </View>
               ))}
             </View>
-            <Pressable style={styles.backCustomerButton} onPress={switchToCustomer}>
+            <MotionPressable style={styles.backCustomerButton} onPress={switchToCustomer}>
               <Text style={styles.backCustomerText}>Switch to customer app</Text>
-            </Pressable>
-            <Pressable style={styles.signOutButton} onPress={signOut}>
+            </MotionPressable>
+            <MotionPressable style={styles.signOutButton} onPress={signOut}>
               <Text style={styles.signOutText}>Log out</Text>
-            </Pressable>
+            </MotionPressable>
           </>
         )}
       </ScrollView>
@@ -7801,7 +7804,7 @@ function Opportunity({ title, distance, time, price }: { title: string; distance
           <Text style={styles.opportunityTitle}>{title}</Text>
           <Text style={styles.opportunityMeta}>{distance} · {time}</Text>
         </View>
-        <Pressable style={styles.viewJobButton}><Text style={styles.viewJobText}>View</Text></Pressable>
+        <MotionPressable style={styles.viewJobButton}><Text style={styles.viewJobText}>View</Text></MotionPressable>
       </View>
       <View style={styles.opportunityBottom}>
         <Text style={styles.opportunityPrice}>{price}</Text>
@@ -7823,7 +7826,7 @@ function TradeStat({ number, label }: { number: string; label: string }) {
 function HeaderBack({ title, back }: { title: string; back: () => void }) {
   return (
     <View style={styles.headerBack}>
-      <Pressable onPress={back}><Text style={styles.backPlain}>‹</Text></Pressable>
+      <MotionPressable onPress={back}><Text style={styles.backPlain}>‹</Text></MotionPressable>
       <Text style={styles.headerBackTitle}>{title}</Text>
       <View style={{ width: 30 }} />
     </View>
@@ -7838,9 +7841,9 @@ function Badge({ text, green, dark, gold }: { text: string; green?: boolean; blu
 
 function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
   return (
-    <Pressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
+    <MotionPressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -7865,7 +7868,7 @@ function FormStep({ number, title, children }: { number: string; title: string; 
 
 function DirectoryRow({ trade, onPress }: { trade: Trade; onPress: () => void }) {
   return (
-    <Pressable style={styles.directoryRow} onPress={onPress}>
+    <MotionPressable style={styles.directoryRow} onPress={onPress}>
       <Image source={{ uri: trade.image }} style={styles.directoryAvatar} />
       <View style={{ flex: 1 }}>
         <Text style={styles.directoryName}>{trade.name}</Text>
@@ -7873,13 +7876,13 @@ function DirectoryRow({ trade, onPress }: { trade: Trade; onPress: () => void })
         <Text style={styles.directoryRating}>⭐ {trade.rating} ({trade.reviews})</Text>
       </View>
       <View style={styles.callCircle}><Text style={{ color: C.blue }}>☎</Text></View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
 function TradeSummary({ trade, onPress }: { trade: Trade; onPress: () => void }) {
   return (
-    <Pressable style={styles.tradeSummary} onPress={onPress}>
+    <MotionPressable style={styles.tradeSummary} onPress={onPress}>
       <Image source={{ uri: trade.image }} style={styles.summaryImage} />
       <View style={{ flex: 1 }}>
         <View style={styles.summaryNameRow}><Text style={styles.summaryName}>{trade.name}</Text><Text style={styles.verifiedTick}>✓</Text></View>
@@ -7891,7 +7894,7 @@ function TradeSummary({ trade, onPress }: { trade: Trade; onPress: () => void })
         <Text style={styles.summaryPrice}>£{trade.callout}</Text>
         <Text style={styles.summaryCallout}>Call-out</Text>
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
