@@ -2344,6 +2344,7 @@ function MapMock({
       image: trade.image,
       accent: trade.accent,
       available: trade.available,
+      demo: !trade.id.startsWith('live-'),
       lat: trade.mapLatitude ?? centre.latitude + offset.lat + Math.floor(index / offsets.length) * 0.0014,
       lng: trade.mapLongitude ?? centre.longitude + offset.lng - Math.floor(index / offsets.length) * 0.0011,
     };
@@ -2364,7 +2365,7 @@ function MapMock({
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
-  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#F3F5F7; }
+  html, body, #map { margin:0; padding:0; width:100%; height:100%; background:#F5F2EC; }
   body { overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
   .leaflet-control-attribution {
     font-size:6px !important;
@@ -2372,7 +2373,7 @@ function MapMock({
     background:rgba(255,255,255,.62) !important;
   }
   .maplibregl-canvas {
-    filter:saturate(.88) contrast(.98) brightness(1.02);
+    filter:saturate(.78) sepia(.11) contrast(.98) brightness(1.03);
   }
   .leaflet-marker-pane { z-index: 650 !important; }
   .leaflet-marker-pane .trade-cluster { z-index: 655 !important; }
@@ -2588,10 +2589,10 @@ function MapMock({
   }[ch]));
 
   const addTradeMarker = (marker) => {
-    const isSafePhoto = typeof marker.image === 'string' && marker.image.indexOf('https://') === 0 && marker.image.indexOf('"') === -1 && marker.image.indexOf('<') === -1 && marker.image.indexOf('>') === -1;
+    const isSafePhoto = !marker.demo && typeof marker.image === 'string' && marker.image.indexOf('https://') === 0 && marker.image.indexOf('"') === -1 && marker.image.indexOf('<') === -1 && marker.image.indexOf('>') === -1;
     const avatar = isSafePhoto
       ? '<img class="trade-avatar" loading="lazy" src="' + escapeMarkerText(marker.image) + '" />'
-      : '<span class="trade-avatar" style="background:#DCE7ED;color:#315F7D;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px">' +
+      : '<span class="trade-avatar" style="background:' + (marker.demo ? '#FCE8E0' : '#E8F0EF') + ';color:' + (marker.demo ? '#9A3F20' : '#245758') + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">' +
         escapeMarkerText((marker.name || marker.role || '?').charAt(0)) + '</span>';
     const icon = L.divIcon({
       className: '',
