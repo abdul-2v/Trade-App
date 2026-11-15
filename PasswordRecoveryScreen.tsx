@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { supabase } from './lib/supabase';
+import { theme } from './theme';
+import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 
 type Step = 'request' | 'verify' | 'new-password';
 
@@ -128,7 +130,8 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
           <Pressable onPress={onCancel} accessibilityRole="button" style={styles.back}>
-            <Text style={styles.backText}>‹  Back to sign in</Text>
+            <ArrowLeft size={19} strokeWidth={2} color={theme.colors.teal} />
+             <Text style={styles.backText}>Back to sign in</Text>
           </Pressable>
           <View style={styles.brandRow}>
             <View style={styles.logo}><Text style={styles.logoText}>T</Text></View>
@@ -163,7 +166,7 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
               />
               <Pressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={sendEmail} accessibilityRole="button">
-                <Text style={styles.primaryText}>{busy ? 'Sending…' : 'Send recovery email'}</Text>
+                <Text style={styles.primaryText}>{busy ? 'Sending…' : 'Send recovery email'}</Text><ArrowRight size={19} strokeWidth={2} color="#FFFFFF" />
               </Pressable>
             </>
           ) : step === 'verify' ? (
@@ -188,7 +191,7 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
               />
               <Pressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={verifyRecovery} accessibilityRole="button">
-                <Text style={styles.primaryText}>{busy ? 'Checking…' : 'Verify recovery details'}</Text>
+                <Text style={styles.primaryText}>{busy ? 'Checking…' : 'Verify recovery details'}</Text><ArrowRight size={19} strokeWidth={2} color="#FFFFFF" />
               </Pressable>
               <Pressable onPress={() => setStep('request')} disabled={busy} style={styles.secondary}>
                 <Text style={styles.secondaryText}>Request another email</Text>
@@ -208,7 +211,7 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
                 placeholderTextColor="#92A0AB" />
               <Pressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={changePassword} accessibilityRole="button">
-                <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Save new password'}</Text>
+                <Text style={styles.primaryText}>{busy ? 'Saving…' : 'Save new password'}</Text><ArrowRight size={19} strokeWidth={2} color="#FFFFFF" />
               </Pressable>
             </>
           )}
@@ -219,27 +222,27 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F7F3EC' },
-  page: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 44 },
-  back: { paddingVertical: 12, alignSelf: 'flex-start', marginBottom: 21 },
-  backText: { color: '#315D76', fontWeight: '800', fontSize: 13 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 37 },
-  logo: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#D66F4F', alignItems: 'center', justifyContent: 'center' },
-  logoText: { color: '#FFFFFF', fontSize: 18, fontWeight: '900' },
-  brand: { marginLeft: 10, color: '#111C29', fontSize: 25, fontWeight: '900' },
-  brandAccent: { color: '#C86748' },
-  eyebrow: { color: '#BB7259', fontSize: 10, letterSpacing: 1.5, fontWeight: '900', marginBottom: 9 },
-  title: { color: '#142739', fontSize: 29, lineHeight: 35, fontWeight: '900', letterSpacing: -0.7 },
-  sub: { color: '#657485', fontSize: 13, lineHeight: 21, marginTop: 11, marginBottom: 18 },
-  label: { color: '#344659', fontSize: 12, fontWeight: '800', marginTop: 15, marginBottom: 8 },
-  input: { minHeight: 54, borderRadius: 13, borderWidth: 1, borderColor: '#D9E0E2', backgroundColor: '#FFFEFA', color: '#1B3040', paddingHorizontal: 15, fontSize: 14 },
-  longInput: { paddingTop: 12, paddingBottom: 12, minHeight: 90, textAlignVertical: 'top' },
-  primary: { height: 55, backgroundColor: '#345D66', borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 25 },
-  primaryText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 },
-  disabled: { opacity: 0.6 },
-  secondary: { alignItems: 'center', padding: 17, marginTop: 5 },
-  secondaryText: { color: '#315D76', fontWeight: '800', fontSize: 12 },
-  infoCard: { backgroundColor: '#E5EFF0', borderRadius: 13, padding: 15, marginTop: 7 },
-  infoTitle: { color: '#254954', fontWeight: '900', fontSize: 12 },
-  infoText: { color: '#587683', fontSize: 11, lineHeight: 17, marginTop: 6 },
+  safe: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  page: { paddingHorizontal: 25, paddingTop: 23, paddingBottom: 60 },
+  back: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, alignSelf: 'flex-start', marginBottom: 23 },
+  backText: { color: theme.colors.teal, fontWeight: '800', fontSize: 13 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 35 },
+  logo: { width: 47, height: 47, borderRadius: 15, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center' },
+  logoText: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+  brand: { marginLeft: 11, color: theme.colors.ink, fontSize: 28, fontWeight: '800', letterSpacing: -0.8 },
+  brandAccent: { color: theme.colors.coralDark },
+  eyebrow: { color: theme.colors.coralText, fontSize: 12, letterSpacing: 1.2, fontWeight: '800', marginBottom: 10 },
+  title: { color: theme.colors.ink, fontSize: 31, lineHeight: 39, fontWeight: '800', letterSpacing: -0.8 },
+  sub: { color: theme.colors.muted, fontSize: 14, lineHeight: 22, marginTop: 11, marginBottom: 22 },
+  label: { color: theme.colors.ink, fontSize: 13, fontWeight: '700', marginTop: 17, marginBottom: 9 },
+  input: { minHeight: 56, borderRadius: 20, borderWidth: 1, borderColor: '#E4DED4', backgroundColor: '#FFFFFF', color: theme.colors.ink, paddingHorizontal: 16, fontSize: 15 },
+  longInput: { paddingTop: 13, paddingBottom: 13, minHeight: 105, textAlignVertical: 'top' },
+  primary: { minHeight: 56, backgroundColor: theme.colors.darkTeal, borderRadius: 28, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 11, marginTop: 26, ...theme.shadow },
+  primaryText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  disabled: { opacity: 0.55 },
+  secondary: { alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingHorizontal: 15, marginTop: 8 },
+  secondaryText: { color: theme.colors.teal, fontWeight: '800', fontSize: 13 },
+  infoCard: { backgroundColor: '#FFFFFF', borderRadius: 25, padding: 19, marginTop: 8, ...theme.shadow },
+  infoTitle: { color: theme.colors.ink, fontWeight: '800', fontSize: 15 },
+  infoText: { color: theme.colors.muted, fontSize: 13, lineHeight: 20, marginTop: 7 },
 });
