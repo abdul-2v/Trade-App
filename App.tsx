@@ -3967,12 +3967,12 @@ function RequestsScreen({
             {view === 'active' ? (
               <>
                 <Text style={[styles.customerSectionTitle, { marginTop: 26, marginBottom: 11 }]}>What you'll see here</Text>
-                {[
-                  [Zap, 'Responses from pros', 'See when a professional responds to your job'],
-                  [CalendarDays, 'Your bookings', 'Keep track of appointments and updates'],
-                  [CheckCircle2, 'Finished jobs', 'Leave feedback when the work is complete'],
-                ] as [typeof Zap, string, string][]).map(([Icon, label, copy], index) => (
-                  <View key={index} style={styles.customerActivityExplainRow}>
+                {([
+                  { Icon: Zap, label: 'Responses from pros', copy: 'See when a professional responds to your job' },
+                  { Icon: CalendarDays, label: 'Your bookings', copy: 'Keep track of appointments and updates' },
+                  { Icon: CheckCircle2, label: 'Finished jobs', copy: 'Leave feedback when the work is complete' },
+                ]).map(({ Icon, label, copy }) => (
+                  <View key={label} style={styles.customerActivityExplainRow}>
                     <View style={styles.customerActivityExplainIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={2} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.customerActivityExplainTitle}>{label}</Text>
