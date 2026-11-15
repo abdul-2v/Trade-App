@@ -2794,154 +2794,125 @@ function TradeProfileScreen({
     }
   };
 
+  const isDemo = !isLiveProfile;
+  const shareProfile = () => Share.share({
+    message: isDemo
+      ? trade.name + ' — example tradesperson profile in TradeHub demo.'
+      : trade.name + ' — ' + trade.role + ' on TradeHub.',
+  });
+
   return (
     <CustomerShell>
-      <ScrollView contentContainerStyle={{ paddingBottom: 95 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileHero}>
-          {trade.image ? (
-            <Image source={{ uri: trade.image }} style={styles.profileHeroImage} />
-          ) : (
-            <View style={[styles.profileHeroImage, { backgroundColor: '#DCE7ED', alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ color: '#315F7D', fontWeight: '900', fontSize: 90 }}>{trade.name.charAt(0).toUpperCase()}</Text>
+      <ScrollView style={styles.customerProfileScroll} contentContainerStyle={styles.customerTradeProfileContent}
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.customerProfileHero}>
+          <View style={styles.customerProfileToolbar}>
+            <Pressable style={styles.customerHeroCircle} onPress={back} accessibilityRole="button" accessibilityLabel="Back to Explore">
+              <ArrowLeft size={22} color="#FFFFFF" strokeWidth={2} />
+            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable style={styles.customerHeroCircle} onPress={shareProfile} accessibilityRole="button" accessibilityLabel="Share tradesperson profile">
+                <ArrowUp size={21} color="#FFFFFF" strokeWidth={2} />
+              </Pressable>
+              <Pressable style={styles.customerHeroCircle} onPress={toggleFavourite} disabled={savingFavourite} accessibilityRole="button" accessibilityLabel={saved ? 'Remove saved tradesperson' : 'Save tradesperson'}>
+                <Heart size={21} color="#FFFFFF" strokeWidth={2} fill={saved ? '#FFFFFF' : 'none'} />
+              </Pressable>
             </View>
-          )}
-          <Pressable style={styles.backCircle} onPress={back}><Text style={styles.backText}>‹</Text></Pressable>
-          <View style={styles.profileHeroActions}>
-            <Pressable
-              style={styles.smallCircle}
-              onPress={toggleFavourite}
-              disabled={savingFavourite}
-              accessibilityRole="button"
-              accessibilityLabel={saved ? 'Remove from saved tradespeople' : 'Save this tradesperson'}
-            >
-              <Text style={{ fontSize: 18 }}>{saved ? '♥' : '♡'}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.smallCircle}
-              onPress={() =>
-                Share.share({
-                  message: `${trade.name} — ${trade.role} on TradeHub. Rating ${trade.rating}/5, around ${trade.distance} miles away.`,
-                })
-              }
-            >
-              <Text style={{ fontSize: 17 }}>↗</Text>
-            </Pressable>
+          </View>
+          <View style={styles.customerProfileIdentity}>
+            {trade.image
+              ? <Image source={{ uri: trade.image }} style={styles.customerProfilePortrait} />
+              : <View style={styles.customerProfilePortraitFallback}><Text style={styles.customerProfilePortraitInitials}>{trade.name.trim().split(' ').slice(0, 2).map(x => x.charAt(0)).join('').toUpperCase()}</Text></View>}
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                <Text style={styles.customerProfileHeroName}>{trade.name}</Text>
+                {isDemo ? <Text style={styles.customerDemoBadge}>DEMO</Text> : null}
+              </View>
+              <Text style={styles.customerProfileHeroRole}>{trade.role}{trade.distance >= 0 ? ' · ' + trade.distance.toFixed(1) + ' mi away' : ''}</Text>
+            </View>
+          </View>
+          <View style={styles.customerProfileBadges}>
+            {trade.verified ? <View style={styles.customerProfileBadge}><ShieldCheck size={14} color="#D6E8E5" /><Text style={styles.customerProfileBadgeText}>ID verified</Text></View> : null}
+            {trade.insured ? <View style={styles.customerProfileBadge}><ShieldCheck size={14} color="#D6E8E5" /><Text style={styles.customerProfileBadgeText}>Insured</Text></View> : null}
+            {trade.gasSafe ? <View style={styles.customerProfileBadge}><CheckCircle2 size={14} color="#D6E8E5" /><Text style={styles.customerProfileBadgeText}>Gas Safe</Text></View> : null}
           </View>
         </View>
 
-        <View style={styles.profileSheet}>
-          <Text style={styles.profileName}>
-            {trade.name}{trade.verified ? <Text style={{ color: C.blue }}> ✓</Text> : null}
-          </Text>
-          <Text style={styles.profileRole}>{trade.role}{trade.secondaryRole ? ' · ' + trade.secondaryRole : ''}</Text>
-          <View style={styles.profileMetaRow}>
-            <Text style={styles.ratingText}>
-              {trade.reviews > 0 ? '⭐ ' + trade.rating + ' (' + trade.reviews + ' reviews)' : 'New on TradeHub'}
-            </Text>
-            {trade.distance >= 0 ? <Text style={styles.muted}>⌖ {trade.distance} miles away</Text> : <Text style={styles.muted}>Location not available</Text>}
+        {trade.reviews > 0 || !isLiveProfile ? (
+          <View style={styles.customerProfileStats}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.customerProfileStatsValue}>{trade.reviews > 0 ? trade.rating.toFixed(1) + ' ★' : 'New'}</Text>
+              <Text style={styles.customerProfileStatsLabel}>{trade.reviews > 0 ? trade.reviews + ' reviews' : 'No reviews yet'}</Text>
+            </View>
+            {isDemo ? <View style={styles.customerProfileStatsDivider} /> : null}
+            {isDemo ? <View style={{ flex: 1, alignItems: 'center' }}><Text style={styles.customerProfileStatsValue}>DEMO</Text><Text style={styles.customerProfileStatsLabel}>Example information</Text></View> : null}
           </View>
+        ) : null}
 
-          <View style={styles.badgeRow}>
-            <Badge text={trade.available ? '● Available now' : 'Offline'} green={trade.available} />
-            {trade.verified ? <Badge text="✓ Verified" /> : null}
-            {trade.insured ? <Badge text="◆ Insured" dark /> : null}
-            {trade.gasSafe ? <Badge text="⚠ Gas Safe" gold /> : null}
+        <View style={styles.customerTradeProfileBody}>
+          <View style={styles.customerProfileAvailability}>
+            <View style={[styles.customerAvailableDot, !trade.available && { backgroundColor: theme.colors.muted }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.customerProfileAvailableText}>{trade.available ? 'Available now' : 'Currently unavailable'}</Text>
+              <Text style={styles.customerProfileAvailableSub}>{trade.available ? 'Message to discuss your job and timing' : 'Ask about their next available appointment'}</Text>
+            </View>
+            <ChevronRight color={theme.colors.teal} size={19} />
           </View>
+          <Text style={styles.customerProfileSection}>About</Text>
+          <Text style={styles.customerProfileAbout}>{trade.about}</Text>
+          <Text style={styles.customerProfileSection}>Services</Text>
+          {isDemo ? (
+            <View style={styles.customerProfileServiceWrap}>
+              {trade.services.map(service => (
+                <View key={service} style={styles.customerProfileServicePill}><Text style={styles.customerProfileServiceText}>{service}</Text></View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.customerProfileNeutralCard}>
+              <Text style={styles.customerProfileAbout}>Ask this tradesperson which specific services they cover. Their full service list hasn't been confirmed yet.</Text>
+            </View>
+          )}
 
-          <View style={styles.statRow}>
-            <Stat icon="⚡" value={isLiveProfile ? (trade.available ? 'Live now' : 'Offline') : 'in ' + trade.response + ' mins'} label={isLiveProfile ? 'Availability' : 'Typically responds'} />
-            <Stat icon="◷" value={trade.years > 0 ? trade.years + '+ years' : 'Not added'} label="Experience" />
-            <Stat icon="£" value={trade.callout > 0 ? 'from £' + trade.callout : 'Ask'} label="Call-out" />
-            <Stat icon="◇" value={trade.verified ? 'Verified' : 'New'} label="Profile" />
-          </View>
-
-          <View style={styles.tabs}>
-            {(['About', 'Services', 'Reviews', 'Gallery'] as const).map(t => (
-              <Pressable key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
-                <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {tab === 'About' ? (
+          {trade.verified || trade.insured || trade.gasSafe ? (
             <>
-              <Text style={styles.contentHeading}>About me</Text>
-              <Text style={styles.bodyText}>{trade.about}</Text>
-              <Text style={styles.contentHeading}>Services</Text>
-              <View style={styles.serviceGrid}>
-                {trade.services.map((service, i) => (
-                  <View key={service} style={styles.serviceCard}>
-                    <Text style={styles.serviceIcon}>{['💧', '🛁', '♨', '🔧'][i % 4]}</Text>
-                    <Text style={styles.serviceText}>{service}</Text>
-                  </View>
-                ))}
+              <Text style={styles.customerProfileSection}>Profile credentials</Text>
+              <View style={styles.customerProfileCredentialCard}>
+                {trade.verified ? <View style={styles.customerProfileCredentialRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerProfileCredentialName}>Photo ID verified</Text><CheckCircle2 size={20} color={theme.colors.success}/></View> : null}
+                {trade.insured ? <View style={styles.customerProfileCredentialRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerProfileCredentialName}>Insurance recorded</Text><CheckCircle2 size={20} color={theme.colors.success}/></View> : null}
+                {trade.gasSafe ? <View style={styles.customerProfileCredentialRow}><CheckCircle2 size={21} color={theme.colors.teal} /><Text style={styles.customerProfileCredentialName}>Gas Safe status</Text><CheckCircle2 size={20} color={theme.colors.success}/></View> : null}
               </View>
+              {isDemo ? <Text style={styles.customerProfileFootnote}>DEMO: these badges are illustrative, not actual credential checks.</Text> : null}
             </>
           ) : null}
 
-          {tab === 'Services' ? (
-            <View style={{ marginTop: 18 }}>
-              {trade.services.map(service => (
-                <View key={service} style={styles.lineRow}>
-                  <Text style={styles.lineTitle}>{service}</Text>
-                  <Text style={styles.lineRight}>{trade.callout > 0 ? 'From £' + trade.callout : 'Ask for price'}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          {tab === 'Reviews' ? (
-            <View style={styles.jobReviewCard}>
-              {isLiveProfile ? (
-                <>
-                  <Text style={styles.reviewName}>
-                    {trade.reviews > 0 ? trade.reviews + ' verified job review' + (trade.reviews === 1 ? '' : 's') : 'No verified reviews yet'}
-                  </Text>
-                  <Text style={styles.bodyText}>
-                    {trade.reviews > 0
-                      ? 'The ' + trade.rating + '/5 rating above is calculated only from completed TradeHub jobs.'
-                      : 'Reviews appear here only after a real TradeHub job has been completed and the customer submits a rating.'}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.reviewName}>Demo review · ⭐⭐⭐⭐⭐</Text>
-                  <Text style={styles.bodyText}>Sample review content for the demo marketplace profile.</Text>
-                </>
-              )}
-            </View>
-          ) : null}
-
-          {tab === 'Gallery' ? (
-            isLiveProfile ? (
-              <View style={styles.jobReviewCard}>
-                <Text style={styles.reviewName}>No portfolio photos yet</Text>
-                <Text style={styles.bodyText}>Real portfolio uploads will appear here once this professional adds them.</Text>
-              </View>
+          <Text style={styles.customerProfileSection}>Reviews</Text>
+          <View style={styles.customerProfileNeutralCard}>
+            {trade.reviews > 0 ? (
+              <>
+                <Text style={styles.customerProfileReviewRating}>★ {trade.rating.toFixed(1)} <Text style={styles.customerProfileReviewCount}>· {trade.reviews} reviews</Text></Text>
+                <Text style={styles.customerProfileAbout}>{isDemo ? 'Example ratings shown for demonstration only.' : 'Ratings come from completed TradeHub jobs. Written review details are not available in this view yet.'}</Text>
+              </>
             ) : (
-              <View style={styles.galleryGrid}>
-                {[1, 2, 3, 4].map(n => (
-                  <View key={n} style={styles.galleryTile}><Text style={styles.galleryEmoji}>{['🚿', '🔧', '🏠', '♨'][n - 1]}</Text></View>
-                ))}
+              <Text style={styles.customerProfileAbout}>No reviews yet. Reviews appear after completed jobs.</Text>
+            )}
+          </View>
+          {trade.mapLatitude != null && trade.mapLongitude != null ? (
+            <>
+              <Text style={styles.customerProfileSection}>Approximate service area</Text>
+              <View style={styles.customerProfileNeutralCard}>
+                <Text style={styles.customerProfileAbout}>{trade.role} in your local area. Public map locations are approximate, and exact job addresses remain private.</Text>
               </View>
-            )
+            </>
           ) : null}
+          {isDemo ? <Text style={styles.customerProfileFootnote}>This is a fictional demonstration profile. Messaging and bookings are available only for real registered professionals.</Text> : null}
         </View>
       </ScrollView>
-
-      <View style={styles.actionBar}>
-        <Pressable
-          style={[styles.secondaryAction, (!trade.phone || !isLiveProfile) && { opacity: 0.38 }]}
-          disabled={!trade.phone || !isLiveProfile}
-          onPress={() => isLiveProfile && trade.phone && Linking.openURL('tel:' + trade.phone)}
-        >
-          <Text style={styles.secondaryActionText}>{!isLiveProfile ? 'Demo only' : trade.phone ? '☎ Call' : 'No phone'}</Text>
+      <View style={styles.customerTradeProfileBottom}>
+        <Pressable style={styles.customerProfileMessageButton} onPress={message} accessibilityRole="button" accessibilityLabel={'Message ' + trade.name}>
+          <MessageCircle size={18} color={theme.colors.ink} strokeWidth={2} /><Text style={styles.customerProfileMessageText}>Message</Text>
         </Pressable>
-        <Pressable style={styles.secondaryAction} onPress={message}>
-          <Text style={styles.secondaryActionText}>◌ Message</Text>
-        </Pressable>
-        <Pressable style={styles.primaryAction} onPress={book}>
-          <Text style={styles.primaryActionText}>▣ Book now</Text>
+        <Pressable style={styles.customerProfileQuoteButton} onPress={book} accessibilityRole="button" accessibilityLabel={'Request a quote from ' + trade.name}>
+          <ClipboardList size={18} color="#FFFFFF" strokeWidth={2} /><Text style={styles.customerProfileQuoteText}>Request a quote</Text>
         </Pressable>
       </View>
     </CustomerShell>
@@ -9793,6 +9764,48 @@ const styles = StyleSheet.create({
   customerExploreDemoButton: { marginTop: 17, backgroundColor: theme.colors.darkTeal, borderRadius: 27, minHeight: 51, alignItems: 'center', justifyContent: 'center' },
   customerExploreDemoText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   customerExploreDemoNote: { color: theme.colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10, lineHeight: 17 },
+
+  customerProfileScroll: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerTradeProfileContent: { paddingBottom: 28 },
+  customerProfileHero: { backgroundColor: theme.colors.darkTeal, paddingTop: 14, paddingHorizontal: 22, paddingBottom: 27, borderBottomLeftRadius: 29, borderBottomRightRadius: 29 },
+  customerProfileToolbar: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
+  customerHeroCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#365258', borderWidth: 1, borderColor: '#5D777C' },
+  customerProfileIdentity: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  customerProfilePortrait: { width: 76, height: 76, borderRadius: 38, borderWidth: 3, borderColor: '#FFFFFF' },
+  customerProfilePortraitFallback: { width: 76, height: 76, borderRadius: 38, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center' },
+  customerProfilePortraitInitials: { color: theme.colors.coralText, fontSize: 25, fontWeight: '800' },
+  customerProfileHeroName: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  customerProfileHeroRole: { color: '#B7CBCB', fontSize: 13, marginTop: 6 },
+  customerDemoBadge: { paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#36565B', borderRadius: 11, color: '#E5EEEE', fontSize: 10, fontWeight: '800' },
+  customerProfileBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 21 },
+  customerProfileBadge: { backgroundColor: '#2B484D', borderWidth: 1, borderColor: '#557277', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  customerProfileBadgeText: { color: '#E0EEEE', fontSize: 12, fontWeight: '700' },
+  customerProfileStats: { marginHorizontal: 20, marginTop: -12, minHeight: 82, borderRadius: 26, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', padding: 14, ...theme.shadow },
+  customerProfileStatsValue: { color: theme.colors.ink, fontSize: 20, fontWeight: '800' },
+  customerProfileStatsLabel: { color: theme.colors.muted, marginTop: 5, fontSize: 12 },
+  customerProfileStatsDivider: { height: 42, width: 1, backgroundColor: '#E7E1D9' },
+  customerTradeProfileBody: { paddingHorizontal: 22, paddingTop: 20 },
+  customerProfileAvailability: { minHeight: 76, backgroundColor: '#E3F0E8', borderRadius: 25, padding: 17, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  customerAvailableDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.success },
+  customerProfileAvailableText: { color: '#155B3D', fontSize: 15, fontWeight: '800' },
+  customerProfileAvailableSub: { color: '#49765D', fontSize: 12, lineHeight: 17, marginTop: 4 },
+  customerProfileSection: { marginTop: 25, marginBottom: 11, color: theme.colors.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
+  customerProfileAbout: { color: theme.colors.muted, fontSize: 14, lineHeight: 21 },
+  customerProfileServiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  customerProfileServicePill: { backgroundColor: '#FFFFFF', borderRadius: 22, paddingHorizontal: 14, paddingVertical: 12, ...theme.shadow },
+  customerProfileServiceText: { color: theme.colors.ink, fontSize: 13, fontWeight: '700' },
+  customerProfileNeutralCard: { backgroundColor: '#FFFFFF', borderRadius: 25, padding: 17, ...theme.shadow },
+  customerProfileCredentialCard: { backgroundColor: '#FFFFFF', borderRadius: 25, paddingHorizontal: 15, ...theme.shadow },
+  customerProfileCredentialRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#ECE7E0' },
+  customerProfileCredentialName: { flex: 1, color: theme.colors.ink, fontSize: 14, fontWeight: '700' },
+  customerProfileReviewRating: { fontSize: 23, fontWeight: '800', color: theme.colors.ink, marginBottom: 5 },
+  customerProfileReviewCount: { fontSize: 13, fontWeight: '500', color: theme.colors.muted },
+  customerProfileFootnote: { color: theme.colors.muted, fontSize: 12, marginTop: 10, lineHeight: 18 },
+  customerTradeProfileBottom: { minHeight: 82, backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#EAE4DA', flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 20, paddingVertical: 12 },
+  customerProfileMessageButton: { minHeight: 53, flex: 1, borderRadius: 27, backgroundColor: '#E9EFED', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  customerProfileMessageText: { fontSize: 14, color: theme.colors.ink, fontWeight: '800' },
+  customerProfileQuoteButton: { minHeight: 53, flex: 1.35, borderRadius: 27, backgroundColor: theme.colors.darkTeal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  customerProfileQuoteText: { fontSize: 14, color: '#FFFFFF', fontWeight: '800' },
 
 });
 
