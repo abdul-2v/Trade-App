@@ -5080,99 +5080,80 @@ function CustomerProfileScreen({
 
   return (
     <CustomerShell current="customerProfile" navigate={navigate}>
-      <ScrollView contentContainerStyle={[styles.plainPage, { paddingBottom: 100 }]}>
-        <Text style={styles.pageTitle}>Account</Text>
-
-        <View style={styles.customerProfileCard}>
-          <View style={styles.customerAvatar}><Text style={styles.customerAvatarText}>{initial}</Text></View>
+      <ScrollView style={styles.customerAccountScreen} contentContainerStyle={styles.customerAccountContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.customerAccountTitle}>Account</Text>
+        <View style={styles.customerAccountHero}>
+          <View style={styles.customerAccountAvatar}><Text style={styles.customerAccountInitial}>{initial}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.customerName}>{fullName}</Text>
-            <Text style={styles.customerAccountType}>{accountType === 'tradesperson' ? 'Tradesperson account' : 'Customer account'}</Text>
+            <Text style={styles.customerAccountName}>{fullName}</Text>
+            <Text style={styles.customerAccountMeta}>{accountType === 'tradesperson' ? 'Tradesperson & customer' : 'Customer account'}</Text>
           </View>
+          <Pressable style={styles.customerAccountHeroEdit} onPress={() => setEditMode('details')}
+            accessibilityRole="button" accessibilityLabel="Edit personal details">
+            <Pencil size={19} strokeWidth={2} color="#FFFFFF" />
+          </Pressable>
         </View>
 
-        <Pressable style={styles.settingsRow} onPress={() => setEditMode('details')}>
-          <View style={styles.v2SettingIcon}>
-            <AppIcon icon={{ ios: 'person.text.rectangle', android: 'badge' }} size={19} color={C.blue} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingsLabel}>Personal details</Text>
-            <Text style={styles.settingsSubText}>{profile.phone || 'Add your phone number'}</Text>
-          </View>
-          <Text style={styles.settingsChevron}>›</Text>
-        </Pressable>
+        <View style={styles.customerAccountGroup}>
+          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('details')}
+            accessibilityRole="button" accessibilityLabel="Edit personal details">
+            <View style={styles.customerAccountRowIcon}><UserRound size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.customerAccountRowText}>Personal details</Text>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </Pressable>
+          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('address')}
+            accessibilityRole="button" accessibilityLabel="Edit your saved address">
+            <View style={styles.customerAccountRowIcon}><MapPin size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.customerAccountRowText}>Saved address</Text>
+              {profile.default_address ? <Text numberOfLines={1} style={styles.customerAccountRowDetail}>{profile.default_address}</Text> : null}
+            </View>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </Pressable>
+          <Pressable style={styles.customerAccountRow} onPress={showSavedTrades}
+            accessibilityRole="button" accessibilityLabel="View saved tradespeople">
+            <View style={styles.customerAccountRowIcon}><Heart size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.customerAccountRowText}>Saved tradespeople</Text>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </Pressable>
+        </View>
 
-        <Pressable
-          style={styles.settingsRow}
-          onPress={showSavedTrades}
-        >
-          <View style={styles.v2SettingIcon}>
-            <AppIcon icon={{ ios: 'heart', android: 'favorite_border' }} size={19} color={C.blue} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingsLabel}>Saved tradespeople</Text>
-            <Text style={styles.settingsSubText}>Your bookmarked professionals</Text>
-          </View>
-          <Text style={styles.settingsChevron}>›</Text>
-        </Pressable>
-
-        <Pressable style={styles.settingsRow} onPress={() => setEditMode('address')}>
-          <View style={styles.v2SettingIcon}>
-            <AppIcon icon={{ ios: 'house', android: 'home' }} size={19} color={C.blue} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingsLabel}>Address</Text>
-            <Text style={styles.settingsSubText} numberOfLines={1}>
-              {profile.default_address || 'Add your default job address'}
-            </Text>
-          </View>
-          <Text style={styles.settingsChevron}>›</Text>
-        </Pressable>
-
-        <Pressable style={styles.settingsRow} onPress={() => setEditMode('notifications')}>
-          <View style={styles.v2SettingIcon}>
-            <AppIcon icon={{ ios: 'bell', android: 'notifications_none' }} size={19} color={C.blue} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingsLabel}>Notifications</Text>
-            <Text style={styles.settingsSubText}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
-          </View>
-          <Text style={styles.settingsChevron}>›</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.settingsRow}
-          onPress={() => setEditMode('help')}
-        >
-          <View style={styles.v2SettingIcon}>
-            <AppIcon icon={{ ios: 'questionmark.circle', android: 'help_outline' }} size={19} color={C.blue} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingsLabel}>Help & support</Text>
-            <Text style={styles.settingsSubText}>Get help with TradeHub</Text>
-          </View>
-          <Text style={styles.settingsChevron}>›</Text>
-        </Pressable>
+        <Text style={styles.customerAccountSectionLabel}>SETTINGS</Text>
+        <View style={styles.customerAccountGroup}>
+          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('notifications')}
+            accessibilityRole="button" accessibilityLabel="Manage notifications">
+            <View style={styles.customerAccountRowIcon}><Bell size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.customerAccountRowText}>Notifications</Text>
+            <Text style={styles.customerAccountRowStatus}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </Pressable>
+          <Pressable style={styles.customerAccountRow} onPress={() => Alert.alert('Privacy & security', 'Your account is secured by email and password. Use the sign-in screen to reset your password.')}
+            accessibilityRole="button" accessibilityLabel="Privacy and security information">
+            <View style={styles.customerAccountRowIcon}><LockKeyhole size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.customerAccountRowText}>Privacy & security</Text>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </Pressable>
+          <Pressable style={styles.customerAccountRow} onPress={() => setEditMode('help')}
+            accessibilityRole="button" accessibilityLabel="Contact help and support">
+            <View style={styles.customerAccountRowIcon}><CircleHelp size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <Text style={styles.customerAccountRowText}>Help & support</Text>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </Pressable>
+        </View>
 
         {accountType === 'tradesperson' ? (
-          <Pressable style={styles.proSwitchCard} onPress={switchToTrade}>
+          <Pressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
+            accessibilityRole="button" accessibilityLabel="Switch to TradeHub Pro">
+            <BriefcaseBusiness size={21} strokeWidth={2} color={theme.colors.teal} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.proSwitchTitle}>Open TradeHub Pro</Text>
-              <Text style={styles.proSwitchSub}>Manage availability, work area and incoming jobs.</Text>
+              <Text style={styles.customerAccountRowText}>Open TradeHub Pro</Text>
+              <Text style={styles.customerAccountRowDetail}>Manage jobs and availability</Text>
             </View>
-            <Text style={styles.proSwitchArrow}>→</Text>
+            <ChevronRight size={20} color={theme.colors.teal} />
           </Pressable>
-        ) : (
-          <View style={styles.proSwitchCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.proSwitchTitle}>Tradesperson accounts</Text>
-              <Text style={styles.proSwitchSub}>Create a tradesperson account to appear on the map and receive jobs.</Text>
-            </View>
-          </View>
-        )}
-
-        <Pressable style={styles.signOutButton} onPress={signOut}>
-          <Text style={styles.signOutText}>Sign out</Text>
+        ) : null}
+        <Pressable style={styles.customerAccountSignout} onPress={signOut} accessibilityRole="button" accessibilityLabel="Log out">
+          <Text style={styles.customerAccountSignoutText}>Log out</Text>
         </Pressable>
       </ScrollView>
 
@@ -9902,6 +9883,26 @@ const styles = StyleSheet.create({
   customerInboxAllText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
   customerInboxEmptyGraphic: { width: 139, height: 139, borderRadius: 70, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 26 },
   customerInboxNoMatches: { alignItems: 'center', marginTop: 80 },
+
+  customerAccountScreen: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerAccountContent: { paddingTop: 26, paddingHorizontal: 23, paddingBottom: 65 },
+  customerAccountTitle: { color: theme.colors.ink, fontSize: 30, fontWeight: '800', letterSpacing: -1, marginBottom: 17 },
+  customerAccountHero: { backgroundColor: theme.colors.darkTeal, borderRadius: 28, padding: 18, minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 15, ...theme.shadow },
+  customerAccountAvatar: { width: 66, height: 66, borderRadius: 33, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center' },
+  customerAccountInitial: { color: theme.colors.coralText, fontSize: 25, fontWeight: '800' },
+  customerAccountName: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  customerAccountMeta: { color: '#B5CACB', fontSize: 12, marginTop: 5 },
+  customerAccountHeroEdit: { height: 44, width: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#36555A', borderColor: '#547478', borderWidth: 1 },
+  customerAccountGroup: { borderRadius: 26, backgroundColor: '#FFFFFF', paddingHorizontal: 17, marginBottom: 19, overflow: 'hidden', ...theme.shadow },
+  customerAccountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 67, borderBottomWidth: 1, borderBottomColor: '#F0EBE3', paddingVertical: 10 },
+  customerAccountRowIcon: { width: 37, height: 37, borderRadius: 12, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
+  customerAccountRowText: { color: theme.colors.ink, fontSize: 14, fontWeight: '800', flexShrink: 1 },
+  customerAccountRowDetail: { marginTop: 4, color: theme.colors.muted, fontSize: 12 },
+  customerAccountRowStatus: { color: theme.colors.muted, fontSize: 12, marginLeft: 'auto' },
+  customerAccountSectionLabel: { color: theme.colors.muted, fontSize: 11, letterSpacing: 1.25, fontWeight: '800', marginBottom: 9, marginLeft: 4 },
+  customerAccountProSwitch: { flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 23, backgroundColor: theme.colors.tealTint, padding: 17, minHeight: 69, marginBottom: 13 },
+  customerAccountSignout: { minHeight: 55, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', ...theme.shadow },
+  customerAccountSignoutText: { color: theme.colors.coralText, fontSize: 14, fontWeight: '800' },
 
 });
 
