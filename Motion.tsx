@@ -31,12 +31,15 @@ export function MotionPressable({
   onPressIn,
   onPressOut,
   disabled,
-  pressScale = 0.89,
+  pressScale = 0.94,
+  children,
+  onPress,
   ...rest
 }: MotionPressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
+  const flash = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => () => scale.stopAnimation(), [scale]);
+  useEffect(() => () => { scale.stopAnimation(); flash.stopAnimation(); }, [scale, flash]);
 
   const springTo = (value: number) => {
     if (prefersReducedMotion) return;
@@ -44,14 +47,27 @@ export function MotionPressable({
     Animated.spring(scale, {
       toValue: value,
       useNativeDriver: true,
-      speed: value === 1 ? 15 : 28,
-      bounciness: value === 1 ? 17 : 0,
+      speed: value === 1 ? 23 : 28,
+      bounciness: value === 1 ? 4 : 0,
     }).start();
+  };
+
+  const activate = (event: Parameters<NonNullable<PressableProps['onPress']>>[0]) => {
+    if (!disabled && !prefersReducedMotion) {
+      flash.stopAnimation();
+      flash.setValue(0);
+      Animated.sequence([
+        Animated.timing(flash, { toValue: 1, duration: 110, useNativeDriver: true }),
+        Animated.timing(flash, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    }
+    onPress?.(event);
   };
 
   return (
     <AnimatedPressable
       {...rest}
+      onPress={activate}
       disabled={disabled}
       onPressIn={event => {
         if (!disabled) springTo(pressScale);
@@ -62,7 +78,20 @@ export function MotionPressable({
         onPressOut?.(event);
       }}
       style={[style as StyleProp<ViewStyle>, { transform: [{ scale }] }]}
-    />
+    >
+      {typeof children === 'function' ? children : (
+        <>
+          {children}
+          <Animated.View pointerEvents="none" style={{
+            position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+            borderRadius: 18, borderWidth: 2, borderColor: '#F07A51',
+            backgroundColor: '#F07A5126',
+            opacity: flash,
+            transform: [{ scale: flash.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.025] }) }],
+          }} />
+        </>
+      )}
+    </AnimatedPressable>
   );
 }
 
