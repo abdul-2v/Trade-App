@@ -4340,6 +4340,11 @@ function RequestDetailScreen({
     : ['Matched', 'Accepted'].includes(liveStatus) ? 2
     : ['Cancelled', 'Expired'].includes(liveStatus) ? 0 : 1;
 
+  // Derived entirely from saved job status; no sample quotes or invented milestones.
+  const stageIndex = ['completed'].includes(rawStatus) ? 4
+    : ['in_progress', 'en_route', 'arrived'].includes(rawStatus) ? 3
+    : ['accepted', 'matched'].includes(rawStatus) ? 2 : 1;
+
   return (
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.requestDetailPage, styles.customerRequestDetailLayout]} showsVerticalScrollIndicator={false}>
@@ -4384,6 +4389,22 @@ function RequestDetailScreen({
               </View>
             </View>
 
+            {liveStatus !== 'Cancelled' ? (
+              <View style={styles.customerRequestStepper}>
+                {(['Posted', 'Matched', 'In progress', 'Done'] as const).map((label, index) => {
+                  const reached = index < stageIndex;
+                  return (
+                    <View key={label} style={styles.customerRequestStep}>
+                      <View style={[styles.customerRequestStepDot, reached && styles.customerRequestStepDotReached]}>
+                        {reached ? <CheckCircle2 size={19} color="#FFFFFF" strokeWidth={2.3} /> : <View style={styles.customerRequestStepEmpty} />}
+                      </View>
+                      <Text style={[styles.customerRequestStepText, reached && styles.customerRequestStepTextReached]}>{label}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+
             {isDemo && !isRoute ? (
               <View style={styles.requestDemoNotice}>
                 <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={17} color={C.blue} />
@@ -4406,7 +4427,10 @@ function RequestDetailScreen({
                 ) : null}
 
                 <View style={styles.requestDetailTradeCard}>
-                  <Image source={{ uri: matchedTrade.image }} style={styles.requestDetailAvatar} />
+                  {matchedTrade.image ? <Image source={{ uri: matchedTrade.image }} style={styles.requestDetailAvatar} /> :
+                    <View style={[styles.requestDetailAvatar, { backgroundColor: theme.colors.tealTint, justifyContent: 'center', alignItems: 'center' }]}>
+                      <Text style={{ color: theme.colors.teal, fontSize: 18, fontWeight: '800' }}>{matchedTrade.name.charAt(0).toUpperCase()}</Text>
+                    </View>}
                   <View style={{ flex: 1 }}>
                     <View style={styles.dispatchNameRow}>
                       <Text style={styles.requestDetailName}>{matchedTrade.name}</Text>
@@ -4416,9 +4440,9 @@ function RequestDetailScreen({
                     </View>
                     <Text style={styles.requestDetailRole}>{matchedTrade.role}</Text>
                     <Text style={styles.requestDetailMeta}>
-                      {matchedTrade.rating ? '⭐ ' + matchedTrade.rating + ' · ' : ''}
-                      {matchedTrade.distance ? matchedTrade.distance.toFixed(1) + ' mi · ' : ''}
-                      ~{matchedTrade.eta} min ETA
+                      {matchedTrade.reviews > 0 ? '★ ' + matchedTrade.rating.toFixed(1) + ' · ' : ''}
+                      {matchedTrade.distance > 0 ? matchedTrade.distance.toFixed(1) + ' mi · ' : ''}
+                      {matchedTrade.eta > 0 ? '~' + matchedTrade.eta + ' min estimated arrival' : 'Timing not confirmed'}
                     </Text>
                   </View>
                 </View>
@@ -8630,56 +8654,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: C.blue,
   },
-  requestDetailPage: {
-    paddingHorizontal: 20,
-    paddingBottom: 110,
-    backgroundColor: C.white,
-  },
-  requestDetailHeader: {
-    minHeight: 66,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  requestDetailHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: C.navy2,
-  },
+  requestDetailPage: { paddingHorizontal: 22, paddingTop: 11, paddingBottom: 95, backgroundColor: theme.colors.customerBackground },
+  requestDetailHeader: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  requestDetailHeaderTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink },
   requestDetailLoading: {
     minHeight: 280,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
   },
-  requestDetailStatusCard: {
-    marginTop: 8,
-    padding: 18,
-    borderRadius: 22,
-    backgroundColor: C.pale,
-  },
+  requestDetailStatusCard: { marginTop: 9, padding: 20, borderRadius: 28, backgroundColor: '#FFFFFF', ...theme.shadow },
   requestDetailStatusTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
   },
-  requestDetailTrade: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: C.navy2,
-  },
-  requestDetailUrgency: {
-    marginTop: 3,
-    fontSize: 11,
-    fontWeight: '800',
-    color: C.blue,
-  },
-  requestDetailIssue: {
-    marginTop: 16,
-    fontSize: 15,
-    lineHeight: 22,
-    color: C.text,
-  },
+  requestDetailTrade: { fontSize: 19, fontWeight: '800', color: theme.colors.ink },
+  requestDetailUrgency: { marginTop: 7, fontSize: 12, fontWeight: '700', color: theme.colors.coralText },
+  requestDetailIssue: { marginTop: 16, fontSize: 22, fontWeight: '800', letterSpacing: -0.4, lineHeight: 28, color: theme.colors.ink },
   requestDemoNotice: {
     marginTop: 12,
     padding: 13,
@@ -8695,13 +8687,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: C.muted,
   },
-  requestDetailSectionTitle: {
-    marginTop: 22,
-    marginBottom: 10,
-    fontSize: 14,
-    fontWeight: '900',
-    color: C.navy2,
-  },
+  requestDetailSectionTitle: { marginTop: 25, marginBottom: 11, fontSize: 19, fontWeight: '800', color: theme.colors.ink },
   requestDetailMap: {
     height: 210,
     borderRadius: 20,
@@ -8709,81 +8695,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: C.pale,
   },
-  requestDetailTradeCard: {
-    padding: 15,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  requestDetailAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: C.pale,
-  },
-  requestDetailName: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: C.navy2,
-    flexShrink: 1,
-  },
-  requestDetailRole: {
-    marginTop: 2,
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.muted,
-  },
-  requestDetailMeta: {
-    marginTop: 5,
-    fontSize: 10,
-    color: C.text,
-  },
-  requestDetailActions: {
-    marginTop: 10,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  requestDetailSecondary: {
-    height: 46,
-    paddingHorizontal: 13,
-    borderRadius: 14,
-    backgroundColor: C.pale,
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  requestDetailSecondaryText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: C.navy2,
-  },
-  requestDetailPrimary: {
-    flex: 1,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: C.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  requestDetailPrimaryText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: C.white,
-  },
-  requestDetailSearchingCard: {
-    marginTop: 18,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: '#F5F9FD',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  requestDetailTradeCard: { padding: 17, borderRadius: 26, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 13, ...theme.shadow },
+  requestDetailAvatar: { width: 57, height: 57, borderRadius: 28 },
+  requestDetailName: { fontSize: 16, fontWeight: '800', color: theme.colors.ink, flexShrink: 1 },
+  requestDetailRole: { marginTop: 4, fontSize: 12, fontWeight: '700', color: theme.colors.muted },
+  requestDetailMeta: { marginTop: 6, fontSize: 12, color: theme.colors.muted },
+  requestDetailActions: { marginTop: 12, flexDirection: 'row', gap: 9 },
+  requestDetailSecondary: { height: 49, paddingHorizontal: 13, borderRadius: 25, backgroundColor: theme.colors.tealTint, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+  requestDetailSecondaryText: { fontSize: 12, fontWeight: '800', color: theme.colors.ink },
+  requestDetailPrimary: { flex: 1, height: 49, borderRadius: 25, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
+  requestDetailPrimaryText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+  requestDetailSearchingCard: { marginTop: 22, padding: 17, borderRadius: 25, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 13, ...theme.shadow },
   requestDetailSearchingTitle: {
     fontSize: 13,
     fontWeight: '900',
@@ -8795,15 +8717,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: C.muted,
   },
-  requestDetailCancel: {
-    marginTop: 18,
-    height: 50,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#D9E0E8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  requestDetailCancel: { marginTop: 23, minHeight: 50, borderRadius: 25, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', ...theme.shadow },
   requestDetailCancelText: {
     fontSize: 12,
     fontWeight: '800',
@@ -10051,6 +9965,14 @@ const styles = StyleSheet.create({
   customerRequestStatusIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: theme.colors.tealTint, justifyContent: 'center', alignItems: 'center' },
   customerRequestStatusTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
   customerRequestStatusDetail: { fontSize: 13, color: theme.colors.muted, marginTop: 3 },
+
+  customerRequestStepper: { marginTop: 14, paddingVertical: 18, paddingHorizontal: 9, borderRadius: 25, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', ...theme.shadow },
+  customerRequestStep: { flex: 1, alignItems: 'center', gap: 8 },
+  customerRequestStepDot: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#D8D3CB', alignItems: 'center', justifyContent: 'center' },
+  customerRequestStepDotReached: { borderColor: theme.colors.darkTeal, backgroundColor: theme.colors.darkTeal },
+  customerRequestStepEmpty: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFFFFF' },
+  customerRequestStepText: { color: theme.colors.muted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  customerRequestStepTextReached: { color: theme.colors.ink, fontWeight: '800' },
 
 });
 
