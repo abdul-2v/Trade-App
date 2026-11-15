@@ -4553,7 +4553,6 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [inboxSearch, setInboxSearch] = useState('');
-  const [inboxSearch, setInboxSearch] = useState('');
   const shownConversations = conversations.filter(item => (item.name + ' ' + item.trade + ' ' + item.lastMessage).toLowerCase().includes(inboxSearch.trim().toLowerCase()));
 
   const loadInbox = async () => {
@@ -9877,11 +9876,8 @@ const styles = StyleSheet.create({
   customerActivityExplainSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
 
   customerInboxSearchWrap: { minHeight: 52, borderRadius: 26, paddingHorizontal: 15, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', marginBottom: 13, ...theme.shadow },
-  customerInboxSearchInput: { flex: 1, minHeight: 50, marginLeft: 9, color: theme.colors.ink, fontSize: 14 },
-  customerInboxClear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   customerInboxAllPill: { backgroundColor: theme.colors.darkTeal, borderRadius: 18, paddingHorizontal: 14, alignSelf: 'flex-start', marginBottom: 10, minHeight: 35, justifyContent: 'center' },
   customerInboxAllText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
-  customerInboxEmptyGraphic: { width: 139, height: 139, borderRadius: 70, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 26 },
   customerInboxNoMatches: { alignItems: 'center', marginTop: 80 },
 
   customerAccountScreen: { flex: 1, backgroundColor: theme.colors.customerBackground },
