@@ -5,7 +5,7 @@ import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, RadarBeacon, MovingArrow } from './Motion';
 import { Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -1072,7 +1072,7 @@ function MarketplaceHomeScreen({
               <Text style={styles.customerJobHeroTitle}>Stop chasing tradespeople.</Text>
               <Text style={styles.customerJobHeroSub}>Post your job once. Nearby pros can respond.</Text>
             </View>
-            <View style={styles.customerJobHeroArrow}><ArrowRight color={theme.colors.ink} size={23} strokeWidth={2.3} /></View>
+            <View style={styles.customerJobHeroArrow}><MovingArrow><ArrowRight color={theme.colors.ink} size={23} strokeWidth={2.3} /></MovingArrow></View>
           </MotionPressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.customerQuickChips}>
             {([
@@ -5878,6 +5878,7 @@ function TradeHomeScreen({
               showPin={Boolean(previewArea)}
               trade={profileTrade}
             />
+            <RadarBeacon active={available} />
           </View>
           <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
