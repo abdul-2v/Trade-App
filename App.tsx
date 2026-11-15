@@ -1067,8 +1067,8 @@ function MarketplaceHomeScreen({
           <Pressable onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Describe a job"
             style={styles.customerJobHeroMain}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.customerJobHeroTitle}>What needs doing?</Text>
-              <Text style={styles.customerJobHeroSub}>Tell us a little about the job</Text>
+              <Text style={styles.customerJobHeroTitle}>Stop chasing tradespeople.</Text>
+              <Text style={styles.customerJobHeroSub}>Post your job once. Nearby pros can respond.</Text>
             </View>
             <View style={styles.customerJobHeroArrow}><ArrowRight color={theme.colors.ink} size={23} strokeWidth={2.3} /></View>
           </Pressable>
@@ -1086,6 +1086,10 @@ function MarketplaceHomeScreen({
           </ScrollView>
         </View>
 
+        <View style={styles.customerUSPHeading}>
+          <Text style={styles.customerUSPTitle}>Two ways to get the job done</Text>
+          <Text style={styles.customerUSPSubtitle}>Urgent help or flexible timing — you choose.</Text>
+        </View>
         <View style={styles.customerActionRow}>
           <Pressable style={[styles.customerActionCard, styles.customerUrgent]} onPress={() => beginFlow(undefined, true)}
             accessibilityRole="button" accessibilityLabel="Find urgent help">
@@ -1093,8 +1097,8 @@ function MarketplaceHomeScreen({
               <View style={styles.customerUrgentIcon}><Zap size={23} color="#FFFFFF" strokeWidth={2} /></View>
               <ArrowRight color="#FFFFFF" size={21} strokeWidth={2} />
             </View>
-            <Text style={styles.customerActionTitleWhite}>Need help now?</Text>
-            <Text style={styles.customerActionBodyWhite}>Send an urgent request to nearby pros.</Text>
+            <Text style={styles.customerActionTitleWhite}>Help ASAP</Text>
+            <Text style={styles.customerActionBodyWhite}>Send your job to available tradespeople nearby.</Text>
           </Pressable>
           <Pressable style={[styles.customerActionCard, styles.customerFlexible]} onPress={onOpenRoute}
             accessibilityRole="button" accessibilityLabel="Find a flexible appointment">
@@ -1102,8 +1106,8 @@ function MarketplaceHomeScreen({
               <View style={styles.customerFlexIcon}><Route size={23} color={theme.colors.ink} strokeWidth={2} /></View>
               <ArrowRight color={theme.colors.ink} size={21} strokeWidth={2} />
             </View>
-            <Text style={styles.customerActionTitle}>I'm flexible</Text>
-            <Text style={styles.customerActionBody}>Find a slot on a tradesperson's route.</Text>
+            <Text style={styles.customerActionTitle}>Fit a local route</Text>
+            <Text style={styles.customerActionBody}>Nearby pros may fit your job around other work.</Text>
           </Pressable>
         </View>
 
@@ -1231,7 +1235,7 @@ function MarketplaceHomeScreen({
                   ['Now', 'Find someone available for an urgent job'],
                   ['Today', 'Show tradespeople who can fit you in today'],
                   ['Next few days', 'Compare nearby pros and arrange a time'],
-                  ['Flexible', 'Save by fitting your job into a nearby tradesperson route'],
+                  ['Flexible', 'Let nearby pros fit your job around work already in the area'],
                 ].map(([timing, copy]) => (
                   <Pressable
                     key={timing}
@@ -1253,7 +1257,7 @@ function MarketplaceHomeScreen({
                   onPress={finishFlow}
                   disabled={!flowTiming}
                 >
-                  <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : flowTiming === 'Flexible' ? 'Find cheaper route slots' : 'Show matching tradespeople'}</Text>
+                  <Text style={styles.marketContinueText}>{flowTiming === 'Now' ? 'Find available tradespeople' : flowTiming === 'Flexible' ? 'Post a flexible job request' : 'Show matching tradespeople'}</Text>
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color={C.white} />
                 </Pressable>
               </View>
@@ -5876,7 +5880,7 @@ function TradeHomeScreen({
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
           <View style={styles.premiumMapStatus}>
             <View style={[styles.premiumOnlineDot, { backgroundColor: available ? theme.colors.success : '#A9B9BD' }]} />
-            <Text style={styles.premiumMapStatusText}>{available ? 'Online · looking for jobs' : 'Offline · not taking jobs'}</Text>
+            <Text style={styles.premiumMapStatusText}>{available ? 'Online · receiving nearby job offers' : 'Offline · go online for local work'}</Text>
           </View>
           <Pressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Find your location on the map">
@@ -5948,7 +5952,7 @@ function TradeHomeScreen({
               <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
             </View>
             <Text style={styles.premiumShortcutTitle}>Merchants</Text>
-            <Text style={styles.premiumShortcutSub}>Suppliers</Text>
+            <Text style={styles.premiumShortcutSub}>Find supplies nearby</Text>
           </Pressable>
           <Pressable style={styles.premiumShortcut} onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
             accessibilityRole="button" accessibilityLabel="Open route tools">
@@ -6069,8 +6073,8 @@ function TradeHomeScreen({
                 <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={20} color="#375D79" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.proV3RouteShortcutTitle}>Route opportunities</Text>
-                <Text style={styles.proV3RouteShortcutSub}>See flexible jobs that could fit your schedule</Text>
+                <Text style={styles.proV3RouteShortcutTitle}>Fill gaps in your schedule</Text>
+                <Text style={styles.proV3RouteShortcutSub}>See flexible jobs you could take alongside nearby work</Text>
               </View>
               <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={17} color="#375D79" />
             </Pressable>
@@ -9720,23 +9724,23 @@ const styles = StyleSheet.create({
   customerAddressText: { fontSize: 16, fontWeight: '800', color: theme.colors.ink, marginTop: 4 },
   customerJobHero: { backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 18, marginBottom: 15, overflow: 'hidden', ...theme.shadow },
   customerJobHeroMain: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 66 },
-  customerJobHeroTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.55 },
-  customerJobHeroSub: { fontSize: 14, color: '#B8CCCC', marginTop: 5 },
+  customerJobHeroTitle: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.55, lineHeight: 27 },
+  customerJobHeroSub: { fontSize: 14, color: '#CEE0DF', marginTop: 8, lineHeight: 20 },
   customerJobHeroArrow: { width: 50, height: 50, borderRadius: 18, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center' },
   customerQuickChips: { paddingTop: 17, gap: 8, paddingRight: 8 },
   customerQuickChip: { borderRadius: 21, backgroundColor: '#334E52', borderWidth: 1, borderColor: '#597478', paddingHorizontal: 13, minHeight: 39, justifyContent: 'center' },
   customerQuickChipText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   customerActionRow: { flexDirection: 'row', gap: 13, marginBottom: 26 },
-  customerActionCard: { flex: 1, minHeight: 165, borderRadius: 27, padding: 15, justifyContent: 'space-between', ...theme.shadow },
+  customerActionCard: { flex: 1, minHeight: 179, borderRadius: 27, padding: 15, justifyContent: 'space-between', ...theme.shadow },
   customerUrgent: { backgroundColor: '#C44E2B' },
   customerFlexible: { backgroundColor: '#DCEBEA' },
   customerActionTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   customerUrgentIcon: { width: 43, height: 43, backgroundColor: '#DF7351', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   customerFlexIcon: { width: 43, height: 43, backgroundColor: '#C5D9D8', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  customerActionTitleWhite: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.4 },
-  customerActionBodyWhite: { fontSize: 12, color: '#FFF0E8', lineHeight: 17, marginTop: 4 },
-  customerActionTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.4 },
-  customerActionBody: { fontSize: 12, color: theme.colors.muted, lineHeight: 17, marginTop: 4 },
+  customerActionTitleWhite: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.45 },
+  customerActionBodyWhite: { fontSize: 13, color: '#FFF0E8', lineHeight: 18, marginTop: 6 },
+  customerActionTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.4 },
+  customerActionBody: { fontSize: 13, color: theme.colors.muted, lineHeight: 18, marginTop: 6 },
   customerSectionHeading: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 15 },
   customerSectionTitle: { color: theme.colors.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 },
   customerSectionSub: { fontSize: 13, color: theme.colors.muted, marginTop: 4 },
@@ -9998,6 +10002,9 @@ const styles = StyleSheet.create({
   customerAccountEditorFooter: { paddingHorizontal: 22, paddingTop: 11, paddingBottom: 13, backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#E5DFD5' },
   customerAccountEditorSave: { minHeight: 56, borderRadius: 28, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center' },
   customerAccountEditorSaveText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  customerUSPHeading: { marginBottom: 13, marginTop: 1 },
+  customerUSPTitle: { color: theme.colors.ink, fontSize: 19, fontWeight: '800', letterSpacing: -0.5 },
+  customerUSPSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
 
 });
 
