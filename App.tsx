@@ -3890,53 +3890,99 @@ function RequestsScreen({
     ...liveRequests,
     ...requests.filter(local => !liveRequests.some(live => live.id === local.id)),
   ];
+  const [view, setView] = useState<'active' | 'past'>('active');
+  const pastStatuses = ['Completed', 'Cancelled', 'Expired'];
+  const active = combined.filter(item => !pastStatuses.includes(item.status));
+  const past = combined.filter(item => pastStatuses.includes(item.status));
+  const shown = view === 'active' ? active : past;
+
 
   return (
     <CustomerShell current="requests" navigate={navigate}>
-      <ScrollView contentContainerStyle={[styles.plainPage, { paddingBottom: 100 }]}>
-        <Text style={styles.pageTitle}>Activity</Text>
-        <Text style={styles.pageSub}>Requests, bookings and jobs you have in progress.</Text>
+      <ScrollView style={styles.customerActivityScreen} contentContainerStyle={styles.customerActivityContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.customerActivityTitle}>Activity</Text>
+        <Text style={styles.customerActivitySub}>{active.length ? active.length + ' open request' + (active.length === 1 ? '' : 's') : 'Your requests and bookings'}</Text>
+        <View style={styles.customerActivitySegment}>
+          <Pressable onPress={() => setView('active')} style={[styles.customerActivityTab, view === 'active' && styles.customerActivityTabActive]}
+            accessibilityRole="tab" accessibilityLabel="Active requests" accessibilityState={{ selected: view === 'active' }}>
+            <Text style={[styles.customerActivityTabText, view === 'active' && styles.customerActivityTabTextActive]}>Active{active.length ? ' · ' + active.length : ''}</Text>
+          </Pressable>
+          <Pressable onPress={() => setView('past')} style={[styles.customerActivityTab, view === 'past' && styles.customerActivityTabActive]}
+            accessibilityRole="tab" accessibilityLabel="Past requests" accessibilityState={{ selected: view === 'past' }}>
+            <Text style={[styles.customerActivityTabText, view === 'past' && styles.customerActivityTabTextActive]}>Past{past.length ? ' · ' + past.length : ''}</Text>
+          </Pressable>
+        </View>
 
         {loading ? (
-          <View style={styles.emptyCard}>
-            <ActivityIndicator color={C.blue} />
-            <Text style={styles.emptyBody}>Loading your requests…</Text>
+          <View style={styles.customerActivityEmptyCard}>
+            <ActivityIndicator color={theme.colors.teal} />
+            <Text style={styles.customerActivityEmptyBody}>Loading your requests…</Text>
           </View>
-        ) : combined.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>◷</Text>
-            <Text style={styles.emptyTitle}>Nothing here yet</Text>
-            <Text style={styles.emptyBody}>Your urgent requests and scheduled jobs will stay organised here.</Text>
-            <Pressable style={styles.largeBlueButton} onPress={() => navigate('urgent')}>
-              <Text style={styles.largeBlueText}>Need someone now?</Text>
-            </Pressable>
-          </View>
-        ) : (
-          combined.map(item => (
-            <Pressable
-              key={item.id}
-              style={({ pressed }) => [
-                styles.requestCard,
-                styles.requestCardPressable,
-                pressed && styles.requestCardPressed,
-              ]}
-              onPress={() => openRequest(item)}
-            >
-              <View style={styles.requestTop}>
-                <Text style={styles.requestTrade}>{item.trade}</Text>
-                <View style={styles.requestStatusRow}>
-                  <Badge
-                    text={item.status}
-                    green={['Matched', 'On the way', 'Arrived', 'Completed', 'Booked', 'Route slot held'].includes(item.status)}
-                  />
-                  <AppIcon icon={{ ios: 'chevron.right', android: 'chevron_right' }} size={18} color="#9AA6B3" />
+        ) : shown.length ? (
+          <>
+            {shown.map(item => (
+              <Pressable key={item.id} style={styles.customerActivityCard} onPress={() => openRequest(item)}
+                accessibilityRole="button" accessibilityLabel={'View ' + item.issue + ' request'}>
+                <View style={styles.customerActivityCardHeader}>
+                  <View style={styles.customerActivityCardIcon}><Wrench size={21} color={theme.colors.coralDark} strokeWidth={2} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.customerActivityCardTitle} numberOfLines={2}>{item.issue}</Text>
+                    <Text style={styles.customerActivityCardMeta}>{item.trade} · {item.urgency}</Text>
+                  </View>
+                  <ChevronRight size={20} color={theme.colors.muted} />
                 </View>
+                <View style={styles.customerActivityCardBottom}>
+                  <View style={[styles.customerActivityStatus, pastStatuses.includes(item.status) && { backgroundColor: '#F0EEE9' }]}>
+                    <Text style={styles.customerActivityStatusText}>{item.status}</Text>
+                  </View>
+                  <Text style={styles.customerActivityViewText}>View details</Text>
+                </View>
+              </Pressable>
+            ))}
+            {view === 'active' ? (
+              <Pressable style={styles.customerActivityPostButton} onPress={() => navigate('home')} accessibilityRole="button" accessibilityLabel="Post another job">
+                <Plus size={19} color="#FFFFFF" strokeWidth={2.3} />
+                <Text style={styles.customerActivityPostText}>Post a job</Text>
+              </Pressable>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <View style={styles.customerActivityEmptyCard}>
+              <View style={styles.customerActivityEmptyGraphic}>
+                <ClipboardList size={36} color={theme.colors.teal} strokeWidth={1.8} />
+                <View style={styles.customerActivityEmptyPlus}><Plus size={20} color="#FFFFFF" strokeWidth={2.4} /></View>
               </View>
-              <Text style={styles.requestIssue}>{item.issue}</Text>
-              <Text style={styles.muted}>{item.urgency}</Text>
-              <Text style={styles.requestTapHint}>Tap to view request</Text>
-            </Pressable>
-          ))
+              <Text style={styles.customerActivityEmptyTitle}>{view === 'active' ? 'No requests yet' : 'No past jobs yet'}</Text>
+              <Text style={styles.customerActivityEmptyBody}>{view === 'active'
+                ? 'Post a job and nearby pros can respond. Compare your options and choose who suits you.'
+                : 'Completed and cancelled requests will appear here.'}</Text>
+              {view === 'active' ? (
+                <Pressable style={styles.customerActivityPostButton} onPress={() => navigate('home')} accessibilityRole="button" accessibilityLabel="Post a job">
+                  <Plus size={20} color="#FFFFFF" strokeWidth={2.4} />
+                  <Text style={styles.customerActivityPostText}>Post a job</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {view === 'active' ? (
+              <>
+                <Text style={[styles.customerSectionTitle, { marginTop: 26, marginBottom: 11 }]}>What you'll see here</Text>
+                {[
+                  [Zap, 'Responses from pros', 'See when a professional responds to your job'],
+                  [CalendarDays, 'Your bookings', 'Keep track of appointments and updates'],
+                  [CheckCircle2, 'Finished jobs', 'Leave feedback when the work is complete'],
+                ] as [typeof Zap, string, string][]).map(([Icon, label, copy], index) => (
+                  <View key={index} style={styles.customerActivityExplainRow}>
+                    <View style={styles.customerActivityExplainIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={2} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.customerActivityExplainTitle}>{label}</Text>
+                      <Text style={styles.customerActivityExplainSub}>{copy}</Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            ) : null}
+          </>
         )}
       </ScrollView>
     </CustomerShell>
@@ -9806,6 +9852,36 @@ const styles = StyleSheet.create({
   customerProfileMessageText: { fontSize: 14, color: theme.colors.ink, fontWeight: '800' },
   customerProfileQuoteButton: { minHeight: 53, flex: 1.35, borderRadius: 27, backgroundColor: theme.colors.darkTeal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   customerProfileQuoteText: { fontSize: 14, color: '#FFFFFF', fontWeight: '800' },
+
+  customerActivityScreen: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  customerActivityContent: { paddingHorizontal: 23, paddingTop: 30, paddingBottom: 50 },
+  customerActivityTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.95, color: theme.colors.ink },
+  customerActivitySub: { fontSize: 14, color: theme.colors.muted, marginTop: 5, marginBottom: 18 },
+  customerActivitySegment: { backgroundColor: '#EAE5DB', borderRadius: 25, padding: 5, minHeight: 54, flexDirection: 'row', gap: 5, marginBottom: 18 },
+  customerActivityTab: { flex: 1, borderRadius: 21, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  customerActivityTabActive: { backgroundColor: theme.colors.darkTeal },
+  customerActivityTabText: { color: theme.colors.ink, fontSize: 14, fontWeight: '700' },
+  customerActivityTabTextActive: { color: '#FFFFFF', fontWeight: '800' },
+  customerActivityCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, marginBottom: 12, ...theme.shadow },
+  customerActivityCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  customerActivityCardIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: theme.colors.coralTint, justifyContent: 'center', alignItems: 'center' },
+  customerActivityCardTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.ink },
+  customerActivityCardMeta: { fontSize: 12, color: theme.colors.muted, marginTop: 5 },
+  customerActivityCardBottom: { marginTop: 15, borderTopWidth: 1, borderTopColor: '#F0EBE4', paddingTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  customerActivityStatus: { backgroundColor: theme.colors.tealTint, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
+  customerActivityStatusText: { fontSize: 12, color: theme.colors.teal, fontWeight: '800' },
+  customerActivityViewText: { fontSize: 13, color: theme.colors.teal, fontWeight: '700' },
+  customerActivityEmptyCard: { backgroundColor: '#FFFFFF', borderRadius: 31, paddingHorizontal: 23, paddingVertical: 35, alignItems: 'center', marginTop: 4, ...theme.shadow },
+  customerActivityEmptyGraphic: { height: 116, width: 116, borderRadius: 58, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  customerActivityEmptyPlus: { position: 'absolute', top: 7, right: 4, width: 33, height: 33, borderRadius: 17, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+  customerActivityEmptyTitle: { fontSize: 21, fontWeight: '800', color: theme.colors.ink, letterSpacing: -0.3 },
+  customerActivityEmptyBody: { fontSize: 14, color: theme.colors.muted, lineHeight: 21, textAlign: 'center', marginTop: 10 },
+  customerActivityPostButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: theme.colors.darkTeal, minHeight: 54, borderRadius: 28, paddingHorizontal: 28, marginTop: 23, alignSelf: 'stretch' },
+  customerActivityPostText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  customerActivityExplainRow: { flexDirection: 'row', gap: 13, paddingVertical: 11, alignItems: 'center' },
+  customerActivityExplainIcon: { width: 43, height: 43, borderRadius: 15, backgroundColor: '#EDEAE0', alignItems: 'center', justifyContent: 'center' },
+  customerActivityExplainTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  customerActivityExplainSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
 
 });
 
