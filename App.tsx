@@ -502,10 +502,12 @@ export default function App() {
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
   const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
+  const [materialKitPreviewId,setMaterialKitPreviewId]=useState<string|null>(null);
   const [tradeJobsEntry, setTradeJobsEntry] = useState<TradeJobsEntry>({ view: 'offers', filter: 'all' });
   const navigateTrade = (screen: TradeScreen) => {
     if (screen === 'tradeJobs') setTradeJobsEntry({ view: 'offers', filter: 'all' });
     if (screen === 'tradeInvoices') setInvoicePreviewId(null);
+    if (screen === 'tradeMaterials') setMaterialKitPreviewId(null);
     setTradeScreen(screen);
   };
   const openTradeJobs = (view: TradeJobsEntry['view'], filter: TradeJobsEntry['filter'] = 'all') => {
@@ -669,13 +671,14 @@ export default function App() {
       initialPreviewId={invoicePreviewId} goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
     if (tradeScreen === 'tradeQuotes') return <TradeShell current="tradeQuotes" navigate={navigateTrade}><TradeQuotesScreen
       goBack={() => navigateTrade('tradeTools')}
-      onInvoiceCreated={id => { setInvoicePreviewId(id); setTradeScreen('tradeInvoices'); }} /></TradeShell>;
+      onInvoiceCreated={id => { setInvoicePreviewId(id); setTradeScreen('tradeInvoices'); }}
+      onMaterialsCreated={id => { setMaterialKitPreviewId(id); setTradeScreen('tradeMaterials'); }} /></TradeShell>;
     if (tradeScreen === 'tradeCustomers') return <TradeShell current="tradeCustomers" navigate={navigateTrade}><TradeCustomersScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeDiary') return <TradeShell current="tradeDiary" navigate={navigateTrade}><TradeDiaryScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeProfit') return <TradeShell current="tradeProfit" navigate={navigateTrade}>
       <TradeProfitScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeMaterials') return <TradeShell current="tradeMaterials" navigate={navigateTrade}>
-      <TradeMaterialsScreen goBack={() => navigateTrade('tradeTools')}
+      <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
     if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
