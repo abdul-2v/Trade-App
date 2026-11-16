@@ -139,7 +139,13 @@ with check(
 );
 create policy trade_quotes_edit on public.trade_quotes for update to authenticated
 using(tradesperson_id=(select auth.uid()))
-with check(tradesperson_id=(select auth.uid()));
+with check(
+ tradesperson_id=(select auth.uid())
+ and (invoice_id is null or exists (
+  select 1 from public.trade_invoices i where i.id=invoice_id
+  and i.quote_id=trade_quotes.id and i.tradesperson_id=(select auth.uid())
+ ))
+);
 
 drop policy if exists trade_appointments_read on public.trade_appointments;
 drop policy if exists trade_appointments_create on public.trade_appointments;
@@ -162,7 +168,8 @@ create policy trade_appointments_delete on public.trade_appointments for delete 
 using(tradesperson_id=(select auth.uid()));
 
 grant select,insert,update,delete on public.trade_customers to authenticated;
-grant select,insert,delete on public.trade_quotes to authenticated;
+grant select,insert on public.trade_quotes to authenticated;
+revoke delete on public.trade_quotes from authenticated;
 grant update(status,invoice_id,updated_at) on public.trade_quotes to authenticated;
 grant select,insert,update,delete on public.trade_appointments to authenticated;
 
