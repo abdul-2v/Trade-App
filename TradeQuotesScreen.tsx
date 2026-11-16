@@ -222,6 +222,25 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   setLines([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);setVatRate(0);
   setSelectedId(null);setScreen('new');
  };
+ const reviseQuote=(doc:Quote)=>{
+   // A customer-facing quotation is an issued snapshot. Create a new numbered proposal,
+   // preserving the original for records rather than silently overwriting it.
+   setBusinessName(doc.business_name);setBusinessAddress(doc.business_address);
+   setBusinessEmail(doc.business_email||'');setBusinessPhone(doc.business_phone||'');setVatNumber(doc.vat_number||'');
+   setCustomerId(doc.customer_id);setCustomerName(doc.customer_name);setCustomerAddress(doc.customer_address);
+   setCustomerEmail(doc.customer_email||'');setCustomerPhone(doc.customer_phone||'');
+   setTitle(doc.title);setDescription(doc.description||'');setNotes(doc.notes||'');
+   setIncluded(doc.scope_included||'');setExcluded(doc.scope_excluded||'');
+   setDuration(doc.estimated_duration||'');setDeposit(String(doc.deposit_percent||0));
+   setExtras((doc.optional_extras||[]).map(e=>({name:e.name,price:String(e.price)})));
+   setEstimateCost(doc.estimated_cost==null?'':String(doc.estimated_cost));
+   setTargetMargin(String(doc.target_margin??30));
+   setVatRate(doc.vat_rate);setQuoteDate(day(new Date()));setValidUntil(addDays(30));
+   setLines((doc.items||[]).map(line=>({kind:line.kind,description:line.description,
+     quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit||'item'})));
+   setShowBusiness(false);setSelectedId(null);setStage('pricing');setScreen('new');
+   Alert.alert('Creating a revised proposal','A new quote number will be issued when you save. The original quotation stays in your records. Review the quantities and units before sharing.');
+ };
  const chooseCustomer=(c:Customer|null)=>{
   setCustomerId(c?.id||null);
   if(c){setCustomerName(c.name);setCustomerAddress(c.address||'');setCustomerEmail(c.email||'');setCustomerPhone(c.phone||'');}
@@ -417,7 +436,12 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       {selected.status!=='declined'?<MotionPressable style={s.convert} onPress={()=>convert(selected)} disabled={converting}>
        {converting?<ActivityIndicator color={C.teal}/>:<Text style={s.convertText}>{selected.invoice_id?'View linked invoice':'Convert to invoice'}</Text>}
        <ChevronRight size={19} color={C.teal}/></MotionPressable>:null}
-      {selected.items.some(i=>i.kind==='material')?<MotionPressable style={s.partsAction} onPress={()=>createMaterials(selected)}
+      <MotionPressable style={s.partsAction} onPress={()=>reviseQuote(selected)} accessibilityRole="button"
+          accessibilityLabel="Create corrected version of this proposal">
+         <FileText size={16} color={C.teal}/><Text style={s.partsActionText}>Create a corrected version</Text>
+         <ChevronRight size={18} color={C.teal}/>
+       </MotionPressable>
+       {selected.items.some(i=>i.kind==='material')?<MotionPressable style={s.partsAction} onPress={()=>createMaterials(selected)}
          disabled={creatingKit} accessibilityRole="button" accessibilityLabel="Make a shopping list from quoted materials">
           {creatingKit?<ActivityIndicator color={C.teal}/>:<Plus size={18} color={C.teal}/>}
           <Text style={s.partsActionText}>Make shopping list from this quote</Text><ChevronRight size={18} color={C.teal}/>
