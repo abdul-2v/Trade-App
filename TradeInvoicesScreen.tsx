@@ -22,6 +22,7 @@ const labelForKind = (kind: InvoiceLineKind) => kind === 'labour' ? 'Labour' : k
 const numericValue = (value: string | number) => Number(String(value).replace(',', '.'));
 const linePence = (line: { quantity: string | number; unit_price: string | number }) =>
   Math.round(Math.max(0, numericValue(line.quantity) || 0) * Math.round(Math.max(0, numericValue(line.unit_price) || 0) * 100));
+type InvoiceCustomerDetails = { source_kind: 'job' | 'urgent'; source_id: string; customer_name: string; billing_address: string };
 type AppJob = {
   key: string; id: string; kind: 'job' | 'urgent'; customer_id: string;
   trade: string; issue: string; customerName: string; address: string; suggestedPrice: number;
@@ -190,7 +191,9 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         ];
         // Customer details are supplied only for jobs accepted by this tradesperson.
         // The secure RPC avoids exposing unrelated customer profiles via RLS.
-        const byJob = new Map((customerDetails.data || []).map(p => [p.source_kind + ':' + p.source_id, p]));
+        const byJob = new Map<string, InvoiceCustomerDetails>(
+          ((customerDetails.data || []) as InvoiceCustomerDetails[]).map(p => [p.source_kind + ':' + p.source_id, p])
+        );
         for (const job of raw) {
           const details = byJob.get(job.key);
           if (details) {
