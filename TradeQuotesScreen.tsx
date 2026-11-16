@@ -12,12 +12,16 @@ type Kind='labour'|'material'|'other';
 type Line={kind:Kind;description:string;quantity:number;unit_price:number;unit:string};
 type DraftLine={kind:Kind;description:string;quantity:string;unit_price:string;unit:string};
 type Customer={id:string;name:string;phone:string|null;email:string|null;address:string|null};
+type Extra={name:string;price:number};
+type DraftExtra={name:string;price:string};
 type Quote={
  id:string;tradesperson_id:string;quote_no:number;customer_id:string|null;business_name:string;business_address:string;
  business_email:string|null;business_phone:string|null;vat_number:string|null;
  customer_name:string;customer_address:string;customer_email:string|null;customer_phone:string|null;
  title:string;description:string|null;items:Line[];quote_date:string;valid_until:string;
  vat_rate:number;subtotal:number;vat_amount:number;total:number;notes:string|null;
+ scope_included?:string|null;scope_excluded?:string|null;estimated_duration?:string|null;
+ deposit_percent?:number;optional_extras?:Extra[];estimated_cost?:number|null;target_margin?:number|null;
  status:'draft'|'sent'|'accepted'|'declined'|'converted';invoice_id:string|null;created_at:string;
 };
 const C=theme.colors,day=(d:Date)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -132,6 +136,15 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
  const [title,setTitle]=useState('');
  const [description,setDescription]=useState('');
  const [notes,setNotes]=useState('');
+ const [stage,setStage]=useState<'scope'|'pricing'>('scope');
+ const [showBusiness,setShowBusiness]=useState(false);
+ const [included,setIncluded]=useState('');
+ const [excluded,setExcluded]=useState('');
+ const [duration,setDuration]=useState('');
+ const [deposit,setDeposit]=useState('0');
+ const [extras,setExtras]=useState<DraftExtra[]>([]);
+ const [estimateCost,setEstimateCost]=useState('');
+ const [targetMargin,setTargetMargin]=useState('30');
  const [quoteDate,setQuoteDate]=useState(day(new Date()));
  const [validUntil,setValidUntil]=useState(addDays(30));
  const [vatRate,setVatRate]=useState(0);
@@ -140,6 +153,12 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
  const subtotal=useMemo(()=>Math.round(lines.reduce((sum,l)=>sum+pennies(l),0))/100,[lines]);
  const vat=Math.round(subtotal*vatRate)/100;
  const total=Math.round((subtotal+vat)*100)/100;
+ const costEstimate=estimateCost.trim()?val(estimateCost):0;
+ const marginGoal=val(targetMargin);
+ const costPreview=Number.isFinite(costEstimate)&&costEstimate>=0?costEstimate:0;
+ const marginPreview=subtotal>0?(subtotal-costPreview)/subtotal*100:0;
+ const priceToHitGoal=Number.isFinite(marginGoal)&&marginGoal>=0&&marginGoal<100
+   ?costPreview/(1-marginGoal/100):0;
  useEffect(()=>{let alive=true;(async()=>{
   const {data:a}=await supabase.auth.getUser();const id=a.user?.id;
   if(!id||!alive){if(alive)setLoading(false);return}
@@ -166,6 +185,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
  const newQuote=()=>{
   setCustomerId(null);setCustomerName('');setCustomerEmail('');setCustomerPhone('');setCustomerAddress('');
   setTitle('');setDescription('');setNotes('');setQuoteDate(day(new Date()));setValidUntil(addDays(30));
+  setStage('scope');setShowBusiness(false);setIncluded('');setExcluded('');setDuration('');
+  setDeposit('0');setExtras([]);setEstimateCost('');setTargetMargin('30');
   setLines([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);setVatRate(0);
   setSelectedId(null);setScreen('new');
  };
@@ -190,6 +211,18 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
    !Number.isFinite(l.unit_price)||l.unit_price<0||l.unit_price>1000000)||total<=0){
    Alert.alert('Check the prices','Add a description, positive quantity and valid price for each line.');return;
   }
+  if(!Number.isFinite(val(deposit))||val(deposit)<0||val(deposit)>100){
+   Alert.alert('Check deposit','Enter a percentage between 0 and 100.');return;
+  }
+  if(estimateCost.trim()&&(!Number.isFinite(val(estimateCost))||val(estimateCost)<0||val(estimateCost)>1000000)){
+   Alert.alert('Check estimated costs','Enter a valid non-negative cost estimate.');return;
+  }
+  if(!Number.isFinite(val(targetMargin))||val(targetMargin)<0||val(targetMargin)>90){
+   Alert.alert('Check target margin','Choose a target margin from 0 to 90%.');return;
+  }
+  if(extras.some(e=>!e.name.trim()||!Number.isFinite(val(e.price))||val(e.price)<0||val(e.price)>1000000)){
+   Alert.alert('Check optional upgrades','Each upgrade needs a name and a valid extra price.');return;
+  }
   setSaving(true);
   const payload={tradesperson_id:uid,quote_no:0,customer_id:customerId,
    business_name:businessName.trim(),business_address:businessAddress.trim(),business_email:businessEmail.trim()||null,
@@ -197,7 +230,10 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
    customer_name:customerName.trim(),customer_address:customerAddress.trim(),customer_email:customerEmail.trim()||null,
    customer_phone:customerPhone.trim()||null,title:title.trim(),description:description.trim()||null,
    items,quote_date:quoteDate,valid_until:validUntil,vat_rate:vatRate,subtotal,vat_amount:vat,total,
-   notes:notes.trim()||null,status:'draft' as const};
+   notes:notes.trim()||null,scope_included:included.trim()||null,scope_excluded:excluded.trim()||null,
+   estimated_duration:duration.trim()||null,deposit_percent:val(deposit),
+   optional_extras:extras.map(x=>({name:x.name.trim(),price:Math.round(val(x.price)*100)/100})),
+   estimated_cost:estimateCost.trim()?costPreview:null,target_margin:val(targetMargin),status:'draft' as const};
   const {data,error}=await supabase.from('trade_quotes').insert(payload).select('*').single();
   setSaving(false);
   if(error||!data){Alert.alert('Could not create quote',error?.message||'Please try again');return;}
@@ -254,11 +290,11 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
   if(update.error)Alert.alert('Invoice created','Your invoice was saved, but the quote status could not be updated. You can still view it in Invoices.');
   onInvoiceCreated(invoiceId);
  };
- const back=()=>screen==='list'?goBack():setScreen('list');
+ const back=()=>screen==='list'?goBack():screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
  return <View style={s.root}>
   <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-    <Text style={s.title}>{screen==='new'?'New quote':screen==='preview'?'Quote preview':'Quotes'}</Text></View>
+    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan a job':'Build your price'):screen==='preview'?'Customer proposal':'Quotes'}</Text></View>
    {screen==='list'?<MotionPressable style={s.add} onPress={newQuote}><Plus size={19} color="#FFFFFF"/><Text style={s.addText}>New</Text></MotionPressable>:null}
   </View>
   {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
