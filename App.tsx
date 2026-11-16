@@ -4179,7 +4179,7 @@ function RequestDetailScreen({
     }
 
     const userId = row.accepted_tradesperson_id;
-    const [{ data: profile }, { data: locationRows }, { data: offerRows }] = await Promise.all([
+    const [{ data: profile }, { data: offerRows }] = await Promise.all([
       supabase
         .from('tradesperson_profiles')
         .select(
@@ -4187,11 +4187,6 @@ function RequestDetailScreen({
         )
         .eq('user_id', userId)
         .single(),
-      supabase
-        .from('trade_locations')
-        .select('latitude, longitude')
-        .eq('user_id', userId)
-        .limit(1),
       supabase
         .from(isMarketJob ? 'job_offers' : 'urgent_request_offers')
         .select('distance_miles, eta_minutes')
@@ -4202,7 +4197,6 @@ function RequestDetailScreen({
 
     if (!profile) return;
 
-    const location = locationRows?.[0];
     const offer = offerRows?.[0];
 
     setMatchedTrade({
@@ -4210,7 +4204,7 @@ function RequestDetailScreen({
       name: profile.display_name || 'Local tradesperson',
       role: (profile.primary_trade || request.trade) as TradeCategory,
       distance: Number(offer?.distance_miles) || 0,
-      eta: Number(row.estimated_arrival_minutes || offer?.eta_minutes) || 10,
+      eta: 0,
       rating: Number(profile.rating) || 0,
       reviews: Number(profile.review_count) || 0,
       image: profile.avatar_url || '',
@@ -4219,13 +4213,13 @@ function RequestDetailScreen({
       available: true,
       verified: Boolean(profile.is_verified),
       insured: Boolean(profile.is_insured),
-      response: Number(row.estimated_arrival_minutes || offer?.eta_minutes) || 10,
+      response: 0,
       years: 0,
       phone: profile.public_phone || '',
       about: profile.bio || 'Available for your request.',
       services: [isMarketJob ? 'Booked work' : 'Urgent call-out'],
-      mapLatitude: location ? Number(location.latitude) : undefined,
-      mapLongitude: location ? Number(location.longitude) : undefined,
+      mapLatitude: undefined,
+      mapLongitude: undefined,
     });
   };
 
@@ -4305,39 +4299,6 @@ function RequestDetailScreen({
     };
   }, [request.id, isMarketJob]);
 
-  useEffect(() => {
-    if (isDemo || !matchedTrade?.id.startsWith('live-')) return;
-
-    const userId = matchedTrade.id.replace('live-', '');
-    const channel = supabase
-      .channel('request-detail-location-' + userId)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'trade_locations',
-          filter: 'user_id=eq.' + userId,
-        },
-        payload => {
-          const row = payload.new as any;
-          setMatchedTrade(previous =>
-            previous
-              ? {
-                  ...previous,
-                  mapLatitude: Number(row.latitude),
-                  mapLongitude: Number(row.longitude),
-                }
-              : previous
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [matchedTrade?.id, isDemo]);
 
   const cancelRequest = async () => {
     if (isDemo) {
