@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { ArrowLeft, Check, ChevronRight, FileText, Plus, Share2, Trash2 } from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { WebView } from 'react-native-webview';
 import { MotionPressable } from './Motion';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
@@ -10,14 +11,6 @@ import { theme } from './theme';
 type InvoiceLineKind = 'labour' | 'material' | 'other';
 type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
 type EditableLine = { kind: InvoiceLineKind; description: string; quantity: string; unit_price: string; unit: string };
-const labourTaskSuggestions: Record<string, string[]> = {
-  plumber: ['Fix radiator', 'Fit pipework', 'Replace valve', 'Repair leak', 'Install tap'],
-  heating: ['Service boiler', 'Replace radiator', 'Replace valve', 'Fit thermostat', 'Flush system'],
-  electrician: ['Install socket', 'Replace light fitting', 'Fault finding', 'Consumer unit work'],
-  builder: ['Repair brickwork', 'Prepare site', 'Fit plasterboard', 'General labour'],
-  carpenter: ['Fit door', 'Repair frame', 'Install skirting', 'Joinery labour'],
-  roofer: ['Repair roof', 'Replace tiles', 'Fix guttering', 'Inspect roof'],
-};
 const labelForKind = (kind: InvoiceLineKind) => kind === 'labour' ? 'Labour' : kind === 'material' ? 'Materials' : 'Other charges';
 const numericValue = (value: string | number) => Number(String(value).replace(',', '.'));
 const linePence = (line: { quantity: string | number; unit_price: string | number }) =>
@@ -54,6 +47,10 @@ const invoiceNumber = (n: number) => 'INV-' + String(n).padStart(5, '0');
 const safe = (v: unknown) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
 const htmlText = (v: unknown) => safe(v).replace(/\n/g, '<br/>');
 const validDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00').getTime());
+const invoiceStatusLabel = (status: Invoice['status']) =>
+  status === 'draft' ? 'READY TO SEND' :
+  status === 'sent' ? 'SENT · UNPAID' :
+  status === 'paid' ? 'PAID' : 'VOID';
 
 function invoiceHtml(doc: Invoice) {
   const groups = (['labour', 'material', 'other'] as const).map(kind => {
@@ -162,7 +159,8 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
-  const [screen, setScreen] = useState<'list' | 'create'>('list');
+  const [screen, setScreen] = useState<'list' | 'create' | 'preview'>('list');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [jobs, setJobs] = useState<AppJob[]>([]);
   const [userId, setUserId] = useState('');
@@ -183,8 +181,8 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const [dueDate, setDueDate] = useState(datePlusDays(14));
   const [vatRate, setVatRate] = useState(0);
   const [paymentDetails, setPaymentDetails] = useState('');
+  const [includePaymentDetails, setIncludePaymentDetails] = useState(false);
   const [notes, setNotes] = useState('');
-  const [primaryTrade, setPrimaryTrade] = useState('plumber');
   const [lines, setLines] = useState<EditableLine[]>([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
 
   const breakdown = useMemo(() => {
@@ -193,7 +191,6 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     return { labour: pence.labour / 100, material: pence.material / 100, other: pence.other / 100 };
   }, [lines]);
   const subtotal = Math.round((breakdown.labour + breakdown.material + breakdown.other) * 100) / 100;
-  const quickTasks = labourTaskSuggestions[primaryTrade.toLowerCase()] || ['Call-out', 'Inspection', 'Repair work', 'Installation'];
   const vat = Math.round(subtotal * vatRate) / 100;
   const total = Math.round((subtotal + vat) * 100) / 100;
 
@@ -224,7 +221,6 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         setBusinessPhone(last?.business_phone || business.data?.public_phone || profile.data?.phone || '');
         setVatNumber(last?.vat_number || '');
         setPaymentDetails(last?.payment_details || '');
-        if (business.data?.primary_trade) setPrimaryTrade(business.data.primary_trade);
         const raw: AppJob[] = [
           ...(regular.data || []).map(j => ({ key: 'job:' + j.id, id: j.id, kind: 'job' as const,
             customer_id: j.customer_id, trade: j.trade, issue: j.issue, customerName: '',
@@ -264,6 +260,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const startNew = () => {
     setSource('external'); setSelectedJob(null); setCustomerName(''); setCustomerAddress('');
     setCustomerEmail(''); setDescription(''); setNotes('');
+    setIncludePaymentDetails(false); setSelectedInvoiceId(null);
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
     setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
     setScreen('create');
@@ -273,7 +270,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const addLine = (kind: InvoiceLineKind, description = '') => {
     const newLine: EditableLine = { kind, description, quantity: '1', unit_price: '', unit: kind === 'labour' ? 'job' : 'each' };
     setLines(existing => {
-      // A quick-add should replace the empty starter row, not leave a blank
+      // Adding a task should replace the empty starter row, not leave a blank
       // required line that blocks creating the invoice.
       if (existing.length === 1 && !existing[0].description.trim() && !existing[0].unit_price.trim()) {
         return [newLine];
@@ -336,15 +333,16 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         business_phone: businessPhone.trim() || null, vat_number: vatRate ? vatNumber.trim() : null,
         customer_name: customerName.trim(), customer_address: customerAddress.trim(), customer_email: customerEmail.trim() || null,
         description: description.trim() || null, items, invoice_date: invoiceDate, service_date: serviceDate, due_date: dueDate,
-        vat_rate: vatRate, subtotal, vat_amount: vat, total, payment_details: paymentDetails.trim() || null,
+        vat_rate: vatRate, subtotal, vat_amount: vat, total,
+        payment_details: includePaymentDetails ? paymentDetails.trim() || null : null,
         notes: notes.trim() || null, status: 'draft' as const,
       };
       const { data, error } = await supabase.from('trade_invoices').insert(payload).select('*').single();
       if (error || !data) throw new Error(error?.message || 'Could not save invoice');
       const doc = data as Invoice;
       setInvoices(old => [doc, ...old]);
-      setScreen('list');
-      await sharePdf(doc);
+      setSelectedInvoiceId(doc.id);
+      setScreen('preview');
     } catch (e) { Alert.alert('Could not create invoice', String(e)); }
     finally { setSaving(false); }
   };
@@ -354,16 +352,17 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     if (error || !data) { Alert.alert('Could not update invoice', error?.message || 'Please try again.'); return; }
     setInvoices(old => old.map(item => item.id === doc.id ? data as Invoice : item));
   };
+  const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId) || null;
   const paid = invoices.filter(i => i.status === 'paid').reduce((n, i) => n + Number(i.total), 0);
   const outstanding = invoices.filter(i => i.status === 'sent').reduce((n, i) => n + Number(i.total), 0);
   return <View style={s.root}>
     <View style={s.header}>
-      <MotionPressable style={s.back} onPress={screen === 'create' ? () => setScreen('list') : goBack}
+      <MotionPressable style={s.back} onPress={screen === 'create' || screen === 'preview' ? () => setScreen('list') : goBack}
         accessibilityRole="button" accessibilityLabel="Back">
         <ArrowLeft size={23} color={theme.colors.ink} />
       </MotionPressable>
       <View style={{ flex: 1 }}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-        <Text style={s.title}>{screen === 'create' ? 'New invoice' : 'Invoices'}</Text></View>
+        <Text style={s.title}>{screen === 'create' ? 'New invoice' : screen === 'preview' ? 'Invoice preview' : 'Invoices'}</Text></View>
       {screen === 'list' ? <MotionPressable style={s.addTop} onPress={startNew} accessibilityRole="button" accessibilityLabel="Create invoice">
         <Plus color="#FFFFFF" size={21} /><Text style={s.addTopText}>New</Text></MotionPressable> : null}
     </View>
@@ -388,9 +387,15 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
                 <Text style={s.invoiceCustomer} numberOfLines={2}>{doc.customer_name}</Text>
                 <Text style={s.invoiceMeta}>{doc.invoice_date} · Due {doc.due_date}</Text></View>
               <View style={{ alignItems: 'flex-end', gap: 7 }}><Text style={s.invoiceTotal}>{money(doc.total)}</Text>
-                <Text style={[s.status, doc.status === 'paid' && s.paidStatus]}>{doc.status.toUpperCase()}</Text></View>
+                <Text style={[s.status, doc.status === 'paid' && s.paidStatus]}>{invoiceStatusLabel(doc.status)}</Text></View>
             </View>
             <View style={s.cardActions}>
+              <MotionPressable style={[s.action, s.previewAction]} onPress={() => {
+                setSelectedInvoiceId(doc.id);
+                setScreen('preview');
+              }} accessibilityRole="button" accessibilityLabel={'View invoice ' + invoiceNumber(doc.invoice_no)}>
+                <FileText size={17} color={theme.colors.teal} /><Text style={s.actionText}>View</Text>
+              </MotionPressable>
               <MotionPressable style={s.action} onPress={() => sharePdf(doc)} disabled={sharing === doc.id}>
                 <Share2 size={17} color={theme.colors.teal} /><Text style={s.actionText}>{sharing === doc.id ? 'Opening…' : 'Share PDF'}</Text>
               </MotionPressable>
@@ -400,7 +405,43 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
                 <Check size={17} color={theme.colors.teal} /><Text style={s.actionText}>Mark paid</Text></MotionPressable> : null}
             </View>
           </View>)}
-      </ScrollView> : <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      </ScrollView> : screen === 'preview' ? (
+        selectedInvoice ? <View style={s.previewRoot}>
+          <View style={s.previewInfo}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.previewInvoiceNo}>{invoiceNumber(selectedInvoice.invoice_no)} · {invoiceStatusLabel(selectedInvoice.status)}</Text>
+              <Text style={s.previewCustomer}>{selectedInvoice.customer_name}</Text>
+            </View>
+            <Text style={s.previewAmount}>{money(selectedInvoice.total)}</Text>
+          </View>
+          <View style={s.previewPaper}>
+            <WebView
+              source={{ html: invoiceHtml(selectedInvoice) }}
+              style={s.previewWeb}
+              originWhitelist={['*']}
+              javaScriptEnabled={false}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+          <View style={s.previewActions}>
+            <MotionPressable style={s.previewShare} onPress={() => sharePdf(selectedInvoice)}
+              disabled={sharing === selectedInvoice.id} accessibilityRole="button" accessibilityLabel="Share invoice PDF">
+              {sharing === selectedInvoice.id ? <ActivityIndicator color="#FFFFFF" /> : <Share2 size={20} color="#FFFFFF" />}
+              <Text style={s.previewShareText}>{sharing === selectedInvoice.id ? 'Preparing PDF…' : 'Share PDF'}</Text>
+            </MotionPressable>
+            {selectedInvoice.status === 'draft' ? <MotionPressable style={s.previewMarkSent} onPress={() => setStatus(selectedInvoice, 'sent')}
+              accessibilityRole="button" accessibilityLabel="Mark invoice as sent">
+              <Check size={18} color={theme.colors.teal} /><Text style={s.previewMarkSentText}>Mark sent</Text>
+            </MotionPressable> : null}
+            <Text style={s.previewHint}>Mark sent after you actually deliver it to the customer.</Text>
+          </View>
+        </View> : <View style={s.previewMissing}>
+          <Text style={s.emptyTitle}>Invoice unavailable</Text>
+          <MotionPressable onPress={() => setScreen('list')} style={s.heroButton}>
+            <Text style={s.heroButtonText}>Back to invoices</Text>
+          </MotionPressable>
+        </View>
+      ) : <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={s.explainer}>Add the job and customer details. Tradarr handles the layout, calculations, invoice number and PDF.</Text>
         <Text style={s.section}>Where was the job from?</Text>
         <View style={s.pillRow}>
@@ -454,15 +495,6 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
             <Plus size={18} color={theme.colors.teal} /><Text style={s.addWorkText}>Add material</Text>
           </MotionPressable>
         </View>
-        <View style={s.suggestionCard}>
-          <Text style={s.suggestionTitle}>QUICK ADD · COMMON TASKS</Text>
-          <View style={s.suggestionRow}>
-            {quickTasks.map(task => <MotionPressable key={task} onPress={() => addLine('labour', task)} style={s.suggestionChip}
-              accessibilityRole="button" accessibilityLabel={'Add labour task: ' + task}>
-              <Plus size={12} color={theme.colors.teal} /><Text style={s.suggestionText}>{task}</Text>
-            </MotionPressable>)}
-          </View>
-        </View>
         {lines.map((item, i) => <View style={s.workCard} key={i}>
           <View style={s.workCardHead}>
             <View style={[s.kindIcon, item.kind === 'material' && s.materialIcon]}>
@@ -515,11 +547,25 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
           {vatRate > 0 ? <Field label="VAT registration number" value={vatNumber} onChange={setVatNumber} required /> : null}
         </View>
 
-        <Text style={s.section}>Payment</Text>
+        <Text style={s.section}>Payment & notes</Text>
         <View style={s.card}>
-          <Field label="Bank transfer / payment details" value={paymentDetails} onChange={setPaymentDetails} multi
-            placeholder="Account name, sort code, account number, reference" />
-          <Field label="Additional notes (optional)" value={notes} onChange={setNotes} multi />
+          <View style={s.optionalToggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardTitle}>Include bank details?</Text>
+              <Text style={s.helper}>Optional. Leave off to create an invoice without bank information.</Text>
+            </View>
+            <Switch value={includePaymentDetails} onValueChange={setIncludePaymentDetails}
+              accessibilityLabel="Include payment details on invoice"
+              trackColor={{ false: '#DCE6E4', true: '#A9CEBF' }}
+              thumbColor={includePaymentDetails ? theme.colors.teal : '#FFFFFF'} />
+          </View>
+          {includePaymentDetails ? <View style={{ marginTop: 16 }}>
+            <Field label="Bank transfer details (optional)" value={paymentDetails} onChange={setPaymentDetails} multi
+              placeholder="Account name, sort code, account number, reference" />
+          </View> : null}
+          <View style={{ marginTop: 12 }}>
+            <Field label="Additional notes (optional)" value={notes} onChange={setNotes} multi />
+          </View>
         </View>
         <View style={s.totalCard}><View style={s.totalRow}><Text style={s.totalLabel}>Subtotal</Text><Text style={s.totalLabel}>{money(subtotal)}</Text></View>
           {vatRate > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>VAT ({vatRate}%)</Text><Text style={s.totalLabel}>{money(vat)}</Text></View> : null}
@@ -527,9 +573,9 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         </View>
         <MotionPressable style={[s.heroButton, saving && { opacity: 0.55 }]} onPress={createInvoice} disabled={saving}>
           {saving ? <ActivityIndicator color="#FFFFFF" /> : <FileText size={20} color="#FFFFFF" />}
-          <Text style={s.heroButtonText}>{saving ? 'Creating…' : 'Generate and share PDF'}</Text>
+          <Text style={s.heroButtonText}>{saving ? 'Creating…' : 'Create and view invoice'}</Text>
         </MotionPressable>
-        <Text style={[s.helper, { textAlign: 'center', marginBottom: 12 }]}>Invoices are saved securely to your account. Sharing a PDF does not automatically mark it as sent.</Text>
+        <Text style={[s.helper, { textAlign: 'center', marginBottom: 12 }]}>Invoices are saved to your account. Preview here, then share when ready.</Text>
       </ScrollView>}
   </View>;
 }
@@ -562,6 +608,22 @@ const s = StyleSheet.create({
   invoiceTotal: { fontSize: 17, fontWeight: '800', color: theme.colors.ink },
   status: { backgroundColor: theme.colors.tealTint, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 11, fontSize: 10, overflow: 'hidden', color: theme.colors.teal, fontWeight: '800' },
   paidStatus: { color: '#14744B', backgroundColor: '#E4F4EC' },
+  previewAction: { backgroundColor: '#D8EAE5' },
+  optionalToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  previewRoot: { flex: 1, backgroundColor: theme.colors.proBackground },
+  previewInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 21, paddingVertical: 13, gap: 15 },
+  previewInvoiceNo: { fontSize: 11, fontWeight: '800', color: theme.colors.teal },
+  previewCustomer: { fontSize: 15, fontWeight: '800', color: theme.colors.ink, marginTop: 3 },
+  previewAmount: { fontSize: 19, fontWeight: '800', color: theme.colors.ink },
+  previewPaper: { flex: 1, marginHorizontal: 13, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: theme.colors.line, borderRadius: 17, overflow: 'hidden', ...theme.shadow },
+  previewWeb: { flex: 1, backgroundColor: '#FFFFFF' },
+  previewActions: { paddingHorizontal: 18, paddingTop: 13, paddingBottom: 10, backgroundColor: theme.colors.proBackground },
+  previewShare: { minHeight: 51, borderRadius: 26, paddingHorizontal: 19, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: theme.colors.darkTeal },
+  previewShareText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  previewMarkSent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 9, padding: 8 },
+  previewMarkSentText: { color: theme.colors.teal, fontSize: 13, fontWeight: '700' },
+  previewHint: { color: theme.colors.muted, fontSize: 10, textAlign: 'center', marginTop: 5 },
+  previewMissing: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 20 },
   cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, borderTopWidth: 1, borderTopColor: theme.colors.line, paddingTop: 12, marginTop: 14 },
   action: { flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: theme.colors.tealTint, minHeight: 37, paddingHorizontal: 12, borderRadius: 20 },
   actionText: { color: theme.colors.teal, fontWeight: '800', fontSize: 12 },
@@ -594,11 +656,6 @@ const s = StyleSheet.create({
   addWorkRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   addWorkButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 53, gap: 5, backgroundColor: theme.colors.tealTint, borderRadius: 17, borderWidth: 1, borderColor: '#C7DCDA', paddingHorizontal: 8 },
   addWorkText: { color: theme.colors.teal, fontSize: 13, fontWeight: '800' },
-  suggestionCard: { marginBottom: 15 },
-  suggestionTitle: { color: theme.colors.muted, fontWeight: '800', letterSpacing: 1, fontSize: 10, marginBottom: 9 },
-  suggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: theme.colors.line },
-  suggestionText: { color: theme.colors.teal, fontSize: 12, fontWeight: '700' },
   workCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 17, marginBottom: 13, ...theme.shadow },
   workCardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
   kindIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: theme.colors.tealTint },
