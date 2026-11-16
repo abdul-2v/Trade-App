@@ -6043,18 +6043,8 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
-        <MotionPressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
-          accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
-          <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.premiumProgressTitle}>{profileCompletion === 100 ? 'Your profile is complete' : 'Finish your profile'}</Text>
-            <Text style={styles.premiumProgressSub}>Help customers trust you</Text>
-          </View>
-          <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
-        </MotionPressable>
-
         <View style={styles.premiumSectionRow}>
-          <Text style={styles.premiumSectionTitle}>Incoming opportunities</Text>
+          <Text style={styles.premiumSectionTitle}>Urgent job matches</Text>
           <MotionPressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
             accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
             <RotateCw size={17} strokeWidth={2} color={theme.colors.teal} />
@@ -6062,6 +6052,9 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
+        <Text style={styles.tradeHomeSectionHint}>
+          Nearby urgent requests matched to you appear here. For bookings and route jobs, use Jobs → Flexible.
+        </Text>
         {incomingOffers.length ? incomingOffers.map(offer => (
           <MotionPressable key={offer.offerId} onPress={() => openJobs('offers', 'urgent')}
             style={styles.premiumOfferCard} accessibilityRole="button" accessibilityLabel={'View ' + offer.issue + ' job'}>
@@ -6085,6 +6078,16 @@ function TradeHomeScreen({
             </MotionPressable>
           </View>
         )}
+
+        <MotionPressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
+          accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
+          <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumProgressTitle}>{profileCompletion === 100 ? 'Your profile is complete' : 'Finish your profile'}</Text>
+            <Text style={styles.premiumProgressSub}>Help customers trust you</Text>
+          </View>
+          <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
+        </MotionPressable>
 
         <View style={styles.premiumShortcuts}>
           <MotionPressable style={styles.premiumShortcut} onPress={() => openJobs('active', 'all')}
@@ -9935,6 +9938,7 @@ const styles = StyleSheet.create({
   premiumEmptyIcon: { height: 45, width: 45, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
   premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
+  tradeHomeSectionHint: { color: theme.colors.muted, fontSize: 12, lineHeight: 19, marginTop: -9, marginBottom: 15 },
   tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 12, marginBottom: 14 },
   tradeDiscoverTitle: { color: theme.colors.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.7 },
   tradeDiscoverSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
