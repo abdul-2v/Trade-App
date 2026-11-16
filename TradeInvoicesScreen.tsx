@@ -7,8 +7,21 @@ import { MotionPressable } from './Motion';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
 
-type LineItem = { description: string; quantity: number; unit_price: number };
-type EditableLine = { description: string; quantity: string; unit_price: string };
+type InvoiceLineKind = 'labour' | 'material' | 'other';
+type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
+type EditableLine = { kind: InvoiceLineKind; description: string; quantity: string; unit_price: string; unit: string };
+const labourTaskSuggestions: Record<string, string[]> = {
+  plumber: ['Fix radiator', 'Fit pipework', 'Replace valve', 'Repair leak', 'Install tap'],
+  heating: ['Service boiler', 'Replace radiator', 'Replace valve', 'Fit thermostat', 'Flush system'],
+  electrician: ['Install socket', 'Replace light fitting', 'Fault finding', 'Consumer unit work'],
+  builder: ['Repair brickwork', 'Prepare site', 'Fit plasterboard', 'General labour'],
+  carpenter: ['Fit door', 'Repair frame', 'Install skirting', 'Joinery labour'],
+  roofer: ['Repair roof', 'Replace tiles', 'Fix guttering', 'Inspect roof'],
+};
+const labelForKind = (kind: InvoiceLineKind) => kind === 'labour' ? 'Labour' : kind === 'material' ? 'Materials' : 'Other charges';
+const numericValue = (value: string | number) => Number(String(value).replace(',', '.'));
+const linePence = (line: { quantity: string | number; unit_price: string | number }) =>
+  Math.round(Math.max(0, numericValue(line.quantity) || 0) * Math.round(Math.max(0, numericValue(line.unit_price) || 0) * 100));
 type AppJob = {
   key: string; id: string; kind: 'job' | 'urgent'; customer_id: string;
   trade: string; issue: string; customerName: string; address: string; suggestedPrice: number;
@@ -42,10 +55,14 @@ const htmlText = (v: unknown) => safe(v).replace(/\n/g, '<br/>');
 const validDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00').getTime());
 
 function invoiceHtml(doc: Invoice) {
-  const rows = (doc.items || []).map(item => {
-    const total = Math.round(item.quantity * Math.round(item.unit_price * 100)) / 100;
-    return '<tr><td>' + htmlText(item.description) + '</td><td class="right">' + safe(item.quantity) +
-      '</td><td class="right">' + money(item.unit_price) + '</td><td class="right">' + money(total) + '</td></tr>';
+  const rows = (['labour', 'material', 'other'] as const).map(kind => {
+    const entries = (doc.items || []).filter(item => (item.kind || 'other') === kind);
+    if (!entries.length) return '';
+    return '<tr class="group"><td colspan="4">' + labelForKind(kind) + '</td></tr>' +
+      entries.map(item => '<tr><td>' + htmlText(item.description) +
+        '</td><td class="right">' + safe(item.quantity) + (item.unit ? ' ' + safe(item.unit) : '') +
+        '</td><td class="right">' + money(item.unit_price) +
+        '</td><td class="right">' + money(linePence(item) / 100) + '</td></tr>').join('');
   }).join('');
   const vat = doc.vat_rate > 0 && !!doc.vat_number;
   return '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>' +
@@ -55,7 +72,7 @@ function invoiceHtml(doc: Invoice) {
     '.block{width:47%;overflow-wrap:anywhere}.label{font-weight:bold;color:#245758;text-transform:uppercase;font-size:10px;letter-spacing:1px;margin-bottom:9px}' +
     '.details{border:1px solid #dae6e3;border-radius:9px;padding:15px;margin:10px 0 26px}.details td{padding:4px 10px 4px 0}' +
     'table.items{border-collapse:collapse;width:100%;table-layout:fixed}table.items th{background:#0F2A30;color:white;text-align:left;padding:12px 9px;font-size:10px}' +
-    'table.items td{padding:12px 9px;border-bottom:1px solid #e1e7e5;vertical-align:top;overflow-wrap:anywhere}table.items th:first-child{width:55%}' +
+    'table.items td{padding:12px 9px;border-bottom:1px solid #e1e7e5;vertical-align:top;overflow-wrap:anywhere}table.items tr.group td{background:#E8F0EF;color:#245758;font-weight:800;font-size:11px;padding:8px 10px;border-bottom:1px solid #CFDFDB}table.items th:first-child{width:55%}' +
     '.right{text-align:right}.totals{margin-left:auto;margin-top:20px;width:46%;border-collapse:collapse}.totals td{padding:8px 5px}.totals .grand{font-size:18px;font-weight:bold;color:#0F2A30;border-top:2px solid #245758}' +
     '.foot{margin-top:34px;padding:17px;background:#F1F5F3;border-radius:8px;overflow-wrap:anywhere}.small{font-size:10px;color:#607276}</style></head><body>' +
     '<div class="head"><div><div class="brand">' + htmlText(doc.business_name) + '</div><div class="muted">' + htmlText(doc.business_address) + '</div>' +
@@ -122,10 +139,16 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const [vatRate, setVatRate] = useState(0);
   const [paymentDetails, setPaymentDetails] = useState('');
   const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<EditableLine[]>([{ description: '', quantity: '1', unit_price: '0' }]);
+  const [primaryTrade, setPrimaryTrade] = useState('plumber');
+  const [lines, setLines] = useState<EditableLine[]>([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
 
-  const subtotal = useMemo(() => Math.round(lines.reduce((sum, item) =>
-    sum + Math.round(Math.max(0, Number(item.unit_price) || 0) * 100) * Math.max(0, Number(item.quantity) || 0), 0)) / 100, [lines]);
+  const breakdown = useMemo(() => {
+    const pence = { labour: 0, material: 0, other: 0 };
+    lines.forEach(line => { pence[line.kind] += linePence(line); });
+    return { labour: pence.labour / 100, material: pence.material / 100, other: pence.other / 100 };
+  }, [lines]);
+  const subtotal = Math.round((breakdown.labour + breakdown.material + breakdown.other) * 100) / 100;
+  const quickTasks = labourTaskSuggestions[primaryTrade.toLowerCase()] || ['Call-out', 'Inspection', 'Repair work', 'Installation'];
   const vat = Math.round(subtotal * vatRate) / 100;
   const total = Math.round((subtotal + vat) * 100) / 100;
 
@@ -140,7 +163,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         const [saved, profile, business, regular, urgent] = await Promise.all([
           supabase.from('trade_invoices').select('*').eq('tradesperson_id', user.id).order('created_at', { ascending: false }).limit(100),
           supabase.from('profiles').select('first_name, last_name, phone').eq('id', user.id).maybeSingle(),
-          supabase.from('tradesperson_profiles').select('business_name, display_name, public_phone').eq('user_id', user.id).maybeSingle(),
+          supabase.from('tradesperson_profiles').select('business_name, display_name, public_phone, primary_trade').eq('user_id', user.id).maybeSingle(),
           supabase.from('jobs').select('id,customer_id,trade,issue,location_label,standard_price,route_price,job_mode,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
           supabase.from('urgent_requests').select('id,customer_id,trade,issue,location_label,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
         ]);
@@ -155,6 +178,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         setBusinessPhone(last?.business_phone || business.data?.public_phone || profile.data?.phone || '');
         setVatNumber(last?.vat_number || '');
         setPaymentDetails(last?.payment_details || '');
+        if (business.data?.primary_trade) setPrimaryTrade(business.data.primary_trade);
         const raw: AppJob[] = [
           ...(regular.data || []).map(j => ({ key: 'job:' + j.id, id: j.id, kind: 'job' as const,
             customer_id: j.customer_id, trade: j.trade, issue: j.issue, customerName: '',
@@ -188,17 +212,22 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     setCustomerName(job.customerName || '');
     setCustomerAddress(job.address || '');
     setDescription(job.issue);
-    setLines([{ description: job.issue, quantity: '1', unit_price: String(job.suggestedPrice) }]);
+    setLines([{ kind: 'labour', description: job.issue, quantity: '1', unit_price: job.suggestedPrice ? String(job.suggestedPrice) : '', unit: 'job' }]);
   };
   const startNew = () => {
     setSource('external'); setSelectedJob(null); setCustomerName(''); setCustomerAddress('');
     setCustomerEmail(''); setDescription(''); setNotes('');
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
-    setLines([{ description: '', quantity: '1', unit_price: '0' }]);
+    setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
     setScreen('create');
   };
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
     setLines(existing => existing.map((item, i) => i === index ? { ...item, ...patch } : item));
+  const addLine = (kind: InvoiceLineKind, description = '') => {
+    setLines(existing => [...existing, {
+      kind, description, quantity: '1', unit_price: '', unit: kind === 'labour' ? 'job' : 'each'
+    }]);
+  };
 
   const sharePdf = async (doc: Invoice) => {
     if (sharing) return;
@@ -230,10 +259,13 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     if (vatRate && !vatNumber.trim()) {
       Alert.alert('VAT registration needed', 'Only VAT-registered businesses should charge VAT. Enter your VAT number or select No VAT.'); return;
     }
-    const items = lines.map(l => ({ description: l.description.trim(), quantity: Number(l.quantity), unit_price: Number(l.unit_price) }));
+    const items = lines.map(l => ({
+      kind: l.kind, description: l.description.trim(), quantity: numericValue(l.quantity),
+      unit_price: numericValue(l.unit_price), unit: l.unit
+    }));
     if (!items.length || items.some(l => !l.description || !Number.isFinite(l.quantity) || l.quantity <= 0 ||
-      !Number.isFinite(l.unit_price) || l.unit_price < 0)) {
-      Alert.alert('Check the line items', 'Every item needs a description, a quantity above zero and a valid price.'); return;
+      !Number.isFinite(l.unit_price) || l.unit_price < 0 || l.unit_price > 1000000 || l.quantity > 100000)) {
+      Alert.alert('Check the breakdown', 'Give each task or material a description, a quantity and a valid price.'); return;
     }
     if (!total && !items.some(l => l.unit_price > 0)) {
       Alert.alert('Enter a charge', 'Add at least one priced item.'); return;
@@ -359,22 +391,66 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
           <Field label="Payment due (YYYY-MM-DD)" value={dueDate} onChange={setDueDate} required />
         </View>
 
-        <View style={s.sectionRow}><Text style={s.section}>Labour & materials</Text>
-          <MotionPressable style={s.addSmall} onPress={() => setLines(old => [...old, { description: '', quantity: '1', unit_price: '0' }])}>
-            <Plus size={16} color={theme.colors.teal} /><Text style={s.addSmallText}>Add item</Text>
-          </MotionPressable></View>
-        {lines.map((item, i) => <View style={s.card} key={i}>
-          <View style={s.sectionRow}><Text style={s.cardTitle}>Item {i + 1}</Text>
-            {lines.length > 1 ? <MotionPressable onPress={() => setLines(old => old.filter((_, j) => j !== i))} accessibilityLabel="Remove item">
-              <Trash2 size={18} color={theme.colors.coralDark} /></MotionPressable> : null}</View>
-          <Field label="Description" value={item.description} onChange={v => changeLine(i, { description: v })} placeholder="Labour, materials, callout..." required />
+        <Text style={s.section}>Work breakdown</Text>
+        <Text style={s.explainer}>Itemise each job separately. For example, add “Fix radiator” and “Replace valve” as two labour tasks, then add any parts underneath.</Text>
+        <View style={s.addWorkRow}>
+          <MotionPressable style={s.addWorkButton} onPress={() => addLine('labour')} accessibilityRole="button" accessibilityLabel="Add a labour task">
+            <Plus size={18} color={theme.colors.teal} /><Text style={s.addWorkText}>Add labour task</Text>
+          </MotionPressable>
+          <MotionPressable style={s.addWorkButton} onPress={() => addLine('material')} accessibilityRole="button" accessibilityLabel="Add a material">
+            <Plus size={18} color={theme.colors.teal} /><Text style={s.addWorkText}>Add material</Text>
+          </MotionPressable>
+        </View>
+        <View style={s.suggestionCard}>
+          <Text style={s.suggestionTitle}>QUICK ADD · COMMON TASKS</Text>
+          <View style={s.suggestionRow}>
+            {quickTasks.map(task => <MotionPressable key={task} onPress={() => addLine('labour', task)} style={s.suggestionChip}
+              accessibilityRole="button" accessibilityLabel={'Add labour task: ' + task}>
+              <Plus size={12} color={theme.colors.teal} /><Text style={s.suggestionText}>{task}</Text>
+            </MotionPressable>)}
+          </View>
+        </View>
+        {lines.map((item, i) => <View style={s.workCard} key={i}>
+          <View style={s.workCardHead}>
+            <View style={[s.kindIcon, item.kind === 'material' && s.materialIcon]}>
+              <Text style={s.kindEmoji}>{item.kind === 'material' ? '◈' : item.kind === 'labour' ? '⚒' : '＋'}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.workCardTitle}>{labelForKind(item.kind)} · {lines.slice(0, i + 1).filter(l => l.kind === item.kind).length}</Text>
+              <Text style={s.workCardSub}>{item.kind === 'labour' ? 'Describe the actual task completed' : item.kind === 'material' ? 'Specify the part or material used' : 'Other charge'}</Text>
+            </View>
+            {lines.length > 1 ? <MotionPressable onPress={() => setLines(old => old.filter((_, j) => j !== i))}
+              accessibilityRole="button" accessibilityLabel={'Remove ' + (item.description || labelForKind(item.kind))}>
+              <Trash2 size={18} color={theme.colors.coralDark} />
+            </MotionPressable> : null}
+          </View>
+          <Field label={item.kind === 'labour' ? 'Work carried out' : item.kind === 'material' ? 'Material / part' : 'Charge description'}
+            value={item.description} onChange={v => changeLine(i, { description: v })}
+            placeholder={item.kind === 'labour' ? 'e.g. Fit new radiator / replace valve' : 'e.g. TRV valve, 15mm copper pipe'} required />
+          <View style={s.unitsRow}>
+            <Text style={s.unitsLabel}>Charge by</Text>
+            {(item.kind === 'labour' ? ['job', 'hour'] : ['each', 'metre']).map(unit =>
+              <Pill key={unit} label={unit === 'job' ? 'Per job' : unit === 'hour' ? 'Per hour' : unit === 'metre' ? 'Per metre' : 'Per item'}
+                active={item.unit === unit} onPress={() => changeLine(i, { unit })} />)}
+          </View>
           <View style={s.twoCols}><View style={{ flex: 1 }}>
-            <Field label="Quantity" numeric value={String(item.quantity)} onChange={v => changeLine(i, { quantity: v })} required />
+            <Field label={item.unit === 'hour' ? 'Hours' : item.unit === 'metre' ? 'Metres' : 'Quantity'} numeric
+              value={item.quantity} onChange={v => changeLine(i, { quantity: v })} required />
           </View><View style={{ flex: 1 }}>
-            <Field label="Unit price (£)" numeric value={String(item.unit_price)} onChange={v => changeLine(i, { unit_price: v })} required />
+            <Field label={'Price per ' + (item.unit === 'hour' ? 'hour' : item.unit === 'metre' ? 'metre' : item.unit === 'job' ? 'job' : 'item') + ' (£)'}
+              numeric value={item.unit_price} onChange={v => changeLine(i, { unit_price: v })} placeholder="0.00" required />
           </View></View>
-          <Text style={s.lineTotal}>Line total  {money(Math.round(Number(item.quantity) * Math.round(Number(item.unit_price) * 100)) / 100)}</Text>
+          <View style={s.lineTotalBar}><Text style={s.lineTotalLabel}>Line total</Text><Text style={s.lineTotal}>{money(linePence(item) / 100)}</Text></View>
         </View>)}
+        <MotionPressable style={s.addOther} onPress={() => addLine('other')} accessibilityRole="button">
+          <Plus size={16} color={theme.colors.teal} /><Text style={s.addSmallText}>Add call-out fee or other charge</Text>
+        </MotionPressable>
+        <View style={s.workSummary}>
+          <Text style={s.workSummaryTitle}>Itemised breakdown</Text>
+          <View style={s.totalRow}><Text style={s.totalLabel}>Labour · {lines.filter(l => l.kind === 'labour').length} tasks</Text><Text style={s.totalLabel}>{money(breakdown.labour)}</Text></View>
+          <View style={s.totalRow}><Text style={s.totalLabel}>Materials · {lines.filter(l => l.kind === 'material').length} items</Text><Text style={s.totalLabel}>{money(breakdown.material)}</Text></View>
+          {breakdown.other > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>Other charges</Text><Text style={s.totalLabel}>{money(breakdown.other)}</Text></View> : null}
+        </View>
 
         <Text style={s.section}>VAT</Text>
         <View style={s.card}>
@@ -462,4 +538,26 @@ const s = StyleSheet.create({
   totalLabel: { color: theme.colors.muted, fontSize: 13 },
   totalTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
   totalNumber: { color: theme.colors.teal, fontSize: 24, fontWeight: '800' },
+  addWorkRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  addWorkButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 53, gap: 5, backgroundColor: theme.colors.tealTint, borderRadius: 17, borderWidth: 1, borderColor: '#C7DCDA', paddingHorizontal: 8 },
+  addWorkText: { color: theme.colors.teal, fontSize: 13, fontWeight: '800' },
+  suggestionCard: { marginBottom: 15 },
+  suggestionTitle: { color: theme.colors.muted, fontWeight: '800', letterSpacing: 1, fontSize: 10, marginBottom: 9 },
+  suggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: theme.colors.line },
+  suggestionText: { color: theme.colors.teal, fontSize: 12, fontWeight: '700' },
+  workCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 17, marginBottom: 13, ...theme.shadow },
+  workCardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 },
+  kindIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: theme.colors.tealTint },
+  materialIcon: { backgroundColor: theme.colors.coralTint },
+  kindEmoji: { fontSize: 22, color: theme.colors.teal, fontWeight: '700' },
+  workCardTitle: { color: theme.colors.ink, fontSize: 16, fontWeight: '800' },
+  workCardSub: { color: theme.colors.muted, fontSize: 11, marginTop: 4 },
+  unitsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
+  unitsLabel: { color: theme.colors.muted, fontSize: 12, fontWeight: '700', marginRight: 2 },
+  lineTotalBar: { marginTop: 2, borderTopWidth: 1, borderTopColor: theme.colors.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12 },
+  lineTotalLabel: { color: theme.colors.muted, fontSize: 12 },
+  addOther: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7, paddingVertical: 13, marginBottom: 7 },
+  workSummary: { backgroundColor: theme.colors.tealTint, borderRadius: 21, padding: 17, marginTop: 10, marginBottom: 10 },
+  workSummaryTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800', marginBottom: 6 },
 });
