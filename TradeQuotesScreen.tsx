@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,Platform,ScrollView,Share,StyleSheet,Text,TextInput,View} from 'react-native';
+import type {ScrollViewInstance} from 'react-native';
 import {ArrowLeft,Check,ChevronRight,FileText,Plus,Send,Share2,Trash2,Users} from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -137,7 +138,7 @@ function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>
 export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated}:{
  goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void;onMaterialsCreated:(kitId:string)=>void;
 }){
- const scrollRef=useRef<ScrollView>(null);
+ const scrollRef=useRef<ScrollViewInstance>(null);
  const bringBottomIntoView=()=>{setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),360);};
  const [uid,setUid]=useState('');
  const [loading,setLoading]=useState(true);
