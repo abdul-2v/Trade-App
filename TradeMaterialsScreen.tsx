@@ -132,7 +132,7 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
    <View style={s.totalCard}><View style={s.totalRow}><Text style={s.totalLabel}>Full list estimate</Text><Text style={s.totalValue}>{pounds(total(selected.items))}</Text></View>
     <View style={s.totalRow}><Text style={s.totalLabel}>Remaining estimate</Text><Text style={s.totalValue}>{pounds(remaining(selected.items))}</Text></View>
     <Text style={s.fine}>Prices are your estimates, not live merchant quotes. Purchasing an item doesn't automatically record a business expense.</Text></View>
-   <MotionPressable onPress={openMerchants} style={s.mapAction}><MapPin size={19} color={C.teal}/><Text style={s.mapText}>Find merchants near this job</Text><ChevronRight size={18} color={C.teal}/></MotionPressable>
+   <MotionPressable onPress={openMerchants} style={s.mapAction}><MapPin size={19} color={C.teal}/><Text style={s.mapText}>Find nearby merchants</Text><ChevronRight size={18} color={C.teal}/></MotionPressable>
    <MotionPressable onPress={openProfit} style={s.mapAction}><ShoppingCart size={19} color={C.teal}/><Text style={s.mapText}>Record actual costs in Job Profit</Text><ChevronRight size={18} color={C.teal}/></MotionPressable>
    <MotionPressable onPress={()=>remove(selected)} style={s.delete}><Trash2 size={17} color={C.coralDark}/><Text style={s.deleteText}>Delete this list</Text></MotionPressable>
   </>}
