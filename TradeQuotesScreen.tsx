@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,Platform,ScrollView,Share,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,Check,ChevronRight,FileText,Plus,Send,Share2,Trash2,Users} from 'lucide-react-native';
 import * as Print from 'expo-print';
@@ -7,6 +7,7 @@ import {WebView} from 'react-native-webview';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
+import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 
 type Kind='labour'|'material'|'other';
 type Line={kind:Kind;description:string;quantity:number;unit_price:number;unit:string};
@@ -28,6 +29,7 @@ const C=theme.colors,day=(d:Date)=>d.getFullYear()+'-'+String(d.getMonth()+1).pa
 const addDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return day(d)};
 const money=(v:number)=>'£'+Number(v||0).toFixed(2);
 const quoteNo=(n:number)=>'QUO-'+String(n).padStart(5,'0');
+const niceDate=(input:string)=>new Date(input+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 const validDay=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(new Date(v+'T12:00:00').getTime())&&day(new Date(v+'T12:00:00'))===v;
 const safe=(v:unknown)=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
 const html=(v:unknown)=>safe(v).replace(/\n/g,'<br/>');
@@ -41,7 +43,7 @@ function makeQuoteHtml(q:Quote){
   const list=(q.items||[]).filter(i=>i.kind===kind);
   if(!list.length)return '';
   return '<tr class="group"><td colspan="4">'+label(kind)+'</td></tr>'+
-   list.map(i=>'<tr><td>'+html(i.description)+'</td><td class="right">'+safe(i.quantity)+' '+safe(i.unit)+'</td>'+
+   list.map(i=>'<tr><td>'+html(i.description)+'</td><td class="right">'+safe(formatTradeQuantity(i.quantity,i.unit))+'</td>'+
     '<td class="right">'+money(i.unit_price)+'</td><td class="right amount">'+money(pennies(i)/100)+'</td></tr>').join('');
  }).join('');
  const css=[
@@ -97,8 +99,8 @@ function makeQuoteHtml(q:Quote){
  '<div class="line"></div><table class="info"><tr><td><div class="label">Prepared for</div>'+
  '<div class="name">'+html(q.customer_name)+'</div><div class="row">'+html(q.customer_address)+
  (q.customer_email?'<div>'+html(q.customer_email)+'</div>':'')+'</div></td>'+
- '<td><div class="label">Quote details</div><div class="row"><b>Prepared</b>'+safe(q.quote_date)+'</div>'+
- '<div class="row"><b>Valid until</b>'+safe(q.valid_until)+'</div></td></tr></table>'+
+ '<td><div class="label">Quote details</div><div class="row"><b>Prepared</b>'+safe(niceDate(q.quote_date))+'</div>'+
+ '<div class="row"><b>Valid until</b>'+safe(niceDate(q.valid_until))+'</div></td></tr></table>'+
  '<div class="subject"><div class="label">Your project</div><div class="subjectName">'+html(q.title)+'</div>'+
  (q.description?'<div class="subjectText">'+html(q.description)+'</div>':'')+'</div>'+
  '<div class="scope">'+
@@ -107,7 +109,7 @@ function makeQuoteHtml(q:Quote){
  (q.estimated_duration?'<div class="scopeBox"><div class="scopeTitle">Estimated time on site</div><div class="scopeText">'+html(q.estimated_duration)+'</div></div>':'')+
  '</div>'+
  '<table class="items"><colgroup><col style="width:47%"/><col style="width:16%"/><col style="width:19%"/><col style="width:18%"/></colgroup>'+
- '<thead><tr><th>Task or material</th><th class="right">Qty</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
+ '<thead><tr><th>Task or material</th><th class="right">Quantity</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
  '<table class="totals"><tr><td>Subtotal</td><td>'+money(q.subtotal)+'</td></tr>'+
  (q.vat_rate?'<tr><td>VAT ('+q.vat_rate+'%)</td><td>'+money(q.vat_amount)+'</td></tr>':'')+
  '<tr class="grand"><td>Price for proposed work</td><td>'+money(q.total)+'</td></tr></table>'+
@@ -116,12 +118,16 @@ function makeQuoteHtml(q:Quote){
  (q.optional_extras||[]).map(e=>'<div class="extraRow">'+html(e.name)+' — +'+money(e.price)+' (before any applicable VAT)</div>').join('')+
  '<div class="subjectText">Optional upgrades require separate agreement and are not in the total shown above.</div></div>':'')+
  (q.notes?'<div class="note"><div class="label">Additional notes</div>'+html(q.notes)+'</div>':'')+
- '<div class="foot">This is a quotation, not an invoice. Prices are subject to the stated validity and scope. Created with Tradarr.</div>'+
+ '<div class="foot">This quotation is not an invoice or a request for payment. Changes to the agreed scope may require a revised quotation. Created with Tradarr.</div>'+
  '</main></body></html>';
 }
-function Field({name,value,change,multi,placeholder}:{name:string;value:string;change:(v:string)=>void;multi?:boolean;placeholder?:string}){
+function Field({name,value,change,multi,placeholder,numeric,onFocus}:{
+ name:string;value:string;change:(v:string)=>void;multi?:boolean;placeholder?:string;
+ numeric?:boolean;onFocus?:()=>void;
+}){
  return <View style={s.field}><Text style={s.label}>{name}</Text><TextInput value={value} onChangeText={change}
- style={[s.input,multi&&{minHeight:76}]} multiline={multi} textAlignVertical={multi?'top':'center'}
+ style={[s.input,multi&&{minHeight:95}]} multiline={multi} textAlignVertical={multi?'top':'center'}
+ keyboardType={numeric?'decimal-pad':'default'} onFocus={onFocus}
  placeholder={placeholder} placeholderTextColor="#94A1A4"/></View>;
 }
 function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>void}){
@@ -131,6 +137,8 @@ function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>
 export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated}:{
  goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void;onMaterialsCreated:(kitId:string)=>void;
 }){
+ const scrollRef=useRef<ScrollView>(null);
+ const bringBottomIntoView=()=>{setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),360);};
  const [uid,setUid]=useState('');
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
@@ -219,7 +227,14 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   if(c){setCustomerName(c.name);setCustomerAddress(c.address||'');setCustomerEmail(c.email||'');setCustomerPhone(c.phone||'');}
   setShowPicker(false);
  };
- const addLine=(kind:Kind)=>{setLines(old=>[...old.filter(l=>l.description.trim()||l.unit_price.trim()),{kind,description:'',quantity:'1',unit_price:'',unit:kind==='labour'?'job':'each'}])};
+ const addLine=(kind:Kind)=>{setLines(old=>[...old.filter(l=>l.description.trim()||l.unit_price.trim()),{kind,description:'',quantity:'1',unit_price:'',unit:kind==='labour'?'job':kind==='material'?'item':'job'}])};
+ const choicesFor=(kind:Kind):string[]=>
+   kind==='labour'?['job','hour','day','radiator','valve','room','visit','item']:
+   kind==='material'?['item','radiator','valve','metre','box','pack','roll','set']:
+   ['job','item','hour','visit'];
+ const changeUnit=(index:number,unit:string)=>{
+   setLines(old=>old.map((line,i)=>i===index?{...line,unit,quantity:unit==='job'?'1':line.quantity}:line));
+ };
  const updateLine=(index:number,patch:Partial<DraftLine>)=>setLines(old=>old.map((l,i)=>i===index?{...l,...patch}:l));
  const saveQuote=async()=>{
   if(saving||!uid)return;
@@ -231,9 +246,9 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   }
   if(vatRate>0&&!vatNumber.trim()){Alert.alert('VAT number needed','Only VAT-registered businesses should charge VAT. Enter a VAT number or choose No VAT.');return;}
   const items=lines.map(l=>({kind:l.kind,description:l.description.trim(),quantity:val(l.quantity),unit_price:val(l.unit_price),unit:l.unit}));
-  if(!items.length||items.some(l=>!l.description||!Number.isFinite(l.quantity)||l.quantity<=0||l.quantity>100000||
+  if(!items.length||items.some(l=>!l.description||hasInvalidTradeQuantity(l.quantity,l.unit)||
    !Number.isFinite(l.unit_price)||l.unit_price<0||l.unit_price>1000000)||total<=0){
-   Alert.alert('Check the prices','Add a description, positive quantity and valid price for each line.');return;
+   Alert.alert('Check the quote lines','Add a description and valid price for each line. Fixed-price work must be 1 job. For several radiators or valves, choose the appropriate unit (e.g. 3 radiators).');return;
   }
   if(!Number.isFinite(val(deposit))||val(deposit)<0||val(deposit)>100){
    Alert.alert('Check deposit','Enter a percentage between 0 and 100.');return;
@@ -411,7 +426,11 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
          <Send size={16} color={C.teal}/><Text style={s.partsActionText}>Prepare follow-up message</Text></MotionPressable>:null}
        <Text style={s.previewHint}>Statuses are marked manually. Sharing a PDF does not mean the customer has accepted it.</Text>
     </View>
-   </View>:<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+   </View>:<ScrollView ref={scrollRef} style={{flex:1}}
+     contentContainerStyle={[s.page,{paddingBottom:180}]}
+     automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
+     keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}
+     keyboardShouldPersistTaps="handled">
     <View style={s.stepBanner}>
       <Text style={s.stepSmall}>CUSTOMER PROPOSAL · {stage==='scope'?'STEP 1 OF 2':'STEP 2 OF 2'}</Text>
       <Text style={s.stepTitle}>{stage==='scope'?'Plan the work':'Price the job'}</Text>
@@ -449,7 +468,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
           placeholder="e.g. Isolate heating, replace valves, refill and test the system"/>
         <Field name="What's NOT included?" value={excluded} change={setExcluded} multi
           placeholder="e.g. Making good existing damaged plasterwork"/>
-        <Field name="Estimated time on site" value={duration} change={setDuration} placeholder="e.g. Half a day, subject to access"/>
+        <Field name="Estimated time on site" value={duration} change={setDuration} onFocus={bringBottomIntoView}
+          placeholder="e.g. 2 days, subject to access"/>
       </View>
       <MotionPressable style={s.primary} onPress={()=>{
         if(!customerName.trim()||!customerAddress.trim()||!title.trim()){
@@ -474,11 +494,12 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
      <View style={s.sectionRow}><Text style={s.lineTitle}>{label(v.kind)} · {lines.slice(0,i+1).filter(x=>x.kind===v.kind).length}</Text>
       {lines.length>1?<MotionPressable onPress={()=>setLines(old=>old.filter((_,j)=>j!==i))}><Trash2 size={18} color={C.coralDark}/></MotionPressable>:null}</View>
      <Field name="Work or item description *" value={v.description} change={x=>updateLine(i,{description:x})} placeholder="e.g. Fit pipework"/>
-     <View style={s.two}><View style={{flex:1}}><Field name="Quantity" value={v.quantity} change={x=>updateLine(i,{quantity:x})}/></View>
-      <View style={{flex:1}}><Field name="Unit price (£)" value={v.unit_price} change={x=>updateLine(i,{unit_price:x})} placeholder="0.00"/></View></View>
-     <View style={s.pills}>{(v.kind==='labour'?['job','hour']:['each','metre']).map(unit=>
-      <Pill key={unit} name={'Per '+unit} selected={v.unit===unit} onPress={()=>updateLine(i,{unit})}/>)}</View>
-     <Text style={s.lineTotal}>Line total {money(pennies(v)/100)}</Text>
+     <View style={s.two}><View style={{flex:1}}><Field name="Quantity" numeric value={v.quantity} change={x=>updateLine(i,{quantity:x})}/></View>
+      <View style={{flex:1}}><Field name="Price per unit (£)" numeric value={v.unit_price} change={x=>updateLine(i,{unit_price:x})} placeholder="0.00"/></View></View>
+     <View style={s.pills}>{choicesFor(v.kind).map(unit=>
+      <Pill key={unit} name={unitOptionLabel(unit)} selected={v.unit===unit} onPress={()=>changeUnit(i,unit)}/>)}</View>
+     <Text style={s.lineTotal}>Customer sees: {formatTradeQuantity(v.quantity,v.unit)} × {money(val(v.unit_price)||0)} = {money(pennies(v)/100)}</Text>
+     {v.unit==='job'&&val(v.quantity)!==1?<Text style={s.unitWarning}>Fixed-price work must be 1 job. Choose Per radiator, Per valve or Per item for multiple units.</Text>:null}
     </View>)}
     <MotionPressable style={s.extraLine} onPress={()=>addLine('other')}><Plus size={16} color={C.teal}/>
      <Text style={s.extraLineText}>Add call-out fee or other charge</Text></MotionPressable>
@@ -568,6 +589,7 @@ const s=StyleSheet.create({
  pipelineHint:{fontSize:11,color:C.muted,marginTop:5,lineHeight:16},
  partsAction:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,padding:10,marginTop:8},
  partsActionText:{fontSize:12,fontWeight:'800',color:C.teal},
+ unitWarning:{fontSize:11,lineHeight:17,color:C.coralDark,marginTop:9},
 
  stepBanner:{backgroundColor:C.darkTeal,borderRadius:25,padding:22,marginBottom:13},
  stepSmall:{fontSize:10,color:'#B4D6D2',letterSpacing:1.4,fontWeight:'800'},
