@@ -94,6 +94,8 @@ create index if not exists trade_appointments_owner_date_idx on public.trade_app
 -- Add a quote reference so converted invoices can be traced back without duplicating work.
 alter table public.trade_invoices
   add column if not exists quote_id uuid references public.trade_quotes(id) on delete set null;
+alter table public.trade_invoices
+  add column if not exists customer_id uuid references public.trade_customers(id) on delete set null;
 create unique index if not exists trade_invoices_quote_once_idx
   on public.trade_invoices(quote_id) where quote_id is not null;
 
@@ -172,6 +174,7 @@ with check (
   and (quote_id is null or exists (
     select 1 from public.trade_quotes q where q.id=quote_id and q.tradesperson_id=(select auth.uid())
   ))
+  and trade_private.same_owner_customer(customer_id,tradesperson_id)
   and (
     (source = 'external' and app_job_id is null and urgent_request_id is null)
     or (source = 'app' and (
