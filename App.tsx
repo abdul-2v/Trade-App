@@ -7,10 +7,12 @@ import TradeInvoicesScreen from './TradeInvoicesScreen';
 import TradeQuotesScreen from './TradeQuotesScreen';
 import TradeCustomersScreen from './TradeCustomersScreen';
 import TradeDiaryScreen from './TradeDiaryScreen';
+import TradeProfitScreen from './TradeProfitScreen';
+import TradeMaterialsScreen from './TradeMaterialsScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
-import { FileText, Users, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
+import { FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -81,7 +83,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -670,6 +672,12 @@ export default function App() {
       onInvoiceCreated={id => { setInvoicePreviewId(id); setTradeScreen('tradeInvoices'); }} /></TradeShell>;
     if (tradeScreen === 'tradeCustomers') return <TradeShell current="tradeCustomers" navigate={navigateTrade}><TradeCustomersScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeDiary') return <TradeShell current="tradeDiary" navigate={navigateTrade}><TradeDiaryScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
+    if (tradeScreen === 'tradeProfit') return <TradeShell current="tradeProfit" navigate={navigateTrade}>
+      <TradeProfitScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
+    if (tradeScreen === 'tradeMaterials') return <TradeShell current="tradeMaterials" navigate={navigateTrade}>
+      <TradeMaterialsScreen goBack={() => navigateTrade('tradeTools')}
+        openMerchants={() => navigateTrade('tradeMap')}
+        openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
     if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
@@ -5482,7 +5490,7 @@ function TradeShell({
       <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary'].includes(current));
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -5515,7 +5523,9 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
   {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Quotes & estimates',detail:'Build quotes, share PDFs and convert to invoices'},
   {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Invoices & payments',detail:'Create bills and track sent or paid invoices'},
   {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
-  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'}
+  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
+  {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
+  {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'}
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
   <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
@@ -5531,6 +5541,21 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
       <View style={styles.tradeToolsQuickIcon}><Icon size={23} color={theme.colors.teal} strokeWidth={2}/></View>
       <Text style={styles.tradeToolsQuickName}>{title}</Text><Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
     </MotionPressable>)}
+   </View>
+   <Text style={styles.tradeToolsSectionTitle}>Make every job count</Text>
+   <View style={styles.tradeToolsPowerRow}>
+     <MotionPressable onPress={()=>navigate('tradeProfit')} style={[styles.tradeToolsPowerCard,{backgroundColor:theme.colors.darkTeal}]}
+       accessibilityRole="button" accessibilityLabel="Open Job Profit calculator">
+       <TrendingUp size={24} color="#B8DAD5" strokeWidth={2}/>
+       <Text style={styles.tradeToolsPowerTitle}>Know your profit</Text>
+       <Text style={styles.tradeToolsPowerText}>Compare what you charge with materials, labour and travel costs.</Text>
+     </MotionPressable>
+     <MotionPressable onPress={()=>navigate('tradeMaterials')} style={[styles.tradeToolsPowerCard,{backgroundColor:'#245758'}]}
+       accessibilityRole="button" accessibilityLabel="Open materials checklist">
+       <Package size={24} color="#D8ECE8" strokeWidth={2}/>
+       <Text style={styles.tradeToolsPowerTitle}>Never forget parts</Text>
+       <Text style={styles.tradeToolsPowerText}>Plan what to buy, tick it off and find nearby merchants.</Text>
+     </MotionPressable>
    </View>
    <Text style={styles.tradeToolsSectionTitle}>Manage your business</Text>
    <View style={styles.tradeToolsList}>
@@ -9889,6 +9914,10 @@ const styles = StyleSheet.create({
   tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
 
   // Premium pro UI – shared across the tradesperson tabs.
+  tradeToolsPowerRow: {flexDirection:'row',justifyContent:'space-between',gap:11,marginBottom:25},
+  tradeToolsPowerCard: {width:'48%',minHeight:172,borderRadius:23,padding:17,justifyContent:'space-between'},
+  tradeToolsPowerTitle: {color:'#FFFFFF',fontSize:16,fontWeight:'800',marginTop:12,lineHeight:22},
+  tradeToolsPowerText: {color:'#D5E6E2',fontSize:11,lineHeight:17,marginTop:7},
   tradeToolsSectionTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.ink, marginTop: 11, marginBottom: 14 },
   tradeToolsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginBottom: 26 },
   tradeToolsQuick: { width: '48%', minHeight: 140, backgroundColor: theme.colors.white, borderRadius: 23, padding: 15, ...theme.shadow },
