@@ -16,6 +16,7 @@ const numericValue = (value: string | number) => Number(String(value).replace(',
 const linePence = (line: { quantity: string | number; unit_price: string | number }) =>
   Math.round(Math.max(0, numericValue(line.quantity) || 0) * Math.round(Math.max(0, numericValue(line.unit_price) || 0) * 100));
 type InvoiceCustomerDetails = { source_kind: 'job' | 'urgent'; source_id: string; customer_name: string; billing_address: string };
+type SavedCustomer = { id: string; name: string; email: string | null; address: string | null };
 type AppJob = {
   key: string; id: string; kind: 'job' | 'urgent'; customer_id: string;
   trade: string; issue: string; customerName: string; address: string; suggestedPrice: number;
@@ -155,7 +156,7 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
   </MotionPressable>;
 }
 
-export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) {
+export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBack: () => void; initialPreviewId?: string | null }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
@@ -163,6 +164,9 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [jobs, setJobs] = useState<AppJob[]>([]);
+  const [savedCustomers, setSavedCustomers] = useState<SavedCustomer[]>([]);
+  const [customerBookOpen, setCustomerBookOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [userId, setUserId] = useState('');
   const [source, setSource] = useState<'external' | 'app'>('external');
   const [selectedJob, setSelectedJob] = useState<string | null>(null);
@@ -202,17 +206,23 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         const user = auth.user;
         if (!user || !alive) return;
         setUserId(user.id);
-        const [saved, profile, business, regular, urgent, customerDetails] = await Promise.all([
+        const [saved, profile, business, regular, urgent, customerDetails, privateCustomers] = await Promise.all([
           supabase.from('trade_invoices').select('*').eq('tradesperson_id', user.id).order('created_at', { ascending: false }).limit(100),
           supabase.from('profiles').select('first_name, last_name, phone').eq('id', user.id).maybeSingle(),
           supabase.from('tradesperson_profiles').select('business_name, display_name, public_phone, primary_trade').eq('user_id', user.id).maybeSingle(),
           supabase.from('jobs').select('id,customer_id,trade,issue,location_label,standard_price,route_price,job_mode,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
           supabase.from('urgent_requests').select('id,customer_id,trade,issue,location_label,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
           supabase.rpc('trade_invoice_customer_details'),
+          supabase.from('trade_customers').select('id,name,email,address').eq('tradesperson_id', user.id).order('name'),
         ]);
         if (!alive) return;
         const docs = (saved.data || []) as Invoice[];
         setInvoices(docs);
+        setSavedCustomers((privateCustomers.data || []) as SavedCustomer[]);
+        if (initialPreviewId && docs.some(doc => doc.id === initialPreviewId)) {
+          setSelectedInvoiceId(initialPreviewId);
+          setScreen('preview');
+        }
         const last = docs[0];
         setBusinessName(last?.business_name || business.data?.business_name || business.data?.display_name || '');
         setLegalName(last?.business_legal_name || [profile.data?.first_name, profile.data?.last_name].filter(Boolean).join(' '));
@@ -251,6 +261,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   }, []);
 
   const pickJob = (job: AppJob) => {
+    setSelectedCustomerId(null);
     setSelectedJob(job.key);
     setCustomerName(job.customerName || '');
     setCustomerAddress(job.address || '');
@@ -258,7 +269,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     setLines([{ kind: 'labour', description: job.issue, quantity: '1', unit_price: job.suggestedPrice ? String(job.suggestedPrice) : '', unit: 'job' }]);
   };
   const startNew = () => {
-    setSource('external'); setSelectedJob(null); setCustomerName(''); setCustomerAddress('');
+    setSource('external'); setSelectedJob(null); setSelectedCustomerId(null); setCustomerBookOpen(false); setCustomerName(''); setCustomerAddress('');
     setCustomerEmail(''); setDescription(''); setNotes('');
     setIncludePaymentDetails(false); setSelectedInvoiceId(null);
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
@@ -325,7 +336,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     setSaving(true);
     try {
       const payload = {
-        tradesperson_id: userId, invoice_no: 0,
+        tradesperson_id: userId, invoice_no: 0, customer_id: source === 'external' ? selectedCustomerId : null,
         source, app_job_id: source === 'app' && job?.kind === 'job' ? job.id : null,
         urgent_request_id: source === 'app' && job?.kind === 'urgent' ? job.id : null,
         business_name: businessName.trim(), business_legal_name: legalName.trim() || null,
@@ -471,6 +482,23 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         </View>
 
         <Text style={s.section}>Bill to</Text>
+        {source === 'external' ? <View style={{ marginBottom: 10 }}>
+          <MotionPressable onPress={() => setCustomerBookOpen(v => !v)} style={s.customerPicker}
+            accessibilityRole="button" accessibilityLabel="Choose customer from saved customer book">
+            <Text style={s.customerPickerLabel}>{selectedCustomerId ? savedCustomers.find(c => c.id === selectedCustomerId)?.name : 'Choose saved customer (optional)'}</Text>
+            <ChevronRight size={18} color={theme.colors.teal} />
+          </MotionPressable>
+          {customerBookOpen ? <View style={s.customerPickerList}>
+            <MotionPressable style={s.customerPickerRow} onPress={() => { setSelectedCustomerId(null); setCustomerBookOpen(false); }}>
+              <Text style={s.customerPickerText}>Enter new customer</Text>
+            </MotionPressable>
+            {savedCustomers.map(customer => <MotionPressable key={customer.id} style={s.customerPickerRow}
+              onPress={() => { setSelectedCustomerId(customer.id); setCustomerName(customer.name);
+                setCustomerAddress(customer.address || ''); setCustomerEmail(customer.email || ''); setCustomerBookOpen(false); }}>
+              <Text style={s.customerPickerText}>{customer.name}</Text>
+            </MotionPressable>)}
+          </View> : null}
+        </View> : null}
         <View style={s.card}>
           <Field label="Customer name / company" value={customerName} onChange={setCustomerName} required />
           <Field label="Billing address" value={customerAddress} onChange={setCustomerAddress} multi required />
@@ -609,6 +637,11 @@ const s = StyleSheet.create({
   status: { backgroundColor: theme.colors.tealTint, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 11, fontSize: 10, overflow: 'hidden', color: theme.colors.teal, fontWeight: '800' },
   paidStatus: { color: '#14744B', backgroundColor: '#E4F4EC' },
   previewAction: { backgroundColor: '#D8EAE5' },
+  customerPicker: { minHeight: 47, borderRadius: 16, backgroundColor: theme.colors.tealTint, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  customerPickerLabel: { color: theme.colors.teal, fontWeight: '800', fontSize: 13, flex: 1 },
+  customerPickerList: { backgroundColor: '#FFFFFF', marginTop: 6, paddingHorizontal: 10, borderRadius: 16, maxHeight: 200 },
+  customerPickerRow: { paddingVertical: 12, borderBottomWidth: 1, borderColor: theme.colors.line },
+  customerPickerText: { color: theme.colors.ink, fontSize: 13, fontWeight: '700' },
   optionalToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   previewRoot: { flex: 1, backgroundColor: theme.colors.proBackground },
   previewInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 21, paddingVertical: 13, gap: 15 },
