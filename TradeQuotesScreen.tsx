@@ -238,7 +238,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
    setTargetMargin(String(doc.target_margin??30));
    setVatRate(doc.vat_rate);setQuoteDate(day(new Date()));setValidUntil(addDays(30));
    setLines((doc.items||[]).map(line=>({kind:line.kind,description:line.description,
-     quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit||'item'})));
+     quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit==='each'?'item':line.unit||'item'})));
    setShowBusiness(false);setSelectedId(null);setStage('pricing');setScreen('new');
    Alert.alert('Creating a revised proposal','A new quote number will be issued when you save. The original quotation stays in your records. Review the quantities and units before sharing.');
  };
