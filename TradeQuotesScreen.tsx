@@ -64,6 +64,13 @@ function makeQuoteHtml(q:Quote){
  '.subject{margin:28px 0 20px;padding:17px 19px;border-left:3px solid #245758;background:#F0F6F4;overflow-wrap:anywhere}',
  '.subjectName{font-size:14px;color:#0E3038;font-weight:800}',
  '.subjectText{margin-top:5px;color:#466169;font-size:11px}',
+ '.scope{margin:20px 0 24px;overflow-wrap:anywhere}',
+ '.scopeTitle{font-weight:800;font-size:12px;color:#245758;margin-bottom:7px}',
+ '.scopeText{font-size:11px;line-height:1.7;color:#344C53}',
+ '.scopeBox{border-left:3px solid #245758;padding-left:15px;margin-bottom:16px}',
+ '.extraBox{margin-top:26px;padding:17px 18px;background:#F2F6F5;border-radius:9px;overflow-wrap:anywhere}',
+ '.extraRow{margin-top:9px;font-size:11px;border-bottom:1px solid #DFE7E5;padding-bottom:8px}',
+ '.deposit{margin:15px 0 0;font-size:11px;color:#245758;font-weight:800}',
  '.items{margin-top:18px}',
  '.items th{padding:12px 10px;background:#143940;color:white;text-align:left;font-size:10px}',
  '.items th.right{text-align:right}',
@@ -86,19 +93,28 @@ function makeQuoteHtml(q:Quote){
  (q.business_email?'<div>'+html(q.business_email)+'</div>':'')+
  (q.business_phone?'<div>'+html(q.business_phone)+'</div>':'')+
  (q.vat_rate&&q.vat_number?'<div>VAT: '+html(q.vat_number)+'</div>':'')+'</div></td>'+
- '<td><div class="quoteTitle">QUOTE</div><div class="quoteNo">'+quoteNo(q.quote_no)+'</div></td></tr></table>'+
+ '<td><div class="quoteTitle">PROPOSAL</div><div class="quoteNo">QUOTE '+quoteNo(q.quote_no)+'</div></td></tr></table>'+
  '<div class="line"></div><table class="info"><tr><td><div class="label">Prepared for</div>'+
  '<div class="name">'+html(q.customer_name)+'</div><div class="row">'+html(q.customer_address)+
  (q.customer_email?'<div>'+html(q.customer_email)+'</div>':'')+'</div></td>'+
  '<td><div class="label">Quote details</div><div class="row"><b>Prepared</b>'+safe(q.quote_date)+'</div>'+
  '<div class="row"><b>Valid until</b>'+safe(q.valid_until)+'</div></td></tr></table>'+
- '<div class="subject"><div class="label">Work estimate</div><div class="subjectName">'+html(q.title)+'</div>'+
+ '<div class="subject"><div class="label">Your project</div><div class="subjectName">'+html(q.title)+'</div>'+
  (q.description?'<div class="subjectText">'+html(q.description)+'</div>':'')+'</div>'+
+ '<div class="scope">'+
+ (q.scope_included?'<div class="scopeBox"><div class="scopeTitle">Included in our price</div><div class="scopeText">'+html(q.scope_included)+'</div></div>':'')+
+ (q.scope_excluded?'<div class="scopeBox"><div class="scopeTitle">What is not included</div><div class="scopeText">'+html(q.scope_excluded)+'</div></div>':'')+
+ (q.estimated_duration?'<div class="scopeBox"><div class="scopeTitle">Estimated time on site</div><div class="scopeText">'+html(q.estimated_duration)+'</div></div>':'')+
+ '</div>'+
  '<table class="items"><colgroup><col style="width:47%"/><col style="width:16%"/><col style="width:19%"/><col style="width:18%"/></colgroup>'+
  '<thead><tr><th>Task or material</th><th class="right">Qty</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
  '<table class="totals"><tr><td>Subtotal</td><td>'+money(q.subtotal)+'</td></tr>'+
  (q.vat_rate?'<tr><td>VAT ('+q.vat_rate+'%)</td><td>'+money(q.vat_amount)+'</td></tr>':'')+
- '<tr class="grand"><td>Total estimate</td><td>'+money(q.total)+'</td></tr></table>'+
+ '<tr class="grand"><td>Price for proposed work</td><td>'+money(q.total)+'</td></tr></table>'+
+ (Number(q.deposit_percent||0)>0?'<div class="deposit">Proposed deposit ('+safe(q.deposit_percent)+'%): '+money(Math.round(q.total*Number(q.deposit_percent)/100*100)/100)+' · not charged automatically</div>':'')+
+ ((q.optional_extras||[]).length?'<div class="extraBox"><div class="label">Optional upgrades · not included above</div>'+
+ (q.optional_extras||[]).map(e=>'<div class="extraRow">'+html(e.name)+' — +'+money(e.price)+' (before any applicable VAT)</div>').join('')+
+ '<div class="subjectText">Optional upgrades require separate agreement and are not in the total shown above.</div></div>':'')+
  (q.notes?'<div class="note"><div class="label">Additional notes</div>'+html(q.notes)+'</div>':'')+
  '<div class="foot">This is a quotation, not an invoice. Prices are subject to the stated validity and scope. Created with Tradarr.</div>'+
  '</main></body></html>';
