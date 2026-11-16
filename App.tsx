@@ -6239,10 +6239,12 @@ function TradeHomeScreen({
 
 function TradeJobsScreen({
   navigate,
+  jobsEntry,
 }: {
   screen: TradeScreen;
   navigate: (screen: TradeScreen) => void;
   switchToCustomer: () => void;
+  jobsEntry: TradeJobsEntry;
 }) {
   type OfferJob = {
     offerId: string;
@@ -6269,7 +6271,25 @@ function TradeJobsScreen({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [marketJobs, setMarketJobs] = useState<MarketOfferJob[]>([]);
   const [loadingMarket, setLoadingMarket] = useState(true);
-  const [jobsView, setJobsView] = useState<'offers' | 'active'>('offers');
+  const [jobsView, setJobsView] = useState<'offers' | 'active'>(jobsEntry.view);
+  const [offerFilter, setOfferFilter] = useState<TradeJobsEntry['filter']>(jobsEntry.filter);
+  const [flexibleMode, setFlexibleMode] = useState<'all' | 'normal' | 'route' | 'street_run'>('all');
+  const [showJobGuide, setShowJobGuide] = useState(false);
+  const [isReceivingOffers, setIsReceivingOffers] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const checkAvailability = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !alive) return;
+      const { data } = await supabase.from('trade_availability')
+        .select('is_available,available_until').eq('user_id', user.id).maybeSingle();
+      if (alive) setIsReceivingOffers(Boolean(data?.is_available &&
+        (!data.available_until || new Date(data.available_until).getTime() > Date.now())));
+    };
+    checkAvailability();
+    return () => { alive = false; };
+  }, []);
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
@@ -6794,6 +6814,14 @@ function TradeJobsScreen({
   const marketOffered = marketJobs.filter(
     job => job.offerStatus === 'offered' && ['posted', 'offered'].includes(job.request.status)
   );
+  const filteredMarketOffers = marketOffered.filter(job =>
+    flexibleMode === 'all' || job.request.job_mode === flexibleMode
+  );
+  const offerFilterDescription = offerFilter === 'urgent'
+    ? 'Fast-response call-outs matched to your trade and work radius.'
+    : offerFilter === 'flexible'
+      ? 'Scheduled bookings and jobs that fit a route or local area.'
+      : 'These are offers matched to you, not a public list of every job. Choose a type to narrow the list.';
 
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
@@ -6812,6 +6840,33 @@ function TradeJobsScreen({
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </MotionPressable>
         </View>
+        <MotionPressable style={styles.tradeHowToggle} onPress={() => setShowJobGuide(value => !value)}
+          accessibilityRole="button" accessibilityState={{ expanded: showJobGuide }}
+          accessibilityLabel="How getting jobs on Tradarr works">
+          <CircleHelp size={21} color={theme.colors.teal} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tradeHowToggleTitle}>How do I get jobs?</Text>
+            <Text style={styles.tradeHowToggleSub}>Go online → review matches → accept work</Text>
+          </View>
+          <ChevronRight size={20} color={theme.colors.teal}
+            style={showJobGuide ? { transform: [{ rotate: '90deg' }] } : undefined} />
+        </MotionPressable>
+        {showJobGuide ? (
+          <View style={styles.tradeHowPanel}>
+            {([
+              ['1', 'Go online on Home', 'Set where you work and how far you can travel.'],
+              ['2', 'Check your offers', 'Matched customer requests appear here. Accept or decline each offer.'],
+              ['3', 'Manage your jobs', 'Accepted jobs move to Active, where you can update their progress.'],
+            ] as const).map(([number, title, detail]) => (
+              <View key={number} style={styles.tradeHowStep}>
+                <View style={styles.tradeHowNumber}><Text style={styles.tradeHowNumberText}>{number}</Text></View>
+                <View style={{ flex: 1 }}><Text style={styles.tradeHowStepTitle}>{title}</Text>
+                  <Text style={styles.tradeHowStepDetail}>{detail}</Text></View>
+              </View>
+            ))}
+            <Text style={styles.tradeHowExtra}>On My Way matches work to an existing journey. Street Run groups nearby jobs in the same area.</Text>
+          </View>
+        ) : null}
         <View style={styles.premiumJobOverview}>
           <View style={styles.premiumJobMetric}>
             <Text style={styles.premiumJobMetricNumber}>{active.length + marketActive.length}</Text>
@@ -6827,6 +6882,17 @@ function TradeJobsScreen({
             <Text style={styles.premiumOverviewNoteText}>Offers refresh automatically while the app is open</Text>
           </View>
         </View>
+        {isReceivingOffers === false ? (
+          <MotionPressable style={styles.tradeOfflineBanner} onPress={() => navigate('tradeHome')}
+            accessibilityRole="button" accessibilityLabel="Go to Home to turn availability on">
+            <View style={styles.tradeOfflineDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tradeOfflineTitle}>You're currently offline</Text>
+              <Text style={styles.tradeOfflineSub}>Turn on availability on Home to receive nearby live offers.</Text>
+            </View>
+            <ChevronRight size={19} color={theme.colors.teal} />
+          </MotionPressable>
+        ) : null}
         <View style={styles.premiumSegment}>
           <MotionPressable onPress={() => setJobsView('offers')} style={[styles.premiumSegmentTab, jobsView === 'offers' && styles.premiumSegmentActive]}
             accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'offers' }}>
@@ -6837,6 +6903,54 @@ function TradeJobsScreen({
             <Text style={[styles.premiumSegmentText, jobsView === 'active' && styles.premiumSegmentTextActive]}>Active</Text>
           </MotionPressable>
         </View>
+        {jobsView === 'offers' ? (
+          <>
+            <View style={styles.tradeOfferFilterRow}>
+              {([
+                ['all', 'All', offered.length + marketOffered.length],
+                ['urgent', 'Urgent', offered.length],
+                ['flexible', 'Flexible', marketOffered.length],
+              ] as const).map(([value, title, count]) => (
+                <MotionPressable key={value} onPress={() => { setOfferFilter(value); setFlexibleMode('all'); }}
+                  accessibilityRole="tab" accessibilityLabel={title + ' job offers'}
+                  accessibilityState={{ selected: offerFilter === value }}
+                  style={[styles.tradeOfferFilter, offerFilter === value && styles.tradeOfferFilterActive]}>
+                  <Text style={[styles.tradeOfferFilterText, offerFilter === value && styles.tradeOfferFilterTextActive]}>
+                    {title} · {count}
+                  </Text>
+                </MotionPressable>
+              ))}
+            </View>
+            <Text style={styles.tradeOfferExplanation}>{offerFilterDescription}</Text>
+            {offerFilter === 'flexible' ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.tradeModeOptions}>
+                  {([
+                    ['all', 'All flexible'],
+                    ['normal', 'Bookings'],
+                    ['route', 'On My Way'],
+                    ['street_run', 'Street Run'],
+                  ] as const).map(([mode, label]) => (
+                    <MotionPressable key={mode} onPress={() => setFlexibleMode(mode)}
+                      accessibilityRole="tab" accessibilityState={{ selected: flexibleMode === mode }}
+                      style={[styles.tradeModeChip, flexibleMode === mode && styles.tradeModeChipActive]}>
+                      <Text style={[styles.tradeModeChipLabel, flexibleMode === mode && styles.tradeModeChipLabelActive]}>{label}</Text>
+                    </MotionPressable>
+                  ))}
+                </ScrollView>
+                <Text style={styles.tradeModeExplanation}>
+                  {flexibleMode === 'route' ? 'On My Way offers aim to fit journeys you are already making.'
+                    : flexibleMode === 'street_run' ? 'Street Run offers focus on jobs close together in a local area.'
+                      : flexibleMode === 'normal' ? 'Bookings are customer requests for planned or flexible appointments.'
+                        : 'Choose Bookings, On My Way or Street Run to see how each type of work fits your day.'}
+                </Text>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.tradeOfferExplanation}>Track accepted jobs, get directions and update each stage until completion.</Text>
+        )}
         {jobsView === 'active' ? (
           <>
         {active.length ? (
