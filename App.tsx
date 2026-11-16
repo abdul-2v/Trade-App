@@ -9,6 +9,8 @@ import TradeCustomersScreen from './TradeCustomersScreen';
 import TradeDiaryScreen from './TradeDiaryScreen';
 import TradeProfitScreen from './TradeProfitScreen';
 import TradeMaterialsScreen from './TradeMaterialsScreen';
+import CustomerQuotesScreen from './CustomerQuotesScreen';
+import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
@@ -80,6 +82,8 @@ type CustomerScreen =
   | 'booking'
   | 'requests'
   | 'requestDetail'
+  | 'customerQuotes'
+  | 'myHome'
   | 'messages'
   | 'customerProfile';
 
@@ -928,6 +932,17 @@ export default function App() {
   if (customerScreen === 'messages') {
     return <MessagesScreen navigate={setCustomerScreen} />;
   }
+  if (customerScreen === 'customerQuotes') {
+    return <CustomerShell current="requests" navigate={setCustomerScreen}>
+      <CustomerQuotesScreen goBack={() => setCustomerScreen('requests')}
+        openActivity={() => setCustomerScreen('requests')}/>
+    </CustomerShell>;
+  }
+  if (customerScreen === 'myHome') {
+    return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
+      <CustomerHomePassportScreen goBack={() => setCustomerScreen('customerProfile')}/>
+    </CustomerShell>;
+  }
 
   if (customerScreen === 'customerProfile') {
     return (
@@ -1148,6 +1163,27 @@ function MarketplaceHomeScreen({
             </View>
             <Text style={styles.customerActionTitle}>Fit a local route</Text>
             <Text style={styles.customerActionBody}>Nearby pros may fit your job around other work.</Text>
+          </MotionPressable>
+        </View>
+
+        <View style={styles.customerWorkHubHeader}>
+          <Text style={styles.customerSectionTitle}>Your home, sorted</Text>
+          <Text style={styles.customerSectionSub}>Keep track of the work — before and after it's done.</Text>
+        </View>
+        <View style={styles.customerWorkHubRow}>
+          <MotionPressable style={styles.customerWorkHubCard} onPress={() => navigate('customerQuotes')}
+            accessibilityRole="button" accessibilityLabel="Open Quote Centre">
+            <View style={styles.customerWorkHubIcon}><FileText size={21} color={theme.colors.teal}/></View>
+            <Text style={styles.customerWorkHubTitle}>Review quotes</Text>
+            <Text style={styles.customerWorkHubSub}>Compare prices and approve work</Text>
+            <ChevronRight color={theme.colors.teal} size={18}/>
+          </MotionPressable>
+          <MotionPressable style={styles.customerWorkHubCard} onPress={() => navigate('myHome')}
+            accessibilityRole="button" accessibilityLabel="Open My Home">
+            <View style={styles.customerWorkHubIcon}><HomeIcon size={21} color={theme.colors.teal}/></View>
+            <Text style={styles.customerWorkHubTitle}>My Home</Text>
+            <Text style={styles.customerWorkHubSub}>Repairs, warranties and reminders</Text>
+            <ChevronRight color={theme.colors.teal} size={18}/>
           </MotionPressable>
         </View>
 
@@ -4002,6 +4038,22 @@ function RequestsScreen({
       <ScrollView style={styles.customerActivityScreen} contentContainerStyle={styles.customerActivityContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.customerActivityTitle}>Activity</Text>
         <Text style={styles.customerActivitySub}>{active.length ? active.length + ' open request' + (active.length === 1 ? '' : 's') : 'Your requests and bookings'}</Text>
+        <View style={styles.customerActivityQuoteRow}>
+          <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('customerQuotes')}
+            accessibilityRole="button" accessibilityLabel="View customer quotes">
+            <View style={styles.customerActivityQuoteIcon}><FileText size={22} color={theme.colors.teal}/></View>
+            <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>Quote Centre</Text>
+              <Text style={styles.customerActivityQuoteSub}>Review, compare and accept proposals</Text></View>
+            <ChevronRight size={20} color={theme.colors.teal}/>
+          </MotionPressable>
+          <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('myHome')}
+            accessibilityRole="button" accessibilityLabel="Open My Home records">
+            <View style={styles.customerActivityQuoteIcon}><HomeIcon size={22} color={theme.colors.teal}/></View>
+            <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>My Home</Text>
+              <Text style={styles.customerActivityQuoteSub}>Your repair history and reminders</Text></View>
+            <ChevronRight size={20} color={theme.colors.teal}/>
+          </MotionPressable>
+        </View>
         <View style={styles.customerActivitySegment}>
           <MotionPressable onPress={() => setView('active')} style={[styles.customerActivityTab, view === 'active' && styles.customerActivityTabActive]}
             accessibilityRole="tab" accessibilityLabel="Active requests" accessibilityState={{ selected: view === 'active' }}>
@@ -10218,6 +10270,21 @@ const styles = StyleSheet.create({
   customerActivityContent: { paddingHorizontal: 23, paddingTop: 30, paddingBottom: 50 },
   customerActivityTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.95, color: theme.colors.ink },
   customerActivitySub: { fontSize: 14, color: theme.colors.muted, marginTop: 5, marginBottom: 18 },
+  customerWorkHubHeader:{marginTop:23,marginBottom:13},
+  customerWorkHubRow:{flexDirection:'row',justifyContent:'space-between',gap:11,marginBottom:26},
+  customerWorkHubCard:{width:'48%',minHeight:161,borderRadius:22,padding:15,backgroundColor:theme.colors.white,
+    justifyContent:'space-between',...theme.shadow},
+  customerWorkHubIcon:{width:39,height:39,borderRadius:13,backgroundColor:theme.colors.tealTint,
+    alignItems:'center',justifyContent:'center'},
+  customerWorkHubTitle:{fontSize:15,fontWeight:'800',color:theme.colors.ink,marginTop:10},
+  customerWorkHubSub:{fontSize:11,lineHeight:17,color:theme.colors.muted,marginTop:4,marginBottom:5},
+  customerActivityQuoteRow:{gap:9,marginTop:14,marginBottom:16},
+  customerActivityQuoteCard:{minHeight:73,borderRadius:20,backgroundColor:theme.colors.white,
+    flexDirection:'row',alignItems:'center',padding:13,gap:12,...theme.shadow},
+  customerActivityQuoteIcon:{width:43,height:43,borderRadius:14,backgroundColor:theme.colors.tealTint,
+    alignItems:'center',justifyContent:'center'},
+  customerActivityQuoteTitle:{fontSize:14,color:theme.colors.ink,fontWeight:'800'},
+  customerActivityQuoteSub:{fontSize:11,color:theme.colors.muted,lineHeight:17,marginTop:3},
   customerActivitySegment: { backgroundColor: '#EAE5DB', borderRadius: 25, padding: 5, minHeight: 54, flexDirection: 'row', gap: 5, marginBottom: 18 },
   customerActivityTab: { flex: 1, borderRadius: 21, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   customerActivityTabActive: { backgroundColor: theme.colors.darkTeal },
