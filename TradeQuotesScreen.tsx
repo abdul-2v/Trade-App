@@ -16,6 +16,8 @@ type DraftLine={kind:Kind;description:string;quantity:string;unit_price:string;u
 type Customer={id:string;name:string;phone:string|null;email:string|null;address:string|null};
 type Extra={name:string;price:number};
 type DraftExtra={name:string;price:string};
+type AppJobRecipient={id:string;customer_id:string;trade:string;issue:string;status:string;job_kind:'job'|'urgent'};
+type QuoteDelivery={id:string;quote_id:string;decision:string;feedback:string|null;customer_id:string};
 type Quote={
  id:string;tradesperson_id:string;quote_no:number;customer_id:string|null;business_name:string;business_address:string;
  business_email:string|null;business_phone:string|null;vat_number:string|null;
@@ -146,8 +148,11 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [sharing,setSharing]=useState(false);
  const [converting,setConverting]=useState(false);
  const [creatingKit,setCreatingKit]=useState(false);
+ const [sendingToApp,setSendingToApp]=useState(false);
+ const [appJobs,setAppJobs]=useState<AppJobRecipient[]>([]);
+ const [deliveries,setDeliveries]=useState<QuoteDelivery[]>([]);
  const [listFilter,setListFilter]=useState<'all'|'awaiting'|'won'>('all');
- const [screen,setScreen]=useState<'list'|'new'|'preview'>('list');
+ const [screen,setScreen]=useState<'list'|'new'|'preview'|'send'>('list');
  const [quotes,setQuotes]=useState<Quote[]>([]);
  const [customers,setCustomers]=useState<Customer[]>([]);
  const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -179,6 +184,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [vatRate,setVatRate]=useState(0);
  const [lines,setLines]=useState<DraftLine[]>([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
  const selected=quotes.find(q=>q.id===selectedId)||null;
+ const selectedDelivery=deliveries.find(d=>d.quote_id===selectedId);
  const awaitingQuotes=quotes.filter(q=>q.status==='sent');
  const wonQuotes=quotes.filter(q=>['accepted','converted'].includes(q.status));
  const displayedQuotes=quotes.filter(q=>listFilter==='all'||listFilter==='awaiting'&&q.status==='sent'||listFilter==='won'&&['accepted','converted'].includes(q.status));
@@ -196,16 +202,26 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   const {data:a}=await supabase.auth.getUser();const id=a.user?.id;
   if(!id||!alive){if(alive)setLoading(false);return}
   setUid(id);
-  const [docs,people,profile,last]=await Promise.all([
+  const [docs,people,profile,last,assignedJobs,urgentJobs,delivered]=await Promise.all([
    supabase.from('trade_quotes').select('*').eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(100),
    supabase.from('trade_customers').select('id,name,phone,email,address').eq('tradesperson_id',id).order('name'),
    supabase.from('tradesperson_profiles').select('business_name,display_name,public_phone').eq('user_id',id).maybeSingle(),
    supabase.from('trade_invoices').select('business_name,business_address,business_email,business_phone,vat_number')
     .eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(1).maybeSingle()
+   supabase.from('jobs').select('id,customer_id,trade,issue,status').eq('accepted_tradesperson_id',id)
+      .in('status',['accepted','en_route','arrived','in_progress','completed']).order('created_at',{ascending:false}).limit(50),
+   supabase.from('urgent_requests').select('id,customer_id,trade,issue,status').eq('accepted_tradesperson_id',id)
+      .in('status',['matched','en_route','arrived','completed']).order('created_at',{ascending:false}).limit(50),
+   supabase.from('trade_customer_proposals').select('id,quote_id,decision,feedback,customer_id').eq('tradesperson_id',id),
   ]);
   if(!alive)return;
   if(docs.error)Alert.alert('Unable to load quotes',docs.error.message);
   setQuotes((docs.data||[]) as Quote[]);setCustomers((people.data||[]) as Customer[]);
+  setAppJobs([
+    ...(assignedJobs.data||[]).map(v=>({...v,job_kind:'job' as const})),
+    ...(urgentJobs.data||[]).map(v=>({...v,job_kind:'urgent' as const})),
+  ]);
+  setDeliveries((delivered.data||[]) as QuoteDelivery[]);
   const latest=(docs.data||[])[0] as Quote|undefined;
   setBusinessName(latest?.business_name||last.data?.business_name||profile.data?.business_name||profile.data?.display_name||'');
   setBusinessAddress(latest?.business_address||last.data?.business_address||'');
@@ -380,11 +396,30 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
     '. Happy to discuss the scope or any optional upgrades. Thanks!'
    });}catch(e){Alert.alert('Could not share message',String(e))}
  };
- const back=()=>screen==='list'?goBack():screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
+ const sendInsideApp=async(q:Quote,job:AppJobRecipient)=>{
+  if(sendingToApp)return;
+  Alert.alert('Send quote to this customer?',
+    'Tradarr will send quote '+quoteNo(q.quote_no)+' ('+money(q.total)+') to the customer on the selected accepted job: '+job.issue+
+    '. Check that the name and scope match. This will not take a payment.',
+    [{text:'Cancel',style:'cancel'},{text:'Send in Tradarr',onPress:async()=>{
+      setSendingToApp(true);
+      const payload={quote_id:q.id,tradesperson_id:uid,customer_id:job.customer_id,
+        job_id:job.job_kind==='job'?job.id:null,urgent_request_id:job.job_kind==='urgent'?job.id:null};
+      const {data,error}=await supabase.from('trade_customer_proposals').insert(payload)
+        .select('id,quote_id,decision,feedback,customer_id').single();
+      setSendingToApp(false);
+      if(error||!data){Alert.alert('Could not deliver proposal',error?.message||'Please try again.');return;}
+      setDeliveries(old=>[data as QuoteDelivery,...old]);
+      if(q.status==='draft')await setStatus(q,'sent');
+      setScreen('preview');
+      Alert.alert('Delivered','The customer can review the quotation in their Quote Centre and respond inside Tradarr.');
+    }}]);
+ };
+ const back=()=>screen==='list'?goBack():screen==='send'?setScreen('preview'):screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
  return <View style={s.root}>
   <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan a job':'Build your price'):screen==='preview'?'Customer proposal':'Quotes'}</Text></View>
+    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan a job':'Build your price'):screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
    {screen==='list'?<MotionPressable style={s.add} onPress={newQuote}><Plus size={19} color="#FFFFFF"/><Text style={s.addText}>New</Text></MotionPressable>:null}
   </View>
   {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
@@ -419,12 +454,39 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
     </View>):<View style={s.empty}><FileText size={35} color={C.teal}/><Text style={s.emptyTitle}>No quotes yet</Text>
      <Text style={s.intro}>{listFilter==='all'?'Start with your next repair or installation proposal.':'No proposals in this category yet.'}</Text></View>}
    </ScrollView>:
+   screen==='send'&&selected?<ScrollView contentContainerStyle={s.page}>
+    <View style={s.stepBanner}><Text style={s.stepSmall}>SHARE INSIDE TRADARR</Text>
+      <Text style={s.stepTitle}>Choose the correct job</Text>
+      <Text style={s.stepDesc}>A quote can be sent directly to a customer only for an app job you have accepted. This protects private quote information.</Text>
+    </View>
+    <View style={s.projectSummary}><Text style={s.projectSummaryTitle}>{selected.title}</Text>
+      <Text style={s.projectSummarySub}>{quoteNo(selected.quote_no)} · {money(selected.total)} · Prepared for {selected.customer_name}</Text>
+    </View>
+    <Text style={s.section}>Your accepted Tradarr jobs</Text>
+    {appJobs.length?appJobs.map(job=><MotionPressable key={job.job_kind+job.id}
+       onPress={()=>{void sendInsideApp(selected,job)}} disabled={sendingToApp}
+       style={s.sendJobCard} accessibilityRole="button" accessibilityLabel={'Send to '+job.issue}>
+       <View style={{flex:1}}><Text style={s.sendJobTitle}>{job.issue}</Text>
+       <Text style={s.sendJobMeta}>{job.trade} · {job.job_kind==='urgent'?'Urgent call-out':'Scheduled job'} · {job.status}</Text></View>
+       {sendingToApp?<ActivityIndicator color={C.teal}/>:<ChevronRight size={20} color={C.teal}/>}
+    </MotionPressable>):
+      <View style={s.card}><Text style={s.sectionSub}>No accepted app jobs are linked to this tradesperson account yet. You can still share this PDF externally.</Text></View>}
+    <Text style={s.helper}>Only select a job belonging to the customer this proposal was prepared for. Sending creates a read-only customer-facing snapshot; your estimated costs and margin are not shared.</Text>
+   </ScrollView>:
    screen==='preview'&&selected?<View style={s.previewRoot}>
     <View style={s.previewInfo}><View style={{flex:1}}><Text style={s.quoteNo}>{quoteNo(selected.quote_no)} · {statusName(selected.status)}</Text>
       <Text style={s.quoteName}>{selected.customer_name}</Text></View><Text style={s.amount}>{money(selected.total)}</Text></View>
     <View style={s.previewPaper}><WebView source={{html:makeQuoteHtml(selected)}} originWhitelist={['*']}
       javaScriptEnabled={false} style={{flex:1,backgroundColor:'#FFFFFF'}}/></View>
     <View style={s.previewBottom}>
+      {selectedDelivery?<View style={s.deliveryStatus}>
+        <Text style={s.deliveryStatusTitle}>Sent in Tradarr · {selectedDelivery.decision==='pending'?'Awaiting customer decision':
+          selectedDelivery.decision==='accepted'?'Customer accepted':
+          selectedDelivery.decision==='declined'?'Customer declined':'Changes requested'}</Text>
+        {selectedDelivery.feedback?<Text style={s.deliveryStatusText}>Customer message: {selectedDelivery.feedback}</Text>:null}
+      </View>:<MotionPressable style={s.sendInApp} onPress={()=>setScreen('send')} accessibilityRole="button">
+        <Send color="#FFFFFF" size={18}/><Text style={s.sendInAppText}>Send inside Tradarr</Text><ChevronRight size={19} color="#FFFFFF"/>
+      </MotionPressable>}
       <MotionPressable style={s.primary} onPress={()=>share(selected)} disabled={sharing}><Share2 size={19} color="#FFFFFF"/>
         <Text style={s.primaryText}>{sharing?'Preparing PDF…':'Share quote PDF'}</Text></MotionPressable>
       <View style={s.statusRow}>
@@ -607,6 +669,16 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  </View>;
 }
 const s=StyleSheet.create({
+ sendJobCard:{minHeight:75,padding:16,backgroundColor:'#FFFFFF',borderRadius:20,marginBottom:10,flexDirection:'row',gap:11,alignItems:'center',...theme.shadow},
+ sendJobTitle:{fontSize:14,fontWeight:'800',color:C.ink},
+ sendJobMeta:{color:C.muted,fontSize:11,marginTop:5,lineHeight:17},
+ sendInApp:{minHeight:47,borderRadius:24,backgroundColor:'#245758',paddingHorizontal:17,marginBottom:7,
+  flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
+ sendInAppText:{fontWeight:'800',fontSize:13,color:'#FFFFFF'},
+ deliveryStatus:{padding:12,backgroundColor:C.tealTint,borderRadius:17,marginBottom:9},
+ deliveryStatusTitle:{fontSize:12,fontWeight:'800',color:C.teal},
+ deliveryStatusText:{fontSize:11,color:C.ink,lineHeight:16,marginTop:5},
+
  pipelineRow:{flexDirection:'row',gap:11,marginTop:17,marginBottom:9},
  pipelineCard:{flex:1,padding:16,backgroundColor:'#FFFFFF',borderRadius:22,...theme.shadow},
  pipelineLabel:{fontSize:11,color:C.muted,lineHeight:17},
