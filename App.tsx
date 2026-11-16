@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
+import TradeInvoicesScreen from './TradeInvoicesScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
@@ -77,7 +78,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeProfile';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeProfile' | 'tradeInvoices';
 type Mode = 'customer' | 'tradesperson';
 
 type RequestItem = {
@@ -645,6 +646,7 @@ export default function App() {
       },
     };
 
+    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={setTradeScreen}><TradeInvoicesScreen goBack={() => setTradeScreen('tradeHome')} /></TradeShell>;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
@@ -5993,6 +5995,22 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
+        <MotionPressable
+          onPress={() => navigate('tradeInvoices')}
+          accessibilityRole="button"
+          accessibilityLabel="Create and manage invoices"
+          style={{ backgroundColor: '#FFFFFF', borderRadius: 25, minHeight: 81, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 14, marginBottom: 18, ...theme.shadow }}
+        >
+          <View style={{ width: 49, height: 49, borderRadius: 17, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' }}>
+            <ClipboardList size={25} color={theme.colors.teal} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: theme.colors.ink }}>Invoices</Text>
+            <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 4 }}>Make & share professional PDFs</Text>
+          </View>
+          <ChevronRight size={21} color={theme.colors.teal} />
+        </MotionPressable>
+
         <View style={styles.proReferenceSettingsList}>
         <MotionPressable
           style={styles.proV3DetailsToggle}
@@ -7799,6 +7817,12 @@ function TradeSettingsScreen({
               <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHome')}>
                 <View style={styles.premiumChecklistIcon}><Clock3 size={20} color={theme.colors.teal} /></View>
                 <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & hours</Text>
+                <ChevronRight size={21} color={theme.colors.muted} />
+              </MotionPressable>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeInvoices')}
+                accessibilityRole="button" accessibilityLabel="Invoices">
+                <View style={styles.premiumChecklistIcon}><ClipboardList size={20} color={theme.colors.teal} /></View>
+                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Invoices & PDFs</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
               </MotionPressable>
               {['Payments & payouts', 'Notifications', 'Help & support'].map(item => (
