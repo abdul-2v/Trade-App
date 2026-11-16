@@ -4,6 +4,9 @@ import AuthScreen from './AuthScreen';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import TradeInvoicesScreen from './TradeInvoicesScreen';
+import TradeQuotesScreen from './TradeQuotesScreen';
+import TradeCustomersScreen from './TradeCustomersScreen';
+import TradeDiaryScreen from './TradeDiaryScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
@@ -78,7 +81,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -496,9 +499,11 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('customer');
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
+  const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
   const [tradeJobsEntry, setTradeJobsEntry] = useState<TradeJobsEntry>({ view: 'offers', filter: 'all' });
   const navigateTrade = (screen: TradeScreen) => {
     if (screen === 'tradeJobs') setTradeJobsEntry({ view: 'offers', filter: 'all' });
+    if (screen === 'tradeInvoices') setInvoicePreviewId(null);
     setTradeScreen(screen);
   };
   const openTradeJobs = (view: TradeJobsEntry['view'], filter: TradeJobsEntry['filter'] = 'all') => {
@@ -658,7 +663,13 @@ export default function App() {
       },
     };
 
-    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={navigateTrade}><TradeInvoicesScreen goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
+    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={navigateTrade}><TradeInvoicesScreen
+      initialPreviewId={invoicePreviewId} goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
+    if (tradeScreen === 'tradeQuotes') return <TradeShell current="tradeQuotes" navigate={navigateTrade}><TradeQuotesScreen
+      goBack={() => navigateTrade('tradeTools')}
+      onInvoiceCreated={id => { setInvoicePreviewId(id); setTradeScreen('tradeInvoices'); }} /></TradeShell>;
+    if (tradeScreen === 'tradeCustomers') return <TradeShell current="tradeCustomers" navigate={navigateTrade}><TradeCustomersScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
+    if (tradeScreen === 'tradeDiary') return <TradeShell current="tradeDiary" navigate={navigateTrade}><TradeDiaryScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
@@ -5471,7 +5482,7 @@ function TradeShell({
       <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && current === 'tradeInvoices');
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -5493,62 +5504,48 @@ function TradeShell({
   );
 }
 
-function TradeToolsScreen({ navigate }: { navigate: (screen: TradeScreen) => void }) {
-  return (
-    <TradeShell current="tradeTools" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
-        <View style={styles.premiumScreenHeading}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.premiumEyebrow}>Run your business</Text>
-            <Text style={styles.premiumPageTitle}>Tools</Text>
-            <Text style={[styles.premiumScreenSub, { marginTop: 6 }]}>
-              Simple tools that make your everyday trade work easier.
-            </Text>
-          </View>
-        </View>
-        <MotionPressable
-          style={{
-            borderRadius: 26, backgroundColor: theme.colors.white, padding: 21, marginTop: 12,
-            gap: 14, ...theme.shadow
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Open invoice creator and saved invoices"
-          onPress={() => navigate('tradeInvoices')}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{
-              backgroundColor: theme.colors.tealTint, width: 58, height: 58,
-              borderRadius: 20, justifyContent: 'center', alignItems: 'center'
-            }}>
-              <ClipboardList size={29} strokeWidth={2} color={theme.colors.teal} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 19, color: theme.colors.ink, fontWeight: '800' }}>Invoices</Text>
-              <Text style={{ fontSize: 13, color: theme.colors.muted, lineHeight: 19, marginTop: 5 }}>
-                Create, view and share invoices for any job.
-              </Text>
-            </View>
-            <ChevronRight size={22} color={theme.colors.teal} />
-          </View>
-          <View style={{
-            backgroundColor: theme.colors.darkTeal, paddingVertical: 14, borderRadius: 19,
-            flexDirection: 'row', gap: 9, justifyContent: 'center', alignItems: 'center'
-          }}>
-            <Plus size={20} color={theme.colors.white} />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: theme.colors.white }}>
-              Create or view invoices
-            </Text>
-          </View>
-        </MotionPressable>
-        <View style={{ marginTop: 27, paddingHorizontal: 3 }}>
-          <Text style={{ color: theme.colors.ink, fontWeight: '800', fontSize: 16 }}>Your business workspace</Text>
-          <Text style={{ color: theme.colors.muted, fontSize: 13, lineHeight: 21, marginTop: 7 }}>
-            This tab is where additional business features will live as Tradarr grows. Your Home and Jobs tabs stay focused on finding and managing work.
-          </Text>
-        </View>
-      </ScrollView>
-    </TradeShell>
-  );
+function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
+ const quick=[
+  {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Create a quote',detail:'Estimate a job'},
+  {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Create an invoice',detail:'Bill a customer'},
+  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add a booking',detail:'Plan an appointment'},
+  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Add a customer',detail:'Save contact details'}
+ ];
+ const sections=[
+  {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Quotes & estimates',detail:'Build quotes, share PDFs and convert to invoices'},
+  {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Invoices & payments',detail:'Create bills and track sent or paid invoices'},
+  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
+  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'}
+ ];
+ return <TradeShell current="tradeTools" navigate={navigate}>
+  <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+   <View style={styles.premiumScreenHeading}><View style={{flex:1}}>
+    <Text style={styles.premiumEyebrow}>Run your business</Text>
+    <Text style={styles.premiumPageTitle}>Tools</Text>
+    <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Quote work, manage customers and keep your diary organised.</Text>
+   </View></View>
+   <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
+   <View style={styles.tradeToolsGrid}>
+    {quick.map(({route,Icon,title,detail})=><MotionPressable key={route} style={styles.tradeToolsQuick}
+     onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={title}>
+      <View style={styles.tradeToolsQuickIcon}><Icon size={23} color={theme.colors.teal} strokeWidth={2}/></View>
+      <Text style={styles.tradeToolsQuickName}>{title}</Text><Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
+    </MotionPressable>)}
+   </View>
+   <Text style={styles.tradeToolsSectionTitle}>Manage your business</Text>
+   <View style={styles.tradeToolsList}>
+    {sections.map(({route,Icon,title,detail},index)=><MotionPressable key={route}
+     onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={'Open '+title}
+     style={[styles.tradeToolsRow,index>0&&styles.tradeToolsRowDivider]}>
+      <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal} strokeWidth={2}/></View>
+      <View style={{flex:1}}><Text style={styles.tradeToolsRowTitle}>{title}</Text>
+       <Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
+      <ChevronRight size={21} color={theme.colors.teal}/>
+    </MotionPressable>)}
+   </View>
+   <Text style={styles.tradeToolsFooter}>Your business records are private to your tradesperson account. More tools can be added here later.</Text>
+  </ScrollView>
+ </TradeShell>;
 }
 
 function TradeHomeScreen({
@@ -9892,6 +9889,19 @@ const styles = StyleSheet.create({
   tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
 
   // Premium pro UI – shared across the tradesperson tabs.
+  tradeToolsSectionTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.ink, marginTop: 11, marginBottom: 14 },
+  tradeToolsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginBottom: 26 },
+  tradeToolsQuick: { width: '48%', minHeight: 140, backgroundColor: theme.colors.white, borderRadius: 23, padding: 15, ...theme.shadow },
+  tradeToolsQuickIcon: { height: 43, width: 43, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  tradeToolsQuickName: { fontSize: 14, fontWeight: '800', color: theme.colors.ink },
+  tradeToolsQuickDesc: { fontSize: 12, color: theme.colors.muted, marginTop: 5 },
+  tradeToolsList: { backgroundColor: theme.colors.white, borderRadius: 24, paddingHorizontal: 17, ...theme.shadow },
+  tradeToolsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 88, paddingVertical: 15 },
+  tradeToolsRowDivider: { borderTopColor: theme.colors.line, borderTopWidth: 1 },
+  tradeToolsRowIcon: { width: 43, height: 43, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.tealTint },
+  tradeToolsRowTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.ink },
+  tradeToolsRowDesc: { fontSize: 12, lineHeight: 18, color: theme.colors.muted, marginTop: 4 },
+  tradeToolsFooter: { fontSize: 11, color: theme.colors.muted, lineHeight: 17, marginTop: 22, marginHorizontal: 3 },
   premiumTabBar: { height: 78, backgroundColor: theme.colors.white, borderTopWidth: 0, flexDirection: 'row', paddingHorizontal: 7, paddingTop: 6, paddingBottom: 4 },
   premiumTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   premiumTabIcon: { width: 43, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
