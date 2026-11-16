@@ -56,3 +56,18 @@ create policy "Owner edits kits" on public.trade_material_kits for update to aut
  using(tradesperson_id=(select auth.uid())) with check(tradesperson_id=(select auth.uid()));
 create policy "Owner deletes kits" on public.trade_material_kits for delete to authenticated using(tradesperson_id=(select auth.uid()));
 grant select,insert,update,delete on public.trade_material_kits to authenticated;
+
+-- Tie a shopping checklist back to the source quote, with one list per quote.
+alter table public.trade_material_kits add column if not exists source_quote_id uuid references public.trade_quotes(id) on delete set null;
+create unique index if not exists trade_material_kits_quote_unique on public.trade_material_kits(tradesperson_id,source_quote_id) where source_quote_id is not null;
+drop policy if exists "Owner creates kits" on public.trade_material_kits;
+create policy "Owner creates kits" on public.trade_material_kits for insert to authenticated
+with check(tradesperson_id=(select auth.uid())
+ and (source_quote_id is null or exists(select 1 from public.trade_quotes q
+  where q.id=source_quote_id and q.tradesperson_id=(select auth.uid()))));
+drop policy if exists "Owner edits kits" on public.trade_material_kits;
+create policy "Owner edits kits" on public.trade_material_kits for update to authenticated
+using(tradesperson_id=(select auth.uid()))
+with check(tradesperson_id=(select auth.uid())
+ and (source_quote_id is null or exists(select 1 from public.trade_quotes q
+  where q.id=source_quote_id and q.tradesperson_id=(select auth.uid()))));
