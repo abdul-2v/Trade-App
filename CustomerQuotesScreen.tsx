@@ -134,7 +134,7 @@ export default function CustomerQuotesScreen({goBack,openActivity}:{goBack:()=>v
          <Text style={s.itemTotal}>{money(chosen.document.vat_amount)}</Text></View>:null}
        <View style={s.totalRow}><Text style={s.totalLabel}>Total quoted</Text><Text style={s.totalLabel}>{money(chosen.document.total)}</Text></View>
        {Number(chosen.document.deposit_percent)>0?<Text style={s.explain}>
-         Proposed deposit: {chosen.document.deposit_percent}% ({money(chosen.document.total*chosen.document.deposit_percent/100)}).
+         Proposed deposit: {chosen.document.deposit_percent}% ({money(chosen.document.total*Number(chosen.document.deposit_percent||0)/100)}).
          No payment is taken in this screen.</Text>:null}
        {(chosen.document.optional_extras||[]).length?<View style={s.extras}><Text style={s.sectionWithin}>Optional extras — not included in total</Text>
          {(chosen.document.optional_extras||[]).map((e,i)=><Text key={i} style={s.meta}>{e.name}: +{money(e.price)} before any applicable VAT</Text>)}</View>:null}
