@@ -80,6 +80,7 @@ type CustomerScreen =
 
 type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices';
 type Mode = 'customer' | 'tradesperson';
+type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
 type RequestItem = {
   id: string;
@@ -495,6 +496,15 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('customer');
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
+  const [tradeJobsEntry, setTradeJobsEntry] = useState<TradeJobsEntry>({ view: 'offers', filter: 'all' });
+  const navigateTrade = (screen: TradeScreen) => {
+    if (screen === 'tradeJobs') setTradeJobsEntry({ view: 'offers', filter: 'all' });
+    setTradeScreen(screen);
+  };
+  const openTradeJobs = (view: TradeJobsEntry['view'], filter: TradeJobsEntry['filter'] = 'all') => {
+    setTradeJobsEntry({ view, filter });
+    setTradeScreen('tradeJobs');
+  };
   const [selectedTrade, setSelectedTrade] = useState<Trade>(trades[0]);
   const [selectedCategory, setSelectedCategory] = useState<TradeCategory | 'All'>('All');
   const [serviceIntent, setServiceIntent] = useState<{ trade: TradeCategory; service: string; timing: string } | null>(null);
@@ -639,15 +649,17 @@ export default function App() {
   if (mode === 'tradesperson') {
     const tradeProps = {
       screen: tradeScreen,
-      navigate: setTradeScreen,
+      navigate: navigateTrade,
+      openJobs: openTradeJobs,
+      jobsEntry: tradeJobsEntry,
       switchToCustomer: () => {
         setMode('customer');
         setCustomerScreen('home');
       },
     };
 
-    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={setTradeScreen}><TradeInvoicesScreen goBack={() => setTradeScreen('tradeTools')} /></TradeShell>;
-    if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={setTradeScreen} />;
+    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={navigateTrade}><TradeInvoicesScreen goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
+    if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
@@ -5542,10 +5554,12 @@ function TradeToolsScreen({ navigate }: { navigate: (screen: TradeScreen) => voi
 function TradeHomeScreen({
   navigate,
   switchToCustomer,
+  openJobs,
 }: {
   screen: TradeScreen;
   navigate: (screen: TradeScreen) => void;
   switchToCustomer: () => void;
+  openJobs: (view: TradeJobsEntry['view'], filter?: TradeJobsEntry['filter']) => void;
 }) {
   const [available, setAvailable] = useState(false);
   const [duration, setDuration] = useState('2 hours');
@@ -5990,6 +6004,45 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
+        <View style={styles.tradeDiscoverIntro}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tradeDiscoverTitle}>Find your next job</Text>
+            <Text style={styles.tradeDiscoverSubtitle}>Choose the kind of work you want to review.</Text>
+          </View>
+        </View>
+        <MotionPressable style={styles.tradeDiscoverMain} onPress={() => openJobs('offers', 'all')}
+          accessibilityRole="button" accessibilityLabel="View all matched job offers">
+          <View style={styles.tradeDiscoverMainIcon}><Search size={23} color={theme.colors.white} strokeWidth={2.2} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tradeDiscoverEyebrow}>NEW WORK</Text>
+            <Text style={styles.tradeDiscoverMainTitle}>View job offers</Text>
+            <Text style={styles.tradeDiscoverMainSub}>Review work matched to your trade and area</Text>
+          </View>
+          <ArrowRight size={20} color={theme.colors.white} strokeWidth={2.4} />
+        </MotionPressable>
+        <View style={styles.tradeDiscoverChoices}>
+          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
+            accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
+            <View style={[styles.tradeDiscoverChoiceIcon, { backgroundColor: theme.colors.coralTint }]}>
+              <Zap size={22} color={theme.colors.coralDark} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.tradeDiscoverChoiceTitle}>Urgent call-outs</Text>
+            <Text style={styles.tradeDiscoverChoiceSub}>Jobs needing a quick response</Text>
+            <View style={styles.tradeDiscoverChoiceFoot}><Text style={styles.tradeDiscoverChoiceLink}>See urgent offers</Text>
+              <ArrowRight size={14} color={theme.colors.teal} /></View>
+          </MotionPressable>
+          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
+            accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
+            <View style={[styles.tradeDiscoverChoiceIcon, { backgroundColor: theme.colors.tealTint }]}>
+              <Route size={22} color={theme.colors.teal} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.tradeDiscoverChoiceTitle}>Flexible jobs</Text>
+            <Text style={styles.tradeDiscoverChoiceSub}>Bookings, On My Way and Street Run</Text>
+            <View style={styles.tradeDiscoverChoiceFoot}><Text style={styles.tradeDiscoverChoiceLink}>See flexible offers</Text>
+              <ArrowRight size={14} color={theme.colors.teal} /></View>
+          </MotionPressable>
+        </View>
+
         <MotionPressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
           accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
           <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
@@ -6010,7 +6063,7 @@ function TradeHomeScreen({
         </View>
 
         {incomingOffers.length ? incomingOffers.map(offer => (
-          <MotionPressable key={offer.offerId} onPress={() => navigate('tradeJobs')}
+          <MotionPressable key={offer.offerId} onPress={() => openJobs('offers', 'urgent')}
             style={styles.premiumOfferCard} accessibilityRole="button" accessibilityLabel={'View ' + offer.issue + ' job'}>
             <View style={styles.premiumOfferHeading}>
               <View style={styles.premiumUrgentTag}><Text style={styles.premiumUrgentText}>{offer.urgency || 'REQUEST'}</Text></View>
@@ -6024,13 +6077,18 @@ function TradeHomeScreen({
           <View style={styles.premiumEmptyCard}>
             <View style={styles.premiumEmptyIcon}><Inbox size={27} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.premiumEmptyTitle}>No live opportunities</Text>
-            <Text style={styles.premiumEmptyText}>Go online and new requests will appear here.</Text>
+            <Text style={styles.premiumEmptyText}>No urgent matches right now. Turn on availability for local call-outs or review flexible job offers.</Text>
+            <MotionPressable onPress={() => openJobs('offers', 'flexible')} accessibilityRole="button"
+              style={styles.tradeDiscoverEmptyAction}>
+              <Text style={styles.tradeDiscoverEmptyActionText}>Check flexible offers</Text>
+              <ChevronRight size={17} color={theme.colors.teal} />
+            </MotionPressable>
           </View>
         )}
 
         <View style={styles.premiumShortcuts}>
-          <MotionPressable style={styles.premiumShortcut} onPress={() => navigate('tradeJobs')}
-            accessibilityRole="button" accessibilityLabel="View active jobs">
+          <MotionPressable style={styles.premiumShortcut} onPress={() => openJobs('active', 'all')}
+            accessibilityRole="button" accessibilityLabel="View accepted active jobs">
             <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.tealTint }]}>
               <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
             </View>
@@ -6045,13 +6103,13 @@ function TradeHomeScreen({
             <Text style={styles.premiumShortcutTitle}>Merchants</Text>
             <Text style={styles.premiumShortcutSub}>Find supplies nearby</Text>
           </MotionPressable>
-          <MotionPressable style={styles.premiumShortcut} onPress={() => { setShowPlanning(true); navigate('tradeJobs'); }}
-            accessibilityRole="button" accessibilityLabel="Open route tools">
+          <MotionPressable style={styles.premiumShortcut} onPress={() => openJobs('offers', 'flexible')}
+            accessibilityRole="button" accessibilityLabel="View On My Way and Street Run job offers">
             <View style={[styles.premiumShortcutIcon, { backgroundColor: '#E8EDF3' }]}>
               <Route size={22} strokeWidth={2} color="#365875" />
             </View>
-            <Text style={styles.premiumShortcutTitle}>Route tools</Text>
-            <Text style={styles.premiumShortcutSub}>Flexible work</Text>
+            <Text style={styles.premiumShortcutTitle}>Route jobs</Text>
+            <Text style={styles.premiumShortcutSub}>On My Way & Street Run</Text>
           </MotionPressable>
         </View>
 
@@ -9737,6 +9795,28 @@ const styles = StyleSheet.create({
   premiumEmptyIcon: { height: 45, width: 45, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
   premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
+  tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 12, marginBottom: 14 },
+  tradeDiscoverTitle: { color: theme.colors.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.7 },
+  tradeDiscoverSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
+  tradeDiscoverMain: { minHeight: 88, borderRadius: 24, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
+    alignItems: 'center', gap: 13, paddingHorizontal: 17, paddingVertical: 15, marginBottom: 12, ...theme.shadow },
+  tradeDiscoverMainIcon: { width: 47, height: 47, borderRadius: 16, backgroundColor: '#31595D',
+    justifyContent: 'center', alignItems: 'center' },
+  tradeDiscoverEyebrow: { color: '#ACD1CD', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
+  tradeDiscoverMainTitle: { color: theme.colors.white, fontSize: 18, fontWeight: '800', marginTop: 3 },
+  tradeDiscoverMainSub: { color: '#D3E3E1', fontSize: 12, marginTop: 4, lineHeight: 17 },
+  tradeDiscoverChoices: { flexDirection: 'row', gap: 12, marginBottom: 23 },
+  tradeDiscoverChoice: { flex: 1, minHeight: 177, backgroundColor: theme.colors.white, borderRadius: 24,
+    paddingHorizontal: 14, paddingVertical: 15, ...theme.shadow },
+  tradeDiscoverChoiceIcon: { width: 43, height: 43, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 15, fontWeight: '800', lineHeight: 20 },
+  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5, flexGrow: 1 },
+  tradeDiscoverChoiceFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  tradeDiscoverChoiceLink: { color: theme.colors.teal, fontSize: 11, fontWeight: '800' },
+  tradeDiscoverEmptyAction: { marginTop: 15, minHeight: 37, flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 19, paddingHorizontal: 13, backgroundColor: theme.colors.tealTint },
+  tradeDiscoverEmptyActionText: { color: theme.colors.teal, fontSize: 12, fontWeight: '800' },
   premiumShortcuts: { flexDirection: 'row', gap: 14, marginTop: 2, marginBottom: 26 },
   premiumShortcut: { flex: 1, minHeight: 113, padding: 10, borderRadius: 22, backgroundColor: theme.colors.white, ...theme.shadow },
   premiumShortcutIcon: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
