@@ -1,0 +1,420 @@
+import React,{useEffect,useMemo,useState} from 'react';
+import {ActivityIndicator,Alert,Platform,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ArrowLeft,Check,ChevronRight,FileText,Plus,Send,Share2,Trash2,Users} from 'lucide-react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import {WebView} from 'react-native-webview';
+import {MotionPressable} from './Motion';
+import {supabase} from './lib/supabase';
+import {theme} from './theme';
+
+type Kind='labour'|'material'|'other';
+type Line={kind:Kind;description:string;quantity:number;unit_price:number;unit:string};
+type DraftLine={kind:Kind;description:string;quantity:string;unit_price:string;unit:string};
+type Customer={id:string;name:string;phone:string|null;email:string|null;address:string|null};
+type Quote={
+ id:string;tradesperson_id:string;quote_no:number;customer_id:string|null;business_name:string;business_address:string;
+ business_email:string|null;business_phone:string|null;vat_number:string|null;
+ customer_name:string;customer_address:string;customer_email:string|null;customer_phone:string|null;
+ title:string;description:string|null;items:Line[];quote_date:string;valid_until:string;
+ vat_rate:number;subtotal:number;vat_amount:number;total:number;notes:string|null;
+ status:'draft'|'sent'|'accepted'|'declined'|'converted';invoice_id:string|null;created_at:string;
+};
+const C=theme.colors,day=(d:Date)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return day(d)};
+const money=(v:number)=>'£'+Number(v||0).toFixed(2);
+const quoteNo=(n:number)=>'QUO-'+String(n).padStart(5,'0');
+const validDay=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(new Date(v+'T12:00:00').getTime())&&day(new Date(v+'T12:00:00'))===v;
+const safe=(v:unknown)=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+const html=(v:unknown)=>safe(v).replace(/\n/g,'<br/>');
+const val=(v:string|number)=>Number(String(v).replace(',','.'));
+const pennies=(v:{quantity:number|string;unit_price:number|string})=>
+ Math.round(Math.max(0,val(v.quantity)||0)*Math.round(Math.max(0,val(v.unit_price)||0)*100));
+const label=(kind:Kind)=>kind==='labour'?'Labour':kind==='material'?'Materials':'Other charges';
+const statusName=(v:Quote['status'])=>v==='draft'?'READY TO SEND':v==='sent'?'SENT':v==='accepted'?'ACCEPTED (MANUAL)':v==='declined'?'DECLINED':'INVOICED';
+function makeQuoteHtml(q:Quote){
+ const groups=(['labour','material','other'] as const).map(kind=>{
+  const list=(q.items||[]).filter(i=>i.kind===kind);
+  if(!list.length)return '';
+  return '<tr class="group"><td colspan="4">'+label(kind)+'</td></tr>'+
+   list.map(i=>'<tr><td>'+html(i.description)+'</td><td class="right">'+safe(i.quantity)+' '+safe(i.unit)+'</td>'+
+    '<td class="right">'+money(i.unit_price)+'</td><td class="right amount">'+money(pennies(i)/100)+'</td></tr>').join('');
+ }).join('');
+ const css=[
+ '@page{size:A4;margin:0}','*{box-sizing:border-box}',
+ 'html,body{margin:0;padding:0;color:#17363D;background:white;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+ '.sheet{width:178mm;max-width:100%;margin:18mm auto 20mm;min-height:250mm}',
+ 'table{border-collapse:collapse;width:100%;table-layout:fixed}',
+ '.head td,.info td{vertical-align:top;padding:0}',
+ '.business{font-size:24px;font-weight:800;line-height:1.25;color:#0E3038;margin-bottom:12px;overflow-wrap:anywhere}',
+ '.meta{color:#567075;font-size:11px;line-height:1.8;overflow-wrap:anywhere}',
+ '.quoteTitle{font-size:28px;font-weight:800;text-align:right;color:#245758;letter-spacing:1px}',
+ '.quoteNo{text-align:right;font-size:12px;margin-top:10px;font-weight:800}',
+ '.line{height:3px;background:#245758;margin:27px 0 28px}',
+ '.info td{width:50%;padding:0 23px 0 0;overflow-wrap:anywhere}',
+ '.info td+td{padding-left:20px;padding-right:0}',
+ '.label{font-size:10px;font-weight:800;letter-spacing:1.1px;color:#245758;margin-bottom:10px;text-transform:uppercase}',
+ '.name{font-size:14px;font-weight:800;color:#18343C;margin-bottom:5px}',
+ '.row{font-size:11px;color:#415961;line-height:1.9}',
+ '.row b{display:inline-block;min-width:85px;color:#18343C}',
+ '.subject{margin:28px 0 20px;padding:17px 19px;border-left:3px solid #245758;background:#F0F6F4;overflow-wrap:anywhere}',
+ '.subjectName{font-size:14px;color:#0E3038;font-weight:800}',
+ '.subjectText{margin-top:5px;color:#466169;font-size:11px}',
+ '.items{margin-top:18px}',
+ '.items th{padding:12px 10px;background:#143940;color:white;text-align:left;font-size:10px}',
+ '.items th.right{text-align:right}',
+ '.items td{padding:12px 10px;vertical-align:top;border-bottom:1px solid #DFE8E6;font-size:11px;overflow-wrap:anywhere}',
+ '.items .group td{background:#E8F2EF;color:#245758;font-weight:800;padding:8px 10px}',
+ '.items tr{break-inside:avoid;page-break-inside:avoid}',
+ '.right{text-align:right}.amount{font-weight:800;white-space:nowrap}',
+ '.totals{width:48%;margin:22px 0 0 auto}',
+ '.totals td{padding:8px 0;color:#456068}',
+ '.totals td:last-child{text-align:right;font-weight:700}',
+ '.totals .grand td{font-size:17px;color:#0E3038;font-weight:800;border-top:2px solid #245758;padding-top:13px}',
+ '.note{padding:17px 19px;margin-top:27px;border-radius:8px;background:#F4F8F7;overflow-wrap:anywhere}',
+ '.foot{font-size:9px;color:#87969B;border-top:1px solid #E3EBE9;padding-top:15px;margin-top:35px}',
+ '@media screen and (max-width:650px){.sheet{width:100%;margin:0;padding:25px 17px;min-height:0}.business{font-size:21px}.quoteTitle{font-size:23px}.info td{padding-right:8px}.info td+td{padding-left:9px}.items th,.items td{padding-left:7px;padding-right:7px}.items td{font-size:10px}.totals{width:62%}}'
+ ].join('');
+ return '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>'+
+ '<style>'+css+'</style></head><body><main class="sheet">'+
+ '<table class="head"><colgroup><col style="width:62%"/><col style="width:38%"/></colgroup><tr>'+
+ '<td><div class="business">'+html(q.business_name)+'</div><div class="meta">'+html(q.business_address)+
+ (q.business_email?'<div>'+html(q.business_email)+'</div>':'')+
+ (q.business_phone?'<div>'+html(q.business_phone)+'</div>':'')+
+ (q.vat_rate&&q.vat_number?'<div>VAT: '+html(q.vat_number)+'</div>':'')+'</div></td>'+
+ '<td><div class="quoteTitle">QUOTE</div><div class="quoteNo">'+quoteNo(q.quote_no)+'</div></td></tr></table>'+
+ '<div class="line"></div><table class="info"><tr><td><div class="label">Prepared for</div>'+
+ '<div class="name">'+html(q.customer_name)+'</div><div class="row">'+html(q.customer_address)+
+ (q.customer_email?'<div>'+html(q.customer_email)+'</div>':'')+'</div></td>'+
+ '<td><div class="label">Quote details</div><div class="row"><b>Prepared</b>'+safe(q.quote_date)+'</div>'+
+ '<div class="row"><b>Valid until</b>'+safe(q.valid_until)+'</div></td></tr></table>'+
+ '<div class="subject"><div class="label">Work estimate</div><div class="subjectName">'+html(q.title)+'</div>'+
+ (q.description?'<div class="subjectText">'+html(q.description)+'</div>':'')+'</div>'+
+ '<table class="items"><colgroup><col style="width:47%"/><col style="width:16%"/><col style="width:19%"/><col style="width:18%"/></colgroup>'+
+ '<thead><tr><th>Task or material</th><th class="right">Qty</th><th class="right">Unit</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
+ '<table class="totals"><tr><td>Subtotal</td><td>'+money(q.subtotal)+'</td></tr>'+
+ (q.vat_rate?'<tr><td>VAT ('+q.vat_rate+'%)</td><td>'+money(q.vat_amount)+'</td></tr>':'')+
+ '<tr class="grand"><td>Total estimate</td><td>'+money(q.total)+'</td></tr></table>'+
+ (q.notes?'<div class="note"><div class="label">Additional notes</div>'+html(q.notes)+'</div>':'')+
+ '<div class="foot">This is a quotation, not an invoice. Prices are subject to the stated validity and scope. Created with Tradarr.</div>'+
+ '</main></body></html>';
+}
+function Field({name,value,change,multi,placeholder}:{name:string;value:string;change:(v:string)=>void;multi?:boolean;placeholder?:string}){
+ return <View style={s.field}><Text style={s.label}>{name}</Text><TextInput value={value} onChangeText={change}
+ style={[s.input,multi&&{minHeight:76}]} multiline={multi} textAlignVertical={multi?'top':'center'}
+ placeholder={placeholder} placeholderTextColor="#94A1A4"/></View>;
+}
+function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>void}){
+ return <MotionPressable onPress={onPress} style={[s.pill,selected&&s.pillOn]}>
+ <Text style={[s.pillText,selected&&s.pillTextOn]}>{name}</Text></MotionPressable>;
+}
+export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void}){
+ const [uid,setUid]=useState('');
+ const [loading,setLoading]=useState(true);
+ const [saving,setSaving]=useState(false);
+ const [sharing,setSharing]=useState(false);
+ const [converting,setConverting]=useState(false);
+ const [screen,setScreen]=useState<'list'|'new'|'preview'>('list');
+ const [quotes,setQuotes]=useState<Quote[]>([]);
+ const [customers,setCustomers]=useState<Customer[]>([]);
+ const [selectedId,setSelectedId]=useState<string|null>(null);
+ const [customerId,setCustomerId]=useState<string|null>(null);
+ const [showPicker,setShowPicker]=useState(false);
+ const [businessName,setBusinessName]=useState('');
+ const [businessAddress,setBusinessAddress]=useState('');
+ const [businessEmail,setBusinessEmail]=useState('');
+ const [businessPhone,setBusinessPhone]=useState('');
+ const [vatNumber,setVatNumber]=useState('');
+ const [customerName,setCustomerName]=useState('');
+ const [customerAddress,setCustomerAddress]=useState('');
+ const [customerEmail,setCustomerEmail]=useState('');
+ const [customerPhone,setCustomerPhone]=useState('');
+ const [title,setTitle]=useState('');
+ const [description,setDescription]=useState('');
+ const [notes,setNotes]=useState('');
+ const [quoteDate,setQuoteDate]=useState(day(new Date()));
+ const [validUntil,setValidUntil]=useState(addDays(30));
+ const [vatRate,setVatRate]=useState(0);
+ const [lines,setLines]=useState<DraftLine[]>([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
+ const selected=quotes.find(q=>q.id===selectedId)||null;
+ const subtotal=useMemo(()=>Math.round(lines.reduce((sum,l)=>sum+pennies(l),0))/100,[lines]);
+ const vat=Math.round(subtotal*vatRate)/100;
+ const total=Math.round((subtotal+vat)*100)/100;
+ useEffect(()=>{let alive=true;(async()=>{
+  const {data:a}=await supabase.auth.getUser();const id=a.user?.id;
+  if(!id||!alive){if(alive)setLoading(false);return}
+  setUid(id);
+  const [docs,people,profile,last]=await Promise.all([
+   supabase.from('trade_quotes').select('*').eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(100),
+   supabase.from('trade_customers').select('id,name,phone,email,address').eq('tradesperson_id',id).order('name'),
+   supabase.from('tradesperson_profiles').select('business_name,display_name,public_phone').eq('user_id',id).maybeSingle(),
+   supabase.from('trade_invoices').select('business_name,business_address,business_email,business_phone,vat_number')
+    .eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(1).maybeSingle()
+  ]);
+  if(!alive)return;
+  if(docs.error)Alert.alert('Unable to load quotes',docs.error.message);
+  setQuotes((docs.data||[]) as Quote[]);setCustomers((people.data||[]) as Customer[]);
+  const latest=(docs.data||[])[0] as Quote|undefined;
+  setBusinessName(latest?.business_name||last.data?.business_name||profile.data?.business_name||profile.data?.display_name||'');
+  setBusinessAddress(latest?.business_address||last.data?.business_address||'');
+  setBusinessEmail(latest?.business_email||last.data?.business_email||a.user?.email||'');
+  setBusinessPhone(latest?.business_phone||last.data?.business_phone||profile.data?.public_phone||'');
+  setVatNumber(latest?.vat_number||last.data?.vat_number||'');
+  setLoading(false);
+ })().catch(e=>{if(alive){setLoading(false);Alert.alert('Quote error',String(e))}});
+ return()=>{alive=false};},[]);
+ const newQuote=()=>{
+  setCustomerId(null);setCustomerName('');setCustomerEmail('');setCustomerPhone('');setCustomerAddress('');
+  setTitle('');setDescription('');setNotes('');setQuoteDate(day(new Date()));setValidUntil(addDays(30));
+  setLines([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);setVatRate(0);
+  setSelectedId(null);setScreen('new');
+ };
+ const chooseCustomer=(c:Customer|null)=>{
+  setCustomerId(c?.id||null);
+  if(c){setCustomerName(c.name);setCustomerAddress(c.address||'');setCustomerEmail(c.email||'');setCustomerPhone(c.phone||'');}
+  setShowPicker(false);
+ };
+ const addLine=(kind:Kind)=>{setLines(old=>[...old.filter(l=>l.description.trim()||l.unit_price.trim()),{kind,description:'',quantity:'1',unit_price:'',unit:kind==='labour'?'job':'each'}])};
+ const updateLine=(index:number,patch:Partial<DraftLine>)=>setLines(old=>old.map((l,i)=>i===index?{...l,...patch}:l));
+ const saveQuote=async()=>{
+  if(saving||!uid)return;
+  if(!businessName.trim()||!businessAddress.trim()||!customerName.trim()||!customerAddress.trim()||!title.trim()){
+   Alert.alert('Missing details','Business and customer names and addresses, plus a quote title, are required.');return;
+  }
+  if(!validDay(quoteDate)||!validDay(validUntil)||validUntil<quoteDate){
+   Alert.alert('Check quote dates','Use YYYY-MM-DD, and set an expiry after the quote date.');return;
+  }
+  if(vatRate>0&&!vatNumber.trim()){Alert.alert('VAT number needed','Only VAT-registered businesses should charge VAT. Enter a VAT number or choose No VAT.');return;}
+  const items=lines.map(l=>({kind:l.kind,description:l.description.trim(),quantity:val(l.quantity),unit_price:val(l.unit_price),unit:l.unit}));
+  if(!items.length||items.some(l=>!l.description||!Number.isFinite(l.quantity)||l.quantity<=0||l.quantity>100000||
+   !Number.isFinite(l.unit_price)||l.unit_price<0||l.unit_price>1000000)||total<=0){
+   Alert.alert('Check the prices','Add a description, positive quantity and valid price for each line.');return;
+  }
+  setSaving(true);
+  const payload={tradesperson_id:uid,quote_no:0,customer_id:customerId,
+   business_name:businessName.trim(),business_address:businessAddress.trim(),business_email:businessEmail.trim()||null,
+   business_phone:businessPhone.trim()||null,vat_number:vatRate?vatNumber.trim():null,
+   customer_name:customerName.trim(),customer_address:customerAddress.trim(),customer_email:customerEmail.trim()||null,
+   customer_phone:customerPhone.trim()||null,title:title.trim(),description:description.trim()||null,
+   items,quote_date:quoteDate,valid_until:validUntil,vat_rate:vatRate,subtotal,vat_amount:vat,total,
+   notes:notes.trim()||null,status:'draft' as const};
+  const {data,error}=await supabase.from('trade_quotes').insert(payload).select('*').single();
+  setSaving(false);
+  if(error||!data){Alert.alert('Could not create quote',error?.message||'Please try again');return;}
+  const doc=data as Quote;setQuotes(old=>[doc,...old]);setSelectedId(doc.id);setScreen('preview');
+ };
+ const setStatus=async(q:Quote,status:Quote['status'])=>{
+  const {data,error}=await supabase.from('trade_quotes').update({status,updated_at:new Date().toISOString()})
+   .eq('id',q.id).eq('tradesperson_id',uid).select('*').single();
+  if(error||!data){Alert.alert('Could not update quote',error?.message||'Please try again');return;}
+  setQuotes(old=>old.map(v=>v.id===q.id?data as Quote:v));
+ };
+ const share=async(q:Quote)=>{
+  if(sharing)return;setSharing(true);
+  try{
+   const markup=makeQuoteHtml(q);
+   if(Platform.OS==='web')await Print.printAsync({html:markup});
+   else{
+    const file=await Print.printToFileAsync({html:markup});
+    if(await Sharing.isAvailableAsync())await Sharing.shareAsync(file.uri,{mimeType:'application/pdf',UTI:'com.adobe.pdf',dialogTitle:'Share '+quoteNo(q.quote_no)});
+    else await Print.printAsync({html:markup});
+   }
+  }catch(e){Alert.alert('Unable to share quote',String(e))}
+  finally{setSharing(false)}
+ };
+ const convert=async(q:Quote)=>{
+  if(converting)return;
+  if(q.invoice_id){onInvoiceCreated(q.invoice_id);return;}
+  if(q.status==='declined'){Alert.alert('Quote declined','This estimate is marked declined. Create a new quote if the scope has changed.');return;}
+  setConverting(true);
+  // Invoice details are a snapshot of the quote, so the itemised charges do not need to be retyped.
+  const payload={
+   tradesperson_id:uid,invoice_no:0,source:'external',app_job_id:null,urgent_request_id:null,
+   quote_id:q.id,customer_id:q.customer_id,
+   business_name:q.business_name,business_legal_name:null,business_address:q.business_address,
+   business_email:q.business_email,business_phone:q.business_phone,vat_number:q.vat_number,
+   customer_name:q.customer_name,customer_email:q.customer_email,customer_address:q.customer_address,
+   description:q.title+(q.description?'\n'+q.description:''),
+   items:q.items,invoice_date:day(new Date()),service_date:day(new Date()),due_date:addDays(14),
+   vat_rate:q.vat_rate,subtotal:q.subtotal,vat_amount:q.vat_amount,total:q.total,
+   payment_details:null,notes:q.notes,status:'draft' as const,
+  };
+  const {data,error}=await supabase.from('trade_invoices').insert(payload).select('id').single();
+  let invoiceId=data?.id as string|undefined;
+  if(error||!invoiceId){
+   // A previous partial conversion may have created an invoice before the quote was updated.
+   const existing=await supabase.from('trade_invoices').select('id').eq('quote_id',q.id).eq('tradesperson_id',uid).maybeSingle();
+   invoiceId=existing.data?.id;
+   if(!invoiceId){setConverting(false);Alert.alert('Could not create invoice',error?.message||'Please try again.');return;}
+  }
+  const update=await supabase.from('trade_quotes').update({invoice_id:invoiceId,status:'converted',updated_at:new Date().toISOString()})
+   .eq('id',q.id).eq('tradesperson_id',uid).select('*').single();
+  if(update.data)setQuotes(old=>old.map(v=>v.id===q.id?update.data as Quote:v));
+  setConverting(false);
+  if(update.error)Alert.alert('Invoice created','Your invoice was saved, but the quote status could not be updated. You can still view it in Invoices.');
+  onInvoiceCreated(invoiceId);
+ };
+ const back=()=>screen==='list'?goBack():setScreen('list');
+ return <View style={s.root}>
+  <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
+   <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
+    <Text style={s.title}>{screen==='new'?'New quote':screen==='preview'?'Quote preview':'Quotes'}</Text></View>
+   {screen==='list'?<MotionPressable style={s.add} onPress={newQuote}><Plus size={19} color="#FFFFFF"/><Text style={s.addText}>New</Text></MotionPressable>:null}
+  </View>
+  {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
+   screen==='list'?<ScrollView contentContainerStyle={s.page}>
+    <Text style={s.intro}>Create clear estimates for private customers, save the PDF and convert approved work into an invoice.</Text>
+    <MotionPressable style={s.primary} onPress={newQuote}><Plus size={20} color="#FFFFFF"/><Text style={s.primaryText}>Create a quote</Text><ChevronRight size={19} color="#FFFFFF"/></MotionPressable>
+    <Text style={s.section}>Your quotes</Text>
+    {quotes.length?quotes.map(q=><View key={q.id} style={s.quoteCard}>
+     <MotionPressable onPress={()=>{setSelectedId(q.id);setScreen('preview')}} style={s.quoteTop}>
+      <View style={{flex:1}}><Text style={s.quoteNo}>{quoteNo(q.quote_no)}</Text><Text style={s.quoteName}>{q.customer_name}</Text>
+       <Text style={s.small}>{q.title} · Valid to {q.valid_until}</Text></View>
+      <View style={{alignItems:'flex-end',gap:8}}><Text style={s.amount}>{money(q.total)}</Text><Text style={s.status}>{statusName(q.status)}</Text></View>
+     </MotionPressable>
+     <View style={s.quoteActions}><MotionPressable onPress={()=>{setSelectedId(q.id);setScreen('preview')}} style={s.action}>
+      <FileText size={17} color={C.teal}/><Text style={s.actionText}>View</Text></MotionPressable>
+      <MotionPressable onPress={()=>share(q)} style={s.action}><Share2 size={17} color={C.teal}/><Text style={s.actionText}>Share PDF</Text></MotionPressable>
+     </View>
+    </View>):<View style={s.empty}><FileText size={35} color={C.teal}/><Text style={s.emptyTitle}>No quotes yet</Text>
+     <Text style={s.intro}>Start with your next repair or installation estimate.</Text></View>}
+   </ScrollView>:
+   screen==='preview'&&selected?<View style={s.previewRoot}>
+    <View style={s.previewInfo}><View style={{flex:1}}><Text style={s.quoteNo}>{quoteNo(selected.quote_no)} · {statusName(selected.status)}</Text>
+      <Text style={s.quoteName}>{selected.customer_name}</Text></View><Text style={s.amount}>{money(selected.total)}</Text></View>
+    <View style={s.previewPaper}><WebView source={{html:makeQuoteHtml(selected)}} originWhitelist={['*']}
+      javaScriptEnabled={false} style={{flex:1,backgroundColor:'#FFFFFF'}}/></View>
+    <View style={s.previewBottom}>
+      <MotionPressable style={s.primary} onPress={()=>share(selected)} disabled={sharing}><Share2 size={19} color="#FFFFFF"/>
+        <Text style={s.primaryText}>{sharing?'Preparing PDF…':'Share quote PDF'}</Text></MotionPressable>
+      <View style={s.statusRow}>
+        {selected.status==='draft'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'sent')}><Check size={16} color={C.teal}/><Text style={s.actionText}>Mark sent</Text></MotionPressable>:null}
+        {selected.status==='sent'||selected.status==='draft'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'accepted')}>
+         <Check size={16} color={C.teal}/><Text style={s.actionText}>Mark accepted</Text></MotionPressable>:null}
+        {selected.status==='sent'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'declined')}>
+         <Text style={s.actionText}>Mark declined</Text></MotionPressable>:null}
+      </View>
+      {selected.status!=='declined'?<MotionPressable style={s.convert} onPress={()=>convert(selected)} disabled={converting}>
+       {converting?<ActivityIndicator color={C.teal}/>:<Text style={s.convertText}>{selected.invoice_id?'View linked invoice':'Convert to invoice'}</Text>}
+       <ChevronRight size={19} color={C.teal}/></MotionPressable>:null}
+      <Text style={s.previewHint}>Statuses are marked manually. Sharing a PDF does not mean the customer has accepted it.</Text>
+    </View>
+   </View>:<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+    <Text style={s.intro}>Enter the work and prices once. Tradarr calculates the totals and creates a PDF quote.</Text>
+    <Text style={s.section}>Your business</Text><View style={s.card}>
+     <Field name="Business / trading name *" value={businessName} change={setBusinessName}/>
+     <Field name="Business address *" value={businessAddress} change={setBusinessAddress} multi/>
+     <Field name="Business email (optional)" value={businessEmail} change={setBusinessEmail}/>
+     <Field name="Business phone (optional)" value={businessPhone} change={setBusinessPhone}/>
+    </View>
+    <Text style={s.section}>Customer</Text><View style={s.card}>
+     <MotionPressable style={s.picker} onPress={()=>setShowPicker(x=>!x)}><Users size={18} color={C.teal}/>
+      <Text style={s.pickerText}>{customerId?customers.find(x=>x.id===customerId)?.name:'Use a customer from your book'}</Text>
+      <ChevronRight size={18} color={C.teal}/></MotionPressable>
+     {showPicker?<View style={s.options}>
+      <MotionPressable onPress={()=>chooseCustomer(null)} style={s.option}><Text style={s.optionText}>Enter a new customer</Text></MotionPressable>
+      {customers.map(x=><MotionPressable key={x.id} onPress={()=>chooseCustomer(x)} style={s.option}><Text style={s.optionText}>{x.name}</Text></MotionPressable>)}
+     </View>:null}
+     <Field name="Customer name *" value={customerName} change={setCustomerName}/>
+     <Field name="Customer billing address *" value={customerAddress} change={setCustomerAddress} multi/>
+     <Field name="Customer email (optional)" value={customerEmail} change={setCustomerEmail}/>
+     <Field name="Customer phone (optional)" value={customerPhone} change={setCustomerPhone}/>
+     <Text style={s.helper}>New contacts are not saved to your Customer Book automatically. Add them there to reuse later.</Text>
+    </View>
+    <Text style={s.section}>Work being quoted</Text><View style={s.card}>
+     <Field name="Quote title *" value={title} change={setTitle} placeholder="e.g. Replace 3 radiator valves"/>
+     <Field name="Scope / notes (optional)" value={description} change={setDescription} multi placeholder="Describe the work included in the price"/>
+     <View style={s.two}><View style={{flex:1}}><Field name="Quote date" value={quoteDate} change={setQuoteDate} placeholder="YYYY-MM-DD"/></View>
+     <View style={{flex:1}}><Field name="Valid until" value={validUntil} change={setValidUntil} placeholder="YYYY-MM-DD"/></View></View>
+    </View>
+    <View style={s.sectionRow}><Text style={s.section}>Labour & materials</Text></View>
+    <View style={s.twoButtons}><MotionPressable style={s.addLine} onPress={()=>addLine('labour')}><Plus size={16} color={C.teal}/><Text style={s.addLineText}>Add labour</Text></MotionPressable>
+     <MotionPressable style={s.addLine} onPress={()=>addLine('material')}><Plus size={16} color={C.teal}/><Text style={s.addLineText}>Add material</Text></MotionPressable></View>
+    {lines.map((v,i)=><View style={s.card} key={i}>
+     <View style={s.sectionRow}><Text style={s.lineTitle}>{label(v.kind)} · {lines.slice(0,i+1).filter(x=>x.kind===v.kind).length}</Text>
+      {lines.length>1?<MotionPressable onPress={()=>setLines(old=>old.filter((_,j)=>j!==i))}><Trash2 size={18} color={C.coralDark}/></MotionPressable>:null}</View>
+     <Field name="Work or item description *" value={v.description} change={x=>updateLine(i,{description:x})} placeholder="e.g. Fit pipework"/>
+     <View style={s.two}><View style={{flex:1}}><Field name="Quantity" value={v.quantity} change={x=>updateLine(i,{quantity:x})}/></View>
+      <View style={{flex:1}}><Field name="Unit price (£)" value={v.unit_price} change={x=>updateLine(i,{unit_price:x})} placeholder="0.00"/></View></View>
+     <View style={s.pills}>{(v.kind==='labour'?['job','hour']:['each','metre']).map(unit=>
+      <Pill key={unit} name={'Per '+unit} selected={v.unit===unit} onPress={()=>updateLine(i,{unit})}/>)}</View>
+     <Text style={s.lineTotal}>Line total {money(pennies(v)/100)}</Text>
+    </View>)}
+    <MotionPressable style={s.extraLine} onPress={()=>addLine('other')}><Plus size={16} color={C.teal}/>
+     <Text style={s.extraLineText}>Add call-out fee or other charge</Text></MotionPressable>
+    <Text style={s.section}>VAT</Text><View style={s.card}>
+     <Text style={s.small}>Only charge VAT if you are VAT registered.</Text>
+     <View style={s.pills}>{[0,5,20].map(rate=><Pill key={rate} name={rate?rate+'% VAT':'No VAT'} selected={vatRate===rate} onPress={()=>setVatRate(rate)}/>)}</View>
+     {vatRate>0?<Field name="VAT registration number *" value={vatNumber} change={setVatNumber}/>:null}
+    </View>
+    <Text style={s.section}>Additional notes</Text><View style={s.card}>
+     <Field name="Terms, exclusions or notes (optional)" value={notes} change={setNotes} multi/>
+    </View>
+    <View style={s.totalCard}>
+     <View style={s.totalRow}><Text style={s.totalLabel}>Subtotal</Text><Text style={s.totalLabel}>{money(subtotal)}</Text></View>
+     {vatRate>0?<View style={s.totalRow}><Text style={s.totalLabel}>VAT ({vatRate}%)</Text><Text style={s.totalLabel}>{money(vat)}</Text></View>:null}
+     <View style={s.totalRow}><Text style={s.totalTitle}>Quote total</Text><Text style={s.totalAmount}>{money(total)}</Text></View>
+    </View>
+    <MotionPressable style={s.primary} disabled={saving} onPress={saveQuote}>
+     {saving?<ActivityIndicator color="#FFFFFF"/>:<FileText size={19} color="#FFFFFF"/>}
+     <Text style={s.primaryText}>{saving?'Creating quote…':'Create & preview quote'}</Text>
+    </MotionPressable>
+   </ScrollView>}
+ </View>;
+}
+const s=StyleSheet.create({
+ root:{flex:1,backgroundColor:C.proBackground},
+ header:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:20,paddingVertical:15},
+ back:{width:44,height:44,borderRadius:24,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
+ eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.5,color:C.teal},title:{fontSize:27,fontWeight:'800',color:C.ink,marginTop:3},
+ add:{flexDirection:'row',minHeight:44,paddingHorizontal:16,backgroundColor:C.darkTeal,borderRadius:24,gap:6,alignItems:'center'},addText:{fontSize:13,color:'#FFFFFF',fontWeight:'800'},
+ page:{paddingHorizontal:20,paddingTop:9,paddingBottom:40},intro:{fontSize:13,lineHeight:21,color:C.muted,marginBottom:17},
+ section:{fontSize:18,fontWeight:'800',color:C.ink,marginTop:20,marginBottom:12},
+ primary:{minHeight:55,borderRadius:28,backgroundColor:C.darkTeal,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10,paddingHorizontal:18,marginBottom:8},
+ primaryText:{color:'#FFFFFF',fontSize:14,fontWeight:'800',flex:1,textAlign:'center'},
+ quoteCard:{backgroundColor:'#FFFFFF',borderRadius:24,padding:17,marginBottom:12,...theme.shadow},
+ quoteTop:{flexDirection:'row',gap:11,alignItems:'flex-start'},
+ quoteNo:{fontSize:11,fontWeight:'800',color:C.teal},
+ quoteName:{fontSize:16,fontWeight:'800',color:C.ink,marginTop:4},
+ amount:{fontSize:17,fontWeight:'800',color:C.ink},
+ status:{fontSize:9,fontWeight:'800',color:C.teal,backgroundColor:C.tealTint,overflow:'hidden',paddingVertical:6,paddingHorizontal:9,borderRadius:11},
+ small:{fontSize:12,color:C.muted,lineHeight:18,marginTop:6},
+ quoteActions:{flexDirection:'row',gap:9,marginTop:15,borderTopWidth:1,borderTopColor:C.line,paddingTop:12,flexWrap:'wrap'},
+ action:{flexDirection:'row',minHeight:36,paddingHorizontal:13,backgroundColor:C.tealTint,borderRadius:19,alignItems:'center',gap:7},
+ actionText:{fontSize:12,fontWeight:'800',color:C.teal},
+ empty:{backgroundColor:'#FFFFFF',borderRadius:26,padding:26,alignItems:'center',gap:11,...theme.shadow},
+ emptyTitle:{fontSize:18,fontWeight:'800',color:C.ink},
+ card:{backgroundColor:'#FFFFFF',borderRadius:24,padding:17,marginBottom:12,...theme.shadow},
+ field:{marginBottom:13},label:{fontSize:12,fontWeight:'800',color:C.ink,marginBottom:7},
+ input:{minHeight:47,borderWidth:1,borderColor:C.line,backgroundColor:'#F9FBFA',borderRadius:13,paddingHorizontal:12,paddingVertical:10,fontSize:14,color:C.ink},
+ picker:{flexDirection:'row',minHeight:46,alignItems:'center',gap:8,backgroundColor:C.tealTint,borderRadius:14,paddingHorizontal:12,marginBottom:14},
+ pickerText:{color:C.teal,fontWeight:'800',fontSize:12,flex:1},
+ options:{maxHeight:235,backgroundColor:'#F6F9F8',paddingHorizontal:10,borderRadius:14,marginBottom:15},
+ option:{paddingVertical:11,borderBottomWidth:1,borderBottomColor:C.line},
+ optionText:{color:C.ink,fontSize:13,fontWeight:'700'},
+ helper:{color:C.muted,fontSize:11,lineHeight:17},
+ two:{flexDirection:'row',gap:11},twoButtons:{flexDirection:'row',gap:10,marginBottom:13},
+ addLine:{flex:1,minHeight:49,backgroundColor:C.tealTint,borderRadius:16,borderWidth:1,borderColor:'#C6DCD8',flexDirection:'row',gap:5,alignItems:'center',justifyContent:'center'},
+ addLineText:{fontSize:13,fontWeight:'800',color:C.teal},
+ sectionRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:12},
+ lineTitle:{color:C.ink,fontSize:15,fontWeight:'800'},
+ pills:{flexDirection:'row',gap:8,flexWrap:'wrap',marginBottom:11},
+ pill:{borderRadius:19,paddingHorizontal:13,paddingVertical:9,backgroundColor:'#FFFFFF',borderWidth:1,borderColor:C.line},
+ pillOn:{backgroundColor:C.tealTint,borderColor:C.teal},
+ pillText:{fontSize:12,color:C.muted,fontWeight:'800'},pillTextOn:{color:C.teal},
+ lineTotal:{textAlign:'right',fontSize:13,color:C.teal,fontWeight:'800'},
+ extraLine:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,padding:13},
+ extraLineText:{color:C.teal,fontSize:12,fontWeight:'800'},
+ totalCard:{backgroundColor:'#FFFFFF',padding:20,borderRadius:23,marginTop:8,marginBottom:20,...theme.shadow},
+ totalRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:8},
+ totalLabel:{fontSize:13,color:C.muted},totalTitle:{fontSize:17,fontWeight:'800',color:C.ink},
+ totalAmount:{fontSize:23,color:C.teal,fontWeight:'800'},
+ previewRoot:{flex:1,backgroundColor:C.proBackground},
+ previewInfo:{flexDirection:'row',alignItems:'center',paddingHorizontal:19,paddingVertical:11,gap:12},
+ previewPaper:{flex:1,marginHorizontal:12,backgroundColor:'#FFFFFF',borderRadius:16,overflow:'hidden',borderWidth:1,borderColor:C.line,...theme.shadow},
+ previewBottom:{paddingHorizontal:16,paddingVertical:10},
+ statusRow:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,marginTop:5,flexWrap:'wrap'},
+ convert:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5,padding:11,marginTop:5},
+ convertText:{fontSize:13,fontWeight:'800',color:C.teal},
+ previewHint:{color:C.muted,fontSize:10,textAlign:'center',marginTop:5,lineHeight:15}
+});
