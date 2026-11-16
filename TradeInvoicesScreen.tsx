@@ -160,12 +160,13 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         const user = auth.user;
         if (!user || !alive) return;
         setUserId(user.id);
-        const [saved, profile, business, regular, urgent] = await Promise.all([
+        const [saved, profile, business, regular, urgent, customerDetails] = await Promise.all([
           supabase.from('trade_invoices').select('*').eq('tradesperson_id', user.id).order('created_at', { ascending: false }).limit(100),
           supabase.from('profiles').select('first_name, last_name, phone').eq('id', user.id).maybeSingle(),
           supabase.from('tradesperson_profiles').select('business_name, display_name, public_phone, primary_trade').eq('user_id', user.id).maybeSingle(),
           supabase.from('jobs').select('id,customer_id,trade,issue,location_label,standard_price,route_price,job_mode,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
           supabase.from('urgent_requests').select('id,customer_id,trade,issue,location_label,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
+          supabase.rpc('trade_invoice_customer_details'),
         ]);
         if (!alive) return;
         const docs = (saved.data || []) as Invoice[];
@@ -187,15 +188,14 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
             customer_id: j.customer_id, trade: j.trade, issue: j.issue, customerName: '',
             address: j.location_label || '', suggestedPrice: 0 })),
         ];
-        const ids = [...new Set(raw.map(j => j.customer_id))];
-        if (ids.length) {
-          const { data: people } = await supabase.from('profiles').select('id,first_name,last_name,default_address').in('id', ids);
-          if (people) {
-            const byId = new Map(people.map(p => [p.id, p]));
-            for (const job of raw) {
-              const p = byId.get(job.customer_id);
-              if (p) { job.customerName = [p.first_name, p.last_name].filter(Boolean).join(' '); job.address = p.default_address || job.address; }
-            }
+        // Customer details are supplied only for jobs accepted by this tradesperson.
+        // The secure RPC avoids exposing unrelated customer profiles via RLS.
+        const byJob = new Map((customerDetails.data || []).map(p => [p.source_kind + ':' + p.source_id, p]));
+        for (const job of raw) {
+          const details = byJob.get(job.key);
+          if (details) {
+            job.customerName = details.customer_name || '';
+            job.address = details.billing_address || job.address;
           }
         }
         if (alive) setJobs(raw);
@@ -224,9 +224,15 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
     setLines(existing => existing.map((item, i) => i === index ? { ...item, ...patch } : item));
   const addLine = (kind: InvoiceLineKind, description = '') => {
-    setLines(existing => [...existing, {
-      kind, description, quantity: '1', unit_price: '', unit: kind === 'labour' ? 'job' : 'each'
-    }]);
+    const newLine: EditableLine = { kind, description, quantity: '1', unit_price: '', unit: kind === 'labour' ? 'job' : 'each' };
+    setLines(existing => {
+      // A quick-add should replace the empty starter row, not leave a blank
+      // required line that blocks creating the invoice.
+      if (existing.length === 1 && !existing[0].description.trim() && !existing[0].unit_price.trim()) {
+        return [newLine];
+      }
+      return [...existing, newLine];
+    });
   };
 
   const sharePdf = async (doc: Invoice) => {
