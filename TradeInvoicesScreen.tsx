@@ -56,45 +56,89 @@ const htmlText = (v: unknown) => safe(v).replace(/\n/g, '<br/>');
 const validDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00').getTime());
 
 function invoiceHtml(doc: Invoice) {
-  const rows = (['labour', 'material', 'other'] as const).map(kind => {
+  const groups = (['labour', 'material', 'other'] as const).map(kind => {
     const entries = (doc.items || []).filter(item => (item.kind || 'other') === kind);
     if (!entries.length) return '';
     return '<tr class="group"><td colspan="4">' + labelForKind(kind) + '</td></tr>' +
-      entries.map(item => '<tr><td>' + htmlText(item.description) +
+      entries.map(item => '<tr class="line"><td class="desc">' + htmlText(item.description) +
         '</td><td class="right">' + safe(item.quantity) + (item.unit ? ' ' + safe(item.unit) : '') +
         '</td><td class="right">' + money(item.unit_price) +
-        '</td><td class="right">' + money(linePence(item) / 100) + '</td></tr>').join('');
+        '</td><td class="right amount">' + money(linePence(item) / 100) + '</td></tr>').join('');
   }).join('');
   const vat = doc.vat_rate > 0 && !!doc.vat_number;
-  return '<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>' +
-    '<style>@page{size:A4;margin:24mm 18mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#183039;font-size:11px;line-height:1.55;margin:0}' +
-    '.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #245758;padding-bottom:22px}.brand{font-size:22px;font-weight:800;color:#0F2A30;max-width:60%;word-wrap:break-word}' +
-    '.title{text-align:right;font-size:29px;font-weight:bold;color:#245758;letter-spacing:2px}.muted{color:#607276}.blocks{display:flex;justify-content:space-between;gap:32px;margin:30px 0}' +
-    '.block{width:47%;overflow-wrap:anywhere}.label{font-weight:bold;color:#245758;text-transform:uppercase;font-size:10px;letter-spacing:1px;margin-bottom:9px}' +
-    '.details{border:1px solid #dae6e3;border-radius:9px;padding:15px;margin:10px 0 26px}.details td{padding:4px 10px 4px 0}' +
-    'table.items{border-collapse:collapse;width:100%;table-layout:fixed}table.items th{background:#0F2A30;color:white;text-align:left;padding:12px 9px;font-size:10px}' +
-    'table.items td{padding:12px 9px;border-bottom:1px solid #e1e7e5;vertical-align:top;overflow-wrap:anywhere}table.items tr.group td{background:#E8F0EF;color:#245758;font-weight:800;font-size:11px;padding:8px 10px;border-bottom:1px solid #CFDFDB}table.items th:first-child{width:55%}' +
-    '.right{text-align:right}.totals{margin-left:auto;margin-top:20px;width:46%;border-collapse:collapse}.totals td{padding:8px 5px}.totals .grand{font-size:18px;font-weight:bold;color:#0F2A30;border-top:2px solid #245758}' +
-    '.foot{margin-top:34px;padding:17px;background:#F1F5F3;border-radius:8px;overflow-wrap:anywhere}.small{font-size:10px;color:#607276}</style></head><body>' +
-    '<div class="head"><div><div class="brand">' + htmlText(doc.business_name) + '</div><div class="muted">' + htmlText(doc.business_address) + '</div>' +
-    (doc.business_legal_name ? '<div>' + htmlText(doc.business_legal_name) + '</div>' : '') +
-    (doc.business_email ? '<div>' + htmlText(doc.business_email) + '</div>' : '') +
-    (doc.business_phone ? '<div>' + htmlText(doc.business_phone) + '</div>' : '') +
-    (vat ? '<div>VAT registration: ' + safe(doc.vat_number) + '</div>' : '') +
-    '</div><div><div class="title">INVOICE</div><div class="right"><b>' + invoiceNumber(doc.invoice_no) + '</b></div></div></div>' +
-    '<div class="blocks"><div class="block"><div class="label">Bill to</div><b>' + htmlText(doc.customer_name) + '</b><br/>' +
-    htmlText(doc.customer_address) + (doc.customer_email ? '<br/>' + htmlText(doc.customer_email) : '') +
-    '</div><div class="block"><div class="label">Invoice details</div><div>Issued: ' + safe(doc.invoice_date) + '</div><div>Work completed: ' + safe(doc.service_date) +
-    '</div><div>Payment due: ' + safe(doc.due_date) + '</div></div></div>' +
-    (doc.description ? '<div class="details"><div class="label">Work carried out</div>' + htmlText(doc.description) + '</div>' : '') +
-    '<table class="items"><thead><tr><th>Description</th><th class="right">Qty</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>' +
-    rows + '</tbody></table>' +
-    '<table class="totals"><tr><td>Subtotal</td><td class="right">' + money(doc.subtotal) + '</td></tr>' +
-    (vat ? '<tr><td>VAT (' + doc.vat_rate + '%)</td><td class="right">' + money(doc.vat_amount) + '</td></tr>' : '') +
-    '<tr class="grand"><td>Total due</td><td class="right">' + money(doc.total) + '</td></tr></table>' +
-    (doc.payment_details ? '<div class="foot"><div class="label">Payment details</div>' + htmlText(doc.payment_details) + '</div>' : '') +
-    (doc.notes ? '<div class="foot"><div class="label">Notes</div>' + htmlText(doc.notes) + '</div>' : '') +
-    '<p class="small">Invoice generated using Tradarr. Please retain a copy for your records.</p></body></html>';
+  // Explicit A4-width document margins rather than relying on CSS @page margins.
+  // iOS WebKit's PDF printer may ignore @page margins for flex-based layouts.
+  const css = [
+    '@page{size:A4;margin:0}',
+    '*{box-sizing:border-box}',
+    'html,body{padding:0;margin:0;width:100%;color:#20333B;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,Arial,Helvetica,sans-serif;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.sheet{width:178mm;max-width:100%;margin:18mm auto 20mm;min-height:255mm}',
+    'table{border-collapse:collapse;border-spacing:0;width:100%;table-layout:fixed}',
+    '.heading td{vertical-align:top;padding:0}',
+    '.businessName{font-weight:800;font-size:24px;line-height:1.2;color:#0E3038;margin-bottom:13px;overflow-wrap:anywhere}',
+    '.businessMeta{font-size:11px;line-height:1.8;color:#52676D;overflow-wrap:anywhere}',
+    '.documentTitle{text-align:right;color:#124A4A;font-size:28px;letter-spacing:1.8px;font-weight:800;line-height:1.25}',
+    '.documentNo{text-align:right;margin-top:13px;font-size:12px;color:#243C42;font-weight:700}',
+    '.divider{height:3px;background:#225C5C;margin-top:26px;margin-bottom:28px}',
+    '.meta{margin:0 0 28px}',
+    '.meta td{width:50%;vertical-align:top;padding:0 24px 0 0;overflow-wrap:anywhere}',
+    '.meta td+td{padding:0 0 0 18px}',
+    '.label{color:#245758;font-weight:800;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:11px}',
+    '.contactName{font-weight:800;font-size:14px;margin-bottom:6px;color:#20333B}',
+    '.contactText{font-size:11px;line-height:1.9;color:#4E6268;overflow-wrap:anywhere}',
+    '.detailRow{font-size:11px;color:#3A5158;margin-bottom:6px}',
+    '.detailRow strong{display:inline-block;min-width:90px;color:#20333B}',
+    '.workSummary{padding:17px 18px;background:#F1F6F5;border-left:3px solid #2A6263;margin:0 0 24px;overflow-wrap:anywhere}',
+    '.workSummary .label{margin:0 0 6px}',
+    '.sectionTitle{font-size:13px;color:#20333B;font-weight:800;margin-bottom:11px}',
+    '.items{margin:0 0 26px}',
+    '.items th{background:#12353C;color:#FFFFFF;font-size:10px;text-align:left;padding:12px 11px;line-height:1.4}',
+    '.items th.right{text-align:right}',
+    '.items td{vertical-align:top;padding:13px 11px;border-bottom:1px solid #E2E9E7;font-size:11px;line-height:1.6;overflow-wrap:anywhere}',
+    '.items .group td{background:#EDF4F2;color:#245758;font-weight:800;font-size:11px;padding:8px 11px;letter-spacing:.3px}',
+    '.items .line{page-break-inside:avoid;break-inside:avoid}',
+    '.right{text-align:right;white-space:normal}',
+    '.amount{font-weight:700;white-space:nowrap}',
+    '.totals{width:48%;margin:14px 0 0 auto}',
+    '.totals td{font-size:12px;padding:8px 0;color:#41585E}',
+    '.totals td:last-child{text-align:right;font-weight:700}',
+    '.totals .grand td{border-top:2px solid #2B6263;padding-top:14px;font-size:16px;font-weight:800;color:#10383D}',
+    '.notes{background:#F5F8F7;border:1px solid #E8EEEC;border-radius:8px;padding:16px 19px;margin-top:27px;overflow-wrap:anywhere;page-break-inside:avoid;break-inside:avoid}',
+    '.notes .label{margin-bottom:7px}',
+    '.finePrint{margin-top:35px;padding-top:14px;border-top:1px solid #E5EBE9;color:#87979A;font-size:9px}',
+    '@media screen and (max-width:650px){.sheet{width:100%;min-height:0;margin:0;padding:28px 18px 36px}.businessName{font-size:21px}.documentTitle{font-size:23px}.meta td{padding-right:11px}.meta td+td{padding-left:10px}.items th,.items td{padding-left:7px;padding-right:7px}.items td{font-size:10px}.totals{width:60%}}'
+  ].join('');
+  const contact = [
+    doc.business_legal_name ? '<div>' + htmlText(doc.business_legal_name) + '</div>' : '',
+    '<div>' + htmlText(doc.business_address) + '</div>',
+    doc.business_email ? '<div>' + htmlText(doc.business_email) + '</div>' : '',
+    doc.business_phone ? '<div>' + htmlText(doc.business_phone) + '</div>' : '',
+    vat ? '<div>VAT registration: ' + htmlText(doc.vat_number) + '</div>' : ''
+  ].join('');
+  return '<!doctype html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>' +
+    '<style>' + css + '</style></head><body><main class="sheet">' +
+    '<table class="heading"><colgroup><col style="width:62%"/><col style="width:38%"/></colgroup><tr>' +
+    '<td><div class="businessName">' + htmlText(doc.business_name) + '</div><div class="businessMeta">' + contact + '</div></td>' +
+    '<td><div class="documentTitle">INVOICE</div><div class="documentNo">' + invoiceNumber(doc.invoice_no) + '</div></td>' +
+    '</tr></table><div class="divider"></div>' +
+    '<table class="meta"><tr><td><div class="label">Billed to</div><div class="contactName">' + htmlText(doc.customer_name) + '</div>' +
+    '<div class="contactText">' + htmlText(doc.customer_address) + (doc.customer_email ? '<div>' + htmlText(doc.customer_email) + '</div>' : '') +
+    '</div></td><td><div class="label">Invoice details</div>' +
+    '<div class="detailRow"><strong>Issued</strong>' + safe(doc.invoice_date) + '</div>' +
+    '<div class="detailRow"><strong>Work date</strong>' + safe(doc.service_date) + '</div>' +
+    '<div class="detailRow"><strong>Payment due</strong>' + safe(doc.due_date) + '</div>' +
+    '</td></tr></table>' +
+    (doc.description ? '<div class="workSummary"><div class="label">Work carried out</div>' + htmlText(doc.description) + '</div>' : '') +
+    '<div class="sectionTitle">Itemised charges</div>' +
+    '<table class="items"><colgroup><col style="width:48%"/><col style="width:15%"/><col style="width:19%"/><col style="width:18%"/></colgroup>' +
+    '<thead><tr><th>Work / materials</th><th class="right">Qty</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>' +
+    groups + '</tbody></table>' +
+    '<table class="totals"><tr><td>Subtotal</td><td>' + money(doc.subtotal) + '</td></tr>' +
+    (vat ? '<tr><td>VAT (' + safe(doc.vat_rate) + '%)</td><td>' + money(doc.vat_amount) + '</td></tr>' : '') +
+    '<tr class="grand"><td>Total due</td><td>' + money(doc.total) + '</td></tr></table>' +
+    (doc.payment_details ? '<div class="notes"><div class="label">Payment instructions</div>' + htmlText(doc.payment_details) + '</div>' : '') +
+    (doc.notes ? '<div class="notes"><div class="label">Additional notes</div>' + htmlText(doc.notes) + '</div>' : '') +
+    '<div class="finePrint">Created with Tradarr. Please keep this invoice for your records.</div></main></body></html>';
 }
 
 function Field({ label, value, onChange, placeholder, multi, numeric, required }: {
