@@ -8,6 +8,7 @@ import { supabase } from './lib/supabase';
 import { theme } from './theme';
 
 type LineItem = { description: string; quantity: number; unit_price: number };
+type EditableLine = { description: string; quantity: string; unit_price: string };
 type AppJob = {
   key: string; id: string; kind: 'job' | 'urgent'; customer_id: string;
   trade: string; issue: string; customerName: string; address: string; suggestedPrice: number;
@@ -121,7 +122,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
   const [vatRate, setVatRate] = useState(0);
   const [paymentDetails, setPaymentDetails] = useState('');
   const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<LineItem[]>([{ description: '', quantity: 1, unit_price: 0 }]);
+  const [lines, setLines] = useState<EditableLine[]>([{ description: '', quantity: '1', unit_price: '0' }]);
 
   const subtotal = useMemo(() => Math.round(lines.reduce((sum, item) =>
     sum + Math.round(Math.max(0, Number(item.unit_price) || 0) * 100) * Math.max(0, Number(item.quantity) || 0), 0)) / 100, [lines]);
@@ -187,16 +188,16 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
     setCustomerName(job.customerName || '');
     setCustomerAddress(job.address || '');
     setDescription(job.issue);
-    setLines([{ description: job.issue, quantity: 1, unit_price: job.suggestedPrice }]);
+    setLines([{ description: job.issue, quantity: '1', unit_price: String(job.suggestedPrice) }]);
   };
   const startNew = () => {
     setSource('external'); setSelectedJob(null); setCustomerName(''); setCustomerAddress('');
     setCustomerEmail(''); setDescription(''); setNotes('');
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
-    setLines([{ description: '', quantity: 1, unit_price: 0 }]);
+    setLines([{ description: '', quantity: '1', unit_price: '0' }]);
     setScreen('create');
   };
-  const changeLine = (index: number, patch: Partial<LineItem>) =>
+  const changeLine = (index: number, patch: Partial<EditableLine>) =>
     setLines(existing => existing.map((item, i) => i === index ? { ...item, ...patch } : item));
 
   const sharePdf = async (doc: Invoice) => {
@@ -359,7 +360,7 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
         </View>
 
         <View style={s.sectionRow}><Text style={s.section}>Labour & materials</Text>
-          <MotionPressable style={s.addSmall} onPress={() => setLines(old => [...old, { description: '', quantity: 1, unit_price: 0 }])}>
+          <MotionPressable style={s.addSmall} onPress={() => setLines(old => [...old, { description: '', quantity: '1', unit_price: '0' }])}>
             <Plus size={16} color={theme.colors.teal} /><Text style={s.addSmallText}>Add item</Text>
           </MotionPressable></View>
         {lines.map((item, i) => <View style={s.card} key={i}>
@@ -368,11 +369,11 @@ export default function TradeInvoicesScreen({ goBack }: { goBack: () => void }) 
               <Trash2 size={18} color={theme.colors.coralDark} /></MotionPressable> : null}</View>
           <Field label="Description" value={item.description} onChange={v => changeLine(i, { description: v })} placeholder="Labour, materials, callout..." required />
           <View style={s.twoCols}><View style={{ flex: 1 }}>
-            <Field label="Quantity" numeric value={String(item.quantity)} onChange={v => changeLine(i, { quantity: Number(v) || 0 })} required />
+            <Field label="Quantity" numeric value={String(item.quantity)} onChange={v => changeLine(i, { quantity: v })} required />
           </View><View style={{ flex: 1 }}>
-            <Field label="Unit price (£)" numeric value={String(item.unit_price)} onChange={v => changeLine(i, { unit_price: Number(v) || 0 })} required />
+            <Field label="Unit price (£)" numeric value={String(item.unit_price)} onChange={v => changeLine(i, { unit_price: v })} required />
           </View></View>
-          <Text style={s.lineTotal}>Line total  {money(Math.round(item.quantity * Math.round(item.unit_price * 100)) / 100)}</Text>
+          <Text style={s.lineTotal}>Line total  {money(Math.round(Number(item.quantity) * Math.round(Number(item.unit_price) * 100)) / 100)}</Text>
         </View>)}
 
         <Text style={s.section}>VAT</Text>
