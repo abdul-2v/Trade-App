@@ -354,10 +354,23 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   </View>
   {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
    screen==='list'?<ScrollView contentContainerStyle={s.page}>
-    <Text style={s.intro}>Create clear estimates for private customers, save the PDF and convert approved work into an invoice.</Text>
-    <MotionPressable style={s.primary} onPress={newQuote}><Plus size={20} color="#FFFFFF"/><Text style={s.primaryText}>Create a quote</Text><ChevronRight size={19} color="#FFFFFF"/></MotionPressable>
-    <Text style={s.section}>Your quotes</Text>
-    {quotes.length?quotes.map(q=><View key={q.id} style={s.quoteCard}>
+    <Text style={s.intro}>Win work with confident pricing, a clear job scope and options your customer can choose. Turn an accepted proposal into a job.</Text>
+    <MotionPressable style={s.primary} onPress={newQuote}><Plus size={20} color="#FFFFFF"/><Text style={s.primaryText}>Plan a new job</Text><ChevronRight size={19} color="#FFFFFF"/></MotionPressable>
+    <View style={s.pipelineRow}>
+       <View style={s.pipelineCard}><Text style={s.pipelineLabel}>Awaiting decision</Text>
+         <Text style={s.pipelineValue}>{awaitingQuotes.length}</Text>
+         <Text style={s.pipelineHint}>{money(valueAwaiting)} quoted</Text></View>
+       <View style={s.pipelineCard}><Text style={s.pipelineLabel}>Won / approved</Text>
+         <Text style={s.pipelineValue}>{wonQuotes.length}</Text>
+         <Text style={s.pipelineHint}>Includes manually accepted quotes</Text></View>
+     </View>
+     <Text style={s.section}>Your proposals</Text>
+     <View style={s.pills}>
+       <Pill name={'All · '+quotes.length} selected={listFilter==='all'} onPress={()=>setListFilter('all')}/>
+       <Pill name={'Awaiting · '+awaitingQuotes.length} selected={listFilter==='awaiting'} onPress={()=>setListFilter('awaiting')}/>
+       <Pill name={'Won · '+wonQuotes.length} selected={listFilter==='won'} onPress={()=>setListFilter('won')}/>
+     </View>
+    {displayedQuotes.length?displayedQuotes.map(q=><View key={q.id} style={s.quoteCard}>
      <MotionPressable onPress={()=>{setSelectedId(q.id);setScreen('preview')}} style={s.quoteTop}>
       <View style={{flex:1}}><Text style={s.quoteNo}>{quoteNo(q.quote_no)}</Text><Text style={s.quoteName}>{q.customer_name}</Text>
        <Text style={s.small}>{q.title} · Valid to {q.valid_until}</Text></View>
@@ -366,9 +379,10 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
      <View style={s.quoteActions}><MotionPressable onPress={()=>{setSelectedId(q.id);setScreen('preview')}} style={s.action}>
       <FileText size={17} color={C.teal}/><Text style={s.actionText}>View</Text></MotionPressable>
       <MotionPressable onPress={()=>share(q)} style={s.action}><Share2 size={17} color={C.teal}/><Text style={s.actionText}>Share PDF</Text></MotionPressable>
+       {q.status==='sent'?<MotionPressable onPress={()=>followUp(q)} style={s.action}><Send size={16} color={C.teal}/><Text style={s.actionText}>Follow up</Text></MotionPressable>:null}
      </View>
     </View>):<View style={s.empty}><FileText size={35} color={C.teal}/><Text style={s.emptyTitle}>No quotes yet</Text>
-     <Text style={s.intro}>Start with your next repair or installation estimate.</Text></View>}
+     <Text style={s.intro}>{listFilter==='all'?'Start with your next repair or installation proposal.':'No proposals in this category yet.'}</Text></View>}
    </ScrollView>:
    screen==='preview'&&selected?<View style={s.previewRoot}>
     <View style={s.previewInfo}><View style={{flex:1}}><Text style={s.quoteNo}>{quoteNo(selected.quote_no)} · {statusName(selected.status)}</Text>
@@ -388,7 +402,14 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       {selected.status!=='declined'?<MotionPressable style={s.convert} onPress={()=>convert(selected)} disabled={converting}>
        {converting?<ActivityIndicator color={C.teal}/>:<Text style={s.convertText}>{selected.invoice_id?'View linked invoice':'Convert to invoice'}</Text>}
        <ChevronRight size={19} color={C.teal}/></MotionPressable>:null}
-      <Text style={s.previewHint}>Statuses are marked manually. Sharing a PDF does not mean the customer has accepted it.</Text>
+      {selected.items.some(i=>i.kind==='material')?<MotionPressable style={s.partsAction} onPress={()=>createMaterials(selected)}
+         disabled={creatingKit} accessibilityRole="button" accessibilityLabel="Make a shopping list from quoted materials">
+          {creatingKit?<ActivityIndicator color={C.teal}/>:<Plus size={18} color={C.teal}/>}
+          <Text style={s.partsActionText}>Make shopping list from this quote</Text><ChevronRight size={18} color={C.teal}/>
+        </MotionPressable>:null}
+       {selected.status==='sent'?<MotionPressable style={s.partsAction} onPress={()=>followUp(selected)}>
+         <Send size={16} color={C.teal}/><Text style={s.partsActionText}>Prepare follow-up message</Text></MotionPressable>:null}
+       <Text style={s.previewHint}>Statuses are marked manually. Sharing a PDF does not mean the customer has accepted it.</Text>
     </View>
    </View>:<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
     <View style={s.stepBanner}>
