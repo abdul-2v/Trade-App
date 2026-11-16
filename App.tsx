@@ -504,6 +504,7 @@ export default function App() {
 
   const [mode, setMode] = useState<Mode>('customer');
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
+  const [homeBackScreen,setHomeBackScreen]=useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
   const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
   const [materialKitPreviewId,setMaterialKitPreviewId]=useState<string|null>(null);
@@ -625,7 +626,7 @@ export default function App() {
   if (authLoading) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ color: C.white, fontSize: 18, fontWeight: '800' }}>Loading TradeHub…</Text>
+        <Text style={{ color: C.white, fontSize: 18, fontWeight: '800' }}>Loading Tradarr…</Text>
       </SafeAreaView>
     );
   }
@@ -920,7 +921,7 @@ export default function App() {
     return (
       <RequestsScreen
         requests={requests}
-        navigate={setCustomerScreen}
+        navigate={screen => {if(screen==='myHome')setHomeBackScreen('requests');setCustomerScreen(screen);}}
         openRequest={request => {
           setSelectedRequest(request);
           setCustomerScreen('requestDetail');
@@ -939,15 +940,15 @@ export default function App() {
     </CustomerShell>;
   }
   if (customerScreen === 'myHome') {
-    return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
-      <CustomerHomePassportScreen goBack={() => setCustomerScreen('customerProfile')}/>
+    return <CustomerShell current={homeBackScreen} navigate={setCustomerScreen}>
+      <CustomerHomePassportScreen goBack={() => setCustomerScreen(homeBackScreen)}/>
     </CustomerShell>;
   }
 
   if (customerScreen === 'customerProfile') {
     return (
       <CustomerProfileScreen
-        navigate={setCustomerScreen}
+        navigate={screen => {if(screen==='myHome')setHomeBackScreen('customerProfile');setCustomerScreen(screen);}}
         openTrade={openTrade}
         switchToTrade={() => {
           setMode('tradesperson');
@@ -963,7 +964,7 @@ export default function App() {
     <MarketplaceHomeScreen
       selectedCategory={selectedCategory}
       setSelectedCategory={setSelectedCategory}
-      navigate={setCustomerScreen}
+      navigate={screen => {if(screen==='myHome')setHomeBackScreen('home');setCustomerScreen(screen);}}
       onOpenRoute={() => setCustomerScreen('route')}
       onStartIntent={(trade, service, timing) => {
         setSelectedCategory(trade);
@@ -1097,7 +1098,7 @@ function MarketplaceHomeScreen({
       <ScrollView style={styles.customerHome} contentContainerStyle={styles.customerHomeContent} showsVerticalScrollIndicator={false}>
         <View style={styles.customerHomeHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.customerHomeGreeting}>{firstName ? 'Hi ' + firstName : 'Welcome to TradeHub'}</Text>
+            <Text style={styles.customerHomeGreeting}>{firstName ? 'Hi ' + firstName : 'Welcome to Tradarr'}</Text>
             <Text style={styles.customerHomeSub}>Find the right help, without the hassle.</Text>
           </View>
           <MotionPressable style={styles.customerHomeAvatar} onPress={() => navigate('customerProfile')}
@@ -1660,7 +1661,7 @@ function HomeScreen({
               <AppIcon icon={{ ios: 'hammer.fill', android: 'construction' }} size={18} color={C.navy} />
             </View>
             <View>
-              <Text style={styles.v2Brand}>TradeHub</Text>
+              <Text style={styles.v2Brand}>Tradarr</Text>
               <Text style={styles.v2BrandSub}>Local trades, made simple</Text>
             </View>
           </View>
@@ -1675,7 +1676,7 @@ function HomeScreen({
           <View style={styles.v2HeroTopRow}>
             <View style={styles.v2Eyebrow}>
               <View style={styles.v2EyebrowDot} />
-              <Text style={styles.v2EyebrowText}>VERIFIED LOCAL PROS</Text>
+              <Text style={styles.v2EyebrowText}>FIND LOCAL TRADES</Text>
             </View>
             <View style={styles.v2HeroMiniMark}>
               <View style={styles.v2HeroMiniLine} />
@@ -1702,8 +1703,8 @@ function HomeScreen({
 
           <View style={styles.v2TrustRow}>
             <View style={styles.v2TrustItem}>
-              <Text style={styles.v2TrustValue}>4.8+</Text>
-              <Text style={styles.v2TrustLabel}>top-rated local pros</Text>
+              <Text style={styles.v2TrustValue}>Local</Text>
+              <Text style={styles.v2TrustLabel}>browse local trades</Text>
             </View>
             <View style={styles.v2TrustDivider} />
             <View style={styles.v2TrustItem}>
@@ -1974,7 +1975,7 @@ function MapScreen({
             response: estimatedDispatchEta(distance),
             years: 0,
             phone: profile.public_phone || '',
-            about: profile.bio || 'Local trade professional on TradeHub.',
+            about: profile.bio || 'Local trade professional on Tradarr.',
             services: serviceCatalog[role].slice(0, 5),
             mapLatitude: latitude,
             mapLongitude: longitude,
@@ -2104,7 +2105,7 @@ function MapScreen({
         ) : marketLoading ? (
           <View style={styles.marketDataBanner}>
             <ActivityIndicator size="small" color={C.green} />
-            <Text style={styles.marketDataBannerText}>Loading live TradeHub professionals…</Text>
+            <Text style={styles.marketDataBannerText}>Loading live Tradarr professionals…</Text>
           </View>
         ) : marketError ? (
           <View style={styles.marketDataBanner}>
@@ -2904,8 +2905,8 @@ function TradeProfileScreen({
   const isDemo = !isLiveProfile;
   const shareProfile = () => Share.share({
     message: isDemo
-      ? trade.name + ' — example tradesperson profile in TradeHub demo.'
-      : trade.name + ' — ' + trade.role + ' on TradeHub.',
+      ? trade.name + ' — example tradesperson profile in Tradarr demo.'
+      : trade.name + ' — ' + trade.role + ' on Tradarr.',
   });
 
   return (
@@ -2918,7 +2919,7 @@ function TradeProfileScreen({
             </MotionPressable>
             <View style={{ flexDirection: 'row', gap: 9 }}>
               <MotionPressable style={styles.customerPublicIconButton} accessibilityRole="button" accessibilityLabel="Share this tradesperson"
-                onPress={() => Share.share({ message: trade.name + ' — ' + trade.role + ' on TradeHub.' })}>
+                onPress={() => Share.share({ message: trade.name + ' — ' + trade.role + ' on Tradarr.' })}>
                 <ArrowUp size={20} color="#FFFFFF" strokeWidth={2} />
               </MotionPressable>
               <MotionPressable style={styles.customerPublicIconButton} accessibilityRole="button"
@@ -3092,7 +3093,7 @@ function UrgentScreen({
       if (permission.status !== 'granted') {
         Alert.alert(
           'Location permission needed',
-          'Instant matching needs your job location so TradeHub can contact nearby available tradespeople.'
+          'Instant matching needs your job location so Tradarr can contact nearby available tradespeople.'
         );
         return null;
       }
@@ -3747,7 +3748,7 @@ function UrgentScreen({
             </MotionPressable>
           ) : (
             <MotionPressable style={styles.findButton} onPress={back}>
-              <Text style={styles.findButtonText}>Back to TradeHub</Text>
+              <Text style={styles.findButtonText}>Back to Tradarr</Text>
             </MotionPressable>
           )}
         </ScrollView>
@@ -4561,7 +4562,7 @@ function RequestDetailScreen({
                         ? isRoute
                           ? 'Real nearby tradespeople have been offered this flexible job. Once one accepts, their profile and status will appear here.'
                           : 'Your selected tradesperson has been sent this booking request.'
-                        : 'TradeHub is waiting for one of the nearby available tradespeople to accept.'}
+                        : 'Tradarr is waiting for one of the nearby available tradespeople to accept.'}
                   </Text>
                 </View>
               </View>
@@ -5125,7 +5126,7 @@ function CustomerProfileScreen({
           response: 0,
           years: 0,
           phone: prof.public_phone || '',
-          about: prof.bio || 'TradeHub tradesperson profile.',
+          about: prof.bio || 'Tradarr tradesperson profile.',
           services: serviceCatalog[role].slice(0, 5),
         }];
       });
@@ -5252,6 +5253,18 @@ function CustomerProfileScreen({
             </View>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
           </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('myHome')}
+            accessibilityRole="button" accessibilityLabel="Open My Home records">
+            <View style={styles.customerAccountRowIcon}><HomeIcon size={20} strokeWidth={2} color={theme.colors.teal}/></View>
+            <Text style={styles.customerAccountRowText}>My Home & maintenance</Text>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerQuotes')}
+            accessibilityRole="button" accessibilityLabel="Open Quote Centre">
+            <View style={styles.customerAccountRowIcon}><FileText size={20} strokeWidth={2} color={theme.colors.teal}/></View>
+            <Text style={styles.customerAccountRowText}>Quotes & approvals</Text>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>
           <MotionPressable style={styles.customerAccountRow} onPress={showSavedTrades}
             accessibilityRole="button" accessibilityLabel="View saved tradespeople">
             <View style={styles.customerAccountRowIcon}><Heart size={20} strokeWidth={2} color={theme.colors.teal} /></View>
@@ -5285,10 +5298,10 @@ function CustomerProfileScreen({
 
         {accountType === 'tradesperson' ? (
           <MotionPressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
-            accessibilityRole="button" accessibilityLabel="Switch to TradeHub Pro">
+            accessibilityRole="button" accessibilityLabel="Switch to Tradarr Pro">
             <BriefcaseBusiness size={21} strokeWidth={2} color={theme.colors.teal} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.customerAccountRowText}>Open TradeHub Pro</Text>
+              <Text style={styles.customerAccountRowText}>Open Tradarr Pro</Text>
               <Text style={styles.customerAccountRowDetail}>Manage jobs and availability</Text>
             </View>
             <ChevronRight size={20} color={theme.colors.teal} />
@@ -5374,7 +5387,7 @@ function CustomerProfileScreen({
                 <View style={styles.customerAccountEditorNotifyCard}>
                   <View style={styles.customerAccountEditorNotifyIcon}><Bell color={theme.colors.teal} size={20} strokeWidth={2} /></View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.settingsLabel}>TradeHub notifications</Text>
+                    <Text style={styles.settingsLabel}>Tradarr notifications</Text>
                     <Text style={styles.settingsSubText}>Messages, booking updates and job responses</Text>
                   </View>
                   <Switch
@@ -5435,7 +5448,7 @@ function CustomerProfileScreen({
             {editMode === 'saved' ? (
               <>
                 <Text style={styles.profileModalTitle}>Saved tradespeople</Text>
-                <Text style={styles.profileModalHint}>Only real TradeHub professionals can be saved.</Text>
+                <Text style={styles.profileModalHint}>Only real Tradarr professionals can be saved.</Text>
                 {loadingSaved ? <ActivityIndicator color={C.orange} style={{ marginVertical: 22 }} /> : null}
                 {savedError ? <Text style={[styles.profileModalHint, { color: '#A44D3E' }]}>{savedError}</Text> : null}
                 {!loadingSaved && !savedError && !savedTrades.length ? (
