@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,Platform,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,Platform,ScrollView,Share,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,Check,ChevronRight,FileText,Plus,Send,Share2,Trash2,Users} from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -128,12 +128,16 @@ function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>
  return <MotionPressable onPress={onPress} style={[s.pill,selected&&s.pillOn]}>
  <Text style={[s.pillText,selected&&s.pillTextOn]}>{name}</Text></MotionPressable>;
 }
-export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void}){
+export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated}:{
+ goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void;onMaterialsCreated:(kitId:string)=>void;
+}){
  const [uid,setUid]=useState('');
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [sharing,setSharing]=useState(false);
  const [converting,setConverting]=useState(false);
+ const [creatingKit,setCreatingKit]=useState(false);
+ const [listFilter,setListFilter]=useState<'all'|'awaiting'|'won'>('all');
  const [screen,setScreen]=useState<'list'|'new'|'preview'>('list');
  const [quotes,setQuotes]=useState<Quote[]>([]);
  const [customers,setCustomers]=useState<Customer[]>([]);
@@ -166,6 +170,10 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
  const [vatRate,setVatRate]=useState(0);
  const [lines,setLines]=useState<DraftLine[]>([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
  const selected=quotes.find(q=>q.id===selectedId)||null;
+ const awaitingQuotes=quotes.filter(q=>q.status==='sent');
+ const wonQuotes=quotes.filter(q=>['accepted','converted'].includes(q.status));
+ const displayedQuotes=quotes.filter(q=>listFilter==='all'||listFilter==='awaiting'&&q.status==='sent'||listFilter==='won'&&['accepted','converted'].includes(q.status));
+ const valueAwaiting=awaitingQuotes.reduce((n,q)=>n+Number(q.total),0);
  const subtotal=useMemo(()=>Math.round(lines.reduce((sum,l)=>sum+pennies(l),0))/100,[lines]);
  const vat=Math.round(subtotal*vatRate)/100;
  const total=Math.round((subtotal+vat)*100)/100;
@@ -305,6 +313,37 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
   setConverting(false);
   if(update.error)Alert.alert('Invoice created','Your invoice was saved, but the quote status could not be updated. You can still view it in Invoices.');
   onInvoiceCreated(invoiceId);
+ };
+ const createMaterials=async(q:Quote)=>{
+  if(creatingKit)return;
+  const materials=(q.items||[]).filter(i=>i.kind==='material');
+  if(!materials.length){Alert.alert('No material items','Add materials to the quote before making a job shopping list.');return;}
+  setCreatingKit(true);
+  try{
+    const existing=await supabase.from('trade_material_kits').select('id').eq('source_quote_id',q.id).eq('tradesperson_id',uid).maybeSingle();
+    if(existing.data?.id){onMaterialsCreated(existing.data.id);return;}
+    const checklist=materials.map((i,index)=>({
+      id:'quote-'+q.id.slice(0,8)+'-'+index,name:i.description,
+      qty:Number(i.quantity),unit:i.unit||'each',unit_cost:0,merchant:'',done:false
+    }));
+    const {data,error}=await supabase.from('trade_material_kits').insert({
+      tradesperson_id:uid,source_quote_id:q.id,name:q.title,job_address:q.customer_address,items:checklist
+    }).select('id').single();
+    if(error||!data){
+      const retry=await supabase.from('trade_material_kits').select('id').eq('source_quote_id',q.id).eq('tradesperson_id',uid).maybeSingle();
+      if(retry.data?.id){onMaterialsCreated(retry.data.id);return;}
+      throw new Error(error?.message||'Could not save checklist.');
+    }
+    onMaterialsCreated(data.id);
+  }catch(e){Alert.alert('Materials checklist',String(e))}
+  finally{setCreatingKit(false);}
+ };
+ const followUp=async(q:Quote)=>{
+   try{await Share.share({message:
+    'Hi '+q.customer_name+', just checking whether you had any questions about the proposal for '+q.title+
+    ' ('+quoteNo(q.quote_no)+'). The quote is valid until '+q.valid_until+
+    '. Happy to discuss the scope or any optional upgrades. Thanks!'
+   });}catch(e){Alert.alert('Could not share message',String(e))}
  };
  const back=()=>screen==='list'?goBack():screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
  return <View style={s.root}>
@@ -501,6 +540,14 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
  </View>;
 }
 const s=StyleSheet.create({
+ pipelineRow:{flexDirection:'row',gap:11,marginTop:17,marginBottom:9},
+ pipelineCard:{flex:1,padding:16,backgroundColor:'#FFFFFF',borderRadius:22,...theme.shadow},
+ pipelineLabel:{fontSize:11,color:C.muted,lineHeight:17},
+ pipelineValue:{fontSize:26,fontWeight:'800',color:C.ink,marginTop:7},
+ pipelineHint:{fontSize:11,color:C.muted,marginTop:5,lineHeight:16},
+ partsAction:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,padding:10,marginTop:8},
+ partsActionText:{fontSize:12,fontWeight:'800',color:C.teal},
+
  stepBanner:{backgroundColor:C.darkTeal,borderRadius:25,padding:22,marginBottom:13},
  stepSmall:{fontSize:10,color:'#B4D6D2',letterSpacing:1.4,fontWeight:'800'},
  stepTitle:{fontSize:26,fontWeight:'800',color:'#FFFFFF',marginTop:9},
