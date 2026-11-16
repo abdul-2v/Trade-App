@@ -546,13 +546,13 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             {(item.kind === 'labour' ? ['job','hour','day','radiator','valve','item'] : item.kind === 'material'
                 ? ['item','metre','radiator','valve','box','pack'] : ['job','item','hour']).map(unit =>
               <Pill key={unit} label={unitOptionLabel(unit)}
-                active={item.unit === unit} onPress={() => changeLine(i, { unit, quantity: unit==='job'?'1':item.quantity })} />)}
+                active={item.unit === unit || (item.unit === 'each' && unit === 'item')} onPress={() => changeLine(i, { unit, quantity: unit==='job'?'1':item.quantity })} />)}
           </View>
           <View style={s.twoCols}><View style={{ flex: 1 }}>
             <Field label={item.unit === 'hour' ? 'Hours' : item.unit === 'metre' ? 'Metres' : 'Quantity'} numeric
               value={item.quantity} onChange={v => changeLine(i, { quantity: v })} required />
           </View><View style={{ flex: 1 }}>
-            <Field label={'Price per ' + (item.unit==='each'?'item':item.unit) + ' (£)'}
+            <Field label={'Price per ' + (item.unit === 'each' ? 'item' : item.unit) + ' (£)'}
               numeric value={item.unit_price} onChange={v => changeLine(i, { unit_price: v })} placeholder="0.00" required />
           </View></View>
           <View style={s.lineTotalBar}><Text style={s.lineTotalLabel}>{formatTradeQuantity(item.quantity,item.unit)}</Text>
