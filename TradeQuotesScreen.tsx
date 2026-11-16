@@ -207,7 +207,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
    supabase.from('trade_customers').select('id,name,phone,email,address').eq('tradesperson_id',id).order('name'),
    supabase.from('tradesperson_profiles').select('business_name,display_name,public_phone').eq('user_id',id).maybeSingle(),
    supabase.from('trade_invoices').select('business_name,business_address,business_email,business_phone,vat_number')
-    .eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(1).maybeSingle()
+    .eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
    supabase.from('jobs').select('id,customer_id,trade,issue,status').eq('accepted_tradesperson_id',id)
       .in('status',['accepted','en_route','arrived','in_progress','completed']).order('created_at',{ascending:false}).limit(50),
    supabase.from('urgent_requests').select('id,customer_id,trade,issue,status').eq('accepted_tradesperson_id',id)
