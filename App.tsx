@@ -5940,6 +5940,35 @@ function TradeHomeScreen({
           <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
         </MotionPressable>
 
+        <MotionPressable
+          onPress={() => navigate('tradeInvoices')}
+          accessibilityRole="button"
+          accessibilityLabel="Open invoices, create a new invoice with detailed labour and materials"
+          style={{
+            backgroundColor: theme.colors.darkTeal, borderRadius: 25, minHeight: 124,
+            paddingHorizontal: 20, paddingVertical: 18, marginTop: 7, marginBottom: 20,
+            flexDirection: 'row', alignItems: 'center', gap: 14, ...theme.shadow
+          }}
+        >
+          <View style={{
+            width: 54, height: 54, borderRadius: 18, backgroundColor: '#345457',
+            alignItems: 'center', justifyContent: 'center'
+          }}>
+            <ClipboardList size={27} color="#FFFFFF" strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 10, color: '#A5D3C8', fontWeight: '800', letterSpacing: 1.4 }}>YOUR BUSINESS TOOLS</Text>
+            <Text style={{ fontSize: 20, color: '#FFFFFF', fontWeight: '800', marginTop: 5 }}>Create an invoice</Text>
+            <Text style={{ fontSize: 12, color: '#D3E4E2', marginTop: 5, lineHeight: 18 }}>Itemise labour, parts and costs. Send a PDF in seconds.</Text>
+          </View>
+          <View style={{
+            width: 35, height: 35, borderRadius: 18, backgroundColor: '#FFFFFF',
+            justifyContent: 'center', alignItems: 'center'
+          }}>
+            <ArrowRight size={18} color={theme.colors.darkTeal} strokeWidth={2.5} />
+          </View>
+        </MotionPressable>
+
         <View style={styles.premiumSectionRow}>
           <Text style={styles.premiumSectionTitle}>Incoming opportunities</Text>
           <MotionPressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
@@ -5994,22 +6023,6 @@ function TradeHomeScreen({
             <Text style={styles.premiumShortcutSub}>Flexible work</Text>
           </MotionPressable>
         </View>
-
-        <MotionPressable
-          onPress={() => navigate('tradeInvoices')}
-          accessibilityRole="button"
-          accessibilityLabel="Create and manage invoices"
-          style={{ backgroundColor: '#FFFFFF', borderRadius: 25, minHeight: 81, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 14, marginBottom: 18, ...theme.shadow }}
-        >
-          <View style={{ width: 49, height: 49, borderRadius: 17, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' }}>
-            <ClipboardList size={25} color={theme.colors.teal} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: theme.colors.ink }}>Invoices</Text>
-            <Text style={{ fontSize: 12, color: theme.colors.muted, marginTop: 4 }}>Make & share professional PDFs</Text>
-          </View>
-          <ChevronRight size={21} color={theme.colors.teal} />
-        </MotionPressable>
 
         <View style={styles.proReferenceSettingsList}>
         <MotionPressable
