@@ -7073,6 +7073,8 @@ function TradeJobsScreen({
           </>
         ) : (
           <>
+        {offerFilter !== 'flexible' ? (
+          <>
         <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
 
         {loading ? (
@@ -7131,12 +7133,17 @@ function TradeJobsScreen({
             <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
             <Text style={styles.tradeEmptyLargeText}>
-              Matching urgent requests appear here while you're available.
+              When an urgent customer request matches your availability and area, you can review and accept it here.
             </Text>
           </View>
         )}
 
 
+          </>
+        ) : null}
+
+        {offerFilter !== 'urgent' ? (
+          <>
         <Text style={styles.dispatchTradeSectionTitle}>Flexible & scheduled offers</Text>
 
         {loadingMarket ? (
@@ -7144,8 +7151,8 @@ function TradeJobsScreen({
             <ActivityIndicator color={C.green} />
             <Text style={styles.tradeEmptyLargeText}>Checking route and booking offers…</Text>
           </View>
-        ) : marketOffered.length ? (
-          marketOffered.map(job => (
+        ) : filteredMarketOffers.length ? (
+          filteredMarketOffers.map(job => (
             <View key={job.offerId} style={styles.marketTradeOfferCard}>
               <View style={styles.dispatchTradeTopRow}>
                 <View style={styles.marketTradeOfferIcon}>
@@ -7210,12 +7217,31 @@ function TradeJobsScreen({
             <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={25} color="#4B7779" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No flexible offers yet</Text>
             <Text style={styles.tradeEmptyLargeText}>
-              New flexible and scheduled requests will appear here when customers post them.
+              {flexibleMode === 'all'
+                ? 'No matching flexible or scheduled offers yet. Check back when a customer sends one.'
+                : 'No ' + (flexibleMode === 'route' ? 'On My Way' : flexibleMode === 'street_run' ? 'Street Run' : 'booking') + ' offers right now. Try All flexible to see other types.'}
             </Text>
           </View>
         )}
 
 
+          </>
+        ) : null}
+          {offerFilter === 'urgent' && !loading && offered.length === 0 ? (
+            <MotionPressable style={styles.tradeOtherOfferLink} onPress={() => setOfferFilter('flexible')}
+              accessibilityRole="button" accessibilityLabel="See flexible offers">
+              <Text style={styles.tradeOtherOfferLinkText}>See flexible and scheduled offers instead</Text>
+              <ArrowRight size={17} color={theme.colors.teal} />
+            </MotionPressable>
+          ) : null}
+          {offerFilter === 'flexible' && !loadingMarket && filteredMarketOffers.length === 0 ? (
+            <MotionPressable style={styles.tradeOtherOfferLink}
+              onPress={() => { setOfferFilter('all'); setFlexibleMode('all'); }}
+              accessibilityRole="button" accessibilityLabel="See all job offers">
+              <Text style={styles.tradeOtherOfferLinkText}>See all available offer types</Text>
+              <ArrowRight size={17} color={theme.colors.teal} />
+            </MotionPressable>
+          ) : null}
           </>
         )}
         <View style={{ height: 24 }} />
@@ -9940,6 +9966,42 @@ const styles = StyleSheet.create({
   premiumScreenHeading: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 22 },
   premiumScreenSub: { fontSize: 14, color: theme.colors.muted, lineHeight: 21, marginTop: 4 },
   premiumHeaderRefresh: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.white, ...theme.shadow },
+  tradeHowToggle: { minHeight: 62, backgroundColor: theme.colors.white, borderRadius: 21,
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17, paddingVertical: 10, marginBottom: 14, ...theme.shadow },
+  tradeHowToggleTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
+  tradeHowToggleSub: { color: theme.colors.muted, fontSize: 12, marginTop: 3 },
+  tradeHowPanel: { backgroundColor: theme.colors.white, borderRadius: 22,
+    paddingHorizontal: 16, paddingVertical: 12, marginBottom: 17, ...theme.shadow },
+  tradeHowStep: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
+  tradeHowNumber: { width: 27, height: 27, borderRadius: 14, backgroundColor: theme.colors.tealTint,
+    alignItems: 'center', justifyContent: 'center' },
+  tradeHowNumberText: { color: theme.colors.teal, fontSize: 12, fontWeight: '800' },
+  tradeHowStepTitle: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
+  tradeHowStepDetail: { color: theme.colors.muted, fontSize: 12, marginTop: 4, lineHeight: 18 },
+  tradeHowExtra: { color: theme.colors.teal, fontSize: 12, lineHeight: 19, marginTop: 6, paddingTop: 12,
+    borderTopColor: theme.colors.line, borderTopWidth: 1 },
+  tradeOfflineBanner: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 20,
+    padding: 14, marginBottom: 12, backgroundColor: '#FFF2E9', borderWidth: 1, borderColor: '#F0DED2' },
+  tradeOfflineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#CF845A' },
+  tradeOfflineTitle: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
+  tradeOfflineSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  tradeOfferFilterRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  tradeOfferFilter: { flex: 1, minHeight: 42, borderRadius: 15, backgroundColor: theme.colors.white,
+    alignItems: 'center', justifyContent: 'center', borderColor: theme.colors.line, borderWidth: 1 },
+  tradeOfferFilterActive: { backgroundColor: theme.colors.tealTint, borderColor: theme.colors.teal },
+  tradeOfferFilterText: { color: theme.colors.muted, fontWeight: '800', fontSize: 12 },
+  tradeOfferFilterTextActive: { color: theme.colors.teal },
+  tradeOfferExplanation: { color: theme.colors.muted, fontSize: 12, lineHeight: 19, marginBottom: 14, marginTop: 1 },
+  tradeModeOptions: { paddingVertical: 3, paddingRight: 9, gap: 9 },
+  tradeModeChip: { minHeight: 42, borderRadius: 21, paddingHorizontal: 15, alignItems: 'center',
+    justifyContent: 'center', backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.line },
+  tradeModeChipActive: { backgroundColor: theme.colors.darkTeal, borderColor: theme.colors.darkTeal },
+  tradeModeChipLabel: { fontSize: 12, fontWeight: '800', color: theme.colors.muted },
+  tradeModeChipLabelActive: { color: theme.colors.white },
+  tradeModeExplanation: { color: theme.colors.muted, fontSize: 12, lineHeight: 19, marginTop: 9, marginBottom: 12 },
+  tradeOtherOfferLink: { minHeight: 48, borderRadius: 24, backgroundColor: theme.colors.tealTint,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 13, gap: 9, marginTop: 12 },
+  tradeOtherOfferLinkText: { color: theme.colors.teal, fontSize: 12, fontWeight: '800' },
   premiumJobOverview: { minHeight: 136, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 24, paddingTop: 21, flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', overflow: 'hidden', ...theme.shadow },
   premiumJobMetric: { width: 90, minHeight: 63 },
   premiumJobMetricNumber: { color: theme.colors.white, fontSize: 39, fontWeight: '800', letterSpacing: -1.4, lineHeight: 42 },
