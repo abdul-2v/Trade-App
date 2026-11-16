@@ -93,10 +93,10 @@ export default function TradeProfitScreen({goBack}:{goBack:()=>void}){
  <Text style={s.pickerTitle}>{o.label}</Text><Text style={s.pickerSub}>{o.subtitle}</Text></MotionPressable>)}</View>:null}
  <View style={s.profitPanel}>
  <Text style={s.panelOver}>JOB CONTRIBUTION · BEFORE OVERHEADS & TAX</Text>
- <Text style={[s.heroValue,contribution<0&&{color:'#B64C33'}]}>{pounds(contribution)}</Text>
- <View style={s.profitSplit}><View><Text style={s.miniLabel}>Sales ex VAT</Text><Text style={s.miniValue}>{pounds(focus?.revenue||0)}</Text></View>
- <View><Text style={s.miniLabel}>Costs entered</Text><Text style={s.miniValue}>{pounds(spent)}</Text></View>
- <View><Text style={s.miniLabel}>Gross margin*</Text><Text style={s.miniValue}>{margin===null?'—':margin.toFixed(1)+'%'}</Text></View></View>
+ <Text style={[s.heroValue,contribution<0&&linked.length>0&&{color:'#F7B49F'}]}>{linked.length?pounds(contribution):'Add costs to calculate'}</Text>
+ <View style={s.profitSplit}><View><Text style={[s.miniLabel,{color:'#BBD5D1'}]}>Sales ex VAT</Text><Text style={s.miniValue}>{pounds(focus?.revenue||0)}</Text></View>
+ <View><Text style={[s.miniLabel,{color:'#BBD5D1'}]}>Costs entered</Text><Text style={s.miniValue}>{pounds(spent)}</Text></View>
+ <View><Text style={[s.miniLabel,{color:'#BBD5D1'}]}>Gross margin*</Text><Text style={s.miniValue}>{margin===null||!linked.length?'—':margin.toFixed(1)+'%'}</Text></View></View>
  <Text style={s.panelFoot}>*Estimated, only as complete as your entered costs. Excludes unrecorded expenses, overheads and tax. Quotes show potential revenue, not earned income.</Text>
  </View>
  <View style={s.sectionRow}><Text style={s.section}>Job expenses</Text>
@@ -125,7 +125,7 @@ export default function TradeProfitScreen({goBack}:{goBack:()=>void}){
  <Text style={s.helper}>Use actual costs to see the sales price required for your target gross margin.</Text>
  <View style={{flexDirection:'row',alignItems:'center',gap:12,marginTop:11}}>
  <View style={{width:96}}><Entry name="Target %" value={target} onChange={setTarget}/></View>
- <View style={{flex:1}}><Text style={s.miniLabel}>Required price ex VAT</Text><Text style={s.marginPrice}>{pounds(needed)}</Text></View></View>
+ <View style={{flex:1}}><Text style={s.miniLabel}>Required price ex VAT</Text><Text style={s.marginPrice}>{linked.length?pounds(needed):'—'}</Text></View></View>
  <Text style={s.helper}>Indicative calculation only. £0.00 until costs are recorded; not a recommended market rate.</Text></View>
  </>:<View style={s.empty}><AlertCircle size={32} color={C.teal}/><Text style={s.emptyTitle}>Start by creating a quote or invoice</Text>
  <Text style={s.emptyText}>Job profit links your income and expenses, so create an estimate or invoice first. Then come back to track the costs.</Text></View>}
@@ -148,7 +148,7 @@ const s=StyleSheet.create({
  pickerRow:{padding:13,borderBottomWidth:1,borderColor:C.line},
  profitPanel:{backgroundColor:C.darkTeal,borderRadius:27,marginTop:16,padding:21},
  panelOver:{color:'#B7DAD6',fontSize:10,fontWeight:'800',letterSpacing:1.2},
- heroValue:{color:'#FFFFFF',fontSize:36,fontWeight:'800',marginTop:9},
+ heroValue:{color:'#FFFFFF',fontSize:28,fontWeight:'800',marginTop:9},
  profitSplit:{flexDirection:'row',justifyContent:'space-between',gap:9,marginTop:19},
  miniLabel:{color:C.muted,fontSize:11},miniValue:{color:'#FFFFFF',fontSize:14,fontWeight:'800',marginTop:5},
  panelFoot:{fontSize:10,color:'#BAD0CF',lineHeight:16,marginTop:19},
