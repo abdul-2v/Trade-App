@@ -91,7 +91,7 @@ function makeQuoteHtml(q:Quote){
  '<div class="subject"><div class="label">Work estimate</div><div class="subjectName">'+html(q.title)+'</div>'+
  (q.description?'<div class="subjectText">'+html(q.description)+'</div>':'')+'</div>'+
  '<table class="items"><colgroup><col style="width:47%"/><col style="width:16%"/><col style="width:19%"/><col style="width:18%"/></colgroup>'+
- '<thead><tr><th>Task or material</th><th class="right">Qty</th><th class="right">Unit</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
+ '<thead><tr><th>Task or material</th><th class="right">Qty</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
  '<table class="totals"><tr><td>Subtotal</td><td>'+money(q.subtotal)+'</td></tr>'+
  (q.vat_rate?'<tr><td>VAT ('+q.vat_rate+'%)</td><td>'+money(q.vat_amount)+'</td></tr>':'')+
  '<tr class="grand"><td>Total estimate</td><td>'+money(q.total)+'</td></tr></table>'+
