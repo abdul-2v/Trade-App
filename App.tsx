@@ -78,7 +78,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeProfile' | 'tradeInvoices';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices';
 type Mode = 'customer' | 'tradesperson';
 
 type RequestItem = {
@@ -646,7 +646,8 @@ export default function App() {
       },
     };
 
-    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={setTradeScreen}><TradeInvoicesScreen goBack={() => setTradeScreen('tradeHome')} /></TradeShell>;
+    if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={setTradeScreen}><TradeInvoicesScreen goBack={() => setTradeScreen('tradeTools')} /></TradeShell>;
+    if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={setTradeScreen} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
@@ -5449,6 +5450,7 @@ function TradeShell({
     { label: 'Jobs', Icon: BriefcaseBusiness, route: 'tradeJobs' as TradeScreen },
     { label: 'Map', Icon: MapIcon, route: 'tradeMap' as TradeScreen },
     { label: 'Messages', Icon: MessageCircle, route: 'tradeMessages' as TradeScreen },
+    { label: 'Tools', Icon: ClipboardList, route: 'tradeTools' as TradeScreen },
     { label: 'Profile', Icon: UserRound, route: 'tradeProfile' as TradeScreen },
   ];
   return (
@@ -5457,7 +5459,7 @@ function TradeShell({
       <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route;
+          const active = current === route || (route === 'tradeTools' && current === 'tradeInvoices');
           return (
             <MotionPressable
               key={route}
@@ -5476,6 +5478,64 @@ function TradeShell({
         })}
       </View>
     </SafeAreaView>
+  );
+}
+
+function TradeToolsScreen({ navigate }: { navigate: (screen: TradeScreen) => void }) {
+  return (
+    <TradeShell current="tradeTools" navigate={navigate}>
+      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+        <View style={styles.premiumScreenHeading}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.premiumEyebrow}>Run your business</Text>
+            <Text style={styles.premiumPageTitle}>Tools</Text>
+            <Text style={[styles.premiumScreenSub, { marginTop: 6 }]}>
+              Simple tools that make your everyday trade work easier.
+            </Text>
+          </View>
+        </View>
+        <MotionPressable
+          style={{
+            borderRadius: 26, backgroundColor: theme.colors.white, padding: 21, marginTop: 12,
+            gap: 14, ...theme.shadow
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Open invoice creator and saved invoices"
+          onPress={() => navigate('tradeInvoices')}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View style={{
+              backgroundColor: theme.colors.tealTint, width: 58, height: 58,
+              borderRadius: 20, justifyContent: 'center', alignItems: 'center'
+            }}>
+              <ClipboardList size={29} strokeWidth={2} color={theme.colors.teal} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 19, color: theme.colors.ink, fontWeight: '800' }}>Invoices</Text>
+              <Text style={{ fontSize: 13, color: theme.colors.muted, lineHeight: 19, marginTop: 5 }}>
+                Create, view and share invoices for any job.
+              </Text>
+            </View>
+            <ChevronRight size={22} color={theme.colors.teal} />
+          </View>
+          <View style={{
+            backgroundColor: theme.colors.darkTeal, paddingVertical: 14, borderRadius: 19,
+            flexDirection: 'row', gap: 9, justifyContent: 'center', alignItems: 'center'
+          }}>
+            <Plus size={20} color={theme.colors.white} />
+            <Text style={{ fontSize: 14, fontWeight: '800', color: theme.colors.white }}>
+              Create or view invoices
+            </Text>
+          </View>
+        </MotionPressable>
+        <View style={{ marginTop: 27, paddingHorizontal: 3 }}>
+          <Text style={{ color: theme.colors.ink, fontWeight: '800', fontSize: 16 }}>Your business workspace</Text>
+          <Text style={{ color: theme.colors.muted, fontSize: 13, lineHeight: 21, marginTop: 7 }}>
+            This tab is where additional business features will live as Tradarr grows. Your Home and Jobs tabs stay focused on finding and managing work.
+          </Text>
+        </View>
+      </ScrollView>
+    </TradeShell>
   );
 }
 
@@ -5938,35 +5998,6 @@ function TradeHomeScreen({
             <Text style={styles.premiumProgressSub}>Help customers trust you</Text>
           </View>
           <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
-        </MotionPressable>
-
-        <MotionPressable
-          onPress={() => navigate('tradeInvoices')}
-          accessibilityRole="button"
-          accessibilityLabel="Open invoices, create a new invoice with detailed labour and materials"
-          style={{
-            backgroundColor: theme.colors.darkTeal, borderRadius: 25, minHeight: 124,
-            paddingHorizontal: 20, paddingVertical: 18, marginTop: 7, marginBottom: 20,
-            flexDirection: 'row', alignItems: 'center', gap: 14, ...theme.shadow
-          }}
-        >
-          <View style={{
-            width: 54, height: 54, borderRadius: 18, backgroundColor: '#345457',
-            alignItems: 'center', justifyContent: 'center'
-          }}>
-            <ClipboardList size={27} color="#FFFFFF" strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 10, color: '#A5D3C8', fontWeight: '800', letterSpacing: 1.4 }}>YOUR BUSINESS TOOLS</Text>
-            <Text style={{ fontSize: 20, color: '#FFFFFF', fontWeight: '800', marginTop: 5 }}>Create an invoice</Text>
-            <Text style={{ fontSize: 12, color: '#D3E4E2', marginTop: 5, lineHeight: 18 }}>Itemise labour, parts and costs. Send a PDF in seconds.</Text>
-          </View>
-          <View style={{
-            width: 35, height: 35, borderRadius: 18, backgroundColor: '#FFFFFF',
-            justifyContent: 'center', alignItems: 'center'
-          }}>
-            <ArrowRight size={18} color={theme.colors.darkTeal} strokeWidth={2.5} />
-          </View>
         </MotionPressable>
 
         <View style={styles.premiumSectionRow}>
@@ -9659,12 +9690,12 @@ const styles = StyleSheet.create({
   marketTradeAcceptText: { color: theme.colors.white, fontSize: 14, fontWeight: '800' },
   tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
 
-  // Premium pro UI – shared across all five tabs.
+  // Premium pro UI – shared across the tradesperson tabs.
   premiumTabBar: { height: 78, backgroundColor: theme.colors.white, borderTopWidth: 0, flexDirection: 'row', paddingHorizontal: 7, paddingTop: 6, paddingBottom: 4 },
   premiumTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  premiumTabIcon: { width: 48, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
+  premiumTabIcon: { width: 43, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 19 },
   premiumTabIconActive: { backgroundColor: theme.colors.darkTeal },
-  premiumTabLabel: { marginTop: 3, color: theme.colors.muted, fontSize: 12, fontWeight: '500' },
+  premiumTabLabel: { marginTop: 3, color: theme.colors.muted, fontSize: 10.5, fontWeight: '500' },
   premiumTabLabelActive: { color: theme.colors.ink, fontWeight: '800' },
   premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
   premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 21 },
