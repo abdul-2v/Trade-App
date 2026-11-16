@@ -7,6 +7,7 @@ import { WebView } from 'react-native-webview';
 import { MotionPressable } from './Motion';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
+import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 
 type InvoiceLineKind = 'labour' | 'material' | 'other';
 type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
@@ -59,7 +60,7 @@ function invoiceHtml(doc: Invoice) {
     if (!entries.length) return '';
     return '<tr class="group"><td colspan="4">' + labelForKind(kind) + '</td></tr>' +
       entries.map(item => '<tr class="line"><td class="desc">' + htmlText(item.description) +
-        '</td><td class="right">' + safe(item.quantity) + (item.unit ? ' ' + safe(item.unit) : '') +
+        '</td><td class="right">' + safe(formatTradeQuantity(item.quantity,item.unit)) +
         '</td><td class="right">' + money(item.unit_price) +
         '</td><td class="right amount">' + money(linePence(item) / 100) + '</td></tr>').join('');
   }).join('');
@@ -129,7 +130,7 @@ function invoiceHtml(doc: Invoice) {
     (doc.description ? '<div class="workSummary"><div class="label">Work carried out</div>' + htmlText(doc.description) + '</div>' : '') +
     '<div class="sectionTitle">Itemised charges</div>' +
     '<table class="items"><colgroup><col style="width:48%"/><col style="width:15%"/><col style="width:19%"/><col style="width:18%"/></colgroup>' +
-    '<thead><tr><th>Work / materials</th><th class="right">Qty</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>' +
+    '<thead><tr><th>Work / materials</th><th class="right">Quantity</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>' +
     groups + '</tbody></table>' +
     '<table class="totals"><tr><td>Subtotal</td><td>' + money(doc.subtotal) + '</td></tr>' +
     (vat ? '<tr><td>VAT (' + safe(doc.vat_rate) + '%)</td><td>' + money(doc.vat_amount) + '</td></tr>' : '') +
@@ -324,9 +325,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
       kind: l.kind, description: l.description.trim(), quantity: numericValue(l.quantity),
       unit_price: numericValue(l.unit_price), unit: l.unit
     }));
-    if (!items.length || items.some(l => !l.description || !Number.isFinite(l.quantity) || l.quantity <= 0 ||
+    if (!items.length || items.some(l => !l.description || hasInvalidTradeQuantity(l.quantity,l.unit) ||
       !Number.isFinite(l.unit_price) || l.unit_price < 0 || l.unit_price > 1000000 || l.quantity > 100000)) {
-      Alert.alert('Check the breakdown', 'Give each task or material a description, a quantity and a valid price.'); return;
+      Alert.alert('Check the breakdown','Give each line a clear description, valid quantity and price. A fixed-price job must have quantity 1; choose a per-item unit for multiple radiators or valves.'); return;
     }
     if (!total && !items.some(l => l.unit_price > 0)) {
       Alert.alert('Enter a charge', 'Add at least one priced item.'); return;
@@ -542,18 +543,22 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             placeholder={item.kind === 'labour' ? 'e.g. Fit new radiator / replace valve' : 'e.g. TRV valve, 15mm copper pipe'} required />
           <View style={s.unitsRow}>
             <Text style={s.unitsLabel}>Charge by</Text>
-            {(item.kind === 'labour' ? ['job', 'hour'] : ['each', 'metre']).map(unit =>
-              <Pill key={unit} label={unit === 'job' ? 'Per job' : unit === 'hour' ? 'Per hour' : unit === 'metre' ? 'Per metre' : 'Per item'}
-                active={item.unit === unit} onPress={() => changeLine(i, { unit })} />)}
+            {(item.kind === 'labour' ? ['job','hour','day','radiator','valve','item'] : item.kind === 'material'
+                ? ['item','metre','radiator','valve','box','pack'] : ['job','item','hour']).map(unit =>
+              <Pill key={unit} label={unitOptionLabel(unit)}
+                active={item.unit === unit} onPress={() => changeLine(i, { unit, quantity: unit==='job'?'1':item.quantity })} />)}
           </View>
           <View style={s.twoCols}><View style={{ flex: 1 }}>
             <Field label={item.unit === 'hour' ? 'Hours' : item.unit === 'metre' ? 'Metres' : 'Quantity'} numeric
               value={item.quantity} onChange={v => changeLine(i, { quantity: v })} required />
           </View><View style={{ flex: 1 }}>
-            <Field label={'Price per ' + (item.unit === 'hour' ? 'hour' : item.unit === 'metre' ? 'metre' : item.unit === 'job' ? 'job' : 'item') + ' (£)'}
+            <Field label={'Price per ' + (item.unit==='each'?'item':item.unit) + ' (£)'}
               numeric value={item.unit_price} onChange={v => changeLine(i, { unit_price: v })} placeholder="0.00" required />
           </View></View>
-          <View style={s.lineTotalBar}><Text style={s.lineTotalLabel}>Line total</Text><Text style={s.lineTotal}>{money(linePence(item) / 100)}</Text></View>
+          <View style={s.lineTotalBar}><Text style={s.lineTotalLabel}>{formatTradeQuantity(item.quantity,item.unit)}</Text>
+             <Text style={s.lineTotal}>{money(linePence(item) / 100)}</Text></View>
+           {item.unit==='job'&&numericValue(item.quantity)!==1?
+             <Text style={{fontSize:11,color:theme.colors.coralDark,marginTop:6}}>Use 1 job for a fixed price, or select a per-item unit for multiple items.</Text>:null}
         </View>)}
         <MotionPressable style={s.addOther} onPress={() => addLine('other')} accessibilityRole="button">
           <Plus size={16} color={theme.colors.teal} /><Text style={s.addSmallText}>Add call-out fee or other charge</Text>
