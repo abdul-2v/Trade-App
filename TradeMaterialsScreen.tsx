@@ -13,9 +13,11 @@ function Field({label,value,set,placeholder}:{label:string;value:string;set:(v:s
  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={set}
  placeholder={placeholder} placeholderTextColor="#8D9C9C" style={s.input}/></View>;
 }
-export default function TradeMaterialsScreen({goBack,openMerchants,openProfit}:{goBack:()=>void;openMerchants:()=>void;openProfit:()=>void}){
+export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,initialKitId}:{
+ goBack:()=>void;openMerchants:()=>void;openProfit:()=>void;initialKitId?:string|null;
+}){
  const [uid,setUid]=useState(''),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
- const [kits,setKits]=useState<Kit[]>([]),[selectedId,setSelectedId]=useState<string|null>(null);
+ const [kits,setKits]=useState<Kit[]>([]),[selectedId,setSelectedId]=useState<string|null>(initialKitId||null);
  const [creating,setCreating]=useState(false),[adding,setAdding]=useState(false);
  const [project,setProject]=useState(''),[address,setAddress]=useState('');
  const [part,setPart]=useState(''),[qty,setQty]=useState('1'),[unit,setUnit]=useState('each'),[cost,setCost]=useState(''),[merchant,setMerchant]=useState('');
