@@ -352,33 +352,61 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
       <Text style={s.previewHint}>Statuses are marked manually. Sharing a PDF does not mean the customer has accepted it.</Text>
     </View>
    </View>:<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
-    <Text style={s.intro}>Enter the work and prices once. Tradarr calculates the totals and creates a PDF quote.</Text>
-    <Text style={s.section}>Your business</Text><View style={s.card}>
-     <Field name="Business / trading name *" value={businessName} change={setBusinessName}/>
-     <Field name="Business address *" value={businessAddress} change={setBusinessAddress} multi/>
-     <Field name="Business email (optional)" value={businessEmail} change={setBusinessEmail}/>
-     <Field name="Business phone (optional)" value={businessPhone} change={setBusinessPhone}/>
+    <View style={s.stepBanner}>
+      <Text style={s.stepSmall}>CUSTOMER PROPOSAL · {stage==='scope'?'STEP 1 OF 2':'STEP 2 OF 2'}</Text>
+      <Text style={s.stepTitle}>{stage==='scope'?'Plan the work':'Price the job'}</Text>
+      <Text style={s.stepDesc}>{stage==='scope'
+        ?'Explain exactly what your customer gets — and what is excluded. Good quotes win trust before work starts.'
+        :'Work out a fair charge, protect your margin and offer useful upgrades. The customer only sees the final proposal.'}</Text>
+      <View style={s.stepTrack}><View style={[s.stepFill,{width:stage==='scope'?'50%':'100%'}]}/></View>
     </View>
-    <Text style={s.section}>Customer</Text><View style={s.card}>
-     <MotionPressable style={s.picker} onPress={()=>setShowPicker(x=>!x)}><Users size={18} color={C.teal}/>
-      <Text style={s.pickerText}>{customerId?customers.find(x=>x.id===customerId)?.name:'Use a customer from your book'}</Text>
-      <ChevronRight size={18} color={C.teal}/></MotionPressable>
-     {showPicker?<View style={s.options}>
-      <MotionPressable onPress={()=>chooseCustomer(null)} style={s.option}><Text style={s.optionText}>Enter a new customer</Text></MotionPressable>
-      {customers.map(x=><MotionPressable key={x.id} onPress={()=>chooseCustomer(x)} style={s.option}><Text style={s.optionText}>{x.name}</Text></MotionPressable>)}
-     </View>:null}
-     <Field name="Customer name *" value={customerName} change={setCustomerName}/>
-     <Field name="Customer billing address *" value={customerAddress} change={setCustomerAddress} multi/>
-     <Field name="Customer email (optional)" value={customerEmail} change={setCustomerEmail}/>
-     <Field name="Customer phone (optional)" value={customerPhone} change={setCustomerPhone}/>
-     <Text style={s.helper}>New contacts are not saved to your Customer Book automatically. Add them there to reuse later.</Text>
-    </View>
-    <Text style={s.section}>Work being quoted</Text><View style={s.card}>
-     <Field name="Quote title *" value={title} change={setTitle} placeholder="e.g. Replace 3 radiator valves"/>
-     <Field name="Scope / notes (optional)" value={description} change={setDescription} multi placeholder="Describe the work included in the price"/>
-     <View style={s.two}><View style={{flex:1}}><Field name="Quote date" value={quoteDate} change={setQuoteDate} placeholder="YYYY-MM-DD"/></View>
-     <View style={{flex:1}}><Field name="Valid until" value={validUntil} change={setValidUntil} placeholder="YYYY-MM-DD"/></View></View>
-    </View>
+    {stage==='scope'?<>
+      <Text style={s.section}>Who is the job for?</Text>
+      <View style={s.card}>
+        <MotionPressable style={s.picker} onPress={()=>setShowPicker(x=>!x)}
+          accessibilityRole="button" accessibilityLabel="Choose customer from your book">
+          <Users size={18} color={C.teal}/>
+          <Text style={s.pickerText}>{customerId?customers.find(x=>x.id===customerId)?.name:'Use someone from your customer book'}</Text>
+          <ChevronRight size={18} color={C.teal}/>
+        </MotionPressable>
+        {showPicker?<View style={s.options}>
+          <MotionPressable onPress={()=>chooseCustomer(null)} style={s.option}><Text style={s.optionText}>Enter customer manually</Text></MotionPressable>
+          {customers.map(x=><MotionPressable key={x.id} onPress={()=>chooseCustomer(x)} style={s.option}><Text style={s.optionText}>{x.name}</Text></MotionPressable>)}
+        </View>:null}
+        <Field name="Customer name *" value={customerName} change={setCustomerName} placeholder="e.g. Sarah Williams"/>
+        <Field name="Job / billing address *" value={customerAddress} change={setCustomerAddress} multi placeholder="Street, town, postcode"/>
+        <Field name="Email (optional)" value={customerEmail} change={setCustomerEmail}/>
+        <Field name="Phone (optional)" value={customerPhone} change={setCustomerPhone}/>
+      </View>
+      <Text style={s.section}>The job at a glance</Text>
+      <View style={s.card}>
+        <Field name="Project title *" value={title} change={setTitle} placeholder="e.g. Replace and balance 3 radiators"/>
+        <Field name="What does the customer need?" value={description} change={setDescription} multi
+          placeholder="Brief description of the problem or installation"/>
+        <View style={s.scopeHelper}><Text style={s.scopeHelperTitle}>Make the scope unmistakable</Text>
+          <Text style={s.scopeHelperText}>The customer should know exactly what they're agreeing to. These details appear on the proposal, not just your app.</Text></View>
+        <Field name="What's included in the price?" value={included} change={setIncluded} multi
+          placeholder="e.g. Isolate heating, replace valves, refill and test the system"/>
+        <Field name="What's NOT included?" value={excluded} change={setExcluded} multi
+          placeholder="e.g. Making good existing damaged plasterwork"/>
+        <Field name="Estimated time on site" value={duration} change={setDuration} placeholder="e.g. Half a day, subject to access"/>
+      </View>
+      <MotionPressable style={s.primary} onPress={()=>{
+        if(!customerName.trim()||!customerAddress.trim()||!title.trim()){
+          Alert.alert('Finish the job brief','Add a customer, address and project title first.');return;
+        }
+        setStage('pricing');
+      }} accessibilityRole="button">
+        <Text style={s.primaryText}>Continue to pricing</Text><ChevronRight size={20} color="#FFFFFF"/>
+      </MotionPressable>
+      <Text style={[s.helper,{textAlign:'center',marginTop:7}]}>Nothing is sent to the customer at this stage.</Text>
+    </>:<>
+      <View style={s.projectSummary}><Text style={s.projectSummaryTitle}>{title}</Text>
+        <Text style={s.projectSummarySub}>For {customerName} · {customerAddress}</Text>
+        <MotionPressable onPress={()=>setStage('scope')} style={s.editScope}><Text style={s.editScopeText}>Edit scope</Text><ChevronRight size={16} color={C.teal}/></MotionPressable>
+      </View>
+      <Text style={s.section}>Build the job price</Text>
+      <Text style={s.sectionSub}>Price each labour task and part separately. Only this breakdown goes into the final quote and later invoice.</Text>
     <View style={s.sectionRow}><Text style={s.section}>Labour & materials</Text></View>
     <View style={s.twoButtons}><MotionPressable style={s.addLine} onPress={()=>addLine('labour')}><Plus size={16} color={C.teal}/><Text style={s.addLineText}>Add labour</Text></MotionPressable>
      <MotionPressable style={s.addLine} onPress={()=>addLine('material')}><Plus size={16} color={C.teal}/><Text style={s.addLineText}>Add material</Text></MotionPressable></View>
@@ -394,27 +422,119 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated}:{goBack:()=>
     </View>)}
     <MotionPressable style={s.extraLine} onPress={()=>addLine('other')}><Plus size={16} color={C.teal}/>
      <Text style={s.extraLineText}>Add call-out fee or other charge</Text></MotionPressable>
-    <Text style={s.section}>VAT</Text><View style={s.card}>
-     <Text style={s.small}>Only charge VAT if you are VAT registered.</Text>
-     <View style={s.pills}>{[0,5,20].map(rate=><Pill key={rate} name={rate?rate+'% VAT':'No VAT'} selected={vatRate===rate} onPress={()=>setVatRate(rate)}/>)}</View>
-     {vatRate>0?<Field name="VAT registration number *" value={vatNumber} change={setVatNumber}/>:null}
-    </View>
-    <Text style={s.section}>Additional notes</Text><View style={s.card}>
-     <Field name="Terms, exclusions or notes (optional)" value={notes} change={setNotes} multi/>
-    </View>
-    <View style={s.totalCard}>
-     <View style={s.totalRow}><Text style={s.totalLabel}>Subtotal</Text><Text style={s.totalLabel}>{money(subtotal)}</Text></View>
-     {vatRate>0?<View style={s.totalRow}><Text style={s.totalLabel}>VAT ({vatRate}%)</Text><Text style={s.totalLabel}>{money(vat)}</Text></View>:null}
-     <View style={s.totalRow}><Text style={s.totalTitle}>Quote total</Text><Text style={s.totalAmount}>{money(total)}</Text></View>
-    </View>
-    <MotionPressable style={s.primary} disabled={saving} onPress={saveQuote}>
-     {saving?<ActivityIndicator color="#FFFFFF"/>:<FileText size={19} color="#FFFFFF"/>}
-     <Text style={s.primaryText}>{saving?'Creating quote…':'Create & preview quote'}</Text>
-    </MotionPressable>
+
+      <View style={s.priceCoach}>
+        <Text style={s.priceCoachEyebrow}>PRIVATE PRICE CHECK</Text>
+        <Text style={s.priceCoachTitle}>Will this job be worth doing?</Text>
+        <Text style={s.priceCoachDetail}>Enter your expected cost to complete the work, including materials, paid labour and travel. We'll compare it with what you're charging.</Text>
+        <View style={s.two}><View style={{flex:1}}>
+          <Field name="Estimated costs (£)" value={estimateCost} change={setEstimateCost} placeholder="e.g. 140.00"/>
+        </View><View style={{flex:1}}>
+          <Field name="Target margin (%)" value={targetMargin} change={setTargetMargin} placeholder="30"/>
+        </View></View>
+        <View style={s.priceCoachStats}>
+          <View style={{flex:1}}><Text style={s.priceCoachStatLabel}>Current est. margin</Text>
+            <Text style={s.priceCoachNumber}>{estimateCost.trim()&&subtotal>0?marginPreview.toFixed(1)+'%':'—'}</Text></View>
+          <View style={{flex:1}}><Text style={s.priceCoachStatLabel}>Price to reach target (ex VAT)</Text>
+            <Text style={s.priceCoachNumber}>{estimateCost.trim()&&marginGoal>=0&&marginGoal<=90?money(priceToHitGoal):'—'}</Text></View>
+        </View>
+        <Text style={s.coachFine}>For your eyes only — never shown in the PDF. This is a calculation based on your own costs, not an externally verified market price or guaranteed profit. Overheads and tax are not included unless you enter them.</Text>
+      </View>
+      <Text style={s.section}>Let customers choose extras</Text>
+      <Text style={s.sectionSub}>Offer upgrades without forcing them into the base price. These appear as optional choices on the proposal.</Text>
+      <View style={s.card}>
+        {extras.map((extra,index)=><View key={index} style={s.extraEntry}>
+          <View style={s.sectionRow}><Text style={s.lineTitle}>Optional upgrade {index+1}</Text>
+            <MotionPressable onPress={()=>setExtras(old=>old.filter((_,i)=>i!==index))}><Trash2 size={18} color={C.coralDark}/></MotionPressable></View>
+          <Field name="Upgrade description" value={extra.name}
+            change={v=>setExtras(old=>old.map((e,i)=>i===index?{...e,name:v}:e))}
+            placeholder="e.g. Upgrade to premium thermostatic valves"/>
+          <Field name="Additional price excluding VAT (£)" value={extra.price}
+            change={v=>setExtras(old=>old.map((e,i)=>i===index?{...e,price:v}:e))} placeholder="50.00"/>
+        </View>)}
+        <MotionPressable onPress={()=>setExtras(old=>[...old,{name:'',price:''}])} disabled={extras.length>=15}
+          style={s.addExtra}><Plus size={18} color={C.teal}/><Text style={s.addLineText}>Add an optional upgrade</Text></MotionPressable>
+      </View>
+      <Text style={s.section}>Quote validity & terms</Text>
+      <View style={s.card}>
+        <View style={s.two}><View style={{flex:1}}>
+          <Field name="Quote date" value={quoteDate} change={setQuoteDate} placeholder="YYYY-MM-DD"/></View>
+          <View style={{flex:1}}><Field name="Valid until" value={validUntil} change={setValidUntil} placeholder="YYYY-MM-DD"/></View></View>
+        <Field name="Deposit to request (%)" value={deposit} change={setDeposit} placeholder="0"/>
+        <Text style={s.helper}>Deposit is a term on the proposal. Tradarr doesn't automatically charge anyone.</Text>
+        <Field name="Other terms / assumptions" value={notes} change={setNotes} multi placeholder="e.g. Price subject to safe access"/>
+      </View>
+      <Text style={s.section}>VAT</Text><View style={s.card}>
+        <Text style={s.small}>Only charge VAT if you are VAT registered. Choose the correct rate for this work.</Text>
+        <View style={s.pills}>{[0,5,20].map(rate=><Pill key={rate} name={rate?rate+'% VAT':'No VAT'}
+          selected={vatRate===rate} onPress={()=>setVatRate(rate)}/>)}</View>
+        {vatRate>0?<Field name="VAT registration number *" value={vatNumber} change={setVatNumber}/>:null}
+      </View>
+      <MotionPressable style={s.businessToggle} onPress={()=>setShowBusiness(x=>!x)}>
+        <View style={{flex:1}}><Text style={s.businessToggleTitle}>Your business details</Text>
+          <Text style={s.businessToggleSub}>{businessName&&businessAddress?'Saved from your previous paperwork':'Required to create the proposal'}</Text>
+        </View><ChevronRight size={18} color={C.teal} style={showBusiness?{transform:[{rotate:'90deg'}]}:undefined}/></MotionPressable>
+      {showBusiness?<View style={s.card}>
+        <Field name="Business / trading name *" value={businessName} change={setBusinessName}/>
+        <Field name="Business address *" value={businessAddress} change={setBusinessAddress} multi/>
+        <Field name="Business email (optional)" value={businessEmail} change={setBusinessEmail}/>
+        <Field name="Business phone (optional)" value={businessPhone} change={setBusinessPhone}/>
+      </View>:null}
+      <View style={s.proposalSummary}>
+        <Text style={s.proposalSummaryCaption}>CUSTOMER'S PROPOSED PRICE</Text>
+        <Text style={s.proposalSummaryTotal}>{money(total)}</Text>
+        <Text style={s.proposalSummaryDetail}>Includes {money(vat)} VAT · optional upgrades excluded</Text>
+        <View style={s.summaryDivider}/>
+        <Text style={s.proposalSummaryDetail}>Validity: until {validUntil} · Deposit requested: {val(deposit)||0}%</Text>
+      </View>
+      <MotionPressable style={s.primary} disabled={saving} onPress={()=>{
+        if(!businessName.trim()||!businessAddress.trim()){setShowBusiness(true);
+          Alert.alert('Finish business details','Please check your business name and full address before creating the proposal.');return;}
+        void saveQuote();
+      }}>
+        {saving?<ActivityIndicator color="#FFFFFF"/>:<FileText size={20} color="#FFFFFF"/>}
+        <Text style={s.primaryText}>{saving?'Creating…':'Generate customer proposal'}</Text>
+      </MotionPressable>
+      <Text style={[s.helper,{textAlign:'center',marginTop:8}]}>You'll preview it inside Tradarr first. Nothing gets sent automatically.</Text>
+    </>}
    </ScrollView>}
  </View>;
 }
 const s=StyleSheet.create({
+ stepBanner:{backgroundColor:C.darkTeal,borderRadius:25,padding:22,marginBottom:13},
+ stepSmall:{fontSize:10,color:'#B4D6D2',letterSpacing:1.4,fontWeight:'800'},
+ stepTitle:{fontSize:26,fontWeight:'800',color:'#FFFFFF',marginTop:9},
+ stepDesc:{fontSize:13,color:'#D6E5E2',lineHeight:20,marginTop:8},
+ stepTrack:{height:5,backgroundColor:'#476266',borderRadius:5,overflow:'hidden',marginTop:18},
+ stepFill:{height:5,backgroundColor:'#B4DBCD',borderRadius:5},
+ scopeHelper:{backgroundColor:C.tealTint,borderRadius:15,padding:14,marginBottom:16},
+ scopeHelperTitle:{color:C.teal,fontSize:13,fontWeight:'800'},
+ scopeHelperText:{color:C.muted,fontSize:11,lineHeight:18,marginTop:6},
+ sectionSub:{fontSize:12,color:C.muted,lineHeight:19,marginTop:-4,marginBottom:15},
+ projectSummary:{backgroundColor:'#FFFFFF',borderRadius:21,padding:17,...theme.shadow},
+ projectSummaryTitle:{fontSize:18,fontWeight:'800',color:C.ink},
+ projectSummarySub:{fontSize:12,color:C.muted,marginTop:7,lineHeight:18},
+ editScope:{flexDirection:'row',alignItems:'center',gap:5,marginTop:10,alignSelf:'flex-start'},
+ editScopeText:{color:C.teal,fontSize:12,fontWeight:'800'},
+ priceCoach:{backgroundColor:C.tealTint,borderRadius:25,padding:18,marginTop:13},
+ priceCoachEyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.3,color:C.teal},
+ priceCoachTitle:{fontSize:18,color:C.ink,fontWeight:'800',marginTop:8},
+ priceCoachDetail:{fontSize:12,lineHeight:19,color:C.muted,marginTop:8,marginBottom:16},
+ priceCoachStats:{flexDirection:'row',gap:12,marginTop:7},
+ priceCoachStatLabel:{fontSize:11,color:C.muted,lineHeight:17},
+ priceCoachNumber:{fontSize:19,fontWeight:'800',color:C.teal,marginTop:8},
+ coachFine:{fontSize:10,color:C.muted,lineHeight:16,marginTop:15},
+ extraEntry:{borderBottomColor:C.line,borderBottomWidth:1,marginBottom:15},
+ addExtra:{minHeight:47,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,backgroundColor:C.tealTint,borderRadius:16},
+ businessToggle:{marginTop:18,marginBottom:11,backgroundColor:'#FFFFFF',borderRadius:21,padding:16,flexDirection:'row',alignItems:'center'},
+ businessToggleTitle:{fontSize:15,color:C.ink,fontWeight:'800'},
+ businessToggleSub:{fontSize:11,color:C.muted,marginTop:4},
+ proposalSummary:{backgroundColor:C.darkTeal,borderRadius:24,padding:22,marginTop:16,marginBottom:18},
+ proposalSummaryCaption:{fontSize:10,fontWeight:'800',letterSpacing:1.2,color:'#B7D8D4'},
+ proposalSummaryTotal:{fontSize:34,fontWeight:'800',color:'#FFFFFF',marginTop:7},
+ proposalSummaryDetail:{fontSize:12,color:'#D7E6E4',marginTop:9,lineHeight:18},
+ summaryDivider:{height:1,backgroundColor:'#456468',marginTop:16,marginBottom:6},
+
  root:{flex:1,backgroundColor:C.proBackground},
  header:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:20,paddingVertical:15},
  back:{width:44,height:44,borderRadius:24,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
