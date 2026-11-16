@@ -91,4 +91,6 @@ for insert to authenticated with check (
 create policy "Invoices owner update" on public.trade_invoices
 for update to authenticated using (tradesperson_id = (select auth.uid()))
 with check (tradesperson_id = (select auth.uid()));
-grant select, insert, update on public.trade_invoices to authenticated;
+grant select, insert on public.trade_invoices to authenticated;
+revoke update on public.trade_invoices from authenticated;
+grant update (status, updated_at) on public.trade_invoices to authenticated;
