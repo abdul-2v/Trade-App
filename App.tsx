@@ -4241,8 +4241,8 @@ function RequestDetailScreen({
       .from(isMarketJob ? 'jobs' : 'urgent_requests')
       .select(
         isMarketJob
-          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, created_at'
-          : 'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at'
+          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, created_at, updated_at'
+          : 'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at, updated_at'
       )
       .eq('id', request.id)
       .single();
@@ -4457,12 +4457,23 @@ function RequestDetailScreen({
   const canCancel = isMarketJob
     ? ['posted', 'offered'].includes(rawStatus)
     : !['completed', 'cancelled', 'expired'].includes(rawStatus);
-  // UI-only milestones from actual request state, not assumed bookings or quotes.
-  const currentMilestone = liveStatus === 'Completed' ? 4
-    : ['In progress', 'Arrived', 'On the way'].includes(liveStatus) ? 3
-    : ['Matched', 'Accepted'].includes(liveStatus) ? 2
-    : ['Cancelled', 'Expired'].includes(liveStatus) ? 0 : 1;
-
+  const phases = [
+    ['Request posted','Your request was submitted.'],
+    ['Tradesperson accepted','Someone has accepted the work.'],
+    ['On the way or arrived','The tradesperson updated their journey or arrival.'],
+    ['Work started','The tradesperson marked work in progress.'],
+    ['Completed','The job has been marked complete.'],
+  ] as const;
+  const currentMilestone = rawStatus==='completed'?4:rawStatus==='in_progress'?3:
+    ['en_route','arrived'].includes(rawStatus)?2:['matched','accepted'].includes(rawStatus)?1:0;
+  const inactiveRequest=['cancelled','expired'].includes(rawStatus);
+  const stageMessage = rawStatus==='en_route'?'Your tradesperson has marked themselves on the way.':
+    rawStatus==='arrived'?'Your tradesperson has marked themselves as arrived.':
+    rawStatus==='in_progress'?'Work is marked as underway.':
+    rawStatus==='completed'?'The job has been marked completed.':
+    ['matched','accepted'].includes(rawStatus)?'A tradesperson accepted your request.':
+    inactiveRequest?'This request is no longer active.':'Waiting for a tradesperson to respond.';
+  const lastUpdated=details?.updated_at||details?.created_at;
   return (
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView contentContainerStyle={[styles.requestDetailPage, styles.customerRequestDetailLayout]} showsVerticalScrollIndicator={false}>
@@ -4487,27 +4498,30 @@ function RequestDetailScreen({
               <View style={styles.customerRequestStateTag}><Text style={styles.customerRequestStateTagText}>{isDemo ? liveStatus + ' · DEMO' : liveStatus}</Text></View>
             </View>
             <Text style={styles.customerRequestTiming}>{displayUrgency}</Text>
-            <View style={styles.customerRequestTimeline}>
-              {['Posted', 'Matched', 'In progress', 'Done'].map((label, index) => (
-                <View key={label} style={styles.customerRequestTimelineItem}>
-                  <View style={[styles.customerRequestTimelineCircle, index < currentMilestone && styles.customerRequestTimelineComplete]}>
-                    {index < currentMilestone
-                      ? <Check size={14} color="#FFFFFF" strokeWidth={2.4} />
-                      : <Text style={styles.customerRequestTimelineDigit}>{index + 1}</Text>}
-                  </View>
-                  <Text style={[styles.customerRequestTimelineLabel, index < currentMilestone && styles.customerRequestTimelineLabelActive]} numberOfLines={1}>{label}</Text>
+            <View style={styles.customerTrackerCard}>
+              <View style={styles.customerTrackerHeading}>
+                <View style={styles.customerTrackerBadge}><Clock3 size={21} color={theme.colors.teal}/></View>
+                <View style={{flex:1}}>
+                  <Text style={styles.customerTrackerTitle}>Job progress</Text>
+                  <Text style={styles.customerTrackerSubtitle}>{stageMessage}</Text>
                 </View>
-              ))}
-            </View>
-            <View style={styles.customerRequestStatusBox}>
-              <View style={styles.customerRequestStatusIcon}><Clock3 size={20} color={theme.colors.teal} strokeWidth={2} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.customerRequestStatusTitle}>Current status</Text>
-                <Text style={styles.customerRequestStatusDetail}>{liveStatus}</Text>
               </View>
+              {inactiveRequest?<Text style={styles.customerTrackerStop}>This request was {rawStatus}. There are no further steps to show.</Text>:
+                phases.map(([label,detail],index)=><View key={label} style={styles.customerTrackerStep}>
+                  <View style={[styles.customerTrackerStepDot,index<=currentMilestone&&styles.customerTrackerStepDotDone]}>
+                    {index<=currentMilestone?<Check color="#FFFFFF" size={16}/>:
+                      <Text style={styles.customerTrackerStepNumber}>{index+1}</Text>}
+                  </View>
+                  <View style={{flex:1}}>
+                    <Text style={[styles.customerTrackerStepName,index<=currentMilestone&&styles.customerTrackerStepNameActive]}>{label}</Text>
+                    <Text style={styles.customerTrackerStepDetail}>{detail}</Text>
+                  </View>
+                </View>)}
+              {lastUpdated?<Text style={styles.customerTrackerTime}>Last update: {new Date(lastUpdated).toLocaleString('en-GB')}</Text>:null}
+              <Text style={styles.customerTrackerDisclaimer}>Updates reflect recorded job statuses, not live GPS or a guaranteed arrival time.</Text>
             </View>
 
-            {isDemo && !isRoute ? (
+                        {isDemo && !isRoute ? (
               <View style={styles.requestDemoNotice}>
                 <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={17} color={C.blue} />
                 <Text style={styles.requestDemoNoticeText}>
@@ -4521,12 +4535,6 @@ function RequestDetailScreen({
                 <Text style={styles.requestDetailSectionTitle}>
                   {liveStatus === 'Completed' ? 'Tradesperson' : 'Matched tradesperson'}
                 </Text>
-
-                {matchedTrade.mapLatitude && matchedTrade.mapLongitude ? (
-                  <View style={styles.requestDetailMap}>
-                    <MapMock trades={[matchedTrade]} onTrade={() => openTrade(matchedTrade)} compact />
-                  </View>
-                ) : null}
 
                 <View style={styles.requestDetailTradeCard}>
                   {matchedTrade.image ? <Image source={{ uri: matchedTrade.image }} style={styles.requestDetailAvatar} /> :
@@ -10430,6 +10438,21 @@ const styles = StyleSheet.create({
   customerRequestStateTag: { backgroundColor: theme.colors.coralTint, borderRadius: 17, paddingHorizontal: 11, paddingVertical: 7 },
   customerRequestStateTagText: { fontSize: 12, fontWeight: '800', color: theme.colors.coralText },
   customerRequestTiming: { fontSize: 13, color: theme.colors.muted, marginTop: 10, marginBottom: 18 },
+  customerTrackerCard:{backgroundColor:theme.colors.white,padding:19,borderRadius:24,marginTop:18,marginBottom:13,...theme.shadow},
+  customerTrackerHeading:{flexDirection:'row',gap:11,alignItems:'center',marginBottom:19},
+  customerTrackerBadge:{width:45,height:45,borderRadius:15,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
+  customerTrackerTitle:{fontSize:18,fontWeight:'800',color:theme.colors.ink},
+  customerTrackerSubtitle:{color:theme.colors.muted,fontSize:12,lineHeight:18,marginTop:5},
+  customerTrackerStep:{flexDirection:'row',alignItems:'flex-start',gap:13,minHeight:62},
+  customerTrackerStepDot:{height:29,width:29,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:'#E9EFEE',marginTop:1},
+  customerTrackerStepDotDone:{backgroundColor:theme.colors.teal},
+  customerTrackerStepNumber:{fontSize:12,fontWeight:'800',color:theme.colors.muted},
+  customerTrackerStepName:{fontSize:13,fontWeight:'700',color:theme.colors.muted},
+  customerTrackerStepNameActive:{fontWeight:'800',color:theme.colors.ink},
+  customerTrackerStepDetail:{fontSize:11,color:theme.colors.muted,lineHeight:17,marginTop:4},
+  customerTrackerDisclaimer:{fontSize:10,color:theme.colors.muted,lineHeight:16,borderTopWidth:1,borderTopColor:theme.colors.line,paddingTop:11},
+  customerTrackerStop:{fontSize:12,color:theme.colors.muted,lineHeight:20,marginBottom:10},
+  customerTrackerTime:{fontSize:11,color:theme.colors.teal,fontWeight:'700',marginTop:3,marginBottom:12},
   customerRequestTimeline: { backgroundColor: '#FFFFFF', borderRadius: 28, paddingVertical: 18, paddingHorizontal: 8, flexDirection: 'row', ...theme.shadow },
   customerRequestTimelineItem: { flex: 1, alignItems: 'center', gap: 8 },
   customerRequestTimelineCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#DED8CE', alignItems: 'center', justifyContent: 'center' },
