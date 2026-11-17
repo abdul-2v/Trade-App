@@ -131,3 +131,12 @@ create policy firstfix_photo_insert on storage.objects for insert to authenticat
  with check(bucket_id='tradarr-firstfix' and (storage.foldername(name))[1]=(select auth.uid())::text);
 create policy firstfix_photo_delete on storage.objects for delete to authenticated
  using(bucket_id='tradarr-firstfix' and (storage.foldername(name))[1]=(select auth.uid())::text);
+
+
+-- Published windows are immutable once customers can see them; only the slot status is editable.
+drop policy if exists grid_slots_update on public.trade_grid_slots;
+create policy grid_slots_update on public.trade_grid_slots for update to authenticated
+ using(tradesperson_id=(select auth.uid()) and status in ('open','paused'))
+ with check(tradesperson_id=(select auth.uid()));
+revoke update on public.trade_grid_slots from authenticated;
+grant update(status) on public.trade_grid_slots to authenticated;
