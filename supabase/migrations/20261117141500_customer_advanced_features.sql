@@ -140,3 +140,33 @@ create policy grid_slots_update on public.trade_grid_slots for update to authent
  with check(tradesperson_id=(select auth.uid()));
 revoke update on public.trade_grid_slots from authenticated;
 grant update(status) on public.trade_grid_slots to authenticated;
+
+
+-- Preserve a customer's accepted slot details after it is removed from public availability.
+alter table public.trade_grid_requests add column if not exists slot_trade text;
+alter table public.trade_grid_requests add column if not exists slot_area_label text;
+alter table public.trade_grid_requests add column if not exists slot_starts_at timestamptz;
+alter table public.trade_grid_requests add column if not exists slot_ends_at timestamptz;
+alter table public.trade_grid_requests add column if not exists slot_tradesperson_id uuid references public.tradesperson_profiles(user_id) on delete set null;
+update public.trade_grid_requests r set
+ slot_trade=g.trade,slot_area_label=g.area_label,
+ slot_starts_at=g.starts_at,slot_ends_at=g.ends_at,slot_tradesperson_id=g.tradesperson_id
+from public.trade_grid_slots g where r.slot_id=g.id and r.slot_starts_at is null;
+create or replace function public.tradarr_grid_copy_slot()
+returns trigger language plpgsql security invoker set search_path=''
+as $$
+declare v public.trade_grid_slots%rowtype;
+begin
+ select * into v from public.trade_grid_slots where id=new.slot_id and status='open' and starts_at>now();
+ if not found then raise exception 'The selected Grid slot is no longer available'; end if;
+ new.slot_trade:=v.trade;
+ new.slot_area_label:=v.area_label;
+ new.slot_starts_at:=v.starts_at;
+ new.slot_ends_at:=v.ends_at;
+ new.slot_tradesperson_id:=v.tradesperson_id;
+ return new;
+end $$;
+revoke all on function public.tradarr_grid_copy_slot() from public,anon,authenticated;
+drop trigger if exists tradarr_grid_copy_slot on public.trade_grid_requests;
+create trigger tradarr_grid_copy_slot before insert on public.trade_grid_requests
+for each row execute function public.tradarr_grid_copy_slot();
