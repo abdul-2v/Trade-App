@@ -941,6 +941,7 @@ export default function App() {
     return (
       <RequestsScreen
         requests={requests}
+        userId={session?.user.id||''}
         navigate={screen => {if(screen==='myHome')setHomeBackScreen('requests');setCustomerScreen(screen);}}
         openRequest={request => {
           setSelectedRequest(request);
@@ -4037,17 +4038,21 @@ function BookingScreen({
   );
 }
 
+let lastCustomerActivity: {owner:string;items:RequestItem[]}|null=null;
 function RequestsScreen({
   requests,
   navigate,
   openRequest,
+  userId,
 }: {
   requests: RequestItem[];
   navigate: (screen: CustomerScreen) => void;
   openRequest: (request: RequestItem) => void;
+  userId:string;
 }) {
-  const [liveRequests, setLiveRequests] = useState<RequestItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached=lastCustomerActivity?.owner===userId?lastCustomerActivity.items:null;
+  const [liveRequests,setLiveRequests]=useState<RequestItem[]>(cached||[]);
+  const [loading,setLoading]=useState(!cached);
 
   const loadLiveRequests = async () => {
     const {
@@ -4059,21 +4064,19 @@ function RequestsScreen({
       return;
     }
 
-    const { data } = await supabase
+    const { data,error } = await supabase
       .from('urgent_requests')
       .select('id, trade, issue, urgency, status, created_at')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false });
-
-    setLiveRequests(
-      (data ?? []).map(row => ({
-        id: row.id,
-        trade: row.trade,
-        issue: row.issue,
-        urgency: row.urgency,
-        status: dispatchStatusLabel(row.status),
-      }))
-    );
+    if(!error){
+      const fresh=(data||[]).map(row=>({
+        id:row.id,trade:row.trade,issue:row.issue,urgency:row.urgency,
+        status:dispatchStatusLabel(row.status)
+      }));
+      lastCustomerActivity={owner:user.id,items:fresh};
+      setLiveRequests(fresh);
+    }
     setLoading(false);
   };
 
