@@ -88,8 +88,10 @@ export default function CustomerFirstFixScreen({goBack,onUseBrief}:{goBack:()=>v
   try{
    const binary=decodeBase64(asset.base64);
    if(binary.byteLength>4*1024*1024)throw new Error('Please choose a smaller image (under 4MB).');
-   const path=uid+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.jpg';
-   const upload=await supabase.storage.from(BUCKET).upload(path,binary,{contentType:'image/jpeg',upsert:false});
+   const contentType=asset.mimeType==='image/png'?'image/png':'image/jpeg';
+   const extension=contentType==='image/png'?'png':'jpg';
+   const path=uid+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.'+extension;
+   const upload=await supabase.storage.from(BUCKET).upload(path,binary,{contentType,upsert:false});
    if(upload.error)throw upload.error;
    const {data,error}=await supabase.from('customer_firstfix_briefs').update({
     photo_paths:[...selected.photo_paths,path],updated_at:new Date().toISOString()
