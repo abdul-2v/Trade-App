@@ -2533,7 +2533,7 @@ function MapMock({
     visible: locationStatus === 'ready',
   });
 
-  const html = `
+  const html = useMemo(() => `
 <!doctype html>
 <html>
 <head>
@@ -2925,20 +2925,39 @@ function MapMock({
   });
 </script>
 </body>
-</html>`;
+</html>`, []);
+
+  // The WebView stays mounted when filters, profiles and coordinates change.
+  // Push small JSON updates instead of reloading the entire MapLibre canvas.
+  const mapRef=useRef<any>(null);
+  const sourceRef=useRef<{html:string}>({html});
+  const [mapReady,setMapReady]=useState(false);
+  useEffect(()=>{
+    if(!mapReady)return;
+    mapRef.current?.injectJavaScript('window.tradarrSetMarkers&&window.tradarrSetMarkers('+escapedMarkers+');true;');
+  },[mapReady,escapedMarkers]);
+  useEffect(()=>{
+    if(!mapReady)return;
+    mapRef.current?.injectJavaScript('window.tradarrSetUser&&window.tradarrSetUser('+userPosition+');true;');
+  },[mapReady,userPosition]);
+  useEffect(()=>{
+    if(!mapReady||recenterNonce===0)return;
+    mapRef.current?.injectJavaScript('window.tradarrRecenter&&window.tradarrRecenter();true;');
+  },[mapReady,recenterNonce]);
 
   return (
     <View style={[styles.mapMock, compact && styles.mapMockCompact]}>
       <WebView
-        key={`${centre.latitude.toFixed(4)}-${centre.longitude.toFixed(4)}-${recenterNonce}-${mapTrades.map(t => t.id).join('-')}`}
+        ref={mapRef}
         style={styles.mapCanvas}
         originWhitelist={['*']}
-        source={{ html }}
+        source={sourceRef.current}
         javaScriptEnabled
         domStorageEnabled
         onMessage={event => {
           try {
             const message = JSON.parse(event.nativeEvent.data);
+            if (message.type === 'map_ready') { setMapReady(true); return; }
             if (message.type === 'trade') {
               const trade = mapTrades.find(item => item.id === message.id);
               if (trade) onTrade(trade);
