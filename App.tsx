@@ -16,10 +16,13 @@ import TradeGridScreen from './TradeGridScreen';
 import CustomerOneJobScreen from './CustomerOneJobScreen';
 import CustomerFirstFixScreen from './CustomerFirstFixScreen';
 import CustomerRescueScreen from './CustomerRescueScreen';
+import CustomerPriceLensScreen from './CustomerPriceLensScreen';
+import CustomerCollectiveScreen from './CustomerCollectiveScreen';
+import TradeCollectiveScreen from './TradeCollectiveScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
-import { Compass, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal } from './Motion';
+import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -93,11 +96,13 @@ type CustomerScreen =
   | 'oneJob'
   | 'firstFix'
   | 'rescue'
+  | 'priceLens'
+  | 'collective'
   | 'discover'
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -696,6 +701,9 @@ export default function App() {
       <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
+    if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
+      <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeGrid') return <TradeShell current="tradeGrid" navigate={navigateTrade}>
       <TradeGridScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
@@ -971,6 +979,14 @@ export default function App() {
       setServiceIntent({trade:trade as TradeCategory,service:summary,timing:'Next few days'});
       setCustomerScreen('map');
     }}/></CustomerShell>;
+  if (customerScreen === 'priceLens') return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    <CustomerPriceLensScreen goBack={() => setCustomerScreen('discover')}
+      openQuoteCentre={() => setCustomerScreen('customerQuotes')}/>
+  </CustomerShell>;
+  if (customerScreen === 'collective') return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    <CustomerCollectiveScreen goBack={() => setCustomerScreen('discover')}
+      openMessages={() => setCustomerScreen('messages')}/>
+  </CustomerShell>;
   if (customerScreen === 'rescue') return <CustomerShell current="discover" navigate={setCustomerScreen}>
     <CustomerRescueScreen goBack={() => setCustomerScreen('discover')} onRetry={(trade,issue,urgent)=>{
       setSelectedCategory(trade as TradeCategory);
@@ -1024,7 +1040,7 @@ function CustomerShell({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.customerTabBar }}>
       <StatusBar barStyle="dark-content" />
-      <View style={{ flex: 1, backgroundColor: theme.colors.customerBackground }}>{children}</View>
+      <ScreenReveal>{children}</ScreenReveal>
       {current && navigate ? <CustomerNav current={current} navigate={navigate} /> : null}
     </SafeAreaView>
   );
@@ -1051,6 +1067,7 @@ function CustomerNav({
         const active = current === route || (current === 'profile' && route === 'map');
         return (
           <MotionPressable key={route} onPress={() => navigate(route)} style={styles.customerNavItem}
+            pressScale={0.985} disableFlash
             accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }}>
             <View style={[styles.customerNavIcon, active && styles.customerNavIconActive]}>
               <Icon size={22} strokeWidth={2} color={active ? '#FFFFFF' : theme.colors.muted} />
@@ -1074,13 +1091,17 @@ function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>vo
       detail:'Create a repair brief with model details and private photos.'},
     {route:'rescue' as CustomerScreen,Icon:RotateCw,title:'Rescue',subtitle:'When a booking falls through',
       detail:'Restart a cancelled job request without writing it again.'},
+    {route:'priceLens' as CustomerScreen,Icon:BarChart3,title:'Price Lens',subtitle:'Compare real quotations',
+      detail:'Understand what you pay, included work and observed price bands.'},
+    {route:'collective' as CustomerScreen,Icon:HandCoins,title:'Collective',subtitle:'Neighbourhood group offers',
+      detail:'Join nearby households and request genuine per-home prices.'},
   ];
   return <CustomerShell current="discover" navigate={navigate}>
     <ScrollView style={styles.customerHome} showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.customerDiscoverPage}>
       <Text style={styles.customerDiscoverEyebrow}>MORE WAYS TO GET THINGS DONE</Text>
       <Text style={styles.customerDiscoverHeading}>Discover Tradarr</Text>
-      <Text style={styles.customerDiscoverIntro}>Useful options for bigger projects, preparing repairs and finding a better time to book.</Text>
+      <Text style={styles.customerDiscoverIntro}>Six smarter ways to price, plan and organise home projects.</Text>
 
       <View style={styles.customerDiscoverHero}>
         <View style={styles.customerDiscoverHeroIcon}><Search size={23} color={theme.colors.white}/></View>
@@ -1093,7 +1114,7 @@ function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>vo
           <ArrowRight size={19} color={theme.colors.darkTeal}/>
         </MotionPressable>
       </View>
-      <Text style={styles.customerDiscoverSectionTitle}>Explore smart features</Text>
+      <Text style={styles.customerDiscoverSectionTitle}>More ways to get things done</Text>
       <View style={styles.customerDiscoverGrid}>
         {features.map(({route,Icon,title,subtitle,detail})=>
           <MotionPressable key={route} onPress={()=>navigate(route)}
@@ -5597,7 +5618,7 @@ function TradeShell({
       <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid'].includes(current));
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -5633,7 +5654,8 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
   {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'},
-  {route:'tradeGrid' as TradeScreen,Icon:Route,title:'Publish Grid slots',detail:'Share available gaps and manage customer enquiries'}
+  {route:'tradeGrid' as TradeScreen,Icon:Route,title:'Publish Grid slots',detail:'Share available gaps and manage customer enquiries'},
+  {route:'tradeCollective' as TradeScreen,Icon:Users,title:'Collective group offers',detail:'Offer genuine local per-home prices to interested households'}
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
   <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
