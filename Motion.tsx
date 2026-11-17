@@ -141,15 +141,16 @@ export function ScreenReveal({children,scope='customer',route=''}:
     if(index>=0)lastTabIndex[scope]=index;
     if(prefersReducedMotion){progress.setValue(1);return;}
     const animation=Animated.timing(progress,{
-      toValue:1,duration:235,easing:Easing.out(Easing.cubic),useNativeDriver:true
+      toValue:1,duration:205,easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     animation.start();
     return ()=>animation.stop();
   },[index,progress,scope]);
-  return <Animated.View style={{flex:1,opacity:progress,
+  return <Animated.View style={{flex:1,
+   opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.84,1]}),
    transform:[
-    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*24,0]})},
-    {scale:progress.interpolate({inputRange:[0,1],outputRange:[0.992,1]})}
+    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*18,0]})},
+    {scale:progress.interpolate({inputRange:[0,1],outputRange:[0.995,1]})}
    ]}}>
    {children}
   </Animated.View>;
