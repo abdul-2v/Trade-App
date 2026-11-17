@@ -20,6 +20,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type MotionPressableProps = PressableProps & {
   pressScale?: number;
+  disableFlash?: boolean;
 };
 
 /**
@@ -32,6 +33,7 @@ export function MotionPressable({
   onPressOut,
   disabled,
   pressScale = 0.94,
+  disableFlash = false,
   children,
   onPress,
   ...rest
@@ -53,7 +55,7 @@ export function MotionPressable({
   };
 
   const activate = (event: Parameters<NonNullable<PressableProps['onPress']>>[0]) => {
-    if (!disabled && !prefersReducedMotion) {
+    if (!disabled && !prefersReducedMotion && !disableFlash) {
       flash.stopAnimation();
       flash.setValue(0);
       Animated.sequence([
@@ -95,38 +97,45 @@ export function MotionPressable({
   );
 }
 
-/** A single gentle entrance used for the customer homepage hero. */
-export function FadeSlideIn({ children, delay = 70 }: React.PropsWithChildren<{ delay?: number }>) {
+/** Fast, low-distance entrance. Keeps Home from replaying a slow spring after each tab tap. */
+export function FadeSlideIn({ children, delay = 0 }: React.PropsWithChildren<{ delay?: number }>) {
   const progress = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      progress.setValue(1);
-      return;
-    }
-    const transition = Animated.spring(progress, {
-      toValue: 1,
-      delay,
-      speed: 10,
-      bounciness: 9,
-      useNativeDriver: true,
+    if (prefersReducedMotion) { progress.setValue(1); return; }
+    const animation = Animated.timing(progress, {
+      toValue: 1, delay, duration: 170,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
     });
-    transition.start();
-    return () => transition.stop();
+    animation.start();
+    return () => animation.stop();
   }, [delay, progress]);
 
   return (
-    <Animated.View
-      style={{
-        opacity: progress,
-        transform: [{
-          translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }),
-        }],
-      }}
-    >
-      {children}
-    </Animated.View>
+    <Animated.View style={{
+      opacity: progress,
+      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+    }}>{children}</Animated.View>
   );
+}
+
+/** Quick screen transition, native-driver opacity and a subtle horizontal glide.
+ * Navigation changes immediately: animation never delays data fetching or touches the tab bar.
+ */
+export function ScreenReveal({children}:React.PropsWithChildren){
+  const progress=useRef(new Animated.Value(prefersReducedMotion?1:0)).current;
+  useEffect(()=>{
+    if(prefersReducedMotion){progress.setValue(1);return;}
+    const animation=Animated.timing(progress,{
+      toValue:1,duration:140,easing:Easing.out(Easing.cubic),useNativeDriver:true
+    });
+    animation.start();
+    return ()=>animation.stop();
+  },[progress]);
+  return <Animated.View style={{flex:1,opacity:progress,
+    transform:[{translateX:progress.interpolate({inputRange:[0,1],outputRange:[7,0]})}]}}>
+    {children}
+  </Animated.View>;
 }
 
 /** A calm, low-amplitude pulse that runs only while the pro is online. */
