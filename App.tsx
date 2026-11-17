@@ -21,7 +21,7 @@ import CustomerCollectiveScreen from './CustomerCollectiveScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -1041,7 +1041,7 @@ function CustomerShell({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.customerTabBar }}>
       <StatusBar barStyle="dark-content" />
-      <ScreenReveal>{children}</ScreenReveal>
+      <ScreenReveal route={current||''} scope="customer">{children}</ScreenReveal>
       {current && navigate ? <CustomerNav current={current} navigate={navigate} /> : null}
     </SafeAreaView>
   );
@@ -1070,8 +1070,10 @@ function CustomerNav({
           <MotionPressable key={route} onPress={() => navigate(route)} style={styles.customerNavItem}
             pressScale={0.985} disableFlash
             accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: active }}>
-            <View style={[styles.customerNavIcon, active && styles.customerNavIconActive]}>
-              <Icon size={22} strokeWidth={2} color={active ? '#FFFFFF' : theme.colors.muted} />
+            <View style={styles.customerNavIcon}>
+              <NavPill active={active} background={theme.colors.darkTeal}>
+                <Icon size={22} strokeWidth={2} color={active ? '#FFFFFF' : theme.colors.muted} />
+              </NavPill>
             </View>
             <Text style={[styles.customerNavText, active && styles.customerNavTextActive]}>{label}</Text>
           </MotionPressable>
@@ -1252,6 +1254,7 @@ function MarketplaceHomeScreen({
               </MotionPressable>
             ))}
           </ScrollView>
+          <JobMatchJourney/>
         </View>
         </FadeSlideIn>
 
@@ -5617,7 +5620,7 @@ function TradeShell({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.white }}>
       <StatusBar barStyle="dark-content" />
-      <ScreenReveal>{children}</ScreenReveal>
+      <ScreenReveal route={current} scope="trade">{children}</ScreenReveal>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
           const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective'].includes(current));
@@ -5632,8 +5635,10 @@ function TradeShell({
               accessibilityLabel={label}
               accessibilityState={{ selected: active }}
             >
-              <View style={[styles.premiumTabIcon, active && styles.premiumTabIconActive]}>
-                <Icon size={23} strokeWidth={2} color={active ? theme.colors.white : theme.colors.muted} />
+              <View style={styles.premiumTabIcon}>
+                <NavPill active={active} background={theme.colors.darkTeal}>
+                  <Icon size={23} strokeWidth={2} color={active ? theme.colors.white : theme.colors.muted} />
+                </NavPill>
               </View>
               <Text style={[styles.premiumTabLabel, active && styles.premiumTabLabelActive]}>{label}</Text>
             </MotionPressable>
