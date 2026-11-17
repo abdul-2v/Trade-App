@@ -11,6 +11,11 @@ import TradeProfitScreen from './TradeProfitScreen';
 import TradeMaterialsScreen from './TradeMaterialsScreen';
 import CustomerQuotesScreen from './CustomerQuotesScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
+import CustomerGridScreen from './CustomerGridScreen';
+import TradeGridScreen from './TradeGridScreen';
+import CustomerOneJobScreen from './CustomerOneJobScreen';
+import CustomerFirstFixScreen from './CustomerFirstFixScreen';
+import CustomerRescueScreen from './CustomerRescueScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
@@ -84,10 +89,14 @@ type CustomerScreen =
   | 'requestDetail'
   | 'customerQuotes'
   | 'myHome'
+  | 'grid'
+  | 'oneJob'
+  | 'firstFix'
+  | 'rescue'
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -686,6 +695,8 @@ export default function App() {
       <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
+    if (tradeScreen === 'tradeGrid') return <TradeShell current="tradeGrid" navigate={navigateTrade}>
+      <TradeGridScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
@@ -945,6 +956,26 @@ export default function App() {
     </CustomerShell>;
   }
 
+  if (customerScreen === 'grid') return <CustomerShell current="home" navigate={setCustomerScreen}>
+    <CustomerGridScreen goBack={() => setCustomerScreen('home')}/></CustomerShell>;
+  if (customerScreen === 'oneJob') return <CustomerShell current="home" navigate={setCustomerScreen}>
+    <CustomerOneJobScreen goBack={() => setCustomerScreen('home')} onFindTrade={(trade,task)=>{
+      setSelectedCategory(trade as TradeCategory);
+      setServiceIntent({trade:trade as TradeCategory,service:task,timing:'Next few days'});
+      setCustomerScreen('map');
+    }}/></CustomerShell>;
+  if (customerScreen === 'firstFix') return <CustomerShell current="home" navigate={setCustomerScreen}>
+    <CustomerFirstFixScreen goBack={() => setCustomerScreen('home')} onUseBrief={(trade,summary)=>{
+      setSelectedCategory(trade as TradeCategory);
+      setServiceIntent({trade:trade as TradeCategory,service:summary,timing:'Next few days'});
+      setCustomerScreen('map');
+    }}/></CustomerShell>;
+  if (customerScreen === 'rescue') return <CustomerShell current="requests" navigate={setCustomerScreen}>
+    <CustomerRescueScreen goBack={() => setCustomerScreen('requests')} onRetry={(trade,issue,urgent)=>{
+      setSelectedCategory(trade as TradeCategory);
+      setServiceIntent({trade:trade as TradeCategory,service:issue,timing:urgent?'Now':'Next few days'});
+      setCustomerScreen(urgent?'urgent':'map');
+    }}/></CustomerShell>;
   if (customerScreen === 'customerProfile') {
     return (
       <CustomerProfileScreen
@@ -1167,27 +1198,6 @@ function MarketplaceHomeScreen({
           </MotionPressable>
         </View>
 
-        <View style={styles.customerWorkHubHeader}>
-          <Text style={styles.customerSectionTitle}>Your home, sorted</Text>
-          <Text style={styles.customerSectionSub}>Keep track of the work — before and after it's done.</Text>
-        </View>
-        <View style={styles.customerWorkHubRow}>
-          <MotionPressable style={styles.customerWorkHubCard} onPress={() => navigate('customerQuotes')}
-            accessibilityRole="button" accessibilityLabel="Open Quote Centre">
-            <View style={styles.customerWorkHubIcon}><FileText size={21} color={theme.colors.teal}/></View>
-            <Text style={styles.customerWorkHubTitle}>Review quotes</Text>
-            <Text style={styles.customerWorkHubSub}>Compare prices and approve work</Text>
-            <ChevronRight color={theme.colors.teal} size={18}/>
-          </MotionPressable>
-          <MotionPressable style={styles.customerWorkHubCard} onPress={() => navigate('myHome')}
-            accessibilityRole="button" accessibilityLabel="Open My Home">
-            <View style={styles.customerWorkHubIcon}><HomeIcon size={21} color={theme.colors.teal}/></View>
-            <Text style={styles.customerWorkHubTitle}>My Home</Text>
-            <Text style={styles.customerWorkHubSub}>Repairs, warranties and reminders</Text>
-            <ChevronRight color={theme.colors.teal} size={18}/>
-          </MotionPressable>
-        </View>
-
         <View style={styles.customerSectionHeading}>
           <View style={{ flex: 1 }}>
             <Text style={styles.customerSectionTitle}>Browse by trade</Text>
@@ -1223,6 +1233,29 @@ function MarketplaceHomeScreen({
           <Text style={[styles.customerTradeName, { flex: 1, marginTop: 0 }]}>More trades & services</Text>
           <ChevronRight size={20} color={theme.colors.teal} />
         </MotionPressable>
+
+        <View style={styles.customerAdvancedHeading}>
+          <View style={{flex:1}}>
+            <Text style={styles.customerSectionTitle}>Make more happen</Text>
+            <Text style={styles.customerSectionSub}>Four smarter ways to get work organised</Text>
+          </View>
+        </View>
+        <View style={styles.customerAdvancedGrid}>
+          {([
+            {route:'grid' as CustomerScreen,Icon:Route,title:'Grid',desc:'Find a spare local slot'},
+            {route:'oneJob' as CustomerScreen,Icon:Users,title:'OneJob',desc:'Plan multiple trades'},
+            {route:'firstFix' as CustomerScreen,Icon:Camera,title:'FirstFix',desc:'Prepare a repair'},
+            {route:'rescue' as CustomerScreen,Icon:RotateCw,title:'Rescue',desc:'Recover a cancelled job'}
+          ]).map(({route,Icon,title,desc})=><MotionPressable key={route} onPress={()=>navigate(route)}
+            style={styles.customerAdvancedCard} accessibilityRole="button" accessibilityLabel={'Open '+title}>
+            <View style={styles.customerAdvancedTop}>
+              <View style={styles.customerAdvancedIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={2}/></View>
+              <ChevronRight color={theme.colors.teal} size={17}/>
+            </View>
+            <Text style={styles.customerAdvancedTitle}>{title}</Text>
+            <Text style={styles.customerAdvancedSub}>{desc}</Text>
+          </MotionPressable>)}
+        </View>
 
         <Text style={[styles.customerSectionTitle, { marginTop: 28, marginBottom: 14 }]}>How it works</Text>
         <View style={styles.customerSteps}>
@@ -5527,7 +5560,7 @@ function TradeShell({
       <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials'].includes(current));
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -5562,7 +5595,8 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
   {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
-  {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'}
+  {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'},
+  {route:'tradeGrid' as TradeScreen,Icon:Route,title:'Publish Grid slots',detail:'Share available gaps and manage customer enquiries'}
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
   <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
@@ -6102,6 +6136,13 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
+        <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
+          accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
+          <View style={styles.tradeGridHomeIcon}><Route size={23} color={theme.colors.teal}/></View>
+          <View style={{flex:1}}><Text style={styles.tradeGridHomeTitle}>A gap in your diary?</Text>
+            <Text style={styles.tradeGridHomeSub}>Publish a Grid slot and receive local enquiries.</Text></View>
+          <ChevronRight color={theme.colors.teal} size={20}/>
+        </MotionPressable>
         <View style={styles.premiumSectionRow}>
           <Text style={styles.premiumSectionTitle}>Urgent job matches</Text>
           <MotionPressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
@@ -10252,6 +10293,21 @@ const styles = StyleSheet.create({
   customerActivityContent: { paddingHorizontal: 23, paddingTop: 30, paddingBottom: 50 },
   customerActivityTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.95, color: theme.colors.ink },
   customerActivitySub: { fontSize: 14, color: theme.colors.muted, marginTop: 5, marginBottom: 18 },
+  customerAdvancedHeading:{marginTop:25,marginBottom:13},
+  customerAdvancedGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:11,marginBottom:14},
+  customerAdvancedCard:{width:'48%',minHeight:122,borderRadius:22,backgroundColor:theme.colors.white,
+    padding:14,justifyContent:'space-between',...theme.shadow},
+  customerAdvancedTop:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
+  customerAdvancedIcon:{height:39,width:39,borderRadius:13,alignItems:'center',justifyContent:'center',
+    backgroundColor:theme.colors.tealTint},
+  customerAdvancedTitle:{fontSize:15,fontWeight:'800',color:theme.colors.ink,marginTop:8},
+  customerAdvancedSub:{fontSize:11,color:theme.colors.muted,lineHeight:16,marginTop:3},
+  tradeGridHomeCard:{minHeight:83,borderRadius:21,marginTop:12,marginBottom:14,backgroundColor:theme.colors.white,
+    flexDirection:'row',alignItems:'center',padding:15,gap:12,...theme.shadow},
+  tradeGridHomeIcon:{height:43,width:43,borderRadius:14,backgroundColor:theme.colors.tealTint,
+    alignItems:'center',justifyContent:'center'},
+  tradeGridHomeTitle:{fontSize:15,fontWeight:'800',color:theme.colors.ink},
+  tradeGridHomeSub:{fontSize:11,lineHeight:17,color:theme.colors.muted,marginTop:5},
   customerWorkHubHeader:{marginTop:23,marginBottom:13},
   customerWorkHubRow:{flexDirection:'row',justifyContent:'space-between',gap:11,marginBottom:26},
   customerWorkHubCard:{width:'48%',minHeight:161,borderRadius:22,padding:15,backgroundColor:theme.colors.white,
