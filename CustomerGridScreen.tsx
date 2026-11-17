@@ -6,7 +6,8 @@ import {supabase} from './lib/supabase';
 import {theme} from './theme';
 const C=theme.colors;
 type Slot={id:string;tradesperson_id:string;trade:string;area_label:string;starts_at:string;ends_at:string;price_note:string|null;status:string};
-type Request={id:string;slot_id:string;customer_id:string;summary:string;status:string;created_at:string};
+type Request={id:string;slot_id:string;customer_id:string;summary:string;status:string;created_at:string;
+ slot_trade:string|null;slot_area_label:string|null;slot_starts_at:string|null;slot_ends_at:string|null;slot_tradesperson_id:string|null};
 const dateTime=(v:string)=>new Date(v).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const tr=['All','Plumber','Electrician','Heating','Builder','Locksmith','Carpenter','Roofer'];
 export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>void;openMessages:()=>void}){
@@ -21,7 +22,7 @@ export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>voi
   setUid(id);
   const [s,r]=await Promise.all([
    supabase.from('trade_grid_slots').select('id,tradesperson_id,trade,area_label,starts_at,ends_at,price_note,status').eq('status','open').gt('starts_at',new Date().toISOString()).order('starts_at').limit(100),
-   supabase.from('trade_grid_requests').select('id,slot_id,customer_id,summary,status,created_at').eq('customer_id',id).order('created_at',{ascending:false}).limit(100)
+   supabase.from('trade_grid_requests').select('id,slot_id,customer_id,summary,status,created_at,slot_trade,slot_area_label,slot_starts_at,slot_ends_at,slot_tradesperson_id').eq('customer_id',id).order('created_at',{ascending:false}).limit(100)
   ]);
   if(s.error||r.error)setError(s.error?.message||r.error?.message||'Could not load available slots.');
   else{setError('');setSlots((s.data||[]) as Slot[]);setRequests((r.data||[]) as Request[]);}
@@ -30,8 +31,17 @@ export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>voi
  useEffect(()=>{void load();},[]);
  const filtered=useMemo(()=>slots.filter(s=>(trade==='All'||s.trade.toLowerCase()===trade.toLowerCase())
   &&(!area.trim()||s.area_label.toLowerCase().includes(area.toLowerCase().trim()))),[slots,trade,area]);
- const slot=slots.find(s=>s.id===selected)||null;
- const selectedRequest=slot?requests.find(r=>r.slot_id===slot.id):null;
+ const selectedRequest=selected?requests.find(r=>r.slot_id===selected):null;
+ // Accepted windows are no longer public. The immutable request snapshot keeps the booking visible to its customer.
+ const slot=slots.find(s=>s.id===selected)||
+  (selectedRequest?.slot_starts_at?{
+   id:selectedRequest.slot_id,tradesperson_id:selectedRequest.slot_tradesperson_id||'',
+   trade:selectedRequest.slot_trade||'Local tradesperson',
+   area_label:selectedRequest.slot_area_label||'Saved area',
+   starts_at:selectedRequest.slot_starts_at,
+   ends_at:selectedRequest.slot_ends_at||selectedRequest.slot_starts_at,
+   price_note:null,status:'booked'
+  } as Slot:null);
  const send=async()=>{
   if(!slot||saving)return;
   if(details.trim().length<8){Alert.alert('Describe your job','Tell the tradesperson what you need help with.');return;}
@@ -39,7 +49,7 @@ export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>voi
   if(already){Alert.alert('Already requested','You have already responded to this availability window.');return;}
   setSaving(true);
   const {data,error:e}=await supabase.from('trade_grid_requests').insert({slot_id:slot.id,customer_id:uid,summary:details.trim()})
-   .select('id,slot_id,customer_id,summary,status,created_at').single();
+   .select('id,slot_id,customer_id,summary,status,created_at,slot_trade,slot_area_label,slot_starts_at,slot_ends_at,slot_tradesperson_id').single();
   setSaving(false);
   if(e||!data){Alert.alert('Unable to request this slot',e?.message||'Please try another window.');return;}
   setRequests(old=>[data as Request,...old]);setDetails('');
@@ -65,7 +75,7 @@ export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>voi
   setSaving(true);
   const {data,error:e}=await supabase.from('trade_grid_requests').update({status:'withdrawn'})
     .eq('id',selectedRequest.id).eq('customer_id',uid).eq('status','pending')
-    .select('id,slot_id,customer_id,summary,status,created_at').single();
+    .select('id,slot_id,customer_id,summary,status,created_at,slot_trade,slot_area_label,slot_starts_at,slot_ends_at,slot_tradesperson_id').single();
   setSaving(false);
   if(e||!data){Alert.alert('Could not withdraw',e?.message||'Please refresh.');return;}
   setRequests(old=>old.map(r=>r.id===selectedRequest.id?data as Request:r));
@@ -95,6 +105,16 @@ export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>voi
       </View></>:<>
       <View style={s.hero}><Navigation size={25} color="#D0E6E2"/><Text style={s.heroTitle}>Work when someone is already nearby.</Text>
        <Text style={s.heroSub}>Tradespeople can publish spare appointment windows in their local work area. Enquire about a suitable time—availability is genuine, not invented.</Text></View>
+      {requests.length?<><Text style={s.section}>Your Grid enquiries</Text>
+       {requests.map(r=><MotionPressable key={r.id} style={s.slot} onPress={()=>setSelected(r.slot_id)}
+        accessibilityRole="button" accessibilityLabel={'Review your '+r.status+' booking enquiry'}>
+        <View style={s.slotIcon}><Clock3 size={21} color={C.teal}/></View>
+        <View style={{flex:1}}>
+         <Text style={s.slotTitle}>{r.slot_trade||'Tradesperson'} · {r.slot_area_label||'Local area'}</Text>
+         <Text style={s.slotMeta}>{r.slot_starts_at?dateTime(r.slot_starts_at):'Date unavailable'}</Text>
+         <Text style={s.status}>Your enquiry: {r.status==='accepted'?'Accepted · message to confirm details':r.status}</Text>
+        </View><ArrowLeft size={18} color={C.teal} style={{transform:[{rotate:'180deg'}]}}/>
+       </MotionPressable>)}</>:null}
       <Text style={s.section}>Find a slot</Text>
       <TextInput style={s.input} value={area} onChangeText={setArea} placeholder="Filter by area, e.g. Leicester"
         placeholderTextColor="#9AA6A6"/>
