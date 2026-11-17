@@ -952,7 +952,7 @@ export default function App() {
   }
 
   if (customerScreen === 'messages') {
-    return <MessagesScreen navigate={setCustomerScreen} />;
+    return <MessagesScreen navigate={setCustomerScreen} userId={session?.user.id||''}/>;
   }
   if (customerScreen === 'customerQuotes') {
     return <CustomerShell current="requests" navigate={setCustomerScreen}>
@@ -4763,16 +4763,13 @@ function RequestDetailScreen({
   );
 }
 
-function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => void }) {
-  type InboxConversation = {
-    id: string;
-    tradespersonId: string;
-    name: string;
-    trade: string;
-    avatar: string | null;
-    lastMessage: string;
-    updatedAt: string;
-  };
+type CachedCustomerConversation={
+  id:string;tradespersonId:string;name:string;trade:string;avatar:string|null;
+  lastMessage:string;updatedAt:string;
+};
+let lastCustomerInbox:{owner:string;items:CachedCustomerConversation[]}|null=null;
+function MessagesScreen({ navigate,userId }: { navigate: (screen: CustomerScreen) => void;userId:string }) {
+  type InboxConversation=CachedCustomerConversation;
 
   type LiveMessage = {
     id: number;
@@ -4781,18 +4778,19 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
     created_at: string;
   };
 
-  const [conversations, setConversations] = useState<InboxConversation[]>([]);
+  const cachedInbox=lastCustomerInbox?.owner===userId?lastCustomerInbox.items:null;
+  const [conversations, setConversations] = useState<InboxConversation[]>(cachedInbox||[]);
   const [selectedConversation, setSelectedConversation] = useState<InboxConversation | null>(null);
   const [thread, setThread] = useState<LiveMessage[]>([]);
   const [message, setMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [loadingInbox, setLoadingInbox] = useState(true);
+  const [loadingInbox, setLoadingInbox] = useState(!cachedInbox);
   const [loadingThread, setLoadingThread] = useState(false);
   const [inboxSearch, setInboxSearch] = useState('');
   const shownConversations = conversations.filter(item => (item.name + ' ' + item.trade + ' ' + item.lastMessage).toLowerCase().includes(inboxSearch.trim().toLowerCase()));
 
   const loadInbox = async () => {
-    setLoadingInbox(true);
+    if(!lastCustomerInbox||lastCustomerInbox.owner!==userId)setLoadingInbox(true);
 
     const {
       data: { user },
@@ -4811,7 +4809,9 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
       .eq('customer_id', user.id)
       .order('updated_at', { ascending: false });
 
-    if (error || !rows?.length) {
+    if(error){setLoadingInbox(false);return;}
+    if(!rows?.length){
+      lastCustomerInbox={owner:user.id,items:[]};
       setConversations([]);
       setLoadingInbox(false);
       return;
@@ -4832,8 +4832,7 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
       }
     }
 
-    setConversations(
-      rows.map(row => {
+    const nextConversations:InboxConversation[]=rows.map(row => {
         const latest = latestByConversation.get(row.id);
 
         return {
@@ -4845,9 +4844,9 @@ function MessagesScreen({ navigate }: { navigate: (screen: CustomerScreen) => vo
           lastMessage: latest?.body || 'You are connected — say hello.',
           updatedAt: latest?.created_at || row.updated_at,
         };
-      })
-    );
-
+      });
+    lastCustomerInbox={owner:user.id,items:nextConversations};
+    setConversations(nextConversations);
     setLoadingInbox(false);
   };
 
