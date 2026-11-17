@@ -599,7 +599,15 @@ export default function TradeSuppliersMap() {
     savedWorkArea?.latitude, savedWorkArea?.longitude,
   ]);
 
-  const mapHtml = useMemo(() => createMapHtml(centre), [centre.latitude, centre.longitude]);
+  // Keep the merchant canvas and camera mounted when GPS finds a better position.
+  const mapHtml=useMemo(()=>createMapHtml(centre),[]);
+  const mapSource=useRef<{html:string}>({html:mapHtml});
+  useEffect(()=>{
+    if(!positionReady)return;
+    mapRef.current?.injectJavaScript(
+      'if(window.moveMapArea){window.moveMapArea('+centre.latitude+','+centre.longitude+')}true;'
+    );
+  },[positionReady,centre.latitude,centre.longitude]);
 
   const centreOnMyLocation = async () => {
     try {
@@ -691,13 +699,18 @@ export default function TradeSuppliersMap() {
       <View style={S.mapArea}>
         <MapWebView
           ref={mapRef}
-          source={{ html: mapHtml }}
+          source={mapSource.current}
           style={S.webView}
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled
           onMessage={handleMessage}
-          onLoadEnd={() => { sendToMap(); sendPositionToMap(); }}
+          onLoadEnd={() => {
+            sendToMap();sendPositionToMap();
+            mapRef.current?.injectJavaScript(
+              'if(window.moveMapArea){window.moveMapArea('+centre.latitude+','+centre.longitude+')}true;'
+            );
+          }}
           scrollEnabled={false}
         />
         <View pointerEvents="none" style={S.locationLegend}>
