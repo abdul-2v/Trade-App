@@ -9,7 +9,7 @@ type Slot={id:string;tradesperson_id:string;trade:string;area_label:string;start
 type Request={id:string;slot_id:string;customer_id:string;summary:string;status:string;created_at:string};
 const dateTime=(v:string)=>new Date(v).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const tr=['All','Plumber','Electrician','Heating','Builder','Locksmith','Carpenter','Roofer'];
-export default function CustomerGridScreen({goBack}:{goBack:()=>void}){
+export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>void;openMessages:()=>void}){
  const [uid,setUid]=useState(''),[slots,setSlots]=useState<Slot[]>([]),[requests,setRequests]=useState<Request[]>([]);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[saving,setSaving]=useState(false);
  const [trade,setTrade]=useState('All'),[area,setArea]=useState(''),[selected,setSelected]=useState<string|null>(null),[details,setDetails]=useState('');
@@ -45,6 +45,21 @@ export default function CustomerGridScreen({goBack}:{goBack:()=>void}){
   setRequests(old=>[data as Request,...old]);setDetails('');
   Alert.alert('Request sent','The tradesperson can review your details and accept or decline. The appointment is not confirmed until they accept.');
  };
+ const messageTrader=async()=>{
+  if(!slot||selectedRequest?.status!=='accepted'||!uid)return;
+  const [person,profile]=await Promise.all([
+   supabase.from('profiles').select('first_name,last_name').eq('id',uid).maybeSingle(),
+   supabase.from('tradesperson_profiles').select('display_name').eq('user_id',slot.tradesperson_id).maybeSingle()
+  ]);
+  const customerName=[person.data?.first_name,person.data?.last_name].filter(Boolean).join(' ')||'Customer';
+  const traderName=profile.data?.display_name||'Local tradesperson';
+  const {error}=await supabase.from('conversations').upsert({
+   customer_id:uid,tradesperson_id:slot.tradesperson_id,customer_display_name:customerName,
+   tradesperson_display_name:traderName,tradesperson_trade:slot.trade,
+  },{onConflict:'customer_id,tradesperson_id',ignoreDuplicates:true});
+  if(error){Alert.alert('Could not open messages',error.message);return;}
+  openMessages();
+ };
  const withdraw=async()=>{
   if(!selectedRequest||selectedRequest.status!=='pending'||saving)return;
   setSaving(true);
@@ -68,7 +83,9 @@ export default function CustomerGridScreen({goBack}:{goBack:()=>void}){
       <View style={s.card}><Text style={s.cardTitle}>Explain what you need</Text>
       {selectedRequest?<><Text style={s.info}>Your request: {selectedRequest.summary}</Text>
        <Text style={s.status}>Status: {selectedRequest.status==='pending'?'Waiting for the tradesperson':selectedRequest.status}</Text>
-       {selectedRequest.status==='pending'?<MotionPressable disabled={saving} style={s.secondary} onPress={()=>{void withdraw()}}><Text style={s.secondaryText}>Withdraw request</Text></MotionPressable>:null}</>:
+       {selectedRequest.status==='pending'?<MotionPressable disabled={saving} style={s.secondary} onPress={()=>{void withdraw()}}><Text style={s.secondaryText}>Withdraw request</Text></MotionPressable>:null}
+       {selectedRequest.status==='accepted'?<MotionPressable style={s.primary} onPress={()=>{void messageTrader()}}>
+         <Send size={18} color="#FFFFFF"/><Text style={s.primaryText}>Message tradesperson</Text></MotionPressable>:null}</>:
        <><Text style={s.info}>This sends an enquiry for the published time window. It does not automatically book the appointment or take payment.</Text>
         <TextInput multiline style={s.textarea} value={details} onChangeText={setDetails} maxLength={700}
          placeholder="e.g. Replace a leaking kitchen tap. Access via side entrance."
