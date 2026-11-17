@@ -187,13 +187,15 @@ export function JobMatchJourney(){
   const [trackWidth,setTrackWidth]=React.useState(80);
   useEffect(()=>{
     if(prefersReducedMotion)return;
+    // Travel only forwards. At 1 the indicator has faded fully out;
+    // reset it instantly while invisible instead of racing visibly backwards.
     const loop=Animated.loop(Animated.sequence([
       Animated.delay(420),
-      Animated.timing(flight,{toValue:1,duration:1050,
+      Animated.timing(flight,{toValue:1,duration:1180,
         easing:Easing.inOut(Easing.cubic),useNativeDriver:true}),
-      Animated.delay(700),
-      Animated.timing(flight,{toValue:0,duration:250,
-        easing:Easing.in(Easing.cubic),useNativeDriver:true}),
+      Animated.delay(650),
+      Animated.timing(flight,{toValue:0,duration:0,
+        useNativeDriver:true}),
       Animated.delay(950)
     ]));
     loop.start();
