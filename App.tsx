@@ -2806,21 +2806,24 @@ function MapMock({
         escapeMarkerText((marker.name || marker.role || '?').charAt(0)) + '</span>';
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') + '"><div class="trade-avatar-wrap">' + avatar + '<span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
+      html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') + (selectedMarkerId===marker.id?' is-picked':'') + '" data-id="' + escapeMarkerText(marker.id) + '"><div class="trade-avatar-wrap">' + avatar + '<span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
       iconSize: [56,58],
       iconAnchor: [28,29]
     });
 
-    L.marker([marker.lat, marker.lng], {
-      icon,
-      riseOnHover: true,
-      keyboard: false,
-      autoPanOnFocus: false,
-    })
-      .on('click', () => {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type:'trade', id:marker.id }));
-      })
-      .addTo(tradeLayer);
+    const leaf=L.marker([marker.lat,marker.lng],{
+      icon,riseOnHover:true,keyboard:false,autoPanOnFocus:false,
+    }).on('click',()=>{
+      selectedMarkerId=marker.id;
+      document.querySelectorAll('.trade-pin').forEach(function(node){
+        node.classList.toggle('is-picked',node.getAttribute('data-id')===selectedMarkerId);
+      });
+      map.flyTo([marker.lat,marker.lng],Math.max(14.4,map.getZoom()),{
+        duration:.57,easeLinearity:.23
+      });
+      window.ReactNativeWebView.postMessage(JSON.stringify({type:'trade',id:marker.id}));
+    }).addTo(tradeLayer);
+    return leaf;
   };
 
   const addClusterMarker = (group) => {
@@ -2835,18 +2838,14 @@ function MapMock({
       iconAnchor: [width / 2,23]
     });
 
-    L.marker([group.lat, group.lng], {
-      icon,
-      keyboard: false,
-      riseOnHover: true,
-      autoPanOnFocus: false,
-    })
-      .on('click', () => {
+    const leaf=L.marker([group.lat,group.lng],{
+      icon,keyboard:false,riseOnHover:true,autoPanOnFocus:false,
+    }).on('click',()=>{
         if (group.members.length <= 1) {
           const only = group.members[0];
           if (only) {
             map.flyTo([only.lat, only.lng], Math.min(15, map.getZoom() + 2), {
-              duration: 0.8
+              duration: 0.58
             });
           }
           return;
@@ -2856,15 +2855,14 @@ function MapMock({
         const nextZoom = Math.min(14.75, Math.max(map.getZoom() + 1.35, map.getBoundsZoom(bounds, false, [70,70])));
 
         map.flyTo([group.lat, group.lng], nextZoom, {
-          duration: 0.85
+          duration: 0.62
         });
-      })
-      .addTo(tradeLayer);
+      }).addTo(tradeLayer);
+    return leaf;
   };
 
   const renderTrades = () => {
-    tradeLayer.clearLayers();
-
+    const desired=new Set();
     const zoom = map.getZoom();
     document.body.classList.toggle('show-trade-labels', zoom >= 15);
 
@@ -2872,16 +2870,19 @@ function MapMock({
     const groups = clusterMarkers(visible, zoom);
 
     groups.forEach((group) => {
-      const showIndividual =
-        markers.length === 1 ||
-        zoom >= 15 ||
-        (zoom >= 14.35 && group.members.length === 1);
-
-      if (showIndividual) {
-        addTradeMarker(group.members[0]);
-      } else {
-        addClusterMarker(group);
+      const showIndividual=markers.length===1||zoom>=15||(zoom>=14.35&&group.members.length===1);
+      const key=showIndividual
+        ? 't:'+group.members[0].id+':'+Number(group.members[0].lat).toFixed(4)+
+          ':'+Number(group.members[0].lng).toFixed(4)+':'+Boolean(group.members[0].available)
+        : 'c:'+group.members.map(m=>m.id).sort().join('|');
+      desired.add(key);
+      if(!activeLayers.has(key)){
+        const layer=showIndividual?addTradeMarker(group.members[0]):addClusterMarker(group);
+        activeLayers.set(key,layer);
       }
+    });
+    activeLayers.forEach((layer,key)=>{
+      if(!desired.has(key)){tradeLayer.removeLayer(layer);activeLayers.delete(key);}
     });
   };
 
@@ -2893,6 +2894,20 @@ function MapMock({
     });
   };
 
+  const playScan=()=>{
+    const scan=document.getElementById('map-scan');
+    if(!scan||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    scan.classList.remove('play');void scan.offsetWidth;scan.classList.add('play');
+  };
+  window.tradarrSetMarkers=function(next){
+    markers=Array.isArray(next)?next:[];scheduleTradeRender();playScan();
+  };
+  window.tradarrSetUser=function(next){updateUserLocation(next);scheduleTradeRender();};
+  window.tradarrRecenter=function(){
+    if(user.visible)map.flyTo([user.lat,user.lng],Math.max(14.4,map.getZoom()),{
+      duration:.66,easeLinearity:.23
+    });
+  };
   map.on('zoomend moveend resize', scheduleTradeRender);
   if (markers.length > 0) {
     const markerBounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
@@ -2904,7 +2919,10 @@ function MapMock({
     });
   }
 
-  map.whenReady(scheduleTradeRender);
+  map.whenReady(function(){
+    scheduleTradeRender();
+    if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify({type:'map_ready'}));
+  });
 </script>
 </body>
 </html>`;
