@@ -5617,7 +5617,7 @@ function TradeShell({
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.white }}>
       <StatusBar barStyle="dark-content" />
-      <View style={{ flex: 1, backgroundColor: theme.colors.proBackground }}>{children}</View>
+      <ScreenReveal>{children}</ScreenReveal>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
           const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective'].includes(current));
@@ -5625,6 +5625,8 @@ function TradeShell({
             <MotionPressable
               key={route}
               onPress={() => navigate(route)}
+              pressScale={0.985}
+              disableFlash
               style={styles.premiumTab}
               accessibilityRole="tab"
               accessibilityLabel={label}
