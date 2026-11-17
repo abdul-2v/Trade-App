@@ -957,7 +957,7 @@ export default function App() {
   }
 
   if (customerScreen === 'grid') return <CustomerShell current="home" navigate={setCustomerScreen}>
-    <CustomerGridScreen goBack={() => setCustomerScreen('home')}/></CustomerShell>;
+    <CustomerGridScreen goBack={() => setCustomerScreen('home')} openMessages={() => setCustomerScreen('messages')}/></CustomerShell>;
   if (customerScreen === 'oneJob') return <CustomerShell current="home" navigate={setCustomerScreen}>
     <CustomerOneJobScreen goBack={() => setCustomerScreen('home')} onFindTrade={(trade,task)=>{
       setSelectedCategory(trade as TradeCategory);
