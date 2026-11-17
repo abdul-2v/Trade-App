@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
@@ -2688,25 +2688,35 @@ function MapMock({
     border-radius:50%;animation:customerSonar 2.6s ease-out infinite;pointer-events:none;
   }
   .dot:after { animation-delay:1.3s }
-  .trade-pin, .cluster-bubble { animation:tradeMarkerIn .48s cubic-bezier(.18,.82,.25,1.12) both }
+  .trade-pin, .cluster-bubble { animation:tradeMarkerIn .39s cubic-bezier(.18,.82,.25,1.08) both }
   .trade-pin { animation-delay:var(--entrance-delay,0ms) }
   .trade-pin.is-available .trade-avatar-wrap { animation:activeTradeRing 2.5s ease-in-out infinite }
-  .trade-pin:active .trade-avatar-wrap,.cluster-bubble:active { transform:scale(.9) }
+  .trade-pin:active .trade-avatar-wrap,.cluster-bubble:active { transform:scale(.95) }
+  .trade-pin.is-picked .trade-avatar-wrap{
+    box-shadow:0 0 0 5px #F4A67F66,0 7px 21px #162D4A55;transform:scale(1.14);
+    transition:transform .26s ease,box-shadow .3s ease
+  }
+  .trade-pin.is-picked .trade-label{display:block;background:#123C3B;color:#FFFFFF;border:1px solid #D1F1E8}
+  #map-scan{position:absolute;inset:0;z-index:400;pointer-events:none;opacity:0;
+    background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.04) 43%,rgba(45,166,149,.18) 50%,rgba(255,255,255,.06) 57%,transparent 73%);transform:translateX(-100%)}
+  @keyframes mapScan{0%{transform:translateX(-100%);opacity:0}20%{opacity:1}80%{opacity:.8}100%{transform:translateX(110%);opacity:0}}
+  #map-scan.play{animation:mapScan .78s cubic-bezier(.1,.72,.25,1) both}
   .trade-avatar-wrap,.cluster-bubble { transition:transform .16s ease }
   @media(prefers-reduced-motion:reduce) {
-    .dot:before,.dot:after,.trade-pin,.cluster-bubble,.trade-pin.is-available .trade-avatar-wrap { animation:none!important }
+    .dot:before,.dot:after,.trade-pin,.cluster-bubble,.trade-pin.is-available .trade-avatar-wrap,#map-scan { animation:none!important }
   }
 </style>
 </head>
 <body>
-<div id="map"></div>
+<div id="map"></div><div id="map-scan" aria-hidden="true"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
 <script>
   const centre = ${JSON.stringify([centre.latitude, centre.longitude])};
-  const markers = ${escapedMarkers};
-  const user = ${userPosition};
+  let markers = ${escapedMarkers};
+  let user = ${userPosition};
+  let selectedMarkerId = '';
   const map = L.map('map', {
     zoomControl: false,
     attributionControl: true,
@@ -2722,28 +2732,26 @@ function MapMock({
   map.attributionControl.setPrefix('');
   map.attributionControl.addAttribution('OpenFreeMap © OpenMapTiles · Data from OpenStreetMap');
 
-  if (user.visible) {
-    L.circle([user.lat, user.lng], {
-      radius: 180,
-      color: '#83BFFF',
-      weight: 1,
-      opacity: 0.34,
-      fillColor: '#78B8FF',
-      fillOpacity: 0.13,
-      interactive: false
-    }).addTo(map);
-
-    const userIcon = L.divIcon({
-      className: '',
-      html: '<div class="dot"></div>',
-      iconSize: [34,34],
-      iconAnchor: [17,17]
-    });
-    L.marker([user.lat, user.lng], { icon:userIcon, interactive:false }).addTo(map);
+  let userCircle=null,userMarker=null;
+  function updateUserLocation(next){
+    user=next||{visible:false};
+    if(userCircle){map.removeLayer(userCircle);userCircle=null;}
+    if(userMarker){map.removeLayer(userMarker);userMarker=null;}
+    if(user.visible){
+      userCircle=L.circle([user.lat,user.lng],{
+        radius:180,color:'#83BFFF',weight:1,opacity:.34,
+        fillColor:'#78B8FF',fillOpacity:.13,interactive:false
+      }).addTo(map);
+      const userIcon=L.divIcon({className:'',html:'<div class="dot"></div>',
+        iconSize:[34,34],iconAnchor:[17,17]});
+      userMarker=L.marker([user.lat,user.lng],{icon:userIcon,interactive:false}).addTo(map);
+    }
   }
+  updateUserLocation(user);
 
-  const tradeLayer = L.layerGroup().addTo(map);
-  let renderFrame = null;
+  const tradeLayer=L.layerGroup().addTo(map);
+  const activeLayers=new Map();
+  let renderFrame=null;
 
   const cellSizeForZoom = (zoom) => {
     if (zoom <= 10.75) return 170;
