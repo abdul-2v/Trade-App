@@ -158,7 +158,7 @@ export function ScreenReveal({children,scope='customer',route=''}:
 /** The selection pill eases in instead of snapping on every tab switch. */
 export function NavPill({active,children,background}:
  React.PropsWithChildren<{active:boolean;background:string}>){
-  const selected=useRef(new Animated.Value(prefersReducedMotion?(active?1:0):0)).current;
+  const selected=useRef(new Animated.Value(active?(prefersReducedMotion?1:0.67):0)).current;
   useEffect(()=>{
     if(prefersReducedMotion){selected.setValue(active?1:0);return;}
     const movement=Animated.timing(selected,{
@@ -183,6 +183,7 @@ export function NavPill({active,children,background}:
 /** Compact, illustrative match journey. Not a live job/availability claim. */
 export function JobMatchJourney(){
   const flight=useRef(new Animated.Value(0)).current;
+  const [trackWidth,setTrackWidth]=React.useState(80);
   useEffect(()=>{
     if(prefersReducedMotion)return;
     const loop=Animated.loop(Animated.sequence([
@@ -207,13 +208,22 @@ export function JobMatchJourney(){
       <Animated.Text style={{color:'#DDF1EC',fontSize:10,fontWeight:'800'}}>01 · POST A JOB</Animated.Text>
       <Animated.Text style={{color:'#A9D5CA',fontSize:9}}>Your request</Animated.Text>
     </Animated.View>
-    <Animated.View style={{flex:1,height:2,backgroundColor:'#83B3A977',
+    <Animated.View onLayout={event=>setTrackWidth(event.nativeEvent.layout.width)}
+      style={{flex:1,height:3,backgroundColor:'#83B3A977',
       marginHorizontal:13,borderRadius:3,position:'relative'}}>
       <Animated.View style={{
-        position:'absolute',top:-5,width:12,height:12,borderRadius:6,
-        borderWidth:2,borderColor:'#FFFFFF',backgroundColor:'#F4B786',
+        position:'absolute',top:-10,width:23,height:23,borderRadius:12,
+        alignItems:'center',justifyContent:'center',borderWidth:2,
+        borderColor:'#FFFFFF',backgroundColor:'#F4B786',
         opacity:flight.interpolate({inputRange:[0,0.08,0.92,1],outputRange:[0,1,1,0]}),
-        transform:[{translateX:flight.interpolate({inputRange:[0,1],outputRange:[0,95]})}]
+        transform:[{translateX:flight.interpolate({inputRange:[0,1],
+          outputRange:[0,Math.max(0,trackWidth-23)]})}]
+      }}><Animated.Text style={{fontWeight:'900',fontSize:13,color:'#153E3A'}}>➜</Animated.Text></Animated.View>
+      <Animated.View style={{
+        position:'absolute',right:-4,top:-6,width:15,height:15,borderRadius:8,
+        backgroundColor:'#8EE7B7',borderWidth:2,borderColor:'#FFFFFF',
+        opacity:flight.interpolate({inputRange:[0,.65,.93,1],outputRange:[0,0,1,0]}),
+        transform:[{scale:flight.interpolate({inputRange:[0,.75,.93,1],outputRange:[.5,.65,1.2,.5]})}]
       }}/>
     </Animated.View>
     <Animated.View style={{alignItems:'flex-end',gap:2}}>
