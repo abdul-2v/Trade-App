@@ -2902,7 +2902,15 @@ function MapMock({
   window.tradarrSetMarkers=function(next){
     markers=Array.isArray(next)?next:[];scheduleTradeRender();playScan();
   };
-  window.tradarrSetUser=function(next){updateUserLocation(next);scheduleTradeRender();};
+  window.tradarrSetUser=function(next){
+    const wasVisible=Boolean(user.visible);
+    const prev=user.visible?[user.lat,user.lng]:null;
+    updateUserLocation(next);
+    if(next&&next.visible&&(!wasVisible||(prev&&map.distance(prev,[next.lat,next.lng])>3200))){
+      map.flyTo([next.lat,next.lng],Math.max(13.8,map.getZoom()),{duration:.72,easeLinearity:.23});
+    }
+    scheduleTradeRender();
+  };
   window.tradarrRecenter=function(){
     if(user.visible)map.flyTo([user.lat,user.lng],Math.max(14.4,map.getZoom()),{
       duration:.66,easeLinearity:.23
