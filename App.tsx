@@ -2571,58 +2571,94 @@ function MapMock({
     display:flex;
     flex-direction:column;
     align-items:center;
-    justify-content:center;
-    min-width:52px;
+    justify-content:flex-start;
+    width:64px;
+    height:68px;
+    text-align:center;
     transform:translateZ(0);
   }
   .trade-avatar-wrap {
     position:relative;
-    width:40px;
-    height:40px;
-    border-radius:20px;
-    background:#fff;
-    border:2px solid #FFFFFF;
-    box-shadow:0 3px 10px rgba(7,27,49,.18);
+    width:46px;
+    height:46px;
+    box-sizing:border-box;
+    flex-shrink:0;
+    border-radius:50%;
+    border:3px solid #FFFFFF;
+    background:#E8F0EF;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 5px 14px rgba(13,40,42,.20),0 1px 3px rgba(13,40,42,.09);
   }
   .trade-avatar {
-    width:36px;
-    height:36px;
-    border-radius:18px;
-    object-fit:cover;
-    display:block;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:100%;
+    border-radius:50%;
+    box-sizing:border-box;
+    overflow:hidden;
   }
+  .trade-avatar-fallback {
+    background:#E8F0EF;
+    font-size:14px;
+    line-height:1;
+    font-weight:850;
+    letter-spacing:-.4px;
+    text-transform:uppercase;
+  }
+  .trade-avatar-photo {
+    position:absolute;
+    inset:3px;
+    width:calc(100% - 6px);
+    height:calc(100% - 6px);
+    object-fit:cover;
+    background:#E8F0EF;
+  }
+  .trade-avatar-photo[hidden] { display:none; }
   .trade-online {
     position:absolute;
-    right:-1px;
-    top:-1px;
-    width:9px;
-    height:9px;
-    border-radius:5px;
-    background:#16B981;
-    border:2px solid #fff;
+    right:-2px;
+    bottom:-1px;
+    width:13px;
+    height:13px;
+    border-radius:50%;
+    background:#12B981;
+    border:2.5px solid #FFFFFF;
+    box-sizing:border-box;
+    box-shadow:0 1px 4px rgba(0,0,0,.18);
+    z-index:2;
   }
   .trade-offline {
     position:absolute;
-    right:-1px;
-    top:-1px;
-    width:9px;
-    height:9px;
-    border-radius:5px;
-    background:#9AA6B2;
-    border:2px solid #fff;
+    right:-2px;
+    bottom:-1px;
+    width:13px;
+    height:13px;
+    border-radius:50%;
+    background:#94A3AD;
+    border:2.5px solid #FFFFFF;
+    box-sizing:border-box;
+    z-index:2;
   }
   .trade-label {
     display:none;
-    margin-top:4px;
-    padding:3px 7px;
-    border-radius:8px;
-    background:rgba(255,255,255,.97);
-    color:#132033;
-    font-size:9px;
-    line-height:11px;
+    position:absolute;
+    top:49px;
+    left:50%;
+    transform:translateX(-50%);
+    padding:4px 8px;
+    border-radius:10px;
+    background:rgba(255,255,255,.98);
+    border:1px solid rgba(19,49,49,.07);
+    color:#173135;
+    font-size:10px;
+    line-height:12px;
     font-weight:800;
     white-space:nowrap;
-    box-shadow:0 2px 7px rgba(7,27,49,.12);
+    box-shadow:0 2px 8px rgba(7,27,49,.13);
   }
   body.show-trade-labels .trade-label {
     display:block;
@@ -2680,8 +2716,8 @@ function MapMock({
     100% { opacity:1; transform:translateY(0) scale(1) }
   }
   @keyframes activeTradeRing {
-    0%,100% { box-shadow:0 3px 10px rgba(7,27,49,.18), 0 0 0 0 rgba(22,185,129,.32) }
-    55% { box-shadow:0 3px 10px rgba(7,27,49,.18), 0 0 0 8px rgba(22,185,129,0) }
+    0%,100% { box-shadow:0 5px 14px rgba(13,40,42,.20),0 0 0 0 rgba(18,185,129,.23) }
+    55% { box-shadow:0 5px 14px rgba(13,40,42,.20),0 0 0 6px rgba(18,185,129,0) }
   }
   .dot:before,.dot:after {
     content:"";position:absolute;inset:-3px;border:2px solid #1684F8;
@@ -2693,7 +2729,9 @@ function MapMock({
   .trade-pin.is-available .trade-avatar-wrap { animation:activeTradeRing 2.5s ease-in-out infinite }
   .trade-pin:active .trade-avatar-wrap,.cluster-bubble:active { transform:scale(.95) }
   .trade-pin.is-picked .trade-avatar-wrap{
-    box-shadow:0 0 0 5px #F4A67F66,0 7px 21px #162D4A55;transform:scale(1.14);
+    animation:none;
+    box-shadow:0 0 0 4px #F4A67F66,0 7px 20px #162D4A44;
+    transform:scale(1.10);
     transition:transform .26s ease,box-shadow .3s ease
   }
   .trade-pin.is-picked .trade-label{display:block;background:#123C3B;color:#FFFFFF;border:1px solid #D1F1E8}
@@ -2799,16 +2837,27 @@ function MapMock({
   }[ch]));
 
   const addTradeMarker = (marker) => {
-    const isSafePhoto = !marker.demo && typeof marker.image === 'string' && marker.image.indexOf('https://') === 0 && marker.image.indexOf('"') === -1 && marker.image.indexOf('<') === -1 && marker.image.indexOf('>') === -1;
-    const avatar = isSafePhoto
-      ? '<img class="trade-avatar" loading="lazy" src="' + escapeMarkerText(marker.image) + '" />'
-      : '<span class="trade-avatar" style="background:' + (marker.demo ? '#FCE8E0' : '#E8F0EF') + ';color:' + (marker.demo ? '#9A3F20' : '#245758') + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px">' +
-        escapeMarkerText((marker.name || marker.role || '?').charAt(0)) + '</span>';
+    // Demo images are illustrative only; the demo banner always identifies fictional profiles.
+    // Keep a centred monogram behind the image so a failed photo never leaves a broken icon.
+    const isSafePhoto = typeof marker.image === 'string' && marker.image.indexOf('https://') === 0 &&
+      marker.image.indexOf('"') === -1 && marker.image.indexOf('<') === -1 && marker.image.indexOf('>') === -1;
+    const safeAccent = /^#[0-9a-fA-F]{6}$/.test(marker.accent || '') ? marker.accent : '#20655E';
+    const initials = String(marker.name || marker.role || '?').trim().split(' ')
+      .filter(Boolean).slice(0,2).map(part => part.charAt(0)).join('').toUpperCase();
+    const avatar = '<span class="trade-avatar trade-avatar-fallback" style="color:' + safeAccent + '">' +
+      escapeMarkerText(initials || '?') + '</span>' +
+      (isSafePhoto ? '<img class="trade-avatar trade-avatar-photo" loading="lazy" decoding="async" src="' +
+        escapeMarkerText(marker.image) + '" onerror="this.hidden=true" alt="" />' : '');
     const icon = L.divIcon({
       className: '',
-      html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') + (selectedMarkerId===marker.id?' is-picked':'') + '" data-id="' + escapeMarkerText(marker.id) + '"><div class="trade-avatar-wrap">' + avatar + '<span class="' + (marker.available ? 'trade-online' : 'trade-offline') + '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
-      iconSize: [56,58],
-      iconAnchor: [28,29]
+      html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') +
+        (selectedMarkerId===marker.id?' is-picked':'') + '" data-id="' + escapeMarkerText(marker.id) +
+        '"><div class="trade-avatar-wrap">' + avatar + '<span class="' +
+        (marker.available ? 'trade-online' : 'trade-offline') +
+        '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
+      iconSize: [64,68],
+      // Pin anchors to the actual avatar centre, not the centre of the role label.
+      iconAnchor: [32,23]
     });
 
     const leaf=L.marker([marker.lat,marker.lng],{
