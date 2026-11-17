@@ -19,7 +19,7 @@ import CustomerRescueScreen from './CustomerRescueScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow } from './Motion';
-import { FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
+import { Compass, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -93,6 +93,7 @@ type CustomerScreen =
   | 'oneJob'
   | 'firstFix'
   | 'rescue'
+  | 'discover'
   | 'messages'
   | 'customerProfile';
 
@@ -956,26 +957,29 @@ export default function App() {
     </CustomerShell>;
   }
 
-  if (customerScreen === 'grid') return <CustomerShell current="home" navigate={setCustomerScreen}>
-    <CustomerGridScreen goBack={() => setCustomerScreen('home')} openMessages={() => setCustomerScreen('messages')}/></CustomerShell>;
-  if (customerScreen === 'oneJob') return <CustomerShell current="home" navigate={setCustomerScreen}>
-    <CustomerOneJobScreen goBack={() => setCustomerScreen('home')} onFindTrade={(trade,task)=>{
+  if (customerScreen === 'grid') return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    <CustomerGridScreen goBack={() => setCustomerScreen('discover')} openMessages={() => setCustomerScreen('messages')}/></CustomerShell>;
+  if (customerScreen === 'oneJob') return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    <CustomerOneJobScreen goBack={() => setCustomerScreen('discover')} onFindTrade={(trade,task)=>{
       setSelectedCategory(trade as TradeCategory);
       setServiceIntent({trade:trade as TradeCategory,service:task,timing:'Next few days'});
       setCustomerScreen('map');
     }}/></CustomerShell>;
-  if (customerScreen === 'firstFix') return <CustomerShell current="home" navigate={setCustomerScreen}>
-    <CustomerFirstFixScreen goBack={() => setCustomerScreen('home')} onUseBrief={(trade,summary)=>{
+  if (customerScreen === 'firstFix') return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    <CustomerFirstFixScreen goBack={() => setCustomerScreen('discover')} onUseBrief={(trade,summary)=>{
       setSelectedCategory(trade as TradeCategory);
       setServiceIntent({trade:trade as TradeCategory,service:summary,timing:'Next few days'});
       setCustomerScreen('map');
     }}/></CustomerShell>;
-  if (customerScreen === 'rescue') return <CustomerShell current="requests" navigate={setCustomerScreen}>
-    <CustomerRescueScreen goBack={() => setCustomerScreen('requests')} onRetry={(trade,issue,urgent)=>{
+  if (customerScreen === 'rescue') return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    <CustomerRescueScreen goBack={() => setCustomerScreen('discover')} onRetry={(trade,issue,urgent)=>{
       setSelectedCategory(trade as TradeCategory);
       setServiceIntent({trade:trade as TradeCategory,service:issue,timing:urgent?'Now':'Next few days'});
       setCustomerScreen(urgent?'urgent':'map');
     }}/></CustomerShell>;
+  if (customerScreen === 'discover') {
+    return <CustomerDiscoverScreen navigate={setCustomerScreen} />;
+  }
   if (customerScreen === 'customerProfile') {
     return (
       <CustomerProfileScreen
@@ -1036,6 +1040,7 @@ function CustomerNav({
   const items = [
     { label: 'Home', Icon: HomeIcon, route: 'home' as CustomerScreen },
     { label: 'Explore', Icon: MapIcon, route: 'map' as CustomerScreen },
+    { label: 'Discover', Icon: Compass, route: 'discover' as CustomerScreen },
     { label: 'Activity', Icon: Clock3, route: 'requests' as CustomerScreen },
     { label: 'Inbox', Icon: MessageCircle, route: 'messages' as CustomerScreen },
     { label: 'Account', Icon: UserRound, route: 'customerProfile' as CustomerScreen },
@@ -1058,6 +1063,61 @@ function CustomerNav({
   );
 }
 
+
+function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>void}){
+  const features=[
+    {route:'grid' as CustomerScreen,Icon:Route,title:'Grid',subtitle:'Nearby appointment gaps',
+      detail:'Request genuine spare slots published by local tradespeople.'},
+    {route:'oneJob' as CustomerScreen,Icon:Users,title:'OneJob',subtitle:'One project, multiple trades',
+      detail:'Plan a kitchen, bathroom or renovation by stage.'},
+    {route:'firstFix' as CustomerScreen,Icon:Camera,title:'FirstFix',subtitle:'Prepare before the visit',
+      detail:'Create a repair brief with model details and private photos.'},
+    {route:'rescue' as CustomerScreen,Icon:RotateCw,title:'Rescue',subtitle:'When a booking falls through',
+      detail:'Restart a cancelled job request without writing it again.'},
+  ];
+  return <CustomerShell current="discover" navigate={navigate}>
+    <ScrollView style={styles.customerHome} showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.customerDiscoverPage}>
+      <Text style={styles.customerDiscoverEyebrow}>MORE WAYS TO GET THINGS DONE</Text>
+      <Text style={styles.customerDiscoverHeading}>Discover Tradarr</Text>
+      <Text style={styles.customerDiscoverIntro}>Useful options for bigger projects, preparing repairs and finding a better time to book.</Text>
+
+      <View style={styles.customerDiscoverHero}>
+        <View style={styles.customerDiscoverHeroIcon}><Search size={23} color={theme.colors.white}/></View>
+        <View style={{flex:1}}>
+          <Text style={styles.customerDiscoverHeroTitle}>Just need a tradesperson?</Text>
+          <Text style={styles.customerDiscoverHeroSub}>Go straight to the usual map and local search.</Text>
+        </View>
+        <MotionPressable style={styles.customerDiscoverHeroAction}
+          onPress={()=>navigate('map')} accessibilityRole="button" accessibilityLabel="Find tradespeople on the map">
+          <ArrowRight size={19} color={theme.colors.darkTeal}/>
+        </MotionPressable>
+      </View>
+      <Text style={styles.customerDiscoverSectionTitle}>Explore smart features</Text>
+      <View style={styles.customerDiscoverGrid}>
+        {features.map(({route,Icon,title,subtitle,detail})=>
+          <MotionPressable key={route} onPress={()=>navigate(route)}
+            style={styles.customerDiscoverFeature} accessibilityRole="button"
+            accessibilityLabel={title+': '+subtitle}>
+            <View style={styles.customerDiscoverFeatureTop}>
+              <View style={styles.customerDiscoverFeatureIcon}>
+                <Icon size={23} color={theme.colors.teal} strokeWidth={2}/>
+              </View>
+              <ChevronRight size={18} color={theme.colors.teal}/>
+            </View>
+            <Text style={styles.customerDiscoverFeatureTitle}>{title}</Text>
+            <Text style={styles.customerDiscoverFeatureSubtitle}>{subtitle}</Text>
+            <Text style={styles.customerDiscoverFeatureDescription}>{detail}</Text>
+          </MotionPressable>
+        )}
+      </View>
+      <View style={styles.customerDiscoverTip}>
+        <Clock3 size={19} color={theme.colors.teal}/>
+        <Text style={styles.customerDiscoverTipText}>For ordinary repairs, start on Home or Explore. These extra features are there when you need them.</Text>
+      </View>
+    </ScrollView>
+  </CustomerShell>;
+}
 
 function MarketplaceHomeScreen({
   selectedCategory,
@@ -1233,29 +1293,6 @@ function MarketplaceHomeScreen({
           <Text style={[styles.customerTradeName, { flex: 1, marginTop: 0 }]}>More trades & services</Text>
           <ChevronRight size={20} color={theme.colors.teal} />
         </MotionPressable>
-
-        <View style={styles.customerAdvancedHeading}>
-          <View style={{flex:1}}>
-            <Text style={styles.customerSectionTitle}>Make more happen</Text>
-            <Text style={styles.customerSectionSub}>Four smarter ways to get work organised</Text>
-          </View>
-        </View>
-        <View style={styles.customerAdvancedGrid}>
-          {([
-            {route:'grid' as CustomerScreen,Icon:Route,title:'Grid',desc:'Find a spare local slot'},
-            {route:'oneJob' as CustomerScreen,Icon:Users,title:'OneJob',desc:'Plan multiple trades'},
-            {route:'firstFix' as CustomerScreen,Icon:Camera,title:'FirstFix',desc:'Prepare a repair'},
-            {route:'rescue' as CustomerScreen,Icon:RotateCw,title:'Rescue',desc:'Recover a cancelled job'}
-          ]).map(({route,Icon,title,desc})=><MotionPressable key={route} onPress={()=>navigate(route)}
-            style={styles.customerAdvancedCard} accessibilityRole="button" accessibilityLabel={'Open '+title}>
-            <View style={styles.customerAdvancedTop}>
-              <View style={styles.customerAdvancedIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={2}/></View>
-              <ChevronRight color={theme.colors.teal} size={17}/>
-            </View>
-            <Text style={styles.customerAdvancedTitle}>{title}</Text>
-            <Text style={styles.customerAdvancedSub}>{desc}</Text>
-          </MotionPressable>)}
-        </View>
 
         <Text style={[styles.customerSectionTitle, { marginTop: 28, marginBottom: 14 }]}>How it works</Text>
         <View style={styles.customerSteps}>
@@ -10179,11 +10216,11 @@ const styles = StyleSheet.create({
   premiumComingSoon: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
 
   // Customer redesign - warm cream palette and compact premium navigation.
-  customerNav: { height: 78, flexDirection: 'row', backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#E9E4DA', paddingHorizontal: 7, paddingTop: 5, paddingBottom: 5 },
+  customerNav: { height: 78, flexDirection: 'row', backgroundColor: theme.colors.customerTabBar, borderTopWidth: 1, borderTopColor: '#E9E4DA', paddingHorizontal: 3, paddingTop: 5, paddingBottom: 5 },
   customerNavItem: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
-  customerNavIcon: { width: 50, height: 35, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  customerNavIcon: { width: 42, height: 35, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   customerNavIconActive: { backgroundColor: theme.colors.darkTeal },
-  customerNavText: { fontSize: 12, fontWeight: '500', color: theme.colors.muted, marginTop: 3 },
+  customerNavText: { fontSize: 10, fontWeight: '600', color: theme.colors.muted, marginTop: 3 },
   customerNavTextActive: { fontWeight: '800', color: theme.colors.ink },
   customerHome: { flex: 1, backgroundColor: theme.colors.customerBackground },
   customerHomeContent: { paddingHorizontal: 23, paddingTop: 27, paddingBottom: 40 },
@@ -10293,6 +10330,31 @@ const styles = StyleSheet.create({
   customerActivityContent: { paddingHorizontal: 23, paddingTop: 30, paddingBottom: 50 },
   customerActivityTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.95, color: theme.colors.ink },
   customerActivitySub: { fontSize: 14, color: theme.colors.muted, marginTop: 5, marginBottom: 18 },
+  customerDiscoverPage:{paddingHorizontal:21,paddingTop:25,paddingBottom:44},
+  customerDiscoverEyebrow:{fontSize:10,fontWeight:'800',color:theme.colors.teal,letterSpacing:1.6},
+  customerDiscoverHeading:{fontSize:30,fontWeight:'800',color:theme.colors.ink,letterSpacing:-0.7,marginTop:6},
+  customerDiscoverIntro:{fontSize:13,lineHeight:21,color:theme.colors.muted,marginTop:8,marginBottom:19},
+  customerDiscoverHero:{flexDirection:'row',alignItems:'center',gap:11,padding:15,
+    backgroundColor:theme.colors.darkTeal,borderRadius:23},
+  customerDiscoverHeroIcon:{width:43,height:43,borderRadius:15,alignItems:'center',justifyContent:'center',
+    backgroundColor:'#326968'},
+  customerDiscoverHeroTitle:{fontSize:14,color:'#FFFFFF',fontWeight:'800'},
+  customerDiscoverHeroSub:{fontSize:11,color:'#D8E8E5',lineHeight:16,marginTop:5},
+  customerDiscoverHeroAction:{width:40,height:40,borderRadius:21,alignItems:'center',
+    justifyContent:'center',backgroundColor:'#FFFFFF'},
+  customerDiscoverSectionTitle:{fontSize:19,fontWeight:'800',color:theme.colors.ink,marginTop:27,marginBottom:13},
+  customerDiscoverGrid:{flexDirection:'row',flexWrap:'wrap',gap:11},
+  customerDiscoverFeature:{width:'48%',flexGrow:1,minHeight:188,padding:16,borderRadius:24,
+    backgroundColor:theme.colors.white,...theme.shadow},
+  customerDiscoverFeatureTop:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
+  customerDiscoverFeatureIcon:{width:45,height:45,borderRadius:16,alignItems:'center',
+    justifyContent:'center',backgroundColor:theme.colors.tealTint},
+  customerDiscoverFeatureTitle:{fontSize:19,color:theme.colors.ink,fontWeight:'800',marginTop:17},
+  customerDiscoverFeatureSubtitle:{fontSize:12,color:theme.colors.teal,fontWeight:'800',marginTop:5},
+  customerDiscoverFeatureDescription:{fontSize:11,color:theme.colors.muted,lineHeight:18,marginTop:7},
+  customerDiscoverTip:{flexDirection:'row',alignItems:'flex-start',gap:10,
+    backgroundColor:theme.colors.tealTint,borderRadius:17,padding:15,marginTop:20},
+  customerDiscoverTipText:{flex:1,fontSize:11,color:theme.colors.teal,lineHeight:18},
   customerAdvancedHeading:{marginTop:25,marginBottom:13},
   customerAdvancedGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:11,marginBottom:14},
   customerAdvancedCard:{width:'48%',minHeight:122,borderRadius:22,backgroundColor:theme.colors.white,
