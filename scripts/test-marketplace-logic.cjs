@@ -41,4 +41,24 @@ eq(ukSlotToISO('2026-03-29','01:30'),null);
 eq(ukSlotToISO('2026-11-31','10:00'),null);
 eq(advanceISOByMinutes('2026-11-18T10:00:00.000Z',90),'2026-11-18T11:30:00.000Z');
 assert.ok(formatUKDateTime('2026-11-18T10:00:00.000Z').includes('10:00'));
-console.log('Tradarr scheduling, route geometry, expiry, privacy-mode and UK DST logic checks passed.');
+// Private photo attachment format and upload-path tests: MIME must match actual bytes.
+const {decodeChatPhotoBase64,detectChatPhotoMime,chatPhotoPath}=load('lib/chatPhoto.ts');
+const jpg=Buffer.from([255,216,255,224,0,16,74,70,73,70]).toString('base64');
+const png=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,13]).toString('base64');
+const webp=Buffer.from('RIFF....WEBPVP8 ','ascii').toString('base64');
+eq(detectChatPhotoMime(jpg),'image/jpeg');
+eq(detectChatPhotoMime(png),'image/png');
+eq(detectChatPhotoMime(webp),'image/webp');
+assert.throws(()=>detectChatPhotoMime(Buffer.from('not a real photo').toString('base64')),/not supported/);
+assert.deepEqual(Array.from(decodeChatPhotoBase64(jpg)),Array.from(Buffer.from(jpg,'base64')));
+const photoConversation='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+const photoSender='11111111-2222-4333-8444-555555555555';
+const photoToken='f0d0c0b0-a0a0-4000-8000-f9f9f9f9f9f9';
+const basePath=photoConversation+'/'+photoSender+'/'+photoToken;
+eq(chatPhotoPath(photoConversation,photoSender,photoToken),basePath+'.jpg');
+eq(chatPhotoPath(photoConversation,photoSender,photoToken,'image/png'),basePath+'.png');
+eq(chatPhotoPath(photoConversation,photoSender,photoToken,'image/webp'),basePath+'.webp');
+assert.throws(()=>chatPhotoPath('invalid',photoSender,photoToken),/Invalid photo/);
+assert.throws(()=>decodeChatPhotoBase64('bad!'),/not readable/);
+
+console.log('Tradarr scheduling, route matching, UK DST and private-chat-photo logic checks passed.');
