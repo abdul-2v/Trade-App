@@ -14,6 +14,7 @@ import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
 import TradeGridScreen from './TradeGridScreen';
 import TradeRoutePlannerScreen from './TradeRoutePlannerScreen';
+import TradeWorkingHoursScreen from './TradeWorkingHoursScreen';
 import CustomerOneJobScreen from './CustomerOneJobScreen';
 import CustomerFirstFixScreen from './CustomerFirstFixScreen';
 import CustomerRescueScreen from './CustomerRescueScreen';
@@ -112,7 +113,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -787,6 +788,9 @@ export default function App() {
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
+    </TradeShell>;
+    if (tradeScreen === 'tradeHours') return <TradeShell current="tradeTools" navigate={navigateTrade}>
+      <TradeWorkingHoursScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
     if (tradeScreen === 'tradeRoutes') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeRoutePlannerScreen goBack={() => navigateTrade('tradeTools')}
@@ -4417,15 +4421,51 @@ function BookingScreen({
   initialService?:string|null;
   initialTiming?:string|null;
 }){
- const days=nextUKDays(7);
+ const days=nextUKDays(14);
  const [service,setService]=useState(initialService||trade.services[0]||'Other');
  const [date,setDate]=useState(days[initialTiming==='Today'?0:1]||days[0]);
  const [time,setTime]=useState(initialTiming==='Flexible'?'13:00':'10:00');
  const [duration,setDuration]=useState(90);
  const [submitting,setSubmitting]=useState(false);
+ const [advertised,setAdvertised]=useState<{
+  day:string;duration:number;loading:boolean;configured:boolean;times:string[];error:string;
+ }>({day:'',duration:0,loading:true,configured:false,times:[],error:''});
+ const proId=trade.id.startsWith('live-')?trade.id.slice(5):null;
+
+ useEffect(()=>{
+  if(!proId){
+   setAdvertised({day:date,duration,loading:false,configured:false,times:[],error:''});
+   return;
+  }
+  let active=true;
+  setAdvertised(old=>({...old,day:date,duration,loading:true,error:''}));
+  const load=async()=>{
+   const {data,error}=await supabase.rpc('tradarr_suggest_booking_slots',{
+    p_trade_id:proId,p_day:date,p_duration_minutes:duration
+   });
+   if(!active)return;
+   if(error){
+    setAdvertised({day:date,duration,loading:false,configured:false,times:[],
+      error:'Could not check advertised availability. You can still request a preferred time.'});
+    return;
+   }
+   const rows=(data||[]) as {configured:boolean;starts_at:string|null;ends_at:string|null}[];
+   const configured=rows.some(row=>row.configured);
+   const free=[...new Set(rows.filter(row=>row.starts_at)
+     .map(row=>new Date(row.starts_at!).toLocaleTimeString('en-GB',{
+       timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+     })))].sort();
+   setAdvertised({day:date,duration,loading:false,configured,times:free,error:''});
+   if(configured&&free.length)setTime(current=>free.includes(current)?current:free[0]);
+  };
+  void load();
+  return()=>{active=false};
+ },[proId,date,duration]);
  const chosenStart=ukSlotToISO(date,time);
  const chosenEnd=chosenStart?advanceISOByMinutes(chosenStart,duration):null;
- const valid=Boolean(chosenStart&&chosenEnd&&Date.parse(chosenStart)>Date.now()+30*60000);
+ const slotReady=advertised.day===date&&advertised.duration===duration&&!advertised.loading;
+ const valid=Boolean(chosenStart&&chosenEnd&&Date.parse(chosenStart)>Date.now()+30*60000
+  &&slotReady&&(!advertised.configured||advertised.times.includes(time)));
 
  const submitBooking=async()=>{
   if(!valid||!chosenStart||!chosenEnd){
@@ -4460,7 +4500,8 @@ function BookingScreen({
     </MotionPressable>
    ))}
    <Text style={styles.contentHeading}>Your preferred appointment day</Text>
-   <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:15}}>
+   <ScrollView horizontal showsHorizontalScrollIndicator={false}
+     contentContainerStyle={{flexDirection:'row',gap:8,paddingBottom:10,marginBottom:10}}>
     {days.map(d=><MotionPressable key={d} onPress={()=>setDate(d)}
       accessibilityRole="button" accessibilityLabel={'Select '+d}
       style={{paddingVertical:11,paddingHorizontal:12,borderRadius:13,
@@ -4470,10 +4511,20 @@ function BookingScreen({
        {new Date(d+'T12:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
       </Text>
     </MotionPressable>)}
-   </View>
-   <Text style={styles.contentHeading}>Preferred start time · UK</Text>
+   </ScrollView>
+   <Text style={styles.contentHeading}>{advertised.configured?'Suggested free start times · UK':'Preferred start time · UK'}</Text>
+   {advertised.loading&&proId?<ActivityIndicator style={{marginVertical:14}} color={theme.colors.teal}/>:null}
+   {advertised.error?<Text style={{fontSize:12,color:theme.colors.coralDark,lineHeight:19,marginBottom:10}}>{advertised.error}</Text>:null}
+   {slotReady&&advertised.configured&&!advertised.times.length?<View style={{padding:14,backgroundColor:'#F7F0EC',borderRadius:14,marginBottom:13}}>
+     <Text style={{fontWeight:'800',fontSize:12,color:theme.colors.ink}}>No advertised free slots for this day</Text>
+     <Text style={{fontSize:12,color:theme.colors.muted,lineHeight:19,marginTop:4}}>Try another date or choose a shorter estimated duration.</Text>
+   </View>:null}
+   {slotReady&&!advertised.configured&&proId?<Text style={{fontSize:12,color:theme.colors.muted,lineHeight:18,marginBottom:10}}>
+     This tradesperson has not published hours for this day. You can request a preferred time for them to review.
+   </Text>:null}
    <View style={{flexDirection:'row',flexWrap:'wrap',gap:7,marginBottom:14}}>
-    {APPOINTMENT_TIMES.map(t=><MotionPressable key={t} onPress={()=>setTime(t)}
+    {(advertised.configured?advertised.times:APPOINTMENT_TIMES).map(t=>
+      <MotionPressable key={t} onPress={()=>setTime(t)}
       style={{borderRadius:13,minWidth:68,minHeight:42,alignItems:'center',justifyContent:'center',
        backgroundColor:time===t?theme.colors.darkTeal:'#FFFFFF',
        borderWidth:1,borderColor:time===t?theme.colors.darkTeal:theme.colors.line}}>
@@ -4494,9 +4545,10 @@ function BookingScreen({
      {chosenStart&&chosenEnd?formatUKDateTime(chosenStart)+' · '+duration+' minutes':'Choose a valid date and time'}
     </Text>
     <Text style={{color:theme.colors.muted,fontSize:12,lineHeight:19}}>
-      This is a requested time, not an available slot or a confirmed booking.
-      The tradesperson must accept. Tradarr prevents overlapping confirmed appointments.
-      Price and the scope of work must also be agreed separately.
+      {advertised.configured
+        ? 'This time currently appears free in the tradesperson’s published schedule. It is only a request until they accept, and availability can change.'
+        : 'This is your preferred time, not a confirmed free slot or booking.'}
+      {' '}Tradarr prevents overlapping confirmed appointments. Price and scope of work must be agreed separately.
     </Text>
    </View>
    <MotionPressable onPress={submitBooking} disabled={submitting||!valid}
@@ -5813,6 +5865,7 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
   {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Quotes & estimates',detail:'Build quotes, share PDFs and convert to invoices'},
   {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Invoices & payments',detail:'Create bills and track sent or paid invoices'},
   {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
+  {route:'tradeHours' as TradeScreen,Icon:Clock3,title:'Working hours & availability',detail:'Publish bookable openings and weekly hours'},
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
   {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'},
