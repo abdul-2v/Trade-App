@@ -99,7 +99,7 @@ export default function TradarrInboxScreen({role,onOpenOther}:Props){
     <View style={s.segment}>
       {([
        {key:'messages',label:'Messages',Icon:MessageCircle,count:unreadMessages},
-       {key:'notifications',label:'Notifications',Icon:Bell,count:unreadNotifications},
+       {key:'notifications',label:'Activity',Icon:Bell,count:unreadNotifications},
       ] as const).map(({key,label,Icon,count})=>{
        const selected=tab===key;
        return <MotionPressable key={key} onPress={()=>select(key)}
