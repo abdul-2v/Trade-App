@@ -126,6 +126,7 @@ type LiveDispatchCandidate = {
   trade: Trade;
   distance: number;
   eta: number;
+  nearbyNow: boolean;
 };
 
 const distanceMilesBetween = (
@@ -3451,13 +3452,12 @@ function UrgentScreen({
 
     const [{ data: availabilityRows, error: availabilityError }, { data: presenceRows, error: presenceError }] =
       await Promise.all([
-        supabase
-          .from('trade_availability')
-          .select('user_id, is_available, radius_miles, available_until')
+        supabase.from('trade_availability')
+          .select('user_id, is_available, emergency_opt_in, radius_miles, service_radius_miles, location_mode, available_until, work_area_latitude, work_area_longitude')
           .in('user_id', ids)
-          .eq('is_available', true),
-        supabase
-          .from('trade_map_presence')
+          .eq('is_available', true)
+          .eq('emergency_opt_in', true),
+        supabase.from('trade_map_presence')
           .select('user_id, latitude, longitude, source_mode, updated_at')
           .in('user_id', ids),
       ]);
@@ -3473,65 +3473,66 @@ function UrgentScreen({
       .map(profile => {
         const availability = availabilityMap.get(profile.user_id);
         const presence = presenceMap.get(profile.user_id);
+        if (!availability?.is_available || !availability.emergency_opt_in) return null;
+        if (availability.available_until &&
+          new Date(availability.available_until).getTime() <= now) return null;
 
-        if (!availability?.is_available || !presence) return null;
+        const areaLat = Number(availability.work_area_latitude);
+        const areaLon = Number(availability.work_area_longitude);
+        if (availability.work_area_latitude == null || availability.work_area_longitude == null ||
+          !Number.isFinite(areaLat) || !Number.isFinite(areaLon)) return null;
+        const workCentre = {latitude:areaLat,longitude:areaLon};
+        const coverageDistance = distanceMilesBetween(coords,workCentre);
+        const serviceRadius = Math.min(50,Math.max(1,Number(availability.service_radius_miles) || 20));
+        if (coverageDistance > serviceRadius + .6) return null;
 
-        if (
-          availability.available_until &&
-          new Date(availability.available_until).getTime() <= now
-        ) {
-          return null;
-        }
+        const nearbyNow = Boolean(availability.location_mode === 'live' &&
+          presence?.source_mode === 'live' && presence?.updated_at &&
+          now - new Date(presence.updated_at).getTime() >= 0 &&
+          now - new Date(presence.updated_at).getTime() <= 10 * 60 * 1000);
+        const point = nearbyNow && Number.isFinite(Number(presence?.latitude)) &&
+          Number.isFinite(Number(presence?.longitude))
+          ? {latitude:Number(presence.latitude),longitude:Number(presence.longitude)}
+          : workCentre;
+        const distance = distanceMilesBetween(coords,point);
+        const urgentRadius = Math.min(searchRadius,Number(availability.radius_miles) || 10);
+        if (distance > urgentRadius) return null;
 
-        if (
-          presence.source_mode === 'live' &&
-          presence.updated_at &&
-          now - new Date(presence.updated_at).getTime() > 15 * 60 * 1000
-        ) {
-          return null;
-        }
-
-        const distance = distanceMilesBetween(coords, {
-          latitude: Number(presence.latitude),
-          longitude: Number(presence.longitude),
-        });
-
-        const tradeRadius = Number(availability.radius_miles) || 10;
-        if (distance > Math.min(searchRadius, tradeRadius)) return null;
-
+        // A rough dispatch estimate, not a confirmed travel time or live ETA.
         const eta = estimatedDispatchEta(distance);
         const liveTrade: Trade = {
-          id: 'live-' + profile.user_id,
-          name: profile.display_name || 'Local tradesperson',
-          role: trade,
-          distance: Number(distance.toFixed(1)),
+          id:'live-' + profile.user_id,
+          name:profile.display_name || 'Local tradesperson',
+          role:trade,
+          distance:Number(distance.toFixed(1)),
           eta,
-          rating: Number(profile.rating) || 0,
-          reviews: Number(profile.review_count) || 0,
-          image: profile.avatar_url || '',
-          accent: C.blue,
-          callout: 0,
-          available: true,
-          verified: Boolean(profile.is_verified),
-          insured: Boolean(profile.is_insured),
-          response: eta,
-          years: 0,
-          phone: profile.public_phone || '',
-          about: profile.bio || 'Available nearby for urgent work.',
-          services: ['Urgent call-out'],
-          mapLatitude: Number(presence.latitude),
-          mapLongitude: Number(presence.longitude),
+          rating:Number(profile.rating) || 0,
+          reviews:Number(profile.review_count) || 0,
+          image:profile.avatar_url || '',
+          accent:C.blue,
+          callout:0,
+          available:true,
+          verified:Boolean(profile.is_verified),
+          insured:Boolean(profile.is_insured),
+          response:eta,
+          years:0,
+          phone:profile.public_phone || '',
+          about:profile.bio || 'Available for urgent local work.',
+          services:['Urgent call-out'],
+          mapLatitude:point.latitude,
+          mapLongitude:point.longitude,
+          nearbyNow,
+          emergencyOptIn:true,
+          serviceRadiusMiles:serviceRadius,
+          coverageDistanceMiles:Number(coverageDistance.toFixed(1)),
         };
-
-        return {
-          userId: profile.user_id,
-          trade: liveTrade,
-          distance,
-          eta,
-        };
+        return {userId:profile.user_id,trade:liveTrade,distance,eta,nearbyNow};
       })
       .filter(Boolean)
-      .sort((a, b) => (a as LiveDispatchCandidate).distance - (b as LiveDispatchCandidate).distance) as LiveDispatchCandidate[];
+      // An actively sharing nearby tradesperson takes priority over a work-area pin.
+      .sort((a,b) => Number(Boolean((b as LiveDispatchCandidate).nearbyNow)) -
+                       Number(Boolean((a as LiveDispatchCandidate).nearbyNow)) ||
+        (a as LiveDispatchCandidate).distance - (b as LiveDispatchCandidate).distance) as LiveDispatchCandidate[];
   };
 
   const loadAcceptedTrade = async (userId: string, etaMinutes?: number | null) => {
