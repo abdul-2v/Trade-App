@@ -82,6 +82,8 @@ export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
     : new Date(Date.parse(anchor.ends_at)+180*60000);
    if(begins.getTime()<=Date.now()+60000)
     throw new Error('Choose a later diary appointment. This journey window would already have started.');
+   if(mode==='on_my_way'&&capacity!==1)
+     throw new Error('On My Way supports one extra visit. Choose Street Run for multiple stops.');
    const {error}=await supabase.from('trade_route_plans').insert({
     tradesperson_id:uid,anchor_appointment_id:anchor.id,mode,trade,
     start_area:start.area,end_area:end.area,
@@ -181,12 +183,12 @@ export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
     </View>
     <Text style={s.section}>Maximum extra jobs</Text>
     <View style={s.row}>
-     {[1,2,3,4].map(n=><MotionPressable key={n} onPress={()=>setCapacity(n)}
+     {(mode==='on_my_way'?[1]:[1,2,3,4]).map(n=><MotionPressable key={n} onPress={()=>setCapacity(n)}
       style={[s.chip,capacity===n&&s.chipActive]}>
       <Text style={[s.chipText,capacity===n&&s.chipTextActive]}>{n}</Text>
      </MotionPressable>)}
     </View>
-    <Text style={s.note}>These are possible matching enquiries only. You decide whether to accept, confirm the visit time and agree any quote. We do not invent travel times or guaranteed savings.</Text>
+    <Text style={s.note}>Only matched enquiries are offered, not bookings. A visit time must fit the published window, include travel buffer and be agreed by both sides. Pricing and any savings remain unconfirmed.</Text>
     <MotionPressable disabled={saving||!anchorId||!startPostcode.trim()||!endPostcode.trim()}
       onPress={()=>{void create()}} style={[s.primary,(!anchorId||saving)&&{opacity:.5}]}>
      {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Publish real journey</Text>}
