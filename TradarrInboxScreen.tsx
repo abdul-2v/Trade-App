@@ -121,7 +121,9 @@ export default function TradarrInboxScreen({role,onOpenOther}:Props){
       <UnifiedMessagesScreen role={role} embedded
        onThreadChange={handleThreadChange}
        onUnreadCountChange={setUnreadMessages}
-       targetConversationId={targetConversationId}/>:
+       targetConversationId={targetConversationId}
+       onOpenJob={jobId=>onOpenOther({id:jobId,kind:role==='customer'?'job_status':'job_offer',
+        title:'Open job',body:'',data:{jobId},created_at:new Date().toISOString(),read_at:null})}/>:
       <TradarrNotificationsScreen
         embedded onBack={()=>select('messages')}
         onOpen={openAlert} onUnreadCountChange={setUnreadNotifications}/>}
