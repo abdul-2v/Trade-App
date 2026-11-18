@@ -5040,13 +5040,9 @@ function RequestDetailScreen({
                 onUpdated={()=>{void loadRequest()}} />
             ) : null}
             {isMarketJob && details?.accepted_tradesperson_id && !details?.appointment_id &&
-              !['cancelled','completed'].includes(details.status) ? (
-              <View style={{padding:14,borderRadius:16,backgroundColor:'#FFF4E9',marginBottom:12}}>
-                <Text style={{fontWeight:'800',color:theme.colors.ink,fontSize:13}}>Appointment time not yet confirmed</Text>
-                <Text style={{fontSize:12,color:theme.colors.muted,marginTop:5,lineHeight:19}}>
-                  Your request was accepted, but no specific time has been agreed. Message the tradesperson to arrange the visit.
-                </Text>
-              </View>
+              ['accepted','en_route'].includes(details.status) ? (
+              <BookingReschedulePanel jobId={request.id}
+                currentStart={null} currentEnd={null} onUpdated={()=>{void loadRequest()}} />
             ) : null}
             <View style={styles.customerTrackerCard}>
               <View style={styles.customerTrackerHeading}>
@@ -6673,7 +6669,7 @@ function TradeJobsScreen({
     const [{ data: jobRows }, { data: exactLocationRows }] = await Promise.all([
       supabase
         .from('jobs')
-        .select('id, customer_id, trade, issue, job_mode, timing, status, accepted_tradesperson_id, standard_price, route_price, detour_minutes, created_at')
+        .select('id, customer_id, trade, issue, job_mode, timing, status, accepted_tradesperson_id, standard_price, route_price, detour_minutes, requested_start, requested_end, appointment_id, flexible_deadline, created_at')
         .in('id', jobIds),
       supabase
         .from('job_locations')
@@ -7304,6 +7300,12 @@ function TradeJobsScreen({
 
                 <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
                 <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
+                {['accepted','en_route'].includes(job.request.status) ? (
+                  <BookingReschedulePanel jobId={job.request.id}
+                    currentStart={job.request.appointment_id?job.request.requested_start:null}
+                    currentEnd={job.request.appointment_id?job.request.requested_end:null}
+                    onUpdated={()=>{void loadMarketJobs(currentUserId || undefined)}}/>
+                ) : null}
 
                 <View style={styles.dispatchTradeMetaRow}>
                   <Text style={styles.dispatchTradeMeta}>{job.distance.toFixed(1)} mi away</Text>
@@ -7462,6 +7464,15 @@ function TradeJobsScreen({
               </View>
 
               <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
+              {job.request.requested_start ? (
+                <Text style={{fontSize:12,color:theme.colors.teal,marginVertical:6}}>
+                  Requested: {formatUKDateTime(job.request.requested_start)} · Confirm by accepting
+                </Text>
+              ) : job.request.job_mode==='route'||job.request.job_mode==='street_run' ? (
+                <Text style={{fontSize:12,color:theme.colors.muted,marginVertical:6}}>
+                  Diary-linked journey match. Exact appointment time and price still require agreement.
+                </Text>
+              ) : null}
               <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
 
               <View style={styles.dispatchTradeMetaRow}>
