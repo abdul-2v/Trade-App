@@ -8150,46 +8150,53 @@ function TradeSettingsScreen({
       const now = new Date().toISOString();
 
       if (mode === 'live') {
-        await supabase.from('trade_locations').upsert({
-          user_id: user.id,
-          latitude: exactLatitude,
-          longitude: exactLongitude,
-          accuracy_meters: position.coords.accuracy,
-          updated_at: now,
-        });
-
-        await supabase
-          .from('trade_availability')
-          .update({
-            location_mode: 'live',
-            updated_at: now,
-          })
-          .eq('user_id', user.id);
+        const { data: savedArea, error: areaError } = await supabase.from('trade_availability')
+          .select('work_area_latitude, work_area_longitude').eq('user_id', user.id).maybeSingle();
+        if (areaError) throw areaError;
+        const needsDefaultWorkArea = savedArea?.work_area_latitude == null ||
+          savedArea?.work_area_longitude == null;
+        const updates: any = {
+          user_id:user.id, location_mode:'live', updated_at:now
+        };
+        if (needsDefaultWorkArea) {
+          updates.work_area_latitude = publicLatitude;
+          updates.work_area_longitude = publicLongitude;
+          updates.work_area_label = 'Saved approximate work area';
+        }
+        const {error:areaWriteError} = await supabase.from('trade_availability')
+          .upsert(updates,{onConflict:'user_id'});
+        if (areaWriteError) throw areaWriteError;
+        const {error:privateError} = await supabase.from('trade_locations').upsert({
+          user_id:user.id,latitude:exactLatitude,longitude:exactLongitude,
+          accuracy_meters:position.coords.accuracy,updated_at:now
+        },{onConflict:'user_id'});
+        if (privateError) throw privateError;
+        if (needsDefaultWorkArea) {
+          setWorkAreaSaved(true);
+          setWorkAreaLabel('Saved approximate work area');
+        }
       } else {
-        await supabase
-          .from('trade_availability')
-          .update({
-            location_mode: 'work_area',
-            work_area_label: 'Saved approximate work area',
-            work_area_latitude: publicLatitude,
-            work_area_longitude: publicLongitude,
-            updated_at: now,
-          })
-          .eq('user_id', user.id);
-
+        const {error:areaWriteError} = await supabase.from('trade_availability').upsert({
+          user_id:user.id,location_mode:'work_area',
+          work_area_label:'Saved approximate work area',
+          work_area_latitude:publicLatitude,work_area_longitude:publicLongitude,
+          updated_at:now
+        },{onConflict:'user_id'});
+        if (areaWriteError) throw areaWriteError;
         setWorkAreaSaved(true);
         setWorkAreaLabel('Saved approximate work area');
       }
-
-      await supabase.from('trade_map_presence').upsert({
-        user_id: user.id,
-        latitude: publicLatitude,
-        longitude: publicLongitude,
-        source_mode: mode,
-        updated_at: now,
-      });
+      const {error:publicError} = await supabase.from('trade_map_presence').upsert({
+        user_id:user.id,latitude:publicLatitude,longitude:publicLongitude,
+        source_mode:mode,updated_at:now
+      },{onConflict:'user_id'});
+      if (publicError) throw publicError;
 
       setLocationMode(mode);
+      if (mode === 'live') Alert.alert('Nearby Now selected',
+        'Your approximate location is shown only while you are online and using Tradarr. Turn it off here any time.');
+    } catch (error:any) {
+      Alert.alert('Could not save location',error?.message || 'Please check your connection and try again.');
     } finally {
       setSavingLocation(false);
     }
