@@ -2502,7 +2502,10 @@ function MapScreen({
                   <Text style={styles.mapPreviewMeta}>
                     {selectedMapTrade.reviews > 0 ? '★ ' + selectedMapTrade.rating.toFixed(1) + ' · ' : ''}
                     {selectedMapTrade.id.startsWith('live-')
-                      ? (selectedMapTrade.nearbyNow ? 'Nearby now · approx. ' : 'Covers your area · approx. ') + selectedMapTrade.distance + ' mi'
+                      ? (selectedMapTrade.nearbyNow
+                          ? 'Nearby now · approx. ' + selectedMapTrade.distance + ' mi'
+                          : 'Works in your area' +
+                            (selectedMapTrade.serviceRadiusMiles ? ' · '+selectedMapTrade.serviceRadiusMiles+' mi coverage' : ''))
                       : selectedMapTrade.distance + ' mi away'}
                     {!selectedMapTrade.id.startsWith('live-') ? ' · DEMO' : ''}
                   </Text>
@@ -3370,7 +3373,11 @@ function TradeProfileScreen({
                 <Text style={styles.customerPublicName} numberOfLines={2}>{trade.name}</Text>
                 {!isLiveProfile ? <Text style={styles.customerPublicDemo}>DEMO</Text> : null}
               </View>
-              <Text style={styles.customerPublicRole}>{trade.role}{trade.distance >= 0 ? ' · ' + trade.distance.toFixed(1) + ' mi away' : ''}</Text>
+              <Text style={styles.customerPublicRole}>{trade.role}{
+                !isLiveProfile && trade.distance >= 0 ? ' · ' + trade.distance.toFixed(1) + ' mi (demo)' :
+                trade.nearbyNow && trade.distance >= 0 ? ' · nearby now, approx. ' + trade.distance.toFixed(1) + ' mi' :
+                isLiveProfile ? ' · covers your area' : ''
+              }</Text>
             </View>
           </View>
           {(trade.verified || trade.insured || trade.gasSafe) ? (
@@ -3464,8 +3471,16 @@ function TradeProfileScreen({
             <View style={styles.customerPublicAreaCard}>
               <MapPin size={24} color={theme.colors.teal} strokeWidth={2} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.customerPublicAreaTitle}>Approximately {trade.distance.toFixed(1)} mi away</Text>
-                <Text style={styles.customerPublicAreaSub}>Approximate map location · precise address not shown</Text>
+                <Text style={styles.customerPublicAreaTitle}>{
+                  isLiveProfile
+                    ? (trade.nearbyNow ? 'Nearby now · approximate location' : 'Work area · covers your search location')
+                    : 'Demo location · about '+trade.distance.toFixed(1)+' mi'
+                }</Text>
+                <Text style={styles.customerPublicAreaSub}>{
+                  isLiveProfile
+                    ? 'Service radius: '+(trade.serviceRadiusMiles || 20)+' miles · no exact location shown'
+                    : 'Fictional example; not a real tradesperson'
+                }</Text>
               </View>
             </View>
           </>
@@ -8750,11 +8765,21 @@ function FormStep({ number, title, children }: { number: string; title: string; 
 function DirectoryRow({ trade, onPress }: { trade: Trade; onPress: () => void }) {
   return (
     <MotionPressable style={styles.directoryRow} onPress={onPress}>
-      <Image source={{ uri: trade.image }} style={styles.directoryAvatar} />
+      {trade.image ? <Image source={{uri:trade.image}} style={styles.directoryAvatar}/> :
+        <View style={[styles.directoryAvatar,{alignItems:'center',justifyContent:'center',backgroundColor:'#E4EEEB'}]}>
+          <Text style={{fontWeight:'900',fontSize:19,color:theme.colors.teal}}>
+            {trade.name.trim().split(' ').slice(0,2).map(n=>n.charAt(0)).join('').toUpperCase()}
+          </Text>
+        </View>}
       <View style={{ flex: 1 }}>
         <Text style={styles.directoryName}>{trade.name}</Text>
-        <Text style={styles.directoryRole}>{trade.role} · {trade.distance} mi · {trade.eta} mins</Text>
-        <Text style={styles.directoryRating}>⭐ {trade.rating} ({trade.reviews})</Text>
+        <Text style={styles.directoryRole}>{trade.role} · {trade.nearbyNow
+          ? 'Nearby now · approx. '+trade.distance+' mi'
+          : trade.id.startsWith('live-') ? 'Covers your area'
+          : trade.distance+' mi · demo'}</Text>
+        <Text style={styles.directoryRating}>{trade.reviews > 0
+          ? '★ '+trade.rating.toFixed(1)+' ('+trade.reviews+' reviews)'
+          : 'New · no reviews yet'} · {trade.available ? 'Accepting jobs' : 'Bookings welcome'}</Text>
       </View>
       <View style={styles.callCircle}><Text style={{ color: C.blue }}>☎</Text></View>
     </MotionPressable>
@@ -8769,11 +8794,13 @@ function TradeSummary({ trade, onPress }: { trade: Trade; onPress: () => void })
         <View style={styles.summaryNameRow}><Text style={styles.summaryName}>{trade.name}</Text><Text style={styles.verifiedTick}>✓</Text></View>
         <Text style={styles.summaryRole}>{trade.role}</Text>
         <Text style={styles.summaryMeta}>⭐ {trade.rating} ({trade.reviews}) · {trade.distance} miles</Text>
-        <View style={styles.availablePill}><Text style={styles.availableText}>● Available now</Text></View>
+        <View style={styles.availablePill}><Text style={styles.availableText}>
+          {trade.available ? '● Accepting new work' : '○ Available for future bookings'}
+        </Text></View>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.summaryPrice}>£{trade.callout}</Text>
-        <Text style={styles.summaryCallout}>Call-out</Text>
+        <Text style={styles.summaryPrice}>{trade.callout > 0 ? '£'+trade.callout : 'Ask'}</Text>
+        <Text style={styles.summaryCallout}>{trade.callout > 0 ? 'Call-out' : 'For price'}</Text>
       </View>
     </MotionPressable>
   );
