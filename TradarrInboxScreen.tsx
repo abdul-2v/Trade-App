@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {AppState,StyleSheet,Text,View} from 'react-native';
 import {Bell,MessageCircle} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
@@ -17,6 +17,7 @@ type Props={
 export default function TradarrInboxScreen({role,onOpenOther}:Props){
  const [tab,setTab]=useState<Tab>('messages');
  const [threadOpen,setThreadOpen]=useState(false);
+ const threadWasOpenedRef=useRef(false);
  const [targetConversationId,setTargetConversationId]=useState<string|null>(null);
  const [unreadMessages,setUnreadMessages]=useState(0);
  const [unreadNotifications,setUnreadNotifications]=useState(0);
@@ -63,8 +64,14 @@ export default function TradarrInboxScreen({role,onOpenOther}:Props){
  },[refreshCounts]);
 
  const handleThreadChange=useCallback((open:boolean)=>{
+  if(open)threadWasOpenedRef.current=true;
   setThreadOpen(open);
-  if(!open)setTargetConversationId(null);
+  // Do not clear a notification's target when the Messages tab first mounts.
+  // Clear it only when the user actually backs out of an opened conversation.
+  if(!open&&threadWasOpenedRef.current){
+    threadWasOpenedRef.current=false;
+    setTargetConversationId(null);
+  }
  },[]);
 
  const openAlert=useCallback((notice:TradarrAlert)=>{
@@ -79,6 +86,7 @@ export default function TradarrInboxScreen({role,onOpenOther}:Props){
  const select=(next:Tab)=>{
   if(next===tab)return;
   setTargetConversationId(null);
+  threadWasOpenedRef.current=false;
   setThreadOpen(false);
   setTab(next);
   void refreshCounts();
