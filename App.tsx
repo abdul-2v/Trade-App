@@ -24,6 +24,7 @@ import TradeCollectiveScreen from './TradeCollectiveScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
+import TradarrNotificationsScreen from './TradarrNotificationsScreen';
 import {APPOINTMENT_TIMES,APPOINTMENT_LENGTHS,nextUKDays,ukSlotToISO,advanceISOByMinutes,formatUKDateTime} from './lib/scheduling';
 import {rankPublishedRoutes} from './lib/routeMatching';
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
@@ -111,9 +112,10 @@ type CustomerScreen =
   | 'collective'
   | 'discover'
   | 'messages'
+  | 'notifications'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours' | 'tradeNotifications';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -789,6 +791,10 @@ export default function App() {
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
+    if (tradeScreen === 'tradeNotifications') return <TradeShell current="tradeTools" navigate={navigateTrade}>
+      <TradarrNotificationsScreen onBack={() => navigateTrade('tradeTools')}
+        onOpen={notice => navigateTrade(notice.kind === 'message' ? 'tradeMessages' : 'tradeJobs')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeHours') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeWorkingHoursScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
@@ -1059,6 +1065,12 @@ export default function App() {
 
   if (customerScreen === 'messages') {
     return <MessagesScreen navigate={setCustomerScreen} userId={session?.user.id||''}/>;
+  }
+  if (customerScreen === 'notifications') {
+    return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
+      <TradarrNotificationsScreen onBack={() => setCustomerScreen('customerProfile')}
+        onOpen={notice => setCustomerScreen(notice.kind === 'message' ? 'messages' : 'requests')}/>
+    </CustomerShell>;
   }
   if (customerScreen === 'customerQuotes') {
     return <CustomerShell current="requests" navigate={setCustomerScreen}>
@@ -5609,6 +5621,14 @@ function CustomerProfileScreen({
 
         <Text style={styles.customerAccountSectionLabel}>SETTINGS</Text>
         <View style={styles.customerAccountGroup}>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('notifications')}
+            accessibilityRole="button" accessibilityLabel="Open notification inbox">
+            <View style={styles.customerAccountRowIcon}>
+              <Bell size={20} color={theme.colors.teal} strokeWidth={2}/>
+            </View>
+            <Text style={styles.customerAccountRowText}>Notification inbox</Text>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>
           <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('notifications')}
             accessibilityRole="button" accessibilityLabel="Manage notifications">
             <View style={styles.customerAccountRowIcon}><Bell size={20} strokeWidth={2} color={theme.colors.teal} /></View>
@@ -5897,6 +5917,7 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
  const sections=[
   {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Quotes & estimates',detail:'Build quotes, share PDFs and convert to invoices'},
   {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Invoices & payments',detail:'Create bills and track sent or paid invoices'},
+  {route:'tradeNotifications' as TradeScreen,Icon:Bell,title:'Notifications',detail:'New messages, booking requests and job alerts'},
   {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
   {route:'tradeHours' as TradeScreen,Icon:Clock3,title:'Working hours & availability',detail:'Publish bookable openings and weekly hours'},
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
