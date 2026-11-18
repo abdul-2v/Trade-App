@@ -3492,7 +3492,7 @@ function UrgentScreen({
           now - new Date(presence.updated_at).getTime() <= 10 * 60 * 1000);
         const point = nearbyNow && Number.isFinite(Number(presence?.latitude)) &&
           Number.isFinite(Number(presence?.longitude))
-          ? {latitude:Number(presence.latitude),longitude:Number(presence.longitude)}
+          ? {latitude:Number(presence?.latitude),longitude:Number(presence?.longitude)}
           : workCentre;
         const distance = distanceMilesBetween(coords,point);
         const urgentRadius = Math.min(searchRadius,Number(availability.radius_miles) || 10);
