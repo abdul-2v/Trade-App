@@ -1,6 +1,6 @@
-# TradeHub — local trades marketplace
+# Tradarr — local trades marketplace
 
-TradeHub is a React Native / Expo application using Supabase for authentication, profiles, jobs, messages, reviews and realtime updates. The codebase has both customer and tradesperson experiences.
+Tradarr is a React Native / Expo application using Supabase for authentication, profiles, jobs, messages, reviews and realtime updates. The codebase has both customer and tradesperson experiences.
 
 **Status:** Active development / controlled testing. Not ready for public App Store release.
 
@@ -77,3 +77,12 @@ A seamless tap-from-email link requires a native URL scheme, an allowed redirect
 ## Build diagnostics
 
 The GitHub Actions workflow now performs syntax parsing, Expo package compatibility checking, and the full TypeScript check. The separate Expo automatic-preview native compatibility job still reports an error; its detailed logs must be inspected in the owner's Expo dashboard before marking builds healthy.
+
+## November 2026 marketplace improvements
+
+- Manual UK postcode and outward-code search in customer Explore; matches use the searched service area.
+- Work-area and Nearby Now pins are visually distinct, with an on-map legend.
+- Distances and arrival estimates on real profiles no longer describe stationary work-area markers as live GPS.
+- Customer reporting of live tradesperson profiles is saved to the existing private support queue, which requires human review.
+- Tradesperson notification preference is saved to their account. Device push delivery remains a launch blocker.
+- Native display name is now Tradarr. Expo project, slug and bundle identifiers remain unchanged for continuity; review before production store submission.
