@@ -4783,7 +4783,7 @@ function RequestDetailScreen({
       .from(isMarketJob ? 'jobs' : 'urgent_requests')
       .select(
         isMarketJob
-          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, created_at, updated_at'
+          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, requested_start, requested_end, appointment_id, created_at, updated_at'
           : 'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at, updated_at'
       )
       .eq('id', request.id)
@@ -5007,6 +5007,31 @@ function RequestDetailScreen({
               <View style={styles.customerRequestStateTag}><Text style={styles.customerRequestStateTagText}>{isDemo ? liveStatus + ' · DEMO' : liveStatus}</Text></View>
             </View>
             <Text style={styles.customerRequestTiming}>{displayUrgency}</Text>
+            {isMarketJob && details?.requested_start && !details?.appointment_id ? (
+              <View style={{borderRadius:16,padding:14,marginBottom:12,backgroundColor:'#F0F5F2'}}>
+                <Text style={{fontWeight:'800',fontSize:13,color:theme.colors.teal}}>
+                  Preferred: {formatUKDateTime(details.requested_start)}
+                </Text>
+                <Text style={{marginTop:5,fontSize:12,color:theme.colors.muted,lineHeight:18}}>
+                  Requested time only. This is not booked until the tradesperson accepts and a slot is reserved.
+                </Text>
+              </View>
+            ) : null}
+            {isMarketJob && details?.appointment_id && details?.requested_start && details?.requested_end &&
+              !['cancelled','completed'].includes(details.status) ? (
+              <BookingReschedulePanel jobId={request.id}
+                currentStart={details.requested_start} currentEnd={details.requested_end}
+                onUpdated={()=>{void loadRequest()}} />
+            ) : null}
+            {isMarketJob && details?.accepted_tradesperson_id && !details?.appointment_id &&
+              !['cancelled','completed'].includes(details.status) ? (
+              <View style={{padding:14,borderRadius:16,backgroundColor:'#FFF4E9',marginBottom:12}}>
+                <Text style={{fontWeight:'800',color:theme.colors.ink,fontSize:13}}>Appointment time not yet confirmed</Text>
+                <Text style={{fontSize:12,color:theme.colors.muted,marginTop:5,lineHeight:19}}>
+                  Your request was accepted, but no specific time has been agreed. Message the tradesperson to arrange the visit.
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.customerTrackerCard}>
               <View style={styles.customerTrackerHeading}>
                 <View style={styles.customerTrackerBadge}><Clock3 size={21} color={theme.colors.teal}/></View>
