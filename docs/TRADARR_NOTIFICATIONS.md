@@ -4,7 +4,7 @@
 
 - **Supabase implemented:** In-app notification database, Expo device-token registry, event-to-notification triggers, private delivery outbox, retry-safe claim RPC, and a deployed Deno Edge Function named `tradarr-push-dispatch`.
 - **Automatic dispatch implemented:** `pg_net` trigger wakes the Edge Function on new queue rows; a `pg_cron` job named `tradarr-push-retry-5min` retries transient delivery failures and stalled claims.
-- **In-app inbox implemented:** Customer Account → Notification inbox; tradesperson Tools → Notifications. Updates appear in-app through Realtime and can be marked read.
+- **In-app inbox implemented:** Both Customer and Tradesperson now have a bottom-navigation **Inbox** section with two segmented tabs: **Messages** and **Notifications**. Alerts refresh through Realtime, can be marked read and show unread counts; message alerts can open the relevant conversation.
 - **Not yet active on iPhone:** Tradarr has no registered Expo push tokens and no Apple APNs credentials. Remote iPhone delivery requires an Apple Developer membership and an iOS development build. Expo Go does not support remote push in SDK 58.
 
 ## Verified
