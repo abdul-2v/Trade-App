@@ -5299,7 +5299,7 @@ function RequestDetailScreen({
                     <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={19} color={C.orange} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.relayEyebrow}>TRADEHUB RELAY</Text>
+                    <Text style={styles.relayEyebrow}>TRADARR RELAY</Text>
                     <Text style={styles.relayTitle}>Does the problem need another trade?</Text>
                   </View>
                 </View>
