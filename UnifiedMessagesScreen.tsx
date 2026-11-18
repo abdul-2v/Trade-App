@@ -1,8 +1,12 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,KeyboardAvoidingView,Platform,ScrollView,
- StyleSheet,Text,TextInput,View,Image} from 'react-native';
-import {ArrowLeft,ArrowUp,Check,CheckCheck,ImagePlus,MessageCircle,RotateCw,Search,X} from 'lucide-react-native';
+ StyleSheet,Text,TextInput,View,Image,Linking} from 'react-native';
+import {ArrowLeft,ArrowUp,Check,CheckCheck,FileText,ImagePlus,MessageCircle,Paperclip,RotateCw,Search,X} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import {chatDocumentMime,chatDocumentPath,readChatDocument,safeChatDocumentName} from './lib/chatDocument';
+import type {ChatDocumentMime} from './lib/chatDocument';
+import ConversationJobCards from './ConversationJobCards';
 import {chatPhotoPath,decodeChatPhotoBase64,detectChatPhotoMime} from './lib/chatPhoto';
 import type {ChatPhotoMime} from './lib/chatPhoto';
 import {supabase} from './lib/supabase';
@@ -17,7 +21,7 @@ type Message={id:number;conversation_id:string;sender_id:string;body:string;
  attachment_path?:string|null;attachment_mime?:string|null};
 type Props={role:Role;onClose?:()=>void;embedded?:boolean;
  onThreadChange?:(open:boolean)=>void;onUnreadCountChange?:(count:number)=>void;
- targetConversationId?:string|null;};
+ targetConversationId?:string|null;onOpenJob?:(jobId:string)=>void;};
 
 const fmt=(iso:string)=>new Date(iso).toLocaleString('en-GB',
  {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -34,7 +38,7 @@ const makeToken=()=>{
 };
 
 export default function UnifiedMessagesScreen({role,onClose,embedded=false,
- onThreadChange,onUnreadCountChange,targetConversationId}:Props){
+ onThreadChange,onUnreadCountChange,targetConversationId,onOpenJob}:Props){
  const [uid,setUid]=useState('');
  const [inbox,setInbox]=useState<Inbox[]>([]);
  const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -49,9 +53,12 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
  const [error,setError]=useState('');
  const [chatError,setChatError]=useState('');
  const [photo,setPhoto]=useState<{uri:string;base64:string;mime:ChatPhotoMime}|null>(null);
+ const [document,setDocument]=useState<{uri:string;name:string;mime:ChatDocumentMime;size:number}|null>(null);
+ const [otherTyping,setOtherTyping]=useState(false);
+ const lastTypingSentRef=useRef(0);
  const [mediaUrls,setMediaUrls]=useState<Record<string,string>>({});
  const expiresRef=useRef<Record<string,number>>({});
- const uploadedPhotoRef=useRef<{token:string;path:string}|null>(null);
+ const uploadedAttachmentRef=useRef<{token:string;path:string}|null>(null);
  const scrollRef=useRef<any>(null);
  const stickToBottomRef=useRef(true);
  const selectedRef=useRef<string|null>(null);
@@ -91,12 +98,40 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
    if(base64.length*0.75>8*1024*1024)
       throw new Error('Choose a smaller photo to send.');
    setPhoto({uri:asset.uri,base64,mime:detectChatPhotoMime(base64)});
-   tokenRef.current=null;uploadedPhotoRef.current=null;
+   setDocument(null);
+   tokenRef.current=null;uploadedAttachmentRef.current=null;
   }catch(error:any){
    Alert.alert('Photo unavailable',error?.message||'Could not choose the photo.');
   }
  };
 
+ const pickDocument=async()=>{
+  if(busy)return;
+  try{
+   const result=await DocumentPicker.getDocumentAsync({
+    type:['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    copyToCacheDirectory:true,multiple:false
+   });
+   if(result.canceled||!result.assets.length)return;
+   const file=result.assets[0];
+   if((file.size||0)>8*1024*1024)throw new Error('Choose a document smaller than 8 MB.');
+   const mime=chatDocumentMime(file.name);
+   setDocument({uri:file.uri,name:safeChatDocumentName(file.name),mime,size:file.size||0});
+   setPhoto(null);tokenRef.current=null;uploadedAttachmentRef.current=null;
+  }catch(e:any){Alert.alert('Document unavailable',e?.message||'Unable to select document.');}
+ };
+ const publishDraft=(value:string)=>{
+  setDraft(value);tokenRef.current=null;setChatError('');
+  if(!selectedId||!uid||!value.trim())return;
+  const now=Date.now();
+  if(now-lastTypingSentRef.current<2800)return;
+  lastTypingSentRef.current=now;
+  void supabase.from('conversation_typing').upsert({
+    conversation_id:selectedId,user_id:uid,
+    expires_at:new Date(now+7000).toISOString(),
+    updated_at:new Date(now).toISOString()
+  },{onConflict:'conversation_id,user_id'});
+ };
  const loadInbox=useCallback(async()=>{
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setLoadingInbox(false);setError('Please sign in to view messages.');return;}
@@ -228,8 +263,25 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
   return()=>{active=false;void supabase.removeChannel(channel);};
  },[selectedId,uid,loadInbox,loadThread,markRead,signPhotos]);
 
+ useEffect(()=>{
+  if(!selectedId||!uid){setOtherTyping(false);return;}
+  let alive=true;
+  const check=async()=>{
+   const {data}=await supabase.from('conversation_typing').select('user_id,expires_at')
+    .eq('conversation_id',selectedId).neq('user_id',uid)
+    .gt('expires_at',new Date().toISOString()).limit(1);
+   if(alive)setOtherTyping(Boolean(data?.length));
+  };
+  void check();
+  const channel=supabase.channel('typing-watch-'+selectedId+'-'+uid)
+   .on('postgres_changes',{event:'*',schema:'public',table:'conversation_typing',
+    filter:'conversation_id=eq.'+selectedId},()=>{void check()}).subscribe();
+  const timer=setInterval(()=>{void check()},5000);
+  return()=>{alive=false;clearInterval(timer);void supabase.removeChannel(channel)};
+ },[selectedId,uid]);
+
  const send=async()=>{
-  const body=draft.trim()||(photo?'📷 Photo':'');
+  const body=draft.trim()||(photo?'📷 Photo':document?'📄 '+safeChatDocumentName(document.name):'');
   if(!selectedId||!uid||!body||busy)return;
   const targetConversationId=selectedId;
   if(body.length>4000){
@@ -240,13 +292,15 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
   setBusy(true);setChatError('');
   try{
    let attachmentPath:string|null=null;
-   if(photo){
-    attachmentPath=chatPhotoPath(targetConversationId,uid,token,photo.mime);
-    if(uploadedPhotoRef.current?.token!==token ||
-       uploadedPhotoRef.current?.path!==attachmentPath){
-      const bytes=decodeChatPhotoBase64(photo.base64);
+   if(photo||document){
+    const mime=photo?.mime||document!.mime;
+    attachmentPath=photo?chatPhotoPath(targetConversationId,uid,token,photo.mime):
+      chatDocumentPath(targetConversationId,uid,token,document!.mime);
+    if(uploadedAttachmentRef.current?.token!==token ||
+       uploadedAttachmentRef.current?.path!==attachmentPath){
+      const bytes=photo?decodeChatPhotoBase64(photo.base64):await readChatDocument(document!.uri,document!.mime);
       const {error:uploadError}=await supabase.storage.from('tradarr-chat')
-        .upload(attachmentPath,bytes,{contentType:photo.mime,cacheControl:'3600',upsert:false});
+        .upload(attachmentPath,bytes,{contentType:mime,cacheControl:'3600',upsert:false});
       if(uploadError){
         // If the network failed after an upload actually succeeded, verify
         // the private object rather than uploading a duplicate.
@@ -254,13 +308,13 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
           .createSignedUrl(attachmentPath,60);
         if(!verified?.signedUrl)throw uploadError;
       }
-      uploadedPhotoRef.current={token,path:attachmentPath};
+      uploadedAttachmentRef.current={token,path:attachmentPath};
     }
    }
    const payload:any={conversation_id:targetConversationId,sender_id:uid,body,client_token:token};
    if(attachmentPath){
      payload.attachment_path=attachmentPath;
-     payload.attachment_mime=photo?.mime||'image/jpeg';
+     payload.attachment_mime=photo?.mime||document?.mime||'image/jpeg';
    }
    let {data,error:sendError}=await supabase.from('messages').insert(payload)
      .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
@@ -276,8 +330,8 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
      setThread(old=>old.some(m=>m.id===data.id)?old:[...old,data as Message]);
      stickToBottomRef.current=true;
      void signPhotos([data as Message]);
-     setDraft('');setPhoto(null);
-     uploadedPhotoRef.current=null;tokenRef.current=null;
+     setDraft('');setPhoto(null);setDocument(null);
+     uploadedAttachmentRef.current=null;tokenRef.current=null;
    }
    void loadInbox();
   }catch(error:any){
@@ -302,8 +356,8 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
    keyboardVerticalOffset={Platform.OS==='ios'?20:0}>
   {selected ? <>
     <View style={s.chatHeader}>
-      <MotionPressable onPress={()=>{setSelectedId(null);setDraft('');setPhoto(null);
-        uploadedPhotoRef.current=null;tokenRef.current=null;stickToBottomRef.current=true;}}
+      <MotionPressable onPress={()=>{setSelectedId(null);setDraft('');setPhoto(null);setDocument(null);
+        uploadedAttachmentRef.current=null;tokenRef.current=null;stickToBottomRef.current=true;}}
         style={s.back} accessibilityRole="button" accessibilityLabel="Back to inbox">
        <ArrowLeft size={21} color={theme.colors.ink}/>
       </MotionPressable>
@@ -316,6 +370,7 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
        <Text style={s.sub}>{selected.otherTrade}</Text>
       </View>
     </View>
+    {onOpenJob?<ConversationJobCards conversationId={selected.id} role={role} onOpenJob={onOpenJob}/>:null}
     {chatError ? <MotionPressable onPress={()=>{void loadThread(selected.id)}} style={s.errorBar}>
      <Text style={s.errorText}>{chatError} · Tap to refresh</Text></MotionPressable> : null}
     <ScrollView ref={scrollRef} style={s.messages} contentContainerStyle={s.messagesContent}
@@ -335,9 +390,17 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
         const mine=m.sender_id===uid;
         return <View key={m.id} style={[s.bubble,mine?s.mine:s.theirs]}>
          {m.attachment_path&&mediaUrls[m.attachment_path]?(
+           m.attachment_mime?.startsWith('image/')?
            <Image source={{uri:mediaUrls[m.attachment_path]}}
              style={{width:220,height:190,borderRadius:13,backgroundColor:'#D7E4DF'}}
-             resizeMode="contain" accessibilityLabel="Photo attachment" />
+             resizeMode="contain" accessibilityLabel="Photo attachment" />:
+           <MotionPressable onPress={()=>{void Linking.openURL(mediaUrls[m.attachment_path!])
+            .catch(()=>Alert.alert('Unable to open document','The attachment link expired. Refresh the conversation to retry.'))}}
+             style={{flexDirection:'row',alignItems:'center',gap:7,paddingVertical:8}}
+             accessibilityRole="button" accessibilityLabel="Open shared document">
+             <FileText size={20} color={mine?'#FFFFFF':theme.colors.teal}/>
+             <Text style={[s.body,mine&&s.mineText]}>Open shared document</Text>
+           </MotionPressable>
           ):null}
          <Text style={[s.body,mine&&s.mineText]}>{m.body}</Text>
          <View style={s.messageMeta}>
@@ -349,6 +412,7 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
         <Text style={s.emptyTitle}>Start the conversation</Text>
         <Text style={s.sub}>Messages are visible only to you and this person.</Text></View>}
     </ScrollView>
+    {otherTyping?<Text style={s.typing}>Typing…</Text>:null}
     <ScrollView horizontal style={s.quickScroller} contentContainerStyle={s.quickRow}
       showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
      {quick.map(t=><MotionPressable key={t} onPress={()=>{setDraft(t);tokenRef.current=null;setChatError('')}}
@@ -362,7 +426,18 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
         <Text style={{fontSize:11,color:theme.colors.muted}}>Private to this conversation · up to 8 MB</Text>
       </View>
       <MotionPressable accessibilityRole="button" accessibilityLabel="Remove attached photo"
-        onPress={()=>{setPhoto(null);tokenRef.current=null;uploadedPhotoRef.current=null}}>
+        onPress={()=>{setPhoto(null);tokenRef.current=null;uploadedAttachmentRef.current=null}}>
+        <X size={20} color={theme.colors.muted}/>
+      </MotionPressable>
+    </View>:null}
+    {document?<View style={s.documentPreview}>
+      <FileText size={23} color={theme.colors.teal}/>
+      <View style={{flex:1}}>
+       <Text style={{fontSize:13,fontWeight:'800',color:theme.colors.ink}} numberOfLines={1}>{document.name}</Text>
+       <Text style={{fontSize:11,color:theme.colors.muted}}>Private attachment · maximum 8 MB</Text>
+      </View>
+      <MotionPressable accessibilityRole="button" accessibilityLabel="Remove document"
+        onPress={()=>{setDocument(null);tokenRef.current=null;uploadedAttachmentRef.current=null}}>
         <X size={20} color={theme.colors.muted}/>
       </MotionPressable>
     </View>:null}
@@ -372,12 +447,17 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
       style={{height:44,width:39,alignItems:'center',justifyContent:'center'}}>
        <ImagePlus size={22} color={theme.colors.teal}/>
      </MotionPressable>
+     <MotionPressable onPress={()=>{void pickDocument()}} disabled={busy}
+      accessibilityRole="button" accessibilityLabel="Attach a PDF or Word document"
+      style={{height:44,width:34,alignItems:'center',justifyContent:'center'}}>
+      <Paperclip size={20} color={theme.colors.teal}/>
+     </MotionPressable>
      <TextInput value={draft} multiline maxLength={4000}
-      onChangeText={text=>{setDraft(text);tokenRef.current=null;setChatError('')}}
+      onChangeText={publishDraft}
       style={s.input} placeholder="Write your message…" placeholderTextColor={theme.colors.muted}
       accessibilityLabel="Message text" textAlignVertical="top"/>
-     <MotionPressable style={[s.send,((!draft.trim()&&!photo)||busy)&&{opacity:.45}]}
-       disabled={(!draft.trim()&&!photo)||busy}
+     <MotionPressable style={[s.send,((!draft.trim()&&!photo&&!document)||busy)&&{opacity:.45}]}
+       disabled={(!draft.trim()&&!photo&&!document)||busy}
        onPress={()=>{void send()}} accessibilityRole="button" accessibilityLabel="Send message">
       {busy?<ActivityIndicator size="small" color="#FFFFFF"/>:<ArrowUp color="#FFFFFF" size={20}/>}
      </MotionPressable>
@@ -462,6 +542,8 @@ const s=StyleSheet.create({
  input:{flex:1,maxHeight:115,minHeight:44,borderRadius:20,backgroundColor:'#F4F7F5',
   paddingHorizontal:15,paddingTop:11,paddingBottom:10,color:theme.colors.ink,fontSize:14},
  send:{width:44,height:44,borderRadius:22,backgroundColor:theme.colors.darkTeal,justifyContent:'center',alignItems:'center'},
+ typing:{color:theme.colors.teal,fontSize:11,paddingHorizontal:18,paddingVertical:5},
+ documentPreview:{paddingHorizontal:12,paddingVertical:9,backgroundColor:'#FFFFFF',flexDirection:'row',alignItems:'center',gap:12},
  privacy:{fontSize:10,color:theme.colors.muted,textAlign:'center',backgroundColor:'#FFFFFF',paddingBottom:6},
  quickScroller:{maxHeight:45,flexGrow:0,backgroundColor:'#F3F6F3'},
  quickRow:{alignItems:'center',gap:7,paddingHorizontal:12,paddingVertical:7},
