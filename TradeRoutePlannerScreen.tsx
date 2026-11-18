@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useState} from 'react';
-import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
-import {ArrowLeft,CalendarDays,Check,ChevronRight,MapPin,Pause,Play,Plus,Route,Users} from 'lucide-react-native';
+import {ActivityIndicator,Alert,Linking,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ArrowLeft,CalendarDays,Check,ChevronRight,MapPin,Navigation,Pause,Play,Plus,RefreshCw,Route,Users} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
@@ -10,7 +10,9 @@ import type {RouteMode} from './lib/routeMatching';
 type Appointment={id:string;title:string;starts_at:string;ends_at:string;address:string|null};
 type Journey={id:string;mode:RouteMode;trade:string;start_area:string;end_area:string;
  starts_at:string;ends_at:string;status:string;max_deviation_miles:number;max_extra_visits:number};
-type Props={goBack:()=>void;openDiary:()=>void};
+type Stop={jobId:string;routePlanId:string;issue:string;status:string;
+ requestedStart:string|null;requestedEnd:string|null;latitude:number|null;longitude:number|null};
+type Props={goBack:()=>void;openDiary:()=>void;openMessages:()=>void};
 const C=theme.colors;
 
 async function postcodeArea(value:string){
@@ -29,11 +31,13 @@ async function postcodeArea(value:string){
   longitude:Number(Number(result.longitude).toFixed(2))};
 }
 
-export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
+export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:Props){
  const [uid,setUid]=useState('');
  const [trade,setTrade]=useState('');
  const [appointments,setAppointments]=useState<Appointment[]>([]);
  const [journeys,setJourneys]=useState<Journey[]>([]);
+ const [stops,setStops]=useState<Stop[]>([]);
+ const [refreshing,setRefreshing]=useState(false);
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [creating,setCreating]=useState(false);
@@ -48,13 +52,16 @@ export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setLoading(false);return;}
   setUid(user.id);
-  const [prof,diary,plans]=await Promise.all([
+  const [prof,diary,plans,offers]=await Promise.all([
    supabase.from('tradesperson_profiles').select('primary_trade').eq('user_id',user.id).maybeSingle(),
    supabase.from('trade_appointments').select('id,title,starts_at,ends_at,address')
     .eq('tradesperson_id',user.id).eq('status','scheduled')
     .gte('starts_at',new Date().toISOString()).order('starts_at').limit(100),
    supabase.from('trade_route_plans').select('id,mode,trade,start_area,end_area,starts_at,ends_at,status,max_deviation_miles,max_extra_visits')
-    .eq('tradesperson_id',user.id).order('created_at',{ascending:false}).limit(80)
+    .eq('tradesperson_id',user.id).order('created_at',{ascending:false}).limit(80),
+   supabase.from('job_offers').select('route_plan_id,job_id,status')
+    .eq('tradesperson_id',user.id).eq('status','accepted')
+    .not('route_plan_id','is',null).limit(200)
   ]);
   if(diary.error||plans.error){
    Alert.alert('Journeys unavailable',diary.error?.message||plans.error?.message||'Please retry.');
@@ -62,9 +69,84 @@ export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
   setTrade(prof.data?.primary_trade||'');
   setAppointments((diary.data||[]) as Appointment[]);
   setJourneys((plans.data||[]) as Journey[]);
+  if(offers.error){
+   Alert.alert('Could not load your stops',offers.error.message);
+  }
+  const accepted=(offers.data||[]).filter(x=>x.route_plan_id&&x.job_id);
+  if(accepted.length){
+   const ids=[...new Set(accepted.map(x=>x.job_id))];
+   const [booked,where]=await Promise.all([
+    supabase.from('jobs').select('id,issue,status,requested_start,requested_end')
+     .in('id',ids).eq('accepted_tradesperson_id',user.id),
+    supabase.from('job_locations').select('job_id,latitude,longitude').in('job_id',ids)
+   ]);
+   if(booked.error||where.error){
+    Alert.alert('Stops not fully available',
+     booked.error?.message||where.error?.message||'Refresh to try again.');
+   }
+   const byId=new Map((booked.data||[]).map(x=>[x.id,x]));
+   const position=new Map((where.data||[]).map(x=>[x.job_id,x]));
+   const next:Stop[]=accepted.flatMap(a=>{
+    const job=byId.get(a.job_id);
+    if(!job||['cancelled','completed'].includes(job.status))return [];
+    const location=position.get(a.job_id);
+    return [{jobId:a.job_id,routePlanId:a.route_plan_id as string,
+     issue:job.issue,status:job.status,
+     requestedStart:job.requested_start,requestedEnd:job.requested_end,
+     latitude:location?.latitude==null?null:Number(location.latitude),
+     longitude:location?.longitude==null?null:Number(location.longitude)}];
+   });
+   setStops(next);
+  }else setStops([]);
   setLoading(false);
  },[]);
  useEffect(()=>{void load()},[load]);
+
+ const reload=async()=>{
+  if(refreshing)return;
+  setRefreshing(true);try{await load()}finally{setRefreshing(false)}
+ };
+ const openStopDirections=(stop:Stop)=>{
+  if(!Number.isFinite(stop.latitude)||!Number.isFinite(stop.longitude)||
+    stop.latitude==null||stop.longitude==null){
+   Alert.alert('Address needs confirming',
+    'Ask the customer to confirm the exact address in Messages before travelling.');
+   return;
+  }
+  const destination=encodeURIComponent(stop.latitude+','+stop.longitude);
+  void Linking.openURL('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+destination+'&dir_action=navigate')
+    .catch(()=>Alert.alert('Could not open maps','Please check that a map app is available.'));
+ };
+
+ const openJourneyDirections=(plan:Journey)=>{
+  const assigned=stops.filter(x=>x.routePlanId===plan.id);
+  const scheduled=assigned.filter(x=>x.requestedStart&&
+   x.latitude!=null&&x.longitude!=null&&
+   Number.isFinite(x.latitude)&&Number.isFinite(x.longitude))
+   .sort((a,b)=>Date.parse(a.requestedStart!)-Date.parse(b.requestedStart!));
+  if(!scheduled.length){
+   Alert.alert('No scheduled stops yet',
+    'Agree appointment times with customers and confirm their addresses before opening directions.');return;
+  }
+  const max=4;
+  const selected=scheduled.slice(0,max);
+  const points=selected.map(x=>x.latitude+','+x.longitude);
+  const destination=encodeURIComponent(points[points.length-1]);
+  const waypoints=points.length>1?'&waypoints='+encodeURIComponent(points.slice(0,-1).join('|')):'';
+  const url='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+
+    destination+waypoints;
+  if(scheduled.length>max){
+   Alert.alert('Route shown in sections',
+    'Mobile maps can display up to four stops in this link. The first four confirmed stops open now; use the individual Directions buttons for remaining visits. This is time order, not optimised road routing.',[
+      {text:'Cancel',style:'cancel'},{text:'Open first stops',onPress:()=>{
+        void Linking.openURL(url).catch(()=>Alert.alert('Maps unavailable','Try again from an individual stop.'));
+      }}
+    ]);
+  }else{
+   void Linking.openURL(url).catch(()=>Alert.alert('Maps unavailable','Try again from an individual stop.'));
+  }
+ };
+
 
  const create=async()=>{
   if(saving||!uid)return;
@@ -121,6 +203,10 @@ export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
    <MotionPressable onPress={goBack} style={s.back}><ArrowLeft color={C.ink} size={23}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>ROUTE MATCHING</Text>
     <Text style={s.title}>My journeys</Text></View>
+   <MotionPressable style={s.secondary} onPress={()=>{void reload()}} disabled={refreshing}
+     accessibilityRole="button" accessibilityLabel="Refresh journeys and visits">
+      {refreshing?<ActivityIndicator size="small" color={C.teal}/>:<RefreshCw color={C.teal} size={19}/>}
+   </MotionPressable>
    <MotionPressable style={s.primarySmall} onPress={()=>setCreating(x=>!x)}>
     <Plus size={17} color="#FFFFFF"/><Text style={s.primaryText}>{creating?'Close':'Publish'}</Text>
    </MotionPressable>
@@ -207,6 +293,42 @@ export default function TradeRoutePlannerScreen({goBack,openDiary}:Props){
        <Text style={s.note}>{formatUKDateTime(j.starts_at)} – {new Date(j.ends_at).toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'})}</Text></View>
      <View style={s.detailRow}><MapPin size={15} color={C.muted}/>
        <Text style={s.note}>{j.max_deviation_miles} mi corridor · up to {j.max_extra_visits} extra visits</Text></View>
+     {(()=>{
+       const assigned=stops.filter(v=>v.routePlanId===j.id)
+         .sort((a,b)=>(a.requestedStart?Date.parse(a.requestedStart):Infinity)-
+          (b.requestedStart?Date.parse(b.requestedStart):Infinity));
+       return <View style={{marginTop:6,gap:9}}>
+        <Text style={s.cardTitle}>{assigned.length}/{j.max_extra_visits} accepted extra visits</Text>
+        {assigned.map((stop,index)=><View key={stop.jobId}
+          style={{borderRadius:13,backgroundColor:'#F5F8F6',padding:12,gap:6}}>
+          <Text style={{fontWeight:'800',color:C.ink,fontSize:12}}>
+            {index+1}. {stop.issue}</Text>
+          <Text style={s.note}>{stop.requestedStart
+            ? formatUKDateTime(stop.requestedStart)
+            : 'Time not yet confirmed — arrange in Messages'}</Text>
+          <Text style={s.note}>{stop.latitude!=null&&stop.longitude!=null
+            ? 'Customer location available after matching'
+            : 'Customer address not yet confirmed'}</Text>
+          <View style={s.row}>
+            <MotionPressable style={s.secondary} onPress={openMessages}>
+              <Text style={s.secondaryText}>Messages</Text>
+            </MotionPressable>
+            {stop.requestedStart?<MotionPressable style={s.secondary}
+                onPress={()=>openStopDirections(stop)}>
+                <Navigation size={15} color={C.teal}/>
+                <Text style={s.secondaryText}>Directions</Text>
+              </MotionPressable>:null}
+          </View>
+        </View>)}
+        {assigned.some(v=>v.requestedStart)?<MotionPressable
+          style={[s.primary,{minHeight:44,marginTop:4}]}
+          onPress={()=>openJourneyDirections(j)} accessibilityRole="button">
+          <Text style={s.primaryText}>Open scheduled stops in Maps</Text>
+        </MotionPressable>:null}
+        <Text style={s.note}>Stops follow agreed appointment times; Google Maps calculates directions when opened. Tradarr does not yet optimise multi-stop travel time.</Text>
+       </View>;
+     })()}
+
      {j.status!=='closed'&&Date.parse(j.starts_at)>Date.now()?<View style={s.buttons}>
       <MotionPressable style={s.secondary} onPress={()=>{void changeStatus(j,j.status==='open'?'paused':'open')}} disabled={saving}>
        {j.status==='open'?<Pause size={15} color={C.teal}/>:<Play size={15} color={C.teal}/>}
