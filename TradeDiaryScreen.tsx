@@ -10,7 +10,6 @@ import {formatUKDateTime,ukSlotToISO,advanceISOByMinutes,ukDayOf} from './lib/sc
 const C=theme.colors;
 type Customer={id:string;name:string;address:string|null};
 type Appointment={id:string;tradesperson_id:string;customer_id:string|null;customer_name:string|null;title:string;address:string|null;notes:string|null;starts_at:string;ends_at:string;job_id:string|null;grid_request_id:string|null;status:'scheduled'|'completed'|'cancelled'};
-type LinkedJob={id:string;issue:string;trade:string;timing:string;appointment_id:string|null};
 const day=(d:Date)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const clock=(d:Date)=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 function Field({label,value,change,multi,placeholder}:{label:string;value:string;change:(v:string)=>void;multi?:boolean;placeholder?:string}){
@@ -23,9 +22,6 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [items,setItems]=useState<Appointment[]>([]);
- const [linkedJobs,setLinkedJobs]=useState<LinkedJob[]>([]);
- const [selectedJobId,setSelectedJobId]=useState<string|null>(null);
- const [pickJob,setPickJob]=useState(false);
  const [customers,setCustomers]=useState<Customer[]>([]);
  const [view,setView]=useState<'upcoming'|'past'>('upcoming');
  const [editing,setEditing]=useState(false);
@@ -43,18 +39,14 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
   const {data:a}=await supabase.auth.getUser();const id=a.user?.id;
   if(!id||!alive){if(alive)setLoading(false);return;}
   setUid(id);
-  const [appointments,people,jobs]=await Promise.all([
+  const [appointments,people]=await Promise.all([
    supabase.from('trade_appointments').select('*').eq('tradesperson_id',id).order('starts_at',{ascending:true}).limit(400),
    supabase.from('trade_customers').select('id,name,address').eq('tradesperson_id',id).order('name'),
-   supabase.from('jobs').select('id,issue,trade,timing,appointment_id')
-     .eq('accepted_tradesperson_id',id).in('status',['accepted','en_route','arrived','in_progress'])
-     .order('created_at',{ascending:false}).limit(60),
   ]);
   if(!alive)return;
   if(appointments.error)Alert.alert('Could not load diary',appointments.error.message);
   setItems((appointments.data||[]) as Appointment[]);
   setCustomers((people.data||[]) as Customer[]);
-  setLinkedJobs((jobs.data||[]) as LinkedJob[]);
   setLoading(false);
  })().catch(e=>{if(alive){setLoading(false);Alert.alert('Diary error',String(e))}});
  return()=>{alive=false};},[]);
@@ -64,25 +56,24 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
    .eq('tradesperson_id',uid).order('starts_at',{ascending:true}).limit(400);
   if(!error)setItems((data||[]) as Appointment[]);
  };
- const startNew=()=>{setEditId(null);setSelectedJobId(null);setPickJob(false);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(ukDayOf(new Date()));setTime('09:00');setDuration(60);setEditing(true)};
+ const startNew=()=>{setEditId(null);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(ukDayOf(new Date()));setTime('09:00');setDuration(60);setEditing(true)};
  const startEdit=(v:Appointment)=>{const a=new Date(v.starts_at),b=new Date(v.ends_at);
   if(v.job_id){Alert.alert('Confirmed booking','To change the time of an accepted Tradarr job, use Request a different time below. Both parties must agree.');return;}
   if(v.grid_request_id){Alert.alert('Grid booking','This slot is tied to an accepted Grid request. Its time cannot be edited here.');return;}
-  setEditId(v.id);setCustomerId(v.customer_id);setSelectedJobId(null);setTitle(v.title);setName(v.customer_name||'');setAddress(v.address||'');setNotes(v.notes||'');
+  setEditId(v.id);setCustomerId(v.customer_id);setTitle(v.title);setName(v.customer_name||'');setAddress(v.address||'');setNotes(v.notes||'');
   setDate(ukDayOf(a));setTime(a.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}));
   setDuration(Math.max(15,Math.round((b.getTime()-a.getTime())/60000)));setEditing(true);
  };
  const setCustomer=(v:Customer|null)=>{setCustomerId(v?.id||null);if(v){setName(v.name);setAddress(v.address||'')}setPickCustomer(false)};
  const persist=async(a:Date,b:Date)=>{setSaving(true);
   const payload={tradesperson_id:uid,customer_id:customerId,customer_name:name.trim()||null,title:title.trim(),address:address.trim()||null,notes:notes.trim()||null,
-  job_id:selectedJobId,starts_at:a.toISOString(),ends_at:b.toISOString(),updated_at:new Date().toISOString()};
+  starts_at:a.toISOString(),ends_at:b.toISOString(),updated_at:new Date().toISOString()};
   const result=editId?
   await supabase.from('trade_appointments').update(payload).eq('id',editId).eq('tradesperson_id',uid).select('*').single():
   await supabase.from('trade_appointments').insert({...payload,status:'scheduled'}).select('*').single();
   setSaving(false);
   if(result.error||!result.data){Alert.alert('Could not save',result.error?.message||'Please try again');return;}
   setItems(old=>[...old.filter(i=>i.id!==result.data.id),result.data as Appointment]);
-  if(selectedJobId)setLinkedJobs(old=>old.filter(j=>j.id!==selectedJobId));
   setEditing(false);setView('upcoming');
  };
  const save=async()=>{
@@ -122,24 +113,10 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  <Text style={s.explain}>Your diary uses UK time. Confirmed Tradarr appointments block overlapping bookings, even if two devices try to book simultaneously.</Text>
  <View style={s.card}>
  <Field label="Work / appointment title *" value={title} change={setTitle} placeholder="e.g. Replace radiator valves"/>
- {!editId&&linkedJobs.filter(j=>!j.appointment_id).length?<>
- <Text style={s.label}>Link to an accepted Tradarr job (optional)</Text>
- <MotionPressable style={s.customerPick} onPress={()=>setPickJob(x=>!x)}>
-  <CalendarDays size={18} color={C.teal}/>
-  <Text style={{flex:1,color:C.teal,fontSize:13,fontWeight:'800'}}>
-    {selectedJobId?linkedJobs.find(x=>x.id===selectedJobId)?.issue:'Choose accepted job'}
-  </Text><ChevronRight size={18} color={C.teal}/>
- </MotionPressable>
- {pickJob?<View style={s.pickList}>
-  <MotionPressable style={s.pickOption} onPress={()=>{setSelectedJobId(null);setPickJob(false);}}>
-   <Text style={s.pickText}>Private appointment (no linked job)</Text>
-  </MotionPressable>
-  {linkedJobs.filter(j=>!j.appointment_id).map(j=><MotionPressable key={j.id}
-    style={s.pickOption} onPress={()=>{setSelectedJobId(j.id);setTitle(j.issue);setPickJob(false)}}>
-   <Text style={s.pickText}>{j.trade} · {j.issue}</Text>
-  </MotionPressable>)}
- </View>:null}
- </>:null}
+ <Text style={s.explain}>
+  For a Tradarr customer job, open the accepted job in Jobs to propose an appointment.
+  The customer must agree before the booking enters your diary.
+ </Text>
  <Text style={s.label}>Customer (optional)</Text>
  <MotionPressable style={s.customerPick} onPress={()=>setPickCustomer(x=>!x)}>
  <Users size={18} color={C.teal}/><Text style={{flex:1,color:C.teal,fontSize:13,fontWeight:'800'}}>{customerId?customers.find(x=>x.id===customerId)?.name:'Choose saved customer'}</Text><ChevronRight size={18} color={C.teal}/>
