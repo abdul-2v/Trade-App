@@ -26,7 +26,7 @@ Supabase Edge Function `tradarr-push-dispatch` is ACTIVE with gateway JWT verifi
 ## Inbox, appointment and attachment improvements (18 Nov 2026)
 
 - The Activity tab now receives quote deliveries/decisions and provider-side cancellation and confirmation notifications, in addition to the original alerts. Quote notifications lead to the Quote Centre or tradesperson Quotes tool.
-- The server creates deduplicated reminders approximately 24 hours and one hour before confirmed marketplace appointments using `tradarr-booking-reminders-5min`. They enter the same private notification + push outbox as all other events. No personal addresses or raw chat content are included in notification bodies. The reminders do not apply to private diary-only entries.
+- The server creates deduplicated reminders approximately 24 hours and one hour before confirmed marketplace appointments using `tradarr-booking-reminders-5min`. They enter the same private notification + push outbox as all other events. No personal addresses or raw chat content are included in notification bodies. The same reminder schedule also alerts tradespeople about their own scheduled private diary entries; no private customer data is included.
 - Conversations can now share private JPEG/PNG/WebP photos, PDFs and Word DOCX files up to 8 MB in `tradarr-chat`, using time-limited signed view URLs and participant-only Storage policies.
 - The sender's typing indicator is stored in `conversation_typing` with short expiries, participant-only policies and Realtime refresh.
 - Job-linked chat cards show reservation state, shared appointment times, and controls to propose or review rescheduling. This does not bypass the existing conflict checks or mutual agreement.
