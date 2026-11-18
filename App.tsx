@@ -3286,6 +3286,36 @@ function TradeProfileScreen({
   const [tab, setTab] = useState<'About' | 'Services' | 'Reviews' | 'Gallery'>('About');
   const [saved, setSaved] = useState(false);
   const [savingFavourite, setSavingFavourite] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportDetails, setReportDetails] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
+  const sendProfileReport = async () => {
+    if (sendingReport || !trade.id.startsWith('live-')) return;
+    const detail = reportDetails.trim();
+    if (detail.length < 12) {
+      Alert.alert('Add more detail','Please explain what you noticed so our team can review it.');
+      return;
+    }
+    setSendingReport(true);
+    try {
+      const {data:{user}} = await supabase.auth.getUser();
+      if (!user) throw new Error('Sign in to report a profile.');
+      const {error} = await supabase.from('support_requests').insert({
+        submitted_by:user.id,
+        category:'safety',
+        subject:'Tradesperson profile report: '+trade.name.slice(0,65),
+        message:'Reported profile ID: '+trade.id.slice(5)+'\n'+detail,
+      });
+      if (error) throw error;
+      setReportDetails('');
+      setReportOpen(false);
+      Alert.alert('Report recorded','The report was saved for review. This queue is not monitored continuously. For immediate danger call emergency services.');
+    } catch (error:any) {
+      Alert.alert('Could not submit report',error?.message || 'Please try again.');
+    } finally {
+      setSendingReport(false);
+    }
+  };
   const isLiveProfile = trade.id.startsWith('live-');
 
   useEffect(() => {
@@ -3484,6 +3514,38 @@ function TradeProfileScreen({
               </View>
             </View>
           </>
+        ) : null}
+        {isLiveProfile ? (
+          <View style={{marginTop:23,marginHorizontal:20,padding:17,borderRadius:20,
+            backgroundColor:'#FFFFFF',borderWidth:1,borderColor:'#E5E7E3',gap:9}}>
+            <MotionPressable onPress={() => setReportOpen(current=>!current)}
+              accessibilityRole="button" accessibilityLabel="Report an issue with this tradesperson">
+              <Text style={{fontSize:13,fontWeight:'800',color:theme.colors.coralDark}}>
+                {reportOpen ? 'Close report' : 'Report an issue with this profile'}
+              </Text>
+            </MotionPressable>
+            {reportOpen ? (
+              <>
+                <Text style={{fontSize:12,color:theme.colors.muted,lineHeight:18}}>
+                  Tell us about misleading information or unsafe behaviour. This is a manual review queue, not an emergency service.
+                </Text>
+                <TextInput multiline value={reportDetails} onChangeText={setReportDetails}
+                  maxLength={1200} placeholder="Describe what happened…"
+                  placeholderTextColor="#8D9AA1"
+                  style={{borderWidth:1,borderColor:'#DEE6E3',borderRadius:12,
+                    paddingHorizontal:13,paddingVertical:12,minHeight:90,
+                    backgroundColor:'#FAFBF8',fontSize:13,color:theme.colors.ink,textAlignVertical:'top'}}/>
+                <MotionPressable onPress={sendProfileReport} disabled={sendingReport}
+                  accessibilityRole="button" accessibilityLabel="Submit tradesperson profile report"
+                  style={{minHeight:43,borderRadius:12,backgroundColor:theme.colors.darkTeal,
+                    justifyContent:'center',alignItems:'center'}}>
+                  <Text style={{color:'#FFFFFF',fontWeight:'800',fontSize:13}}>
+                    {sendingReport ? 'Submitting…' : 'Submit report'}
+                  </Text>
+                </MotionPressable>
+              </>
+            ) : null}
+          </View>
         ) : null}
       </ScrollView>
 
