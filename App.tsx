@@ -2024,6 +2024,8 @@ function HomeScreen({
   );
 }
 
+let marketplaceChannelNonce = 0;
+
 function MapScreen({
   selectedCategory,
   setSelectedCategory,
@@ -2041,6 +2043,12 @@ function MapScreen({
   const [showFilters, setShowFilters] = useState(false);
   const [maxDistance, setMaxDistance] = useState(50);
   const [minRating, setMinRating] = useState(0);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [insuredOnly, setInsuredOnly] = useState(false);
+  const [minReviews, setMinReviews] = useState(0);
+  const [nearbyNowOnly, setNearbyNowOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'nearest' | 'rating' | 'reviews'>('nearest');
+  const [showAreaSearch, setShowAreaSearch] = useState(false);
   const [marketMode, setMarketMode] = useState<'all' | 'available' | 'emergency'>('all');
   const [selectedMapTrade, setSelectedMapTrade] = useState<Trade | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2114,13 +2122,22 @@ function MapScreen({
     if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
     if ((trade.coverageDistanceMiles ?? trade.distance) > maxDistance) return false;
     if (trade.rating < minRating) return false;
+    if (verifiedOnly && !trade.verified) return false;
+    if (insuredOnly && !trade.insured) return false;
+    if (trade.reviews < minReviews) return false;
+    if (nearbyNowOnly && !trade.nearbyNow) return false;
     if (marketMode !== 'all' && !trade.available) return false;
     if (marketMode === 'emergency' && !showDemoProfiles && !trade.emergencyOptIn) return false;
     return true;
-  }).sort((a,b) => marketMode === 'all'
-    ? (a.coverageDistanceMiles ?? a.distance) - (b.coverageDistanceMiles ?? b.distance) :
-    Number(Boolean(b.nearbyNow)) - Number(Boolean(a.nearbyNow)) ||
-    (a.coverageDistanceMiles ?? a.distance) - (b.coverageDistanceMiles ?? b.distance));
+  }).sort((a,b) => {
+    if (sortBy === 'rating') return b.rating-a.rating || b.reviews-a.reviews ||
+      (a.coverageDistanceMiles ?? a.distance)-(b.coverageDistanceMiles ?? b.distance);
+    if (sortBy === 'reviews') return b.reviews-a.reviews || b.rating-a.rating ||
+      (a.coverageDistanceMiles ?? a.distance)-(b.coverageDistanceMiles ?? b.distance);
+    if (marketMode !== 'all') return Number(Boolean(b.nearbyNow))-Number(Boolean(a.nearbyNow)) ||
+      (a.coverageDistanceMiles ?? a.distance)-(b.coverageDistanceMiles ?? b.distance);
+    return (a.coverageDistanceMiles ?? a.distance)-(b.coverageDistanceMiles ?? b.distance);
+  });
 
   useEffect(() => {
     let active = true;
@@ -2279,29 +2296,25 @@ function MapScreen({
       setMarketLoading(false);
     };
 
-    const start = async () => {
-      await loadMarketplace();
+    // Register new callbacks before subscribing. A distinct channel for each
+    // effect run avoids trying to mutate an already subscribed Realtime channel
+    // when focus area changes or Fast Refresh remounts this screen.
+    const channelRun = ++marketplaceChannelNonce;
+    for (const table of ['tradesperson_profiles', 'trade_availability', 'trade_map_presence'] as const) {
+      const channel = supabase.channel('marketplace-' + table + '-' + channelRun)
+        .on('postgres_changes', {event:'*',schema:'public',table}, () => {
+          if (active) void loadMarketplace();
+        });
+      channels.push(channel);
+      channel.subscribe();
+    }
 
-      for (const table of ['tradesperson_profiles', 'trade_availability', 'trade_map_presence']) {
-        const channel = supabase
-          .channel('marketplace-' + table)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table },
-            () => loadMarketplace()
-          )
-          .subscribe();
-        channels.push(channel);
-      }
-    };
-
-    start();
-    const refreshTimer = setInterval(() => { if (active) loadMarketplace(); }, 60 * 1000);
-
+    void loadMarketplace();
+    const refreshTimer = setInterval(() => { if (active) void loadMarketplace(); }, 60 * 1000);
     return () => {
-      clearInterval(refreshTimer);
       active = false;
-      channels.forEach(channel => supabase.removeChannel(channel));
+      clearInterval(refreshTimer);
+      channels.forEach(channel => { void supabase.removeChannel(channel).catch(() => {}); });
     };
     // Expiring a live pin must not depend on a database change event.
     // Refresh frequently enough to replace it with the saved work-area pin.
@@ -2310,18 +2323,30 @@ function MapScreen({
   const activeFilterCount =
     (maxDistance !== 50 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
-    (marketMode !== 'all' ? 1 : 0);
+    (marketMode !== 'all' ? 1 : 0) +
+    Number(verifiedOnly) + Number(insuredOnly) +
+    Number(minReviews > 0) + Number(nearbyNowOnly) +
+    Number(sortBy !== 'nearest');
 
   useEffect(() => {
     if (selectedMapTrade && !filtered.some(trade => trade.id === selectedMapTrade.id)) {
       setSelectedMapTrade(null);
     }
-  }, [selectedCategory, maxDistance, minRating, marketMode, showDemoProfiles, liveTrades]);
+  }, [selectedCategory, maxDistance, minRating, marketMode, verifiedOnly,
+    insuredOnly, minReviews, nearbyNowOnly, sortBy, showDemoProfiles, liveTrades]);
 
   const clearFilters = () => {
     setMaxDistance(50);
     setMinRating(0);
     setMarketMode('all');
+    setVerifiedOnly(false);
+    setInsuredOnly(false);
+    setMinReviews(0);
+    setNearbyNowOnly(false);
+    setSortBy('nearest');
+    setSelectedCategory('All');
+    setSearchQuery('');
+    setSelectedMapTrade(null);
   };
 
   return (
@@ -2381,93 +2406,78 @@ function MapScreen({
           <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
-        <View style={{marginHorizontal:16,marginTop:8,marginBottom:8,gap:6}}>
-          <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
-            <View style={{flex:1,backgroundColor:'#FFFFFF',borderColor:'#E6E5DF',
-              borderWidth:1,borderRadius:16,minHeight:43,flexDirection:'row',
-              paddingHorizontal:12,alignItems:'center',gap:8}}>
-              <MapPin size={16} color={theme.colors.teal} />
-              <TextInput value={searchAreaText} onChangeText={v=>{setSearchAreaText(v);setAreaSearchError('');}}
-                placeholder="Search postcode · LE1 or LE1 7RH"
-                placeholderTextColor="#8B9596" style={{flex:1,minHeight:41,fontSize:13,color:theme.colors.ink}}
-                autoCapitalize="characters" autoCorrect={false}
-                returnKeyType="search" onSubmitEditing={findPostcode} />
+        <View style={styles.mapCompactControls}>
+          <MotionPressable onPress={() => setShowAreaSearch(v=>!v)}
+            accessibilityRole="button" accessibilityLabel="Search by postcode or change location"
+            style={[styles.mapCompactAction,showAreaSearch&&styles.mapCompactActionSelected]}>
+            <MapPin size={14} color={theme.colors.teal}/>
+            <Text style={styles.mapCompactActionText} numberOfLines={1}>
+              {manualArea ? manualArea.label : 'Search area'}
+            </Text>
+            <ChevronRight size={13} color={theme.colors.muted}/>
+          </MotionPressable>
+          {showDemoProfiles ? (
+            <MotionPressable onPress={()=>{setShowDemoProfiles(false);setSelectedMapTrade(null);}}
+              accessibilityRole="button" accessibilityLabel="Switch from fictional demo profiles to real profiles"
+              style={styles.mapCompactStatus}>
+              <Text style={styles.mapCompactStatusText} numberOfLines={1}>DEMO · {trades.length} fictional</Text>
+              <Text style={styles.mapCompactLink}>Real</Text>
+            </MotionPressable>
+          ) : marketLoading ? (
+            <View style={styles.mapCompactStatus}>
+              <ActivityIndicator size="small" color={theme.colors.teal}/>
+              <Text style={styles.mapCompactStatusText}>Loading real profiles</Text>
             </View>
-            <MotionPressable onPress={findPostcode} disabled={findingArea} accessibilityRole="button"
-              accessibilityLabel="Find tradespeople covering this postcode"
-              style={{height:43,minWidth:67,borderRadius:14,
-                justifyContent:'center',alignItems:'center',backgroundColor:theme.colors.darkTeal}}>
-              {findingArea ? <ActivityIndicator size="small" color="#FFFFFF"/> :
-                <Text style={{fontSize:12,color:'#FFFFFF',fontWeight:'800'}}>Find</Text>}
+          ) : marketError ? (
+            <MotionPressable onPress={()=>{setMarketLoading(true);setReloadMarketplace(v=>v+1);}}
+              accessibilityRole="button" accessibilityLabel="Retry loading real tradespeople"
+              style={styles.mapCompactStatus}>
+              <Text style={styles.mapCompactStatusText}>Could not load</Text>
+              <Text style={styles.mapCompactLink}>Retry</Text>
             </MotionPressable>
-          </View>
-          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
-            <Text style={{fontSize:11,color:theme.colors.muted}}>
-              {manualArea ? 'Searching around '+manualArea.label : 'Showing your current area when location is enabled'}
-            </Text>
-            <MotionPressable onPress={useCurrentLocation} accessibilityRole="button"
-              accessibilityLabel="Use my current phone location for nearby trades">
-              <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.teal}}>
-                {manualArea ? 'Use my location' : 'Use phone location'}
+          ) : (
+            <MotionPressable onPress={()=>{setShowDemoProfiles(true);setSelectedMapTrade(null);}}
+              accessibilityRole="button" accessibilityLabel="Show fictional demo profiles"
+              style={styles.mapCompactStatus}>
+              <Text style={styles.mapCompactStatusText} numberOfLines={1}>
+                {marketIsLive ? 'REAL · '+liveTrades.length+' nearby' : 'No real profiles'}
               </Text>
+              <Text style={styles.mapCompactLink}>Demo</Text>
             </MotionPressable>
-          </View>
-          {areaSearchError ? <Text style={{fontSize:12,color:theme.colors.coralDark}}>{areaSearchError}</Text> : null}
+          )}
         </View>
-        {showDemoProfiles ? (
-          <MotionPressable
-            style={styles.marketDataBanner}
-            onPress={() => { setShowDemoProfiles(false); setSelectedMapTrade(null); }}
-            accessibilityRole="button"
-            accessibilityLabel="Showing fictional sample tradespeople, switch to real profiles"
-          >
-            <AppIcon icon={{ ios: 'flask.fill', android: 'science' }} size={14} color={C.orange} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>
-              DEMO PREVIEW · {trades.length} fictional profiles
-            </Text>
-            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Show real</Text>
-          </MotionPressable>
-        ) : marketLoading ? (
-          <View style={styles.marketDataBanner}>
-            <ActivityIndicator size="small" color={C.green} />
-            <Text style={styles.marketDataBannerText}>Loading live Tradarr professionals…</Text>
+        {showAreaSearch ? (
+          <View style={styles.mapAreaSearchPanel}>
+            <View style={{flexDirection:'row',alignItems:'center',gap:7}}>
+              <View style={styles.mapAreaSearchInputWrap}>
+                <MapPin size={16} color={theme.colors.teal}/>
+                <TextInput value={searchAreaText}
+                  onChangeText={v=>{setSearchAreaText(v);setAreaSearchError('');}}
+                  placeholder="Enter UK postcode · e.g. LE1 7RH"
+                  placeholderTextColor="#8B9596"
+                  style={{flex:1,minHeight:39,fontSize:13,color:theme.colors.ink}}
+                  autoCapitalize="characters" autoCorrect={false}
+                  returnKeyType="search" onSubmitEditing={findPostcode}/>
+              </View>
+              <MotionPressable onPress={findPostcode} disabled={findingArea}
+                accessibilityRole="button" accessibilityLabel="Search postcode"
+                style={styles.mapAreaSearchSubmit}>
+                {findingArea?<ActivityIndicator size="small" color="#FFFFFF"/>:
+                  <Text style={{fontSize:12,color:'#FFFFFF',fontWeight:'800'}}>Find</Text>}
+              </MotionPressable>
+            </View>
+            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:8}}>
+              <Text style={{fontSize:11,color:theme.colors.muted,flex:1}} numberOfLines={1}>
+                {manualArea?'Searching around '+manualArea.label:'Search any UK postcode or district'}
+              </Text>
+              <MotionPressable onPress={useCurrentLocation} accessibilityRole="button"
+                accessibilityLabel="Use phone location">
+                <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.teal}}>Use phone location</Text>
+              </MotionPressable>
+            </View>
+            {areaSearchError?<Text style={{fontSize:12,color:theme.colors.coralDark}}>{areaSearchError}</Text>:null}
           </View>
-        ) : marketError ? (
-          <View style={styles.marketDataBanner}>
-            <AppIcon icon={{ ios: 'wifi.exclamationmark', android: 'wifi_off' }} size={15} color={C.orange} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Could not load real tradespeople</Text>
-            <MotionPressable onPress={() => { setMarketLoading(true); setReloadMarketplace(value => value + 1); }}
-              accessibilityRole="button" accessibilityLabel="Retry loading real profiles">
-              <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Retry</Text>
-            </MotionPressable>
-            <MotionPressable onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
-              accessibilityRole="button" accessibilityLabel="Show demo profiles">
-              <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11, marginLeft: 11 }}>Demo</Text>
-            </MotionPressable>
-          </View>
-        ) : marketIsLive ? (
-          <MotionPressable
-            style={[styles.marketDataBanner, styles.marketDataBannerLive]}
-            onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
-            accessibilityRole="button"
-            accessibilityLabel="Real tradespeople currently shown, preview demo profiles"
-          >
-            <View style={styles.marketDataDot} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>Real tradespeople · {distanceOrigin}</Text>
-            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
-          </MotionPressable>
-        ) : (
-          <MotionPressable
-            style={styles.marketDataBanner}
-            onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
-            accessibilityRole="button"
-          >
-            <AppIcon icon={{ ios: 'info.circle', android: 'info_outline' }} size={15} color={C.blue} />
-            <Text style={[styles.marketDataBannerText, { flex: 1 }]}>No real profiles near {distanceOrigin}</Text>
-            <Text style={{ color: C.blue, fontWeight: '900', fontSize: 11 }}>Preview demo</Text>
-          </MotionPressable>
-        )}
-
+        ) : null}
         {intent ? (
           <View style={styles.mapIntentCard}>
             <View style={styles.mapIntentIcon}>
@@ -2482,20 +2492,6 @@ function MapScreen({
             </View>
           </View>
         ) : null}
-      </View>
-
-      <View style={{ flexDirection:'row', paddingHorizontal:16, paddingVertical:7, gap:7, backgroundColor:'#F8F7F2' }}>
-        {([
-          ['all','All nearby'],['available','Available now'],['emergency','Emergency']
-        ] as const).map(([value,label]) => (
-          <MotionPressable key={value} onPress={() => { setMarketMode(value); setSelectedMapTrade(null); }}
-            accessibilityRole="button" accessibilityLabel={'Show '+label.toLowerCase()+' tradespeople'}
-            style={{flex:1,minHeight:31,borderRadius:17,justifyContent:'center',alignItems:'center',
-              backgroundColor:marketMode===value ? theme.colors.darkTeal : '#FFFFFF',
-              borderWidth:1,borderColor:marketMode===value ? theme.colors.darkTeal : '#E9E8E3'}}>
-            <Text style={{fontSize:11,fontWeight:'800',color:marketMode===value ? '#FFFFFF' : theme.colors.ink}}>{label}</Text>
-          </MotionPressable>
-        ))}
       </View>
 
       {listMode ? (
@@ -2654,54 +2650,131 @@ function MapScreen({
               </MotionPressable>
             </View>
 
-            <Text style={styles.filterSectionLabel}>Job availability</Text>
-            <View style={styles.filterOptionRow}>
-              {([
-                ['all','All nearby'],['available','Available now'],['emergency','Emergency']
-              ] as const).map(([value,label]) => (
-                <MotionPressable key={value}
-                  style={[styles.filterOption, marketMode === value && styles.filterOptionActive]}
-                  onPress={() => setMarketMode(value)}>
-                  <Text style={[styles.filterOptionText, marketMode === value && styles.filterOptionTextActive]}>{label}</Text>
-                </MotionPressable>
-              ))}
-            </View>
+            <ScrollView style={styles.filterSheetScroll} contentContainerStyle={styles.filterSheetScrollContent}
+              showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+              <Text style={styles.filterSectionLabel}>Trade</Text>
+              <View style={styles.filterOptionRow}>
+                {(['All','Plumber','Electrician','Builder','Heating','Locksmith','Carpenter','Roofer'] as const)
+                  .map(item=><MotionPressable key={item}
+                    accessibilityRole="button" accessibilityState={{selected:selectedCategory===item}}
+                    style={[styles.filterOption,selectedCategory===item&&styles.filterOptionActive]}
+                    onPress={()=>setSelectedCategory(item)}>
+                    <Text style={[styles.filterOptionText,selectedCategory===item&&styles.filterOptionTextActive]}>
+                      {item==='All'?'All trades':item}
+                    </Text>
+                  </MotionPressable>)}
+              </View>
 
-            <Text style={styles.filterSectionLabel}>Maximum distance</Text>
-            <View style={styles.filterOptionRow}>
-              {[5, 10, 20, 50].map(distance => (
-                <MotionPressable
-                  key={distance}
-                  style={[styles.filterOption, maxDistance === distance && styles.filterOptionActive]}
-                  onPress={() => setMaxDistance(distance)}
-                >
-                  <Text style={[styles.filterOptionText, maxDistance === distance && styles.filterOptionTextActive]}>
-                    {distance} mi
+              <Text style={styles.filterSectionLabel}>Availability</Text>
+              <View style={styles.filterOptionRow}>
+                {([
+                  ['all','All'],['available','Available now'],['emergency','Emergency']
+                ] as const).map(([value,label])=>(
+                  <MotionPressable key={value}
+                    accessibilityRole="button" accessibilityState={{selected:marketMode===value}}
+                    style={[styles.filterOption,marketMode===value&&styles.filterOptionActive]}
+                    onPress={()=>setMarketMode(value)}>
+                    <Text style={[styles.filterOptionText,marketMode===value&&styles.filterOptionTextActive]}>{label}</Text>
+                  </MotionPressable>
+                ))}
+              </View>
+              <Text style={styles.filterSectionLabel}>Map location</Text>
+              <View style={styles.filterOptionRow}>
+                <MotionPressable accessibilityRole="button"
+                  accessibilityState={{selected:!nearbyNowOnly}}
+                  style={[styles.filterOption,!nearbyNowOnly&&styles.filterOptionActive]}
+                  onPress={()=>setNearbyNowOnly(false)}>
+                  <Text style={[styles.filterOptionText,!nearbyNowOnly&&styles.filterOptionTextActive]}>All service areas</Text>
+                </MotionPressable>
+                <MotionPressable accessibilityRole="button"
+                  accessibilityState={{selected:nearbyNowOnly}}
+                  style={[styles.filterOption,nearbyNowOnly&&styles.filterOptionActive]}
+                  onPress={()=>{setNearbyNowOnly(true);setShowDemoProfiles(false);}}>
+                  <Text style={[styles.filterOptionText,nearbyNowOnly&&styles.filterOptionTextActive]}>Nearby now · live only</Text>
+                </MotionPressable>
+              </View>
+              <Text style={styles.filterHelp}>Nearby now shows only real professionals sharing a recent approximate live position.</Text>
+
+              <Text style={styles.filterSectionLabel}>Maximum distance</Text>
+              <View style={styles.filterOptionRow}>
+                {[2,5,10,20,50].map(distance=>(
+                  <MotionPressable key={distance} accessibilityRole="button"
+                    accessibilityState={{selected:maxDistance===distance}}
+                    style={[styles.filterOption,maxDistance===distance&&styles.filterOptionActive]}
+                    onPress={()=>setMaxDistance(distance)}>
+                    <Text style={[styles.filterOptionText,maxDistance===distance&&styles.filterOptionTextActive]}>
+                      {distance} mi
+                    </Text>
+                  </MotionPressable>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Minimum rating</Text>
+              <View style={styles.filterOptionRow}>
+                {[{label:'Any',value:0},{label:'3.5+',value:3.5},{label:'4.0+',value:4},
+                  {label:'4.5+',value:4.5},{label:'4.8+',value:4.8}].map(item=>(
+                  <MotionPressable key={item.label} accessibilityRole="button"
+                    accessibilityState={{selected:minRating===item.value}}
+                    style={[styles.filterOption,minRating===item.value&&styles.filterOptionActive]}
+                    onPress={()=>setMinRating(item.value)}>
+                    <Text style={[styles.filterOptionText,minRating===item.value&&styles.filterOptionTextActive]}>
+                      {item.label}
+                    </Text>
+                  </MotionPressable>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Reviews</Text>
+              <View style={styles.filterOptionRow}>
+                {[0,1,5,10,25].map(count=>(
+                  <MotionPressable key={count} accessibilityRole="button"
+                    accessibilityState={{selected:minReviews===count}}
+                    style={[styles.filterOption,minReviews===count&&styles.filterOptionActive]}
+                    onPress={()=>setMinReviews(count)}>
+                    <Text style={[styles.filterOptionText,minReviews===count&&styles.filterOptionTextActive]}>
+                      {count===0?'Any':count+'+'}
+                    </Text>
+                  </MotionPressable>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Credentials</Text>
+              <View style={styles.filterOptionRow}>
+                <MotionPressable accessibilityRole="button"
+                  accessibilityState={{selected:verifiedOnly}}
+                  style={[styles.filterOption,verifiedOnly&&styles.filterOptionActive]}
+                  onPress={()=>setVerifiedOnly(v=>!v)}>
+                  <Text style={[styles.filterOptionText,verifiedOnly&&styles.filterOptionTextActive]}>
+                    {verifiedOnly?'✓ ':''}Verified profiles
                   </Text>
                 </MotionPressable>
-              ))}
-            </View>
-
-            <Text style={styles.filterSectionLabel}>Minimum rating</Text>
-            <View style={styles.filterOptionRow}>
-              {[
-                { label: 'Any', value: 0 },
-                { label: '4.0+', value: 4 },
-                { label: '4.5+', value: 4.5 },
-                { label: '4.8+', value: 4.8 },
-              ].map(item => (
-                <MotionPressable
-                  key={item.label}
-                  style={[styles.filterOption, minRating === item.value && styles.filterOptionActive]}
-                  onPress={() => setMinRating(item.value)}
-                >
-                  <Text style={[styles.filterOptionText, minRating === item.value && styles.filterOptionTextActive]}>
-                    {item.label}
+                <MotionPressable accessibilityRole="button"
+                  accessibilityState={{selected:insuredOnly}}
+                  style={[styles.filterOption,insuredOnly&&styles.filterOptionActive]}
+                  onPress={()=>setInsuredOnly(v=>!v)}>
+                  <Text style={[styles.filterOptionText,insuredOnly&&styles.filterOptionTextActive]}>
+                    {insuredOnly?'✓ ':''}Insured
                   </Text>
                 </MotionPressable>
-              ))}
-            </View>
+              </View>
+              <Text style={styles.filterHelp}>Credentials reflect profile information. Check documents and coverage before hiring.</Text>
 
+              <Text style={styles.filterSectionLabel}>Sort results</Text>
+              <View style={styles.filterOptionRow}>
+                {([{key:'nearest',label:'Nearest'},{key:'rating',label:'Highest rated'},
+                  {key:'reviews',label:'Most reviewed'}] as const).map(item=>(
+                  <MotionPressable key={item.key} accessibilityRole="button"
+                    accessibilityState={{selected:sortBy===item.key}}
+                    style={[styles.filterOption,sortBy===item.key&&styles.filterOptionActive]}
+                    onPress={()=>setSortBy(item.key)}>
+                    <Text style={[styles.filterOptionText,sortBy===item.key&&styles.filterOptionTextActive]}>
+                      {item.label}
+                    </Text>
+                  </MotionPressable>
+                ))}
+              </View>
+              {showDemoProfiles?<Text style={styles.filterHelp}>Demo listings are fictional. Choose Real on the map to filter real tradespeople.</Text>:null}
+            </ScrollView>
             <MotionPressable style={styles.filterApplyButton} onPress={() => setShowFilters(false)}>
               <Text style={styles.filterApplyText}>Show {filtered.length} tradespeople</Text>
             </MotionPressable>
@@ -8536,31 +8609,44 @@ const styles = StyleSheet.create({
   navIcon: { fontSize: 24, color: '#7C8795' },
   navLabel: { fontSize: 11, color: '#AEBACA', marginTop: 4, fontWeight: '700' },
   navActive: { color: C.blue, fontWeight: '800' },
-  mapTop: { paddingHorizontal: 20, paddingTop: 15, backgroundColor: theme.colors.customerBackground, zIndex: 5, paddingBottom: 6 },
+  mapTop: { paddingHorizontal: 15, paddingTop: 8, backgroundColor: theme.colors.customerBackground, zIndex: 5, paddingBottom: 4 },
   mapSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  mapSearch: { flex: 1, height: 53, borderRadius: 27, backgroundColor: '#FFFFFF', paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', ...theme.shadow },
+  mapSearch: { flex: 1, height: 43, borderRadius: 23, backgroundColor: '#FFFFFF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', ...theme.shadow },
   mapSearchText: { marginLeft: 9, color: C.muted, fontSize: 15 },
   mapSearchInput: { flex: 1, marginLeft: 10, color: theme.colors.ink, fontSize: 14, paddingVertical: 0 },
-  mapControlButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', position: 'relative', ...theme.shadow },
+  mapControlButton: { width: 42, height: 42, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', position: 'relative', ...theme.shadow },
   mapControlButtonActive: { backgroundColor: theme.colors.darkTeal },
   filterBadge: { position: 'absolute', right: -3, top: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.blue, borderWidth: 2, borderColor: C.white, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   filterBadgeText: { color: C.white, fontSize: 9, fontWeight: '900' },
-  chipRow: { paddingTop: 13, paddingBottom: 6, paddingRight: 10 },
-  chip: { backgroundColor: '#FFFFFF', borderRadius: 21, minHeight: 42, paddingHorizontal: 15, paddingVertical: 11, marginRight: 8, ...theme.shadow },
+  chipRow: { paddingTop: 7, paddingBottom: 3, paddingRight: 10 },
+  chip: { backgroundColor: '#FFFFFF', borderRadius: 19, minHeight: 34, paddingHorizontal: 12, paddingVertical: 8, marginRight: 6 },
   chipActive: { backgroundColor: theme.colors.darkTeal },
   chipText: { color: theme.colors.ink, fontSize: 12, fontWeight: '800' },
   chipTextActive: { color: '#FFFFFF' },
   filterModalRoot: { flex: 1, justifyContent: 'flex-end' },
   filterModalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7, 27, 49, 0.35)' },
-  filterSheet: { backgroundColor: theme.colors.customerBackground, borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 33, ...theme.shadow },
+  filterSheet: { backgroundColor: theme.colors.customerBackground, borderTopLeftRadius: 27, borderTopRightRadius: 27, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 24, maxHeight: '86%', ...theme.shadow },
+  filterSheetScroll: { flexShrink:1, flexGrow:0 },
+  filterSheetScrollContent: { paddingBottom:8 },
+  filterHelp: { fontSize:10, lineHeight:16, marginTop:4, color:C.muted },
+  mapCompactControls: { flexDirection:'row', alignItems:'center', gap:8, marginTop:7, marginBottom:3 },
+  mapCompactAction: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, minHeight:33, backgroundColor:'#FFFFFF', borderRadius:17, borderWidth:1, borderColor:'#E2E8E5', paddingHorizontal:11, maxWidth:'48%' },
+  mapCompactActionSelected: { borderColor:theme.colors.teal },
+  mapCompactActionText: { fontSize:11, fontWeight:'800', color:theme.colors.teal, flexShrink:1 },
+  mapCompactStatus: { flex:1, flexDirection:'row', minHeight:33, alignItems:'center', justifyContent:'flex-end', gap:7, backgroundColor:'#F1F1EB', borderRadius:17, paddingHorizontal:10 },
+  mapCompactStatusText: { fontSize:10, fontWeight:'700', color:theme.colors.muted, flexShrink:1 },
+  mapCompactLink: { fontSize:11, fontWeight:'900', color:theme.colors.teal },
+  mapAreaSearchPanel: { marginTop:6, padding:10, backgroundColor:'#F5F7F4', borderRadius:16, gap:7 },
+  mapAreaSearchInputWrap: { flex:1, flexDirection:'row', alignItems:'center', gap:7, paddingHorizontal:9, borderRadius:13, borderColor:'#E0E7E3', borderWidth:1, backgroundColor:'#FFFFFF' },
+  mapAreaSearchSubmit: { minHeight:39, minWidth:58, borderRadius:12, backgroundColor:theme.colors.darkTeal, justifyContent:'center', alignItems:'center' },
   filterSheetHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#D8DEE6', alignSelf: 'center', marginBottom: 16 },
   filterPanelHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
   filterPanelTitle: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.4 },
   filterPanelSub: { color: C.muted, fontSize: 12, marginTop: 3 },
   clearFiltersText: { color: C.blue, fontSize: 12, fontWeight: '800', paddingTop: 4 },
-  filterSectionLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 11, marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.5 },
+  filterSectionLabel: { color: C.muted, fontSize: 11, fontWeight: '800', marginTop: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   filterOptionRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 },
-  filterOption: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', margin: 4 },
+  filterOption: { minHeight: 38, paddingHorizontal: 12, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', margin: 3 },
   filterOptionActive: { backgroundColor: theme.colors.darkTeal },
   filterOptionText: { color: C.text, fontSize: 12, fontWeight: '700' },
   filterOptionTextActive: { color: C.white },
