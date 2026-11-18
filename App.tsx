@@ -538,6 +538,79 @@ export default function App() {
     setTradeJobsEntry({ view, filter });
     setTradeScreen('tradeJobs');
   };
+  // One foreground-only Nearby Now publisher for the whole tradesperson app.
+  // Screen navigation must not stop live availability or create duplicate watchers.
+  useEffect(() => {
+    if (mode !== 'tradesperson' || !session?.user.id) return;
+    const userId = session.user.id;
+    let active = true;
+    let starting = false;
+    let watcher: Location.LocationSubscription | null = null;
+
+    const refreshSharing = async () => {
+      if (!active || starting) return;
+      starting = true;
+      try {
+        const {data: settings, error} = await supabase.from('trade_availability')
+          .select('is_available, available_until, location_mode')
+          .eq('user_id',userId).maybeSingle();
+        if (!active || error) return;
+        const allowLive = Boolean(settings?.is_available &&
+          settings.location_mode === 'live' &&
+          (!settings.available_until || new Date(settings.available_until).getTime() > Date.now()));
+        if (!allowLive) {
+          watcher?.remove();
+          watcher = null;
+          return;
+        }
+        if (watcher) return;
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status !== 'granted' || !active) return;
+        const nextWatcher = await Location.watchPositionAsync({
+          accuracy:Location.Accuracy.Balanced,
+          distanceInterval:75,
+          timeInterval:30000
+        }, async position => {
+          if (!active) return;
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const now = new Date().toISOString();
+          await Promise.all([
+            supabase.from('trade_locations').upsert({
+              user_id:userId, latitude:lat,longitude:lon,
+              accuracy_meters:position.coords.accuracy,updated_at:now
+            }),
+            supabase.from('trade_map_presence').upsert({
+              user_id:userId,latitude:Number(lat.toFixed(2)),
+              longitude:Number(lon.toFixed(2)),source_mode:'live',updated_at:now
+            }),
+          ]);
+        });
+        if (active) watcher = nextWatcher;
+        else nextWatcher.remove();
+      } catch {
+        // No location request is made automatically if foreground permission is denied.
+      } finally {
+        starting = false;
+      }
+    };
+
+    refreshSharing();
+    // Timer also handles sessions expiring while the user stays on the same tab.
+    const poll = setInterval(refreshSharing,45 * 1000);
+    const channel = supabase.channel('trade-nearby-mode-' + userId)
+      .on('postgres_changes',{
+        event:'*',schema:'public',table:'trade_availability',
+        filter:'user_id=eq.' + userId
+      },refreshSharing).subscribe();
+    return () => {
+      active = false;
+      clearInterval(poll);
+      watcher?.remove();
+      supabase.removeChannel(channel);
+    };
+  },[mode,session?.user.id]);
+
   const [selectedTrade, setSelectedTrade] = useState<Trade>(trades[0]);
   const [selectedCategory, setSelectedCategory] = useState<TradeCategory | 'All'>('All');
   const [serviceIntent, setServiceIntent] = useState<{ trade: TradeCategory; service: string; timing: string } | null>(null);
@@ -6102,65 +6175,6 @@ function TradeHomeScreen({
     loadActive();
     return () => { active = false; };
   }, [offersRefreshKey]);
-
-  useEffect(() => {
-    if (!available || locationMode !== 'live') return;
-
-    let active = true;
-    let subscription: Location.LocationSubscription | null = null;
-
-    const startTracking = async () => {
-      const permission = await Location.getForegroundPermissionsAsync();
-      if (permission.status !== 'granted' || !active) return;
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user || !active) return;
-
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          distanceInterval: 75,
-          timeInterval: 30000,
-        },
-        async position => {
-          if (!active) return;
-
-          const exactLatitude = position.coords.latitude;
-          const exactLongitude = position.coords.longitude;
-          const publicLatitude = Number(exactLatitude.toFixed(2));
-          const publicLongitude = Number(exactLongitude.toFixed(2));
-          const now = new Date().toISOString();
-
-          await Promise.all([
-            supabase.from('trade_locations').upsert({
-              user_id: user.id,
-              latitude: exactLatitude,
-              longitude: exactLongitude,
-              accuracy_meters: position.coords.accuracy,
-              updated_at: now,
-            }),
-            supabase.from('trade_map_presence').upsert({
-              user_id: user.id,
-              latitude: publicLatitude,
-              longitude: publicLongitude,
-              source_mode: 'live',
-              updated_at: now,
-            }),
-          ]);
-        }
-      );
-    };
-
-    startTracking();
-
-    return () => {
-      active = false;
-      subscription?.remove();
-    };
-  }, [available, locationMode]);
 
   const durationToUntil = (value: string) => {
     const now = new Date();
