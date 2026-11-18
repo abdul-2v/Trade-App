@@ -79,6 +79,9 @@ type Trade = {
   services: string[];
   mapLatitude?: number;
   mapLongitude?: number;
+  nearbyNow?: boolean;
+  emergencyOptIn?: boolean;
+  serviceRadiusMiles?: number;
 };
 
 type CustomerScreen =
@@ -1924,9 +1927,9 @@ function MapScreen({
 }) {
   const [listMode, setListMode] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [maxDistance, setMaxDistance] = useState(5);
+  const [maxDistance, setMaxDistance] = useState(50);
   const [minRating, setMinRating] = useState(0);
-  const [availableOnly, setAvailableOnly] = useState(true);
+  const [marketMode, setMarketMode] = useState<'all' | 'available' | 'emergency'>('all');
   const [selectedMapTrade, setSelectedMapTrade] = useState<Trade | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
@@ -1948,9 +1951,11 @@ function MapScreen({
     if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
     if (trade.distance > maxDistance) return false;
     if (trade.rating < minRating) return false;
-    if (availableOnly && !trade.available) return false;
+    if (marketMode !== 'all' && !trade.available) return false;
+    if (marketMode === 'emergency' && !showDemoProfiles && !trade.emergencyOptIn) return false;
     return true;
-  });
+  }).sort((a,b) => marketMode === 'all' ? a.distance - b.distance :
+    Number(Boolean(b.nearbyNow)) - Number(Boolean(a.nearbyNow)) || a.distance - b.distance);
 
   useEffect(() => {
     let active = true;
@@ -1961,7 +1966,7 @@ function MapScreen({
       setDistanceOrigin('Leicester centre');
 
       try {
-        const permission = await Location.getForegroundPermissionsAsync();
+        const permission = await Location.requestForegroundPermissionsAsync();
         if (permission.status === 'granted') {
           const position = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
@@ -1987,7 +1992,7 @@ function MapScreen({
           supabase.from('tradesperson_profiles')
             .select('user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'),
           supabase.from('trade_availability')
-            .select('user_id, is_available, radius_miles, available_until, location_mode'),
+            .select('user_id, is_available, radius_miles, service_radius_miles, emergency_opt_in, available_until, location_mode, work_area_latitude, work_area_longitude, work_area_label'),
           supabase.from('trade_map_presence')
             .select('user_id, latitude, longitude, source_mode, updated_at'),
         ]);
@@ -2036,23 +2041,40 @@ function MapScreen({
           const role = profile.primary_trade as TradeCategory;
           const spot = presenceMap.get(profile.user_id);
           const status = availabilityMap.get(profile.user_id);
+          if (!customerCategoryOrder.includes(role) || !status) return null;
 
-          if (!customerCategoryOrder.includes(role) || !spot) return null;
-
-          const untilOk =
-            !status?.available_until ||
+          // A work area is permanent; Nearby Now expires rather than turning into
+          // an inaccurate old "live" pin. Both map locations are approximate.
+          const areaLat = Number(status.work_area_latitude);
+          const areaLng = Number(status.work_area_longitude);
+          const hasArea = status.work_area_latitude != null && status.work_area_longitude != null &&
+            Number.isFinite(areaLat) && Math.abs(areaLat) <= 90 &&
+            Number.isFinite(areaLng) && Math.abs(areaLng) <= 180;
+          const untilOk = !status.available_until ||
             new Date(status.available_until).getTime() > now;
+          const isAvailable = Boolean(status.is_available && untilOk);
+          const freshLive = Boolean(
+            isAvailable && status.location_mode === 'live' &&
+            spot?.source_mode === 'live' && spot?.updated_at &&
+            now - new Date(spot.updated_at).getTime() >= 0 &&
+            now - new Date(spot.updated_at).getTime() <= 10 * 60 * 1000
+          );
+          const liveLat = freshLive ? Number(spot.latitude) : NaN;
+          const liveLng = freshLive ? Number(spot.longitude) : NaN;
+          const nearbyNow = freshLive && Number.isFinite(liveLat) &&
+            Number.isFinite(liveLng) && Math.abs(liveLat) <= 90 && Math.abs(liveLng) <= 180;
+          const fallbackArea = !hasArea && spot?.source_mode === 'work_area'
+            ? {latitude:Number(spot.latitude),longitude:Number(spot.longitude)} : null;
+          const workCentre = hasArea ? {latitude:areaLat, longitude:areaLng} : fallbackArea;
+          if (!workCentre || !Number.isFinite(workCentre.latitude) ||
+              !Number.isFinite(workCentre.longitude)) return null;
+          const serviceRadius = Math.min(50,Math.max(1,Number(status.service_radius_miles) || 20));
+          const areaDistance = distanceMilesBetween(reference,workCentre);
+          if (areaDistance > serviceRadius + .6) return null;
 
-          const freshLive =
-            spot.source_mode !== 'live' ||
-            !spot.updated_at ||
-            now - new Date(spot.updated_at).getTime() <= 15 * 60 * 1000;
-
-          const isAvailable = Boolean(status?.is_available && untilOk && freshLive);
-          const latitude = Number(spot.latitude);
-          const longitude = Number(spot.longitude);
-          const distance = distanceMilesBetween(reference, { latitude, longitude });
-
+          const mapPoint = nearbyNow
+            ? {latitude:liveLat,longitude:liveLng} : workCentre;
+          const distance = distanceMilesBetween(reference,mapPoint);
           const item: Trade = {
             id: 'live-' + profile.user_id,
             name: profile.display_name || 'Local tradesperson',
@@ -2072,8 +2094,11 @@ function MapScreen({
             phone: profile.public_phone || '',
             about: profile.bio || 'Local trade professional on Tradarr.',
             services: serviceCatalog[role].slice(0, 5),
-            mapLatitude: latitude,
-            mapLongitude: longitude,
+            mapLatitude: mapPoint.latitude,
+            mapLongitude: mapPoint.longitude,
+            nearbyNow,
+            emergencyOptIn: Boolean(status.emergency_opt_in),
+            serviceRadiusMiles: serviceRadius,
           };
 
           return item;
@@ -2111,20 +2136,20 @@ function MapScreen({
   }, [reloadMarketplace]);
 
   const activeFilterCount =
-    (maxDistance !== 5 ? 1 : 0) +
+    (maxDistance !== 50 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
-    (!availableOnly ? 1 : 0);
+    (marketMode !== 'all' ? 1 : 0);
 
   useEffect(() => {
     if (selectedMapTrade && !filtered.some(trade => trade.id === selectedMapTrade.id)) {
       setSelectedMapTrade(null);
     }
-  }, [selectedCategory, maxDistance, minRating, availableOnly, showDemoProfiles, liveTrades]);
+  }, [selectedCategory, maxDistance, minRating, marketMode, showDemoProfiles, liveTrades]);
 
   const clearFilters = () => {
-    setMaxDistance(5);
+    setMaxDistance(50);
     setMinRating(0);
-    setAvailableOnly(true);
+    setMarketMode('all');
   };
 
   return (
@@ -2254,6 +2279,20 @@ function MapScreen({
         ) : null}
       </View>
 
+      <View style={{ flexDirection:'row', paddingHorizontal:16, paddingVertical:7, gap:7, backgroundColor:'#F8F7F2' }}>
+        {([
+          ['all','All nearby'],['available','Available now'],['emergency','Emergency']
+        ] as const).map(([value,label]) => (
+          <MotionPressable key={value} onPress={() => { setMarketMode(value); setSelectedMapTrade(null); }}
+            accessibilityRole="button" accessibilityLabel={'Show '+label.toLowerCase()+' tradespeople'}
+            style={{flex:1,minHeight:31,borderRadius:17,justifyContent:'center',alignItems:'center',
+              backgroundColor:marketMode===value ? theme.colors.darkTeal : '#FFFFFF',
+              borderWidth:1,borderColor:marketMode===value ? theme.colors.darkTeal : '#E9E8E3'}}>
+            <Text style={{fontSize:11,fontWeight:'800',color:marketMode===value ? '#FFFFFF' : theme.colors.ink}}>{label}</Text>
+          </MotionPressable>
+        ))}
+      </View>
+
       {listMode ? (
         <ScrollView style={styles.directoryList} contentContainerStyle={{ paddingBottom: 100 }}>
           <View style={styles.directoryHeaderRow}>
@@ -2297,7 +2336,9 @@ function MapScreen({
                   <Text style={styles.mapPreviewRole}>{selectedMapTrade.role}</Text>
                   <Text style={styles.mapPreviewMeta}>
                     {selectedMapTrade.reviews > 0 ? '★ ' + selectedMapTrade.rating.toFixed(1) + ' · ' : ''}
-                    {selectedMapTrade.distance >= 0 ? selectedMapTrade.distance + ' mi away' : 'Location unavailable'}
+                    {selectedMapTrade.id.startsWith('live-')
+                      ? (selectedMapTrade.nearbyNow ? 'Nearby now · approx. ' : 'Covers your area · approx. ') + selectedMapTrade.distance + ' mi'
+                      : selectedMapTrade.distance + ' mi away'}
                     {!selectedMapTrade.id.startsWith('live-') ? ' · DEMO' : ''}
                   </Text>
                 </View>
@@ -2317,7 +2358,7 @@ function MapScreen({
                       !selectedMapTrade.available && { color: C.muted },
                     ]}
                   >
-                    {selectedMapTrade.available ? 'Available now' : 'Not currently available'}
+                    {selectedMapTrade.available ? 'Accepting jobs now' : 'Available for future bookings'}
                   </Text>
                 </View>
                 <Text style={styles.mapPreviewPrice}>
@@ -2388,25 +2429,22 @@ function MapScreen({
               </MotionPressable>
             </View>
 
-            <Text style={styles.filterSectionLabel}>Availability</Text>
+            <Text style={styles.filterSectionLabel}>Job availability</Text>
             <View style={styles.filterOptionRow}>
-              <MotionPressable
-                style={[styles.filterOption, availableOnly && styles.filterOptionActive]}
-                onPress={() => setAvailableOnly(true)}
-              >
-                <Text style={[styles.filterOptionText, availableOnly && styles.filterOptionTextActive]}>Available now</Text>
-              </MotionPressable>
-              <MotionPressable
-                style={[styles.filterOption, !availableOnly && styles.filterOptionActive]}
-                onPress={() => setAvailableOnly(false)}
-              >
-                <Text style={[styles.filterOptionText, !availableOnly && styles.filterOptionTextActive]}>Show all</Text>
-              </MotionPressable>
+              {([
+                ['all','All nearby'],['available','Available now'],['emergency','Emergency']
+              ] as const).map(([value,label]) => (
+                <MotionPressable key={value}
+                  style={[styles.filterOption, marketMode === value && styles.filterOptionActive]}
+                  onPress={() => setMarketMode(value)}>
+                  <Text style={[styles.filterOptionText, marketMode === value && styles.filterOptionTextActive]}>{label}</Text>
+                </MotionPressable>
+              ))}
             </View>
 
             <Text style={styles.filterSectionLabel}>Maximum distance</Text>
             <View style={styles.filterOptionRow}>
-              {[1, 3, 5, 10].map(distance => (
+              {[5, 10, 20, 50].map(distance => ((
                 <MotionPressable
                   key={distance}
                   style={[styles.filterOption, maxDistance === distance && styles.filterOptionActive]}
