@@ -3,7 +3,8 @@ import {ActivityIndicator,Alert,AppState,KeyboardAvoidingView,Platform,ScrollVie
  StyleSheet,Text,TextInput,View,Image} from 'react-native';
 import {ArrowLeft,ArrowUp,Check,CheckCheck,ImagePlus,MessageCircle,RotateCw,Search,X} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import {chatPhotoPath,decodeChatPhotoBase64} from './lib/chatPhoto';
+import {chatPhotoPath,decodeChatPhotoBase64,detectChatPhotoMime} from './lib/chatPhoto';
+import type {ChatPhotoMime} from './lib/chatPhoto';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {MotionPressable} from './Motion';
@@ -44,11 +45,12 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [chatError,setChatError]=useState('');
- const [photo,setPhoto]=useState<{uri:string;base64:string}|null>(null);
+ const [photo,setPhoto]=useState<{uri:string;base64:string;mime:ChatPhotoMime}|null>(null);
  const [mediaUrls,setMediaUrls]=useState<Record<string,string>>({});
  const expiresRef=useRef<Record<string,number>>({});
  const uploadedPhotoRef=useRef<{token:string;path:string}|null>(null);
  const scrollRef=useRef<any>(null);
+ const stickToBottomRef=useRef(true);
  const selectedRef=useRef<string|null>(null);
  const tokenRef=useRef<string|null>(null);
  selectedRef.current=selectedId;
@@ -85,7 +87,7 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
       throw new Error('Choose a photo smaller than 8MB.');
    if(base64.length*0.75>8*1024*1024)
       throw new Error('Choose a smaller photo to send.');
-   setPhoto({uri:asset.uri,base64});
+   setPhoto({uri:asset.uri,base64,mime:detectChatPhotoMime(base64)});
    tokenRef.current=null;uploadedPhotoRef.current=null;
   }catch(error:any){
    Alert.alert('Photo unavailable',error?.message||'Could not choose the photo.');
@@ -158,6 +160,7 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
 
  const loadOlder=async()=>{
   if(!selectedId||!hasOlder||loadingOlder||!thread.length)return;
+  stickToBottomRef.current=false;
   setLoadingOlder(true);
   const first=thread[0];
   const {data,error:loadError}=await supabase.from('messages')
@@ -225,6 +228,7 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
  const send=async()=>{
   const body=draft.trim()||(photo?'📷 Photo':'');
   if(!selectedId||!uid||!body||busy)return;
+  const targetConversationId=selectedId;
   if(body.length>4000){
    Alert.alert('Message too long','Keep messages under 4000 characters.');return;
   }
@@ -234,12 +238,12 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
   try{
    let attachmentPath:string|null=null;
    if(photo){
-    attachmentPath=chatPhotoPath(selectedId,uid,token);
+    attachmentPath=chatPhotoPath(targetConversationId,uid,token,photo.mime);
     if(uploadedPhotoRef.current?.token!==token ||
        uploadedPhotoRef.current?.path!==attachmentPath){
       const bytes=decodeChatPhotoBase64(photo.base64);
       const {error:uploadError}=await supabase.storage.from('tradarr-chat')
-        .upload(attachmentPath,bytes,{contentType:'image/jpeg',cacheControl:'3600',upsert:false});
+        .upload(attachmentPath,bytes,{contentType:photo.mime,cacheControl:'3600',upsert:false});
       if(uploadError){
         // If the network failed after an upload actually succeeded, verify
         // the private object rather than uploading a duplicate.
@@ -250,10 +254,10 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
       uploadedPhotoRef.current={token,path:attachmentPath};
     }
    }
-   const payload:any={conversation_id:selectedId,sender_id:uid,body,client_token:token};
+   const payload:any={conversation_id:targetConversationId,sender_id:uid,body,client_token:token};
    if(attachmentPath){
      payload.attachment_path=attachmentPath;
-     payload.attachment_mime='image/jpeg';
+     payload.attachment_mime=photo?.mime||'image/jpeg';
    }
    let {data,error:sendError}=await supabase.from('messages').insert(payload)
      .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
@@ -265,10 +269,13 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
      data=prior.data;sendError=prior.error;
    }
    if(sendError||!data)throw sendError||new Error('Could not confirm delivery. Tap Send to retry.');
-   setThread(old=>old.some(m=>m.id===data.id)?old:[...old,data as Message]);
-   void signPhotos([data as Message]);
-   setDraft('');setPhoto(null);
-   uploadedPhotoRef.current=null;tokenRef.current=null;
+   if(selectedRef.current===targetConversationId){
+     setThread(old=>old.some(m=>m.id===data.id)?old:[...old,data as Message]);
+     stickToBottomRef.current=true;
+     void signPhotos([data as Message]);
+     setDraft('');setPhoto(null);
+     uploadedPhotoRef.current=null;tokenRef.current=null;
+   }
    void loadInbox();
   }catch(error:any){
    setChatError(error?.message||'Could not send. Tap Send again to retry.');
@@ -285,7 +292,8 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
    keyboardVerticalOffset={Platform.OS==='ios'?20:0}>
   {selected ? <>
     <View style={s.chatHeader}>
-      <MotionPressable onPress={()=>{setSelectedId(null);setDraft('');tokenRef.current=null}}
+      <MotionPressable onPress={()=>{setSelectedId(null);setDraft('');setPhoto(null);
+        uploadedPhotoRef.current=null;tokenRef.current=null;stickToBottomRef.current=true;}}
         style={s.back} accessibilityRole="button" accessibilityLabel="Back to inbox">
        <ArrowLeft size={21} color={theme.colors.ink}/>
       </MotionPressable>
@@ -301,8 +309,14 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
     {chatError ? <MotionPressable onPress={()=>{void loadThread(selected.id)}} style={s.errorBar}>
      <Text style={s.errorText}>{chatError} · Tap to refresh</Text></MotionPressable> : null}
     <ScrollView ref={scrollRef} style={s.messages} contentContainerStyle={s.messagesContent}
-      keyboardShouldPersistTaps="handled"
-      onContentSizeChange={()=>scrollRef.current?.scrollToEnd({animated:true})}>
+      keyboardShouldPersistTaps="handled" scrollEventThrottle={100}
+      onScroll={(event:any)=>{
+        const {contentOffset,contentSize,layoutMeasurement}=event.nativeEvent;
+        stickToBottomRef.current=contentOffset.y+layoutMeasurement.height>=contentSize.height-95;
+      }}
+      onContentSizeChange={()=>{
+        if(stickToBottomRef.current)scrollRef.current?.scrollToEnd({animated:true});
+      }}>
       {hasOlder?<MotionPressable disabled={loadingOlder} style={s.more} onPress={()=>{void loadOlder()}}>
        <Text style={s.moreText}>{loadingOlder?'Loading…':'Load earlier messages'}</Text>
       </MotionPressable>:null}
@@ -310,6 +324,11 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
        thread.length?thread.map(m=>{
         const mine=m.sender_id===uid;
         return <View key={m.id} style={[s.bubble,mine?s.mine:s.theirs]}>
+         {m.attachment_path&&mediaUrls[m.attachment_path]?(
+           <Image source={{uri:mediaUrls[m.attachment_path]}}
+             style={{width:220,height:190,borderRadius:13,backgroundColor:'#D7E4DF'}}
+             resizeMode="contain" accessibilityLabel="Photo attachment" />
+          ):null}
          <Text style={[s.body,mine&&s.mineText]}>{m.body}</Text>
          <View style={s.messageMeta}>
           <Text style={[s.time,mine&&s.mineText]}>{fmt(m.created_at)}</Text>
@@ -325,12 +344,30 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
      {quick.map(t=><MotionPressable key={t} onPress={()=>{setDraft(t);tokenRef.current=null;setChatError('')}}
       style={s.quickChip}><Text style={s.quickText} numberOfLines={1}>{t}</Text></MotionPressable>)}
     </ScrollView>
+    {photo?<View style={{paddingHorizontal:12,paddingVertical:9,
+      backgroundColor:'#FFFFFF',flexDirection:'row',alignItems:'center',gap:12}}>
+      <Image source={{uri:photo.uri}} style={{height:62,width:72,borderRadius:11}} resizeMode="cover"/>
+      <View style={{flex:1}}>
+        <Text style={{fontSize:13,fontWeight:'800',color:theme.colors.ink}}>Photo ready to send</Text>
+        <Text style={{fontSize:11,color:theme.colors.muted}}>Private to this conversation · up to 8 MB</Text>
+      </View>
+      <MotionPressable accessibilityRole="button" accessibilityLabel="Remove attached photo"
+        onPress={()=>{setPhoto(null);tokenRef.current=null;uploadedPhotoRef.current=null}}>
+        <X size={20} color={theme.colors.muted}/>
+      </MotionPressable>
+    </View>:null}
     <View style={s.composer}>
+     <MotionPressable onPress={()=>{void pickPhoto()}} disabled={busy}
+      accessibilityRole="button" accessibilityLabel="Attach a photo"
+      style={{height:44,width:39,alignItems:'center',justifyContent:'center'}}>
+       <ImagePlus size={22} color={theme.colors.teal}/>
+     </MotionPressable>
      <TextInput value={draft} multiline maxLength={4000}
       onChangeText={text=>{setDraft(text);tokenRef.current=null;setChatError('')}}
       style={s.input} placeholder="Write your message…" placeholderTextColor={theme.colors.muted}
       accessibilityLabel="Message text" textAlignVertical="top"/>
-     <MotionPressable style={[s.send,(!draft.trim()||busy)&&{opacity:.45}]} disabled={!draft.trim()||busy}
+     <MotionPressable style={[s.send,((!draft.trim()&&!photo)||busy)&&{opacity:.45}]}
+       disabled={(!draft.trim()&&!photo)||busy}
        onPress={()=>{void send()}} accessibilityRole="button" accessibilityLabel="Send message">
       {busy?<ActivityIndicator size="small" color="#FFFFFF"/>:<ArrowUp color="#FFFFFF" size={20}/>}
      </MotionPressable>
