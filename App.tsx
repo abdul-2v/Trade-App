@@ -2014,6 +2014,39 @@ function MapScreen({
   const [marketError, setMarketError] = useState(false);
   const [reloadMarketplace, setReloadMarketplace] = useState(0);
   const [distanceOrigin, setDistanceOrigin] = useState('Leicester centre');
+  const [searchAreaText, setSearchAreaText] = useState('');
+  const [manualArea, setManualArea] = useState<{latitude:number;longitude:number;label:string}|null>(null);
+  const [findingArea, setFindingArea] = useState(false);
+  const [areaSearchError, setAreaSearchError] = useState('');
+
+  const findPostcode = async () => {
+    if (findingArea) return;
+    const code = searchAreaText.trim().toUpperCase().replace(/\s+/g,'');
+    const fullPostcode = /^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(code);
+    const outwardCode = /^[A-Z]{1,2}\d[A-Z\d]?$/.test(code);
+    if (!fullPostcode && !outwardCode) {
+      setAreaSearchError('Enter a UK postcode or district, for example LE1 or LE1 7RH.');
+      return;
+    }
+    setFindingArea(true);
+    setAreaSearchError('');
+    try {
+      const api = fullPostcode ? 'postcodes' : 'outcodes';
+      const response = await fetch('https://api.postcodes.io/' + api + '/' + encodeURIComponent(code));
+      const result = (await response.json())?.result;
+      if (!response.ok || !result || !Number.isFinite(result.latitude) || !Number.isFinite(result.longitude))
+        throw new Error('We couldn’t find that postcode. Please check it and try again.');
+      const label = fullPostcode
+        ? String(result.outcode || code.slice(0,-3)).toUpperCase()
+        : code;
+      setManualArea({latitude:result.latitude,longitude:result.longitude,label});
+      setSelectedMapTrade(null);
+    } catch (error:any) {
+      setAreaSearchError(error?.message || 'Could not search this area. Check your connection.');
+    } finally {
+      setFindingArea(false);
+    }
+  };
 
   // TEMPORARY TESTING MODE: show existing sample tradespeople by default.
   // Banner labels them as fictional; users can switch back to real profiles.
@@ -2039,12 +2072,14 @@ function MapScreen({
     const channels: any[] = [];
 
     const loadMarketplace = async () => {
-      let reference = { latitude: 52.6369, longitude: -1.1398 };
-      setDistanceOrigin('Leicester centre');
+      let reference = manualArea
+        ? {latitude:manualArea.latitude,longitude:manualArea.longitude}
+        : {latitude:52.6369,longitude:-1.1398};
+      if (active) setDistanceOrigin(manualArea ? manualArea.label : 'Leicester centre');
 
       try {
-        const permission = await Location.requestForegroundPermissionsAsync();
-        if (permission.status === 'granted') {
+        const permission = manualArea ? null : await Location.getForegroundPermissionsAsync();
+        if (permission?.status === 'granted') {
           const position = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
           });
@@ -2215,7 +2250,7 @@ function MapScreen({
     };
     // Expiring a live pin must not depend on a database change event.
     // Refresh frequently enough to replace it with the saved work-area pin.
-  }, [reloadMarketplace]);
+  }, [reloadMarketplace,manualArea?.latitude,manualArea?.longitude]);
 
   const activeFilterCount =
     (maxDistance !== 50 ? 1 : 0) +
@@ -2291,6 +2326,38 @@ function MapScreen({
           <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
           <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
         </ScrollView>
+        <View style={{marginHorizontal:16,marginTop:8,marginBottom:8,gap:6}}>
+          <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+            <View style={{flex:1,backgroundColor:'#FFFFFF',borderColor:'#E6E5DF',
+              borderWidth:1,borderRadius:16,minHeight:43,flexDirection:'row',
+              paddingHorizontal:12,alignItems:'center',gap:8}}>
+              <MapPin size={16} color={theme.colors.teal} />
+              <TextInput value={searchAreaText} onChangeText={v=>{setSearchAreaText(v);setAreaSearchError('');}}
+                placeholder="Search postcode · LE1 or LE1 7RH"
+                placeholderTextColor="#8B9596" style={{flex:1,minHeight:41,fontSize:13,color:theme.colors.ink}}
+                autoCapitalize="characters" autoCorrect={false}
+                returnKeyType="search" onSubmitEditing={findPostcode} />
+            </View>
+            <MotionPressable onPress={findPostcode} disabled={findingArea} accessibilityRole="button"
+              accessibilityLabel="Find tradespeople covering this postcode"
+              style={{height:43,minWidth:67,borderRadius:14,
+                justifyContent:'center',alignItems:'center',backgroundColor:theme.colors.darkTeal}}>
+              {findingArea ? <ActivityIndicator size="small" color="#FFFFFF"/> :
+                <Text style={{fontSize:12,color:'#FFFFFF',fontWeight:'800'}}>Find</Text>}
+            </MotionPressable>
+          </View>
+          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <Text style={{fontSize:11,color:theme.colors.muted}}>
+              {manualArea ? 'Searching around '+manualArea.label : 'Showing your current area when location is enabled'}
+            </Text>
+            {manualArea ? <MotionPressable onPress={()=>{
+              setManualArea(null);setSearchAreaText('');setAreaSearchError('');setSelectedMapTrade(null);
+            }} accessibilityRole="button" accessibilityLabel="Clear searched postcode">
+              <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.teal}}>Use my area</Text>
+            </MotionPressable> : null}
+          </View>
+          {areaSearchError ? <Text style={{fontSize:12,color:theme.colors.coralDark}}>{areaSearchError}</Text> : null}
+        </View>
         {showDemoProfiles ? (
           <MotionPressable
             style={styles.marketDataBanner}
@@ -2392,7 +2459,7 @@ function MapScreen({
         </ScrollView>
       ) : (
         <View style={{ flex: 1 }}>
-          <MapMock trades={filtered} onTrade={setSelectedMapTrade} />
+          <MapMock trades={filtered} onTrade={setSelectedMapTrade} focusArea={manualArea} />
 
           {selectedMapTrade ? (
             <View style={styles.mapPreviewCard}>
@@ -2573,10 +2640,12 @@ function MapMock({
   trades: mapTrades,
   onTrade,
   compact = false,
+  focusArea = null,
 }: {
   trades: Trade[];
   onTrade: (trade: Trade) => void;
   compact?: boolean;
+  focusArea?: {latitude:number;longitude:number;label:string}|null;
 }) {
   const fallback = {
     latitude: 52.6369,
@@ -2591,8 +2660,13 @@ function MapMock({
     let mounted = true;
 
     const loadLocation = async () => {
+      if (focusArea) {
+        setCentre({latitude:focusArea.latitude,longitude:focusArea.longitude});
+        setLocationStatus('denied'); // The searched postcode is not the customer's GPS.
+        return;
+      }
       try {
-        const permission = await Location.requestForegroundPermissionsAsync();
+        const permission = await Location.getForegroundPermissionsAsync();
 
         if (permission.status !== 'granted') {
           if (mounted) setLocationStatus('denied');
@@ -2620,7 +2694,7 @@ function MapMock({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [focusArea?.latitude,focusArea?.longitude]);
 
   const offsets = [
     { lat: 0.006, lng: -0.004 },
@@ -2875,6 +2949,7 @@ function MapMock({
   let markers = ${escapedMarkers};
   let user = ${userPosition};
   let selectedMarkerId = '';
+  let activeFocus = null;
   const map = L.map('map', {
     zoomControl: false,
     attributionControl: true,
@@ -3080,10 +3155,15 @@ function MapMock({
     }
     scheduleTradeRender();
   };
-  window.tradarrRecenter=function(){
-    if(user.visible)map.flyTo([user.lat,user.lng],Math.max(14.4,map.getZoom()),{
-      duration:.66,easeLinearity:.23
+  window.tradarrSetFocus=function(next){
+    activeFocus=Array.isArray(next)&&next.length===2?next:null;
+    if(activeFocus)map.flyTo(activeFocus,Math.max(13.8,map.getZoom()),{
+      duration:.65,easeLinearity:.23
     });
+  };
+  window.tradarrRecenter=function(){
+    const target=activeFocus || (user.visible?[user.lat,user.lng]:null);
+    if(target)map.flyTo(target,Math.max(14.4,map.getZoom()),{duration:.66,easeLinearity:.23});
   };
   map.on('zoomend moveend resize', scheduleTradeRender);
   if (markers.length > 0) {
@@ -3118,6 +3198,11 @@ function MapMock({
     mapRef.current?.injectJavaScript('window.tradarrSetUser&&window.tradarrSetUser('+userPosition+');true;');
   },[mapReady,userPosition]);
   useEffect(()=>{
+    if(!mapReady)return;
+    const location=focusArea ? [focusArea.latitude,focusArea.longitude] : null;
+    mapRef.current?.injectJavaScript('window.tradarrSetFocus&&window.tradarrSetFocus('+JSON.stringify(location)+');true;');
+  },[mapReady,focusArea?.latitude,focusArea?.longitude]);
+  useEffect(()=>{
     if(!mapReady||recenterNonce===0)return;
     mapRef.current?.injectJavaScript('window.tradarrRecenter&&window.tradarrRecenter();true;');
   },[mapReady,recenterNonce]);
@@ -3148,7 +3233,7 @@ function MapMock({
       <MotionPressable
         style={styles.mapReferenceLocationButton}
         onPress={() => setRecenterNonce(value => value + 1)}
-        accessibilityLabel="Recenter map on my location"
+        accessibilityLabel={focusArea ? 'Recenter map on searched postcode' : 'Recenter map on my location'}
       >
         <AppIcon icon={{ ios: 'location.fill', android: 'my_location' }} size={20} color={C.navy2} />
       </MotionPressable>
