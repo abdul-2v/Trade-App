@@ -790,7 +790,8 @@ export default function App() {
     </TradeShell>;
     if (tradeScreen === 'tradeRoutes') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeRoutePlannerScreen goBack={() => navigateTrade('tradeTools')}
-        openDiary={() => navigateTrade('tradeDiary')} />
+        openDiary={() => navigateTrade('tradeDiary')}
+        openMessages={() => navigateTrade('tradeMessages')} />
     </TradeShell>;
     if (tradeScreen === 'tradeGrid') return <TradeShell current="tradeGrid" navigate={navigateTrade}>
       <TradeGridScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
