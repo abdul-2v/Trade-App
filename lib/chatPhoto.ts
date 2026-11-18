@@ -1,4 +1,4 @@
-/** Decode Expo ImagePicker JPEG base64 into bytes without Blob/FormData,
+/** Decode ImagePicker JPEG/PNG/WebP base64 into bytes without Blob/FormData,
  * which are unreliable for uploads from native React Native.
  */
 const TABLE='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -24,9 +24,24 @@ export function decodeChatPhotoBase64(base64:string):Uint8Array{
  }
  return bytes;
 }
-export function chatPhotoPath(conversationId:string,senderId:string,token:string){
+export type ChatPhotoMime='image/jpeg'|'image/png'|'image/webp';
+/** Check decoded image magic bytes rather than trusting the filename or picker MIME. */
+export function detectChatPhotoMime(base64:string):ChatPhotoMime {
+ const clean=base64.replace(/\s/g,'');
+ if(clean.startsWith('/9j/'))return 'image/jpeg';
+ if(clean.startsWith('iVBORw0KGgo'))return 'image/png';
+ if(clean.startsWith('UklGR')) {
+   const first=decodeChatPhotoBase64(clean.slice(0,24));
+   const riff=String.fromCharCode(...first.slice(0,4));
+   const webp=String.fromCharCode(...first.slice(8,12));
+   if(riff==='RIFF'&&webp==='WEBP')return 'image/webp';
+ }
+ throw new Error('This image format is not supported. Choose a JPEG, PNG or WebP photo.');
+}
+export function chatPhotoPath(conversationId:string,senderId:string,token:string,mime:ChatPhotoMime='image/jpeg'){
  const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
  if(!uuid.test(conversationId)||!uuid.test(senderId)||!uuid.test(token))
   throw new Error('Invalid photo upload identifiers.');
- return conversationId+'/'+senderId+'/'+token+'.jpg';
+ const ext=mime==='image/png'?'.png':mime==='image/webp'?'.webp':'.jpg';
+ return conversationId+'/'+senderId+'/'+token+ext;
 }
