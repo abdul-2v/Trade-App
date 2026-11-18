@@ -8,7 +8,7 @@ import {formatUKDateTime} from './lib/scheduling';
 import type {RouteMode} from './lib/routeMatching';
 
 type Appointment={id:string;title:string;starts_at:string;ends_at:string;address:string|null};
-type Journey={id:string;mode:RouteMode;trade:string;start_area:string;end_area:string;
+type Journey={id:string;anchor_appointment_id:string;mode:RouteMode;trade:string;start_area:string;end_area:string;
  starts_at:string;ends_at:string;status:string;max_deviation_miles:number;max_extra_visits:number};
 type Stop={jobId:string;routePlanId:string;issue:string;status:string;
  requestedStart:string|null;requestedEnd:string|null;latitude:number|null;longitude:number|null};
@@ -57,7 +57,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
    supabase.from('trade_appointments').select('id,title,starts_at,ends_at,address')
     .eq('tradesperson_id',user.id).eq('status','scheduled')
     .gte('starts_at',new Date().toISOString()).order('starts_at').limit(100),
-   supabase.from('trade_route_plans').select('id,mode,trade,start_area,end_area,starts_at,ends_at,status,max_deviation_miles,max_extra_visits')
+   supabase.from('trade_route_plans').select('id,anchor_appointment_id,mode,trade,start_area,end_area,starts_at,ends_at,status,max_deviation_miles,max_extra_visits')
     .eq('tradesperson_id',user.id).order('created_at',{ascending:false}).limit(80),
    supabase.from('job_offers').select('route_plan_id,job_id,status')
     .eq('tradesperson_id',user.id).eq('status','accepted')
@@ -129,10 +129,25 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     'Agree appointment times with customers and confirm their addresses before opening directions.');return;
   }
   const max=4;
-  const selected=scheduled.slice(0,max);
+  const selected=scheduled.slice(0,plan.mode==='on_my_way'?1:max);
   const points=selected.map(x=>x.latitude+','+x.longitude);
-  const destination=encodeURIComponent(points[points.length-1]);
-  const waypoints=points.length>1?'&waypoints='+encodeURIComponent(points.slice(0,-1).join('|')):'';
+  const anchor=appointments.find(x=>x.id===plan.anchor_appointment_id);
+  const originalDestination=anchor?.address?.trim();
+  // For On My Way, the extra stop is a waypoint before the original diary job.
+  // Never navigate silently to a coarse area instead of a precise appointment address.
+  if(plan.mode==='on_my_way'&&!originalDestination){
+   Alert.alert('Original appointment address needed',
+     'Add the exact destination to your diary appointment first. For now, directions will only show the accepted extra stop.',[
+      {text:'Cancel',style:'cancel'},
+      {text:'Navigate to extra stop',onPress:()=>openStopDirections(selected[0])}
+     ]);
+   return;
+  }
+  const destination=encodeURIComponent(plan.mode==='on_my_way'
+    ? originalDestination! : points[points.length-1]);
+  const routeWaypoints=plan.mode==='on_my_way'?points:points.slice(0,-1);
+  const waypoints=routeWaypoints.length?
+    '&waypoints='+encodeURIComponent(routeWaypoints.join('|')):'';
   const url='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+
     destination+waypoints;
   if(scheduled.length>max){
@@ -325,7 +340,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           onPress={()=>openJourneyDirections(j)} accessibilityRole="button">
           <Text style={s.primaryText}>Open scheduled stops in Maps</Text>
         </MotionPressable>:null}
-        <Text style={s.note}>Stops follow agreed appointment times; Google Maps calculates directions when opened. Tradarr does not yet optimise multi-stop travel time.</Text>
+        <Text style={s.note}>Stops follow agreed appointment times; Google Maps calculates driving directions when opened. On My Way includes the original diary destination when its address is saved. Tradarr does not optimise road travel times or guarantee detours.</Text>
        </View>;
      })()}
 
