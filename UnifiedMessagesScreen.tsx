@@ -41,7 +41,7 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [chatError,setChatError]=useState('');
- const scrollRef=useRef<{scrollToEnd:(options?:{animated?:boolean})=>void}|null>(null);
+ const scrollRef=useRef<any>(null);
  const selectedRef=useRef<string|null>(null);
  const tokenRef=useRef<string|null>(null);
  selectedRef.current=selectedId;
