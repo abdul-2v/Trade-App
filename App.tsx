@@ -23,6 +23,8 @@ import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
 import {APPOINTMENT_TIMES,APPOINTMENT_LENGTHS,nextUKDays,ukSlotToISO,advanceISOByMinutes,formatUKDateTime} from './lib/scheduling';
+import {rankPublishedRoutes} from './lib/routeMatching';
+import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
@@ -1543,6 +1545,9 @@ function RouteSaverScreen({
   const [deadline, setDeadline] = useState<'Today' | '48 hours' | 'This week'>('48 hours');
   const [streetRun, setStreetRun] = useState(false);
   const [reserving, setReserving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [areaPostcode, setAreaPostcode] = useState('');
+  const [previewPlans, setPreviewPlans] = useState<RouteCandidate[]|null>(null);
 
   useEffect(() => {
     if (!serviceCatalog[trade].includes(service)) {
@@ -1550,148 +1555,120 @@ function RouteSaverScreen({
     }
   }, [trade]);
 
-  // Route slots and prices must be based on real accepted schedules, not demo profiles.
-  // Until scheduling is connected, this screen collects a genuine flexible request.
+  const deadlineISO=()=>{
+    if(deadline==='Today'){
+      return ukSlotToISO(nextUKDays(1)[0],'23:59')||new Date(Date.now()+86400000).toISOString();
+    }
+    return new Date(Date.now()+(deadline==='48 hours'?48:168)*3600000).toISOString();
+  };
 
-  const reserve = async () => {
-    if (reserving || !service.trim()) return;
+  const getJobPoint=async()=>{
+    const code=areaPostcode.trim().toUpperCase().replace(/\\s/g,'');
+    if(code){
+      const full=/^[A-Z]{1,2}\\d[A-Z\\d]?\\d[A-Z]{2}$/.test(code);
+      const outcode=/^[A-Z]{1,2}\\d[A-Z\\d]?$/.test(code);
+      if(!full&&!outcode)throw new Error('Enter a UK postcode or district such as LE1 or LE1 7RH.');
+      const response=await fetch('https://api.postcodes.io/'+(full?'postcodes':'outcodes')+'/'+encodeURIComponent(code));
+      const found=(await response.json())?.result;
+      if(!response.ok||!found)throw new Error('That postcode could not be located.');
+      return {latitude:Number(found.latitude),longitude:Number(found.longitude),source:'postcode' as const};
+    }
+    const permission=await Location.requestForegroundPermissionsAsync();
+    if(permission.status!=='granted')
+      throw new Error('Enter a job-area postcode, or allow location access, to find relevant journeys.');
+    const p=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
+    return {latitude:p.coords.latitude,longitude:p.coords.longitude,source:'phone' as const};
+  };
 
+  const findPlans=async(point:{latitude:number;longitude:number})=>{
+    const mode=streetRun&&deadline!=='Today'?'street_run':'on_my_way';
+    const {data,error}=await supabase.from('trade_route_plans')
+      .select('id,tradesperson_id,trade,mode,start_latitude,start_longitude,end_latitude,end_longitude,starts_at,ends_at,max_deviation_miles,status,max_extra_visits')
+      .eq('mode',mode).eq('trade',trade).eq('status','open')
+      .gte('starts_at',new Date().toISOString()).lte('starts_at',deadlineISO())
+      .order('starts_at',{ascending:true}).limit(200);
+    if(error)throw error;
+    const ranked=rankPublishedRoutes((data||[]) as PublishedRoute[],
+      point,trade,mode,deadlineISO());
+    // One offer per professional; choose the closest eligible published journey.
+    const seen=new Set<string>();
+    return ranked.filter(p=>{
+      if(seen.has(p.plan.tradesperson_id))return false;
+      seen.add(p.plan.tradesperson_id);return true;
+    }).slice(0,8);
+  };
+
+  const preview=async()=>{
+    if(checking)return;
+    setChecking(true);
+    try{
+      const point=await getJobPoint();
+      setPreviewPlans(await findPlans(point));
+    }catch(error:any){Alert.alert('Could not check journeys',error?.message||'Try again.');}
+    finally{setChecking(false)}
+  };
+
+  const reserve=async()=>{
+    if(reserving||!service.trim())return;
     setReserving(true);
+    try{
+      const {data:{user}}=await supabase.auth.getUser();
+      if(!user)throw new Error('Please sign in again.');
+      const point=await getJobPoint();
+      const matches=await findPlans(point);
+      const mode=streetRun&&deadline!=='Today'?'street_run':'route';
+      const timing='Flexible request · '+deadline;
+      const {data:job,error:jobError}=await supabase.from('jobs').insert({
+        customer_id:user.id,trade,issue:service,
+        job_mode:mode,timing,
+        latitude:Number(point.latitude.toFixed(2)),
+        longitude:Number(point.longitude.toFixed(2)),
+        location_label:point.source==='postcode'?'Approximate postcode work area':'Approximate requested area',
+        search_radius_miles:15,
+        flexible_deadline:deadlineISO(),
+        status:matches.length?'offered':'posted'
+      }).select('id').single();
+      if(jobError||!job)throw jobError||new Error('Could not create request.');
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) throw new Error('Please sign in again.');
-
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        throw new Error('Location permission is needed to find route-compatible tradespeople nearby.');
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      const {error:locationError}=await supabase.from('job_locations').insert({
+        job_id:job.id,customer_id:user.id,latitude:point.latitude,
+        longitude:point.longitude,
+        address_label:point.source==='postcode'
+          ? 'Postcode approximation; exact property address must be confirmed'
+          : 'Phone position approximation; confirm property address before visiting'
       });
-
-      const coords = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
-
-      const [{ data: availabilityRows }, { data: profileRows }, { data: presenceRows }] = await Promise.all([
-        supabase
-          .from('trade_availability')
-          .select('user_id, radius_miles')
-          .eq('is_available', true),
-        supabase
-          .from('tradesperson_profiles')
-          .select('user_id, primary_trade, display_name, avatar_url, rating, review_count, is_verified, is_insured, public_phone, bio')
-          .eq('primary_trade', trade),
-        supabase
-          .from('trade_map_presence')
-          .select('user_id, latitude, longitude'),
-      ]);
-
-      const availabilityMap = new Map(
-        (availabilityRows ?? []).map(row => [row.user_id, Number(row.radius_miles) || 10])
-      );
-      const presenceMap = new Map(
-        (presenceRows ?? []).map(row => [
-          row.user_id,
-          { latitude: Number(row.latitude), longitude: Number(row.longitude) },
-        ])
-      );
-
-      const liveCandidates = (profileRows ?? [])
-        .map(profile => {
-          const publicLocation = presenceMap.get(profile.user_id);
-          const radius = availabilityMap.get(profile.user_id);
-          if (!publicLocation || !radius) return null;
-          const distance = distanceMilesBetween(coords, publicLocation);
-          if (distance > radius) return null;
-          return {
-            profile,
-            distance,
-            eta: estimatedDispatchEta(distance),
-          };
-        })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.distance - b.distance)
-        .slice(0, 8) as any[];
-
-      // Price and detour are deliberately left unset until a real tradesperson confirms them.
-      const timing = 'Flexible request · ' + deadline;
-
-      const { data: job, error: jobError } = await supabase
-        .from('jobs')
-        .insert({
-          customer_id: user.id,
-          trade,
-          issue: service,
-          job_mode: streetRun ? 'street_run' : 'route',
-          timing,
-          latitude: Number(coords.latitude.toFixed(2)),
-          longitude: Number(coords.longitude.toFixed(2)),
-          location_label: 'Approximate flexible job area',
-          search_radius_miles: 15,
-          status: liveCandidates.length ? 'offered' : 'posted',
-        })
-        .select('id')
-        .single();
-
-      if (jobError || !job) throw jobError || new Error('Could not create flexible job.');
-
-      const { error: exactLocationError } = await supabase.from('job_locations').insert({
-        job_id: job.id,
-        customer_id: user.id,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        address_label: 'Customer job location',
-      });
-
-      if (exactLocationError) {
-        await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', job.id);
-        throw exactLocationError;
+      if(locationError){
+        await supabase.from('jobs').update({status:'cancelled'}).eq('id',job.id);
+        throw locationError;
       }
-
-      if (liveCandidates.length) {
-        const offerRows = liveCandidates.map(candidate => ({
-          job_id: job.id,
-          tradesperson_id: candidate.profile.user_id,
-          distance_miles: Number(candidate.distance.toFixed(2)),
-          eta_minutes: candidate.eta,
-          status: 'offered',
+      if(matches.length){
+        const rows=matches.map(p=>({
+          job_id:job.id,tradesperson_id:p.plan.tradesperson_id,
+          route_plan_id:p.plan.id,
+          distance_miles:p.proximityMiles,
+          eta_minutes:null,route_price:null,detour_minutes:null,status:'offered'
         }));
-
-        const { error: offerError } = await supabase.from('job_offers').insert(offerRows);
-        if (offerError) {
-          await supabase.from('jobs').update({ status: 'cancelled' }).eq('id', job.id);
+        const {error:offerError}=await supabase.from('job_offers').insert(rows);
+        if(offerError){
+          await supabase.from('jobs').update({status:'cancelled'}).eq('id',job.id);
           throw offerError;
         }
       }
-
       addRequest({
-        id: job.id,
-        trade,
-        issue: service,
-        urgency: (streetRun ? 'Street Run interest' : 'On My Way') + ' · ' + timing,
-        status: liveCandidates.length ? 'Waiting for tradesperson' : 'Posted — waiting for local supply',
-        source: 'job',
+        id:job.id,trade,issue:service,
+        urgency:(mode==='street_run'?'Street Run':'On My Way')+' · '+timing,
+        status:matches.length?'Sent to published journeys':'Posted · awaiting a matching journey',
+        source:'job'
       });
-
-      Alert.alert(
-        streetRun ? 'Flexible group request posted' : 'Flexible request posted',
-        liveCandidates.length
-          ? 'Sent to ' + liveCandidates.length + ' available ' + trade.toLowerCase() + (liveCandidates.length === 1 ? '. ' : 's. ') + 'No price or arrival time is confirmed until a professional responds.'
-          : 'Your request is saved. There are no available ' + trade.toLowerCase() + 's in range yet, so no appointment or savings are confirmed.'
-      );
+      Alert.alert('Flexible request posted',
+        matches.length
+          ? 'Found '+matches.length+' relevant published journey'+(matches.length===1?'':'s')+
+            '. Professionals must still accept, agree a time and confirm pricing. Route fit uses approximate geography.'
+          : 'No eligible published journeys exist for this area and window yet. Your request will be considered when a suitable new journey is published. No visit, price or saving is confirmed.');
       navigate('requests');
-    } catch (error: any) {
-      Alert.alert('Could not post flexible job', error?.message || 'Please try again.');
-    } finally {
-      setReserving(false);
-    }
+    }catch(error:any){
+      Alert.alert('Could not post flexible job',error?.message||'Please try again.');
+    }finally{setReserving(false);}
   };
 
   return (
@@ -1702,7 +1679,7 @@ function RouteSaverScreen({
             <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={18} color={C.text} />
           </MotionPressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.routeEyebrow}>TRADEHUB ROUTE</Text>
+            <Text style={styles.routeEyebrow}>TRADARR ROUTES</Text>
             <Text style={styles.routeTitle}>On My Way</Text>
           </View>
           <View style={styles.routeSavePill}><Text style={styles.routeSavePillText}>FLEXIBLE</Text></View>
@@ -1712,14 +1689,14 @@ function RouteSaverScreen({
           <View style={styles.routeExplainIcon}>
             <AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={24} color={C.orange} />
           </View>
-          <Text style={styles.routeExplainTitle}>Find work that fits your schedule.</Text>
+          <Text style={styles.routeExplainTitle}>Find a route that fits your plans.</Text>
           <Text style={styles.routeExplainText}>
-            Tell us what you need and when you're available. Nearby tradespeople can respond if they have space in their schedule. Any price or saving is agreed directly with them.
+            Tell us what you need and when you're available. Tradarr checks published journeys anchored to real diary appointments. A tradesperson reviews any potential match and confirms timing and pricing directly.
           </Text>
           <View style={styles.routeExplainSteps}>
             <Text style={styles.routeExplainStep}>1  Pick the job</Text>
             <Text style={styles.routeExplainStep}>2  Pick a deadline</Text>
-            <Text style={styles.routeExplainStep}>3  Review a real offer</Text>
+            <Text style={styles.routeExplainStep}>3  Get a professional's acceptance</Text>
           </View>
         </View>
 
@@ -1774,7 +1751,7 @@ function RouteSaverScreen({
             <View style={{ flex: 1 }}>
               <Text style={styles.streetRunEyebrow}>STREET RUN · OPTIONAL</Text>
               <Text style={styles.streetRunTitle}>Open to a grouped visit?</Text>
-              <Text style={styles.streetRunText}>Allow a tradesperson to combine your visit with nearby work if a genuine opportunity comes up. No discount is guaranteed.</Text>
+              <Text style={styles.streetRunText}>Allow a tradesperson to combine your visit with nearby work if a genuine opportunity comes up. No discount or road detour is guaranteed.</Text>
             </View>
             <View style={[styles.streetRunCheck, streetRun && styles.streetRunCheckActive]}>
               {streetRun ? <AppIcon icon={{ ios: 'checkmark', android: 'check' }} size={14} color={C.navy} /> : null}
@@ -1782,10 +1759,43 @@ function RouteSaverScreen({
           </MotionPressable>
         ) : null}
 
+        <View style={{borderRadius:18,backgroundColor:'#FFFFFF',padding:15,marginBottom:13,gap:9}}>
+          <Text style={{fontWeight:'900',fontSize:14,color:theme.colors.ink}}>Where is your job?</Text>
+          <Text style={{fontSize:12,color:theme.colors.muted,lineHeight:18}}>
+            Use a UK postcode or district, or leave blank to share your phone's location on request.
+            No exact address is shown to professionals before acceptance.
+          </Text>
+          <TextInput value={areaPostcode} onChangeText={v=>{setAreaPostcode(v);setPreviewPlans(null)}}
+            placeholder="Job area postcode, e.g. LE4" autoCapitalize="characters"
+            autoCorrect={false} placeholderTextColor="#89989A"
+            style={{borderWidth:1,borderColor:'#E2E8E4',borderRadius:12,minHeight:46,
+              paddingHorizontal:12,color:theme.colors.ink,fontSize:14}}/>
+          <MotionPressable disabled={checking} onPress={()=>{void preview()}}
+            style={{backgroundColor:theme.colors.tealTint,borderRadius:12,minHeight:46,
+              alignItems:'center',justifyContent:'center'}}>
+            {checking?<ActivityIndicator color={theme.colors.teal}/>:
+             <Text style={{fontSize:13,color:theme.colors.teal,fontWeight:'900'}}>Check published journeys</Text>}
+          </MotionPressable>
+          {previewPlans ? <View style={{gap:5}}>
+            <Text style={{fontSize:13,fontWeight:'900',color:theme.colors.ink}}>
+              {previewPlans.length?previewPlans.length+' potential matching journey'+(previewPlans.length===1?'':'s')
+                :'No eligible journey currently published'}
+            </Text>
+            <Text style={{fontSize:11,color:theme.colors.muted,lineHeight:18}}>
+              {previewPlans.length
+                ? 'These are approximate geographic matches, not actual road-based detours or confirmed slots.'
+                : 'You can still post interest. New matching published journeys can generate offers.'}
+            </Text>
+            {previewPlans.slice(0,3).map(p=><Text key={p.plan.id} style={{fontSize:11,color:theme.colors.teal}}>
+              · {formatUKDateTime(p.plan.starts_at)} · {p.why}
+            </Text>)}
+          </View> : null}
+        </View>
+
         <View style={styles.routeNoMatch}>
           <Text style={styles.routeNoMatchTitle}>Request a flexible appointment</Text>
           <Text style={styles.routeNoMatchText}>
-            We'll send your job to matching nearby professionals when available. There are no guaranteed route slots, estimated discounts or pre-agreed prices yet.
+            Matching uses published diary-anchored journeys. Professionals can accept a potential extra visit, but the appointment, price and true road-route feasibility must be confirmed before work begins.
           </Text>
           <Text style={[styles.routeNoMatchText, { marginTop: 8 }]}>
             {trade} · {service} · {deadline}
