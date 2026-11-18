@@ -145,29 +145,30 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
  const loadThread=useCallback(async(id:string,showSpinner=false)=>{
   if(showSpinner)setLoadingThread(true);
   const {data, error:readError}=await supabase.from('messages')
-   .select('id,conversation_id,sender_id,body,read_at,created_at,client_token')
+   .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
    .eq('conversation_id',id).order('created_at',{ascending:false}).limit(50);
   if(selectedRef.current!==id)return;
   if(readError){setChatError(readError.message);setLoadingThread(false);return;}
   const next=((data||[]) as Message[]).reverse();
   setThread(next);setHasOlder((data||[]).length===50);setLoadingThread(false);setChatError('');
+  void signPhotos(next);
   const {data:{user}}=await supabase.auth.getUser();
   if(user)void markRead(id,user.id);
- },[markRead]);
+ },[markRead,signPhotos]);
 
  const loadOlder=async()=>{
   if(!selectedId||!hasOlder||loadingOlder||!thread.length)return;
   setLoadingOlder(true);
   const first=thread[0];
   const {data,error:loadError}=await supabase.from('messages')
-   .select('id,conversation_id,sender_id,body,read_at,created_at,client_token')
+   .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
    .eq('conversation_id',selectedId).lt('created_at',first.created_at)
    .order('created_at',{ascending:false}).limit(50);
   setLoadingOlder(false);
   if(loadError){setChatError(loadError.message);return;}
   const older=((data||[]) as Message[]).reverse();
   setThread(old=>[...older.filter(a=>!old.some(b=>a.id===b.id)),...old]);
-  setHasOlder(older.length===50);
+  setHasOlder(older.length===50);void signPhotos(older);
  };
 
  useEffect(()=>{
@@ -211,6 +212,7 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
      const incoming=payload.new as Message;
      if(payload.eventType==='INSERT'){
       setThread(old=>old.some(m=>m.id===incoming.id)?old:[...old,incoming]);
+      void signPhotos([incoming]);
       if(incoming.sender_id!==uid&&uid)void markRead(selectedId,uid);
      }else if(payload.eventType==='UPDATE'){
       setThread(old=>old.map(m=>m.id===incoming.id?{...m,...incoming}:m));
@@ -218,32 +220,60 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
      void loadInbox();
    }).subscribe();
   return()=>{active=false;void supabase.removeChannel(channel);};
- },[selectedId,uid,loadInbox,loadThread,markRead]);
+ },[selectedId,uid,loadInbox,loadThread,markRead,signPhotos]);
 
  const send=async()=>{
-  const body=draft.trim();
+  const body=draft.trim()||(photo?'📷 Photo':'');
   if(!selectedId||!uid||!body||busy)return;
-  if(body.length>4000){Alert.alert('Message too long','Keep messages under 4000 characters.');return;}
+  if(body.length>4000){
+   Alert.alert('Message too long','Keep messages under 4000 characters.');return;
+  }
   const token=tokenRef.current||makeToken();
   tokenRef.current=token;
   setBusy(true);setChatError('');
-  let {data,error:sendError}=await supabase.from('messages').insert({
-   conversation_id:selectedId,sender_id:uid,body,client_token:token
-  }).select('id,conversation_id,sender_id,body,read_at,created_at,client_token').single();
-  if(sendError?.code==='23505'){
-   const existing=await supabase.from('messages')
-    .select('id,conversation_id,sender_id,body,read_at,created_at,client_token')
-    .eq('sender_id',uid).eq('client_token',token).maybeSingle();
-   data=existing.data;sendError=existing.error;
-  }
-  setBusy(false);
-  if(sendError||!data){
-   setChatError(sendError?.message||'Could not confirm delivery. Tap Send to retry.');
-   return; // Keep the original draft and idempotency token.
-  }
-  setThread(old=>old.some(m=>m.id===data.id)?old:[...old,data as Message]);
-  setDraft('');tokenRef.current=null;
-  void loadInbox();
+  try{
+   let attachmentPath:string|null=null;
+   if(photo){
+    attachmentPath=chatPhotoPath(selectedId,uid,token);
+    if(uploadedPhotoRef.current?.token!==token ||
+       uploadedPhotoRef.current?.path!==attachmentPath){
+      const bytes=decodeChatPhotoBase64(photo.base64);
+      const {error:uploadError}=await supabase.storage.from('tradarr-chat')
+        .upload(attachmentPath,bytes,{contentType:'image/jpeg',cacheControl:'3600',upsert:false});
+      if(uploadError){
+        // If the network failed after an upload actually succeeded, verify
+        // the private object rather than uploading a duplicate.
+        const {data:verified}=await supabase.storage.from('tradarr-chat')
+          .createSignedUrl(attachmentPath,60);
+        if(!verified?.signedUrl)throw uploadError;
+      }
+      uploadedPhotoRef.current={token,path:attachmentPath};
+    }
+   }
+   const payload:any={conversation_id:selectedId,sender_id:uid,body,client_token:token};
+   if(attachmentPath){
+     payload.attachment_path=attachmentPath;
+     payload.attachment_mime='image/jpeg';
+   }
+   let {data,error:sendError}=await supabase.from('messages').insert(payload)
+     .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
+     .single();
+   if(sendError?.code==='23505'){
+     const prior=await supabase.from('messages')
+       .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
+       .eq('sender_id',uid).eq('client_token',token).maybeSingle();
+     data=prior.data;sendError=prior.error;
+   }
+   if(sendError||!data)throw sendError||new Error('Could not confirm delivery. Tap Send to retry.');
+   setThread(old=>old.some(m=>m.id===data.id)?old:[...old,data as Message]);
+   void signPhotos([data as Message]);
+   setDraft('');setPhoto(null);
+   uploadedPhotoRef.current=null;tokenRef.current=null;
+   void loadInbox();
+  }catch(error:any){
+   setChatError(error?.message||'Could not send. Tap Send again to retry.');
+   // Keep message, photo and unique retry token until successfully delivered.
+  }finally{setBusy(false);}
  };
 
  const selected=inbox.find(x=>x.id===selectedId)||null;
