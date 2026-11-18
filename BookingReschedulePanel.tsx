@@ -80,20 +80,26 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
   if(next==='accepted')Alert.alert('Appointment rescheduled','Both sides can now see the agreed time in Tradarr.');
  };
 
- if(!currentStart||!currentEnd)return null;
+ const confirmed=Boolean(currentStart&&currentEnd);
  const days=nextUKDays(10);
  const pending=Boolean(change);
  return <View style={s.card}>
   <View style={s.head}><CalendarClock size={22} color={theme.colors.teal}/>
-   <View style={{flex:1}}><Text style={s.title}>Confirmed appointment</Text>
-    <Text style={s.detail}>{formatUKDateTime(currentStart)} · {Math.round((Date.parse(currentEnd)-Date.parse(currentStart))/60000)} minutes</Text>
+   <View style={{flex:1}}><Text style={s.title}>
+     {confirmed?'Confirmed appointment':'Agree your appointment time'}
+   </Text>
+    {currentStart&&currentEnd?
+      <Text style={s.detail}>{formatUKDateTime(currentStart)} · {Math.round((Date.parse(currentEnd)-Date.parse(currentStart))/60000)} minutes</Text>:
+      <Text style={s.detail}>The job is accepted, but neither party has confirmed the time. Propose a visit time for approval.</Text>}
    </View>
   </View>
   {loading?<ActivityIndicator color={theme.colors.teal} />:pending&&change?(
    <View style={s.request}>
     <Text style={s.status}>{change.proposer_id===userId?'Waiting for the other person':'New time requested'}</Text>
     <Text style={s.detail}>{formatUKDateTime(change.proposed_start)} to {new Date(change.proposed_end).toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'})}</Text>
-    <Text style={s.note}>Your existing appointment remains confirmed unless both sides agree to this change.</Text>
+    <Text style={s.note}>{confirmed
+      ? 'Your existing appointment remains confirmed unless both sides agree to this change.'
+      : 'No appointment is confirmed until the other participant agrees to this proposal.'}</Text>
     <View style={s.buttons}>
      {change.proposer_id===userId?
        <MotionPressable onPress={()=>{void decide('withdrawn')}} disabled={busy} style={s.secondary}>
@@ -112,10 +118,12 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
   ):<>
    <MotionPressable style={s.secondary} onPress={()=>setExpanded(x=>!x)} accessibilityRole="button">
     <Clock3 size={16} color={theme.colors.teal}/>
-    <Text style={s.secondaryText}>{expanded?'Close time options':'Request a different time'}</Text>
+    <Text style={s.secondaryText}>{expanded?'Close time options':confirmed?'Request a different time':'Propose an appointment'}</Text>
    </MotionPressable>
    {expanded?<View style={{gap:11,marginTop:12}}>
-    <Text style={s.note}>A new time must be accepted by the other person. All times are UK local time.</Text>
+    <Text style={s.note}>{confirmed
+      ? 'A new time must be accepted by the other person. All times are UK local time.'
+      : 'Choose a time to propose. This is not confirmed until the other person accepts. All times are UK local time.'}</Text>
     <Text style={s.label}>Select a day</Text>
     <View style={s.row}>{days.map(d=><MotionPressable key={d} onPress={()=>setDate(d)}
       style={[s.chip,date===d&&s.selected]}><Text style={[s.chipText,date===d&&s.selectedText]}>
@@ -130,7 +138,7 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
       style={[s.chip,duration===d&&s.selected]}><Text style={[s.chipText,duration===d&&s.selectedText]}>
        {d} min</Text></MotionPressable>)}</View>
     <MotionPressable disabled={busy} onPress={()=>{void propose()}} style={s.primary}>
-     {busy?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Send time-change request</Text>}
+     {busy?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>{confirmed?'Send time-change request':'Propose this time'}</Text>}
     </MotionPressable>
    </View>:null}
   </>}
