@@ -11,7 +11,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "check:syntax": "node scripts/check-syntax.cjs"
+    "check:syntax": "node scripts/check-syntax.cjs",
+    "test:logic": "node scripts/test-marketplace-logic.cjs"
   },
   "dependencies": {
     "expo": "~58.0.0",
