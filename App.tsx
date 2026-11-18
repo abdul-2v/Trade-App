@@ -2017,6 +2017,24 @@ function MapScreen({
   const [searchAreaText, setSearchAreaText] = useState('');
   const [manualArea, setManualArea] = useState<{latitude:number;longitude:number;label:string}|null>(null);
   const [findingArea, setFindingArea] = useState(false);
+  const [locationRefreshNonce, setLocationRefreshNonce] = useState(0);
+  const useCurrentLocation = async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Location not enabled','You can still search for local tradespeople using a postcode.');
+        return;
+      }
+      setManualArea(null);
+      setSearchAreaText('');
+      setAreaSearchError('');
+      setSelectedMapTrade(null);
+      setLocationRefreshNonce(v=>v+1);
+      setReloadMarketplace(v=>v+1);
+    } catch {
+      Alert.alert('Location unavailable','Search by postcode instead, or try again later.');
+    }
+  };
   const [areaSearchError, setAreaSearchError] = useState('');
 
   const findPostcode = async () => {
@@ -2350,11 +2368,12 @@ function MapScreen({
             <Text style={{fontSize:11,color:theme.colors.muted}}>
               {manualArea ? 'Searching around '+manualArea.label : 'Showing your current area when location is enabled'}
             </Text>
-            {manualArea ? <MotionPressable onPress={()=>{
-              setManualArea(null);setSearchAreaText('');setAreaSearchError('');setSelectedMapTrade(null);
-            }} accessibilityRole="button" accessibilityLabel="Clear searched postcode">
-              <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.teal}}>Use my area</Text>
-            </MotionPressable> : null}
+            <MotionPressable onPress={useCurrentLocation} accessibilityRole="button"
+              accessibilityLabel="Use my current phone location for nearby trades">
+              <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.teal}}>
+                {manualArea ? 'Use my location' : 'Use phone location'}
+              </Text>
+            </MotionPressable>
           </View>
           {areaSearchError ? <Text style={{fontSize:12,color:theme.colors.coralDark}}>{areaSearchError}</Text> : null}
         </View>
@@ -2459,7 +2478,8 @@ function MapScreen({
         </ScrollView>
       ) : (
         <View style={{ flex: 1 }}>
-          <MapMock trades={filtered} onTrade={setSelectedMapTrade} focusArea={manualArea} />
+          <MapMock trades={filtered} onTrade={setSelectedMapTrade}
+            focusArea={manualArea} locationRefreshNonce={locationRefreshNonce} />
           {!showDemoProfiles ? (
             <View pointerEvents="none" style={{position:'absolute',left:12,top:12,
               borderRadius:14,backgroundColor:'#FFFFFFF2',paddingHorizontal:12,paddingVertical:10,
@@ -2660,11 +2680,13 @@ function MapMock({
   onTrade,
   compact = false,
   focusArea = null,
+  locationRefreshNonce = 0,
 }: {
   trades: Trade[];
   onTrade: (trade: Trade) => void;
   compact?: boolean;
   focusArea?: {latitude:number;longitude:number;label:string}|null;
+  locationRefreshNonce?:number;
 }) {
   const fallback = {
     latitude: 52.6369,
@@ -2713,7 +2735,7 @@ function MapMock({
     return () => {
       mounted = false;
     };
-  }, [focusArea?.latitude,focusArea?.longitude]);
+  }, [focusArea?.latitude,focusArea?.longitude,locationRefreshNonce]);
 
   const offsets = [
     { lat: 0.006, lng: -0.004 },
