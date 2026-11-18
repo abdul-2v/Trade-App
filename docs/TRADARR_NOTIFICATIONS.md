@@ -4,7 +4,7 @@
 
 - **Supabase implemented:** In-app notification database, Expo device-token registry, event-to-notification triggers, private delivery outbox, retry-safe claim RPC, and a deployed Deno Edge Function named `tradarr-push-dispatch`.
 - **Automatic dispatch implemented:** `pg_net` trigger wakes the Edge Function on new queue rows; a `pg_cron` job named `tradarr-push-retry-5min` retries transient delivery failures and stalled claims.
-- **In-app inbox implemented:** Both Customer and Tradesperson now have a bottom-navigation **Inbox** section with two segmented tabs: **Messages** and **Notifications**. Alerts refresh through Realtime, can be marked read and show unread counts; message alerts can open the relevant conversation.
+- **In-app inbox implemented:** Both Customer and Tradesperson now have a bottom-navigation **Inbox** section with two segmented tabs: **Messages** and **Activity**. Alerts refresh through Realtime, can be marked read and show unread counts; message alerts can open the relevant conversation.
 - **Not yet active on iPhone:** Tradarr has no registered Expo push tokens and no Apple APNs credentials. Remote iPhone delivery requires an Apple Developer membership and an iOS development build. Expo Go does not support remote push in SDK 58.
 
 ## Verified
@@ -22,6 +22,16 @@ Supabase Edge Function `tradarr-push-dispatch` is ACTIVE with gateway JWT verifi
 - `supabase/functions/tradarr-push-dispatch/index.ts`: server sender using the automatically available `SUPABASE_SERVICE_ROLE_KEY`. It checks the recipient's `profiles.notifications_enabled` preference, skips read alerts/no devices, sends via Expo's API, handles `DeviceNotRegistered` ticket errors and stores push ticket details. It never exposes a service role key to the app.
 
 **Secret handling:** The existing legacy public anon JWT is stored in Supabase Vault under `tradarr_push_anon_jwt`; its value is intentionally *not* committed to GitHub. The Edge Function can use an optional `EXPO_ACCESS_TOKEN` environment variable if Expo enhanced push security is enabled later. Do not enable enhanced security until that token is securely configured in the Supabase dashboard.
+
+## Inbox, appointment and attachment improvements (18 Nov 2026)
+
+- The Activity tab now receives quote deliveries/decisions and provider-side cancellation and confirmation notifications, in addition to the original alerts. Quote notifications lead to the Quote Centre or tradesperson Quotes tool.
+- The server creates deduplicated reminders approximately 24 hours and one hour before confirmed marketplace appointments using `tradarr-booking-reminders-5min`. They enter the same private notification + push outbox as all other events. No personal addresses or raw chat content are included in notification bodies. The reminders do not apply to private diary-only entries.
+- Conversations can now share private JPEG/PNG/WebP photos, PDFs and Word DOCX files up to 8 MB in `tradarr-chat`, using time-limited signed view URLs and participant-only Storage policies.
+- The sender's typing indicator is stored in `conversation_typing` with short expiries, participant-only policies and Realtime refresh.
+- Job-linked chat cards show reservation state, shared appointment times, and controls to propose or review rescheduling. This does not bypass the existing conflict checks or mutual agreement.
+- Repo contains `expo-document-picker` and `expo-file-system` as SDK 58 dependencies; these are native dependencies, so rebuild/restart the development client after installation.
+- GitHub TypeScript CI passed after the app wiring, but no physical-device send/download/booking test has yet been signed off.
 
 ## Future iPhone activation — not required now
 
