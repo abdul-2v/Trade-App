@@ -13,6 +13,7 @@ import CustomerQuotesScreen from './CustomerQuotesScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
 import TradeGridScreen from './TradeGridScreen';
+import TradeRoutePlannerScreen from './TradeRoutePlannerScreen';
 import CustomerOneJobScreen from './CustomerOneJobScreen';
 import CustomerFirstFixScreen from './CustomerFirstFixScreen';
 import CustomerRescueScreen from './CustomerRescueScreen';
@@ -111,7 +112,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -786,6 +787,10 @@ export default function App() {
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
+    </TradeShell>;
+    if (tradeScreen === 'tradeRoutes') return <TradeShell current="tradeTools" navigate={navigateTrade}>
+      <TradeRoutePlannerScreen goBack={() => navigateTrade('tradeTools')}
+        openDiary={() => navigateTrade('tradeDiary')} />
     </TradeShell>;
     if (tradeScreen === 'tradeGrid') return <TradeShell current="tradeGrid" navigate={navigateTrade}>
       <TradeGridScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
@@ -5814,6 +5819,7 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
   {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'},
+  {route:'tradeRoutes' as TradeScreen,Icon:Route,title:'On My Way & Street Run',detail:'Publish diary-linked journeys and receive route-friendly requests'},
   {route:'tradeGrid' as TradeScreen,Icon:Route,title:'Publish Grid slots',detail:'Share available gaps and manage customer enquiries'},
   {route:'tradeCollective' as TradeScreen,Icon:Users,title:'Collective group offers',detail:'Offer genuine local per-home prices to interested households'}
  ];
@@ -7202,6 +7208,18 @@ function TradeJobsScreen({
                     </MotionPressable>
                   ))}
                 </ScrollView>
+                <MotionPressable
+                  onPress={() => navigate('tradeRoutes')}
+                  accessibilityRole="button" accessibilityLabel="Publish a real journey"
+                  style={{marginHorizontal:15,marginBottom:10,borderRadius:13,
+                    minHeight:46,backgroundColor:theme.colors.tealTint,
+                    paddingHorizontal:13,flexDirection:'row',alignItems:'center',gap:9}}>
+                  <Route size={18} color={theme.colors.teal}/>
+                  <Text style={{fontWeight:'800',fontSize:12,color:theme.colors.teal,flex:1}}>
+                    Publish your On My Way or Street Run journey
+                  </Text>
+                  <ChevronRight size={16} color={theme.colors.teal}/>
+                </MotionPressable>
                 <Text style={styles.tradeModeExplanation}>
                   {flexibleMode === 'route' ? 'On My Way offers aim to fit journeys you are already making.'
                     : flexibleMode === 'street_run' ? 'Street Run offers focus on jobs close together in a local area.'
