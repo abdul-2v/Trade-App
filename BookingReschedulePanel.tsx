@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,StyleSheet,Text,View} from 'react-native';
 import {CalendarClock,Check,Clock3,X} from 'lucide-react-native';
 import {supabase} from './lib/supabase';
@@ -12,6 +12,8 @@ type Props={jobId:string;currentStart:string|null;currentEnd:string|null;
  onUpdated?:()=>void;};
 
 export default function BookingReschedulePanel({jobId,currentStart,currentEnd,onUpdated}:Props){
+ const onUpdatedRef=useRef(onUpdated);
+ onUpdatedRef.current=onUpdated;
  const [userId,setUserId]=useState('');
  const [change,setChange]=useState<Change|null>(null);
  const [expanded,setExpanded]=useState(false);
@@ -36,10 +38,10 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
   void load();
   const channel=supabase.channel('appointment-change-'+jobId)
     .on('postgres_changes',{event:'*',schema:'public',table:'trade_appointment_changes',
-     filter:'job_id=eq.'+jobId},()=>{void load();onUpdated?.()})
+     filter:'job_id=eq.'+jobId},()=>{void load();onUpdatedRef.current?.()})
     .subscribe();
   return()=>{void supabase.removeChannel(channel)};
- },[jobId,load,onUpdated]);
+ },[jobId,load]);
 
  const propose=async()=>{
   if(busy||!userId)return;
@@ -74,7 +76,7 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
     error?.message||'The booking has changed. Refreshing the latest status.');
    void load();return;
   }
-  void load();onUpdated?.();
+  void load();onUpdatedRef.current?.();
   if(next==='accepted')Alert.alert('Appointment rescheduled','Both sides can now see the agreed time in Tradarr.');
  };
 
