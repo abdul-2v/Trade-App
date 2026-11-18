@@ -2460,6 +2460,22 @@ function MapScreen({
       ) : (
         <View style={{ flex: 1 }}>
           <MapMock trades={filtered} onTrade={setSelectedMapTrade} focusArea={manualArea} />
+          {!showDemoProfiles ? (
+            <View pointerEvents="none" style={{position:'absolute',left:12,top:12,
+              borderRadius:14,backgroundColor:'#FFFFFFF2',paddingHorizontal:12,paddingVertical:10,
+              borderWidth:1,borderColor:'#E0E9E6',gap:6}}>
+              <View style={{flexDirection:'row',alignItems:'center',gap:7}}>
+                <View style={{width:9,height:9,borderRadius:5,backgroundColor:'#12B981'}}/>
+                <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.ink}}>Nearby now</Text>
+              </View>
+              <View style={{flexDirection:'row',alignItems:'center',gap:7}}>
+                <View style={{width:9,height:9,borderRadius:5,backgroundColor:'#6B9E9A'}}/>
+                <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.ink}}>Work area / accepting</Text>
+              </View>
+              <Text style={{fontSize:9,color:theme.colors.muted}}>Pins show approximate areas</Text>
+            </View>
+          ) : null}
+
 
           {selectedMapTrade ? (
             <View style={styles.mapPreviewCard}>
@@ -2714,6 +2730,7 @@ function MapMock({
       image: trade.image,
       accent: trade.accent,
       available: trade.available,
+      nearbyNow: Boolean(trade.nearbyNow),
       demo: !trade.id.startsWith('live-'),
       lat: trade.mapLatitude ?? centre.latitude + offset.lat + Math.floor(index / offsets.length) * 0.0014,
       lng: trade.mapLongitude ?? centre.longitude + offset.lng - Math.floor(index / offsets.length) * 0.0011,
@@ -2920,7 +2937,15 @@ function MapMock({
   .dot:after { animation-delay:1.3s }
   .trade-pin, .cluster-bubble { animation:tradeMarkerIn .39s cubic-bezier(.18,.82,.25,1.08) both }
   .trade-pin { animation-delay:var(--entrance-delay,0ms) }
-  .trade-pin.is-available .trade-avatar-wrap { animation:activeTradeRing 2.5s ease-in-out infinite }
+  .trade-pin.is-available.is-nearby .trade-avatar-wrap {
+    border-color:#CFF9E7;
+    animation:activeTradeRing 2.5s ease-in-out infinite
+  }
+  .trade-pin.is-area .trade-avatar-wrap { border-color:#FFFFFF; }
+  .trade-pin.is-area .trade-online { background:#6B9E9A; }
+  .trade-pin.is-nearby .trade-online { background:#12B981; }
+  .trade-pin.is-nearby .trade-label { border:1px solid #B7E8D2; }
+  .trade-pin.is-area .trade-label { border:1px solid #DAE6E3; }
   .trade-pin:active .trade-avatar-wrap,.cluster-bubble:active { transform:scale(.95) }
   .trade-pin.is-picked .trade-avatar-wrap{
     animation:none;
@@ -3046,10 +3071,13 @@ function MapMock({
     const icon = L.divIcon({
       className: '',
       html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') +
+        (marker.nearbyNow ? ' is-nearby' : ' is-area') +
         (selectedMarkerId===marker.id?' is-picked':'') + '" data-id="' + escapeMarkerText(marker.id) +
         '"><div class="trade-avatar-wrap">' + avatar + '<span class="' +
         (marker.available ? 'trade-online' : 'trade-offline') +
-        '"></span></div><div class="trade-label">' + escapeMarkerText(marker.role) + '</div></div>',
+        '"></span></div><div class="trade-label">' +
+        escapeMarkerText(marker.role + (marker.demo ? '' : marker.nearbyNow ? ' · Nearby now' : ' · Service area')) +
+        '</div></div>',
       iconSize: [64,68],
       // Pin anchors to the actual avatar centre, not the centre of the role label.
       iconAnchor: [32,23]
