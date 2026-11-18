@@ -82,6 +82,7 @@ type Trade = {
   nearbyNow?: boolean;
   emergencyOptIn?: boolean;
   serviceRadiusMiles?: number;
+  coverageDistanceMiles?: number;
 };
 
 type CustomerScreen =
@@ -1949,13 +1950,15 @@ function MapScreen({
     const query = searchQuery.trim().toLowerCase();
     if (query && !trade.name.toLowerCase().includes(query) && !trade.role.toLowerCase().includes(query)) return false;
     if (selectedCategory !== 'All' && trade.role !== selectedCategory) return false;
-    if (trade.distance > maxDistance) return false;
+    if ((trade.coverageDistanceMiles ?? trade.distance) > maxDistance) return false;
     if (trade.rating < minRating) return false;
     if (marketMode !== 'all' && !trade.available) return false;
     if (marketMode === 'emergency' && !showDemoProfiles && !trade.emergencyOptIn) return false;
     return true;
-  }).sort((a,b) => marketMode === 'all' ? a.distance - b.distance :
-    Number(Boolean(b.nearbyNow)) - Number(Boolean(a.nearbyNow)) || a.distance - b.distance);
+  }).sort((a,b) => marketMode === 'all'
+    ? (a.coverageDistanceMiles ?? a.distance) - (b.coverageDistanceMiles ?? b.distance) :
+    Number(Boolean(b.nearbyNow)) - Number(Boolean(a.nearbyNow)) ||
+    (a.coverageDistanceMiles ?? a.distance) - (b.coverageDistanceMiles ?? b.distance));
 
   useEffect(() => {
     let active = true;
@@ -2099,6 +2102,7 @@ function MapScreen({
             nearbyNow,
             emergencyOptIn: Boolean(status.emergency_opt_in),
             serviceRadiusMiles: serviceRadius,
+            coverageDistanceMiles: Number(areaDistance.toFixed(1)),
           };
 
           return item;
@@ -2128,11 +2132,15 @@ function MapScreen({
     };
 
     start();
+    const refreshTimer = setInterval(() => { if (active) loadMarketplace(); }, 60 * 1000);
 
     return () => {
+      clearInterval(refreshTimer);
       active = false;
       channels.forEach(channel => supabase.removeChannel(channel));
     };
+    // Expiring a live pin must not depend on a database change event.
+    // Refresh frequently enough to replace it with the saved work-area pin.
   }, [reloadMarketplace]);
 
   const activeFilterCount =
@@ -6114,16 +6122,16 @@ function TradeHomeScreen({
       subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
-          distanceInterval: 30,
-          timeInterval: 10000,
+          distanceInterval: 75,
+          timeInterval: 30000,
         },
         async position => {
           if (!active) return;
 
           const exactLatitude = position.coords.latitude;
           const exactLongitude = position.coords.longitude;
-          const publicLatitude = Number(exactLatitude.toFixed(3));
-          const publicLongitude = Number(exactLongitude.toFixed(3));
+          const publicLatitude = Number(exactLatitude.toFixed(2));
+          const publicLongitude = Number(exactLongitude.toFixed(2));
           const now = new Date().toISOString();
 
           await Promise.all([
@@ -6915,8 +6923,8 @@ function TradeJobsScreen({
 
           const exactLatitude = position.coords.latitude;
           const exactLongitude = position.coords.longitude;
-          const publicLatitude = Number(exactLatitude.toFixed(3));
-          const publicLongitude = Number(exactLongitude.toFixed(3));
+          const publicLatitude = Number(exactLatitude.toFixed(2));
+          const publicLongitude = Number(exactLongitude.toFixed(2));
           const now = new Date().toISOString();
 
           await Promise.all([
@@ -8018,7 +8026,7 @@ function TradeSettingsScreen({
   };
 
   const savePostcode = async () => {
-    const cleaned = workPostcode.replace(/\\s/g,'').toUpperCase();
+    const cleaned = workPostcode.replace(/\s/g,'').toUpperCase();
     if (!/^[A-Z]{1,2}[0-9][0-9A-Z]?[0-9][A-Z]{2}$/.test(cleaned)) {
       Alert.alert('Check the postcode', 'Enter a full UK postcode, such as LE1 7RH.');
       return;
