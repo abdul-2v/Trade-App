@@ -86,3 +86,14 @@ The GitHub Actions workflow now performs syntax parsing, Expo package compatibil
 - Customer reporting of live tradesperson profiles is saved to the existing private support queue, which requires human review.
 - Tradesperson notification preference is saved to their account. Device push delivery remains a launch blocker.
 - Native display name is now Tradarr. Expo project, slug and bundle identifiers remain unchanged for continuity; review before production store submission.
+
+## Bookings, messages and journey matching (18 Nov 2026)
+
+- Optional published weekly working hours. Customers requesting a normal job can browse suggested free appointment starts, excluding existing confirmed diary bookings, with no private appointment details exposed.
+- UK-local date/time booking windows, backend conflict enforcement and mutual-consent rescheduling. Accepted Grid slots and confirmed marketplace jobs share the same diary.
+- Shared customer/tradesperson inbox with unread indicators, read receipts, photo attachments in a private RLS bucket, message retries and scroll-preserving history.
+- On My Way and Street Run now rely on genuine appointment-anchored published journeys. A route enquiry is **not** an appointment until both parties agree a visit time. Provider routes have capacity limits and buffers. The journey board opens real Google Maps directions for accepted, scheduled stops.
+- Approximate map geometry is used only for shortlisting; it is not a road-based detour, a traffic ETA or an optimised route.
+- Documentation, data flow and explicit acceptance scenarios: [docs/TRADARR_BOOKING_MESSAGING_ROUTING.md](docs/TRADARR_BOOKING_MESSAGING_ROUTING.md).
+
+**Remaining launch blockers:** phone-to-phone acceptance tests, push notifications, account deletion, conversation moderation and production road routing if automated optimisation is to be advertised. No manual or production routing test has been completed by this code update.
