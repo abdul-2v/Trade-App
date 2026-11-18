@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {ArrowLeft,Bell,BellRing,BriefcaseBusiness,CalendarClock,
  CheckCheck,ChevronRight,MessageCircle,RefreshCw,FileText} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
@@ -53,8 +53,11 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   };
   let subscription:ReturnType<typeof supabase.channel>|null=null;
   void loadChannel();
+  const foreground=AppState.addEventListener('change',state=>{
+    if(state==='active'&&active)void refresh();
+  });
   return()=>{
-    active=false;
+    active=false;foreground.remove();
     if(subscription)void supabase.removeChannel(subscription);
   };
  },[refresh]);
