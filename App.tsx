@@ -939,9 +939,9 @@ export default function App() {
           let locationLabel='Approximate phone location';
           let exactLocationLabel='Phone position; confirm the actual job address';
           if(booking.jobPostcode){
-            const code=booking.jobPostcode.trim().toUpperCase().replace(/\\s+/g,'');
-            const isFull=/^[A-Z]{1,2}\\d[A-Z\\d]?\\d[A-Z]{2}$/.test(code);
-            const outcode=/^[A-Z]{1,2}\\d[A-Z\\d]?$/.test(code);
+            const code=booking.jobPostcode.trim().toUpperCase().replace(/\s+/g,'');
+            const isFull=/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(code);
+            const outcode=/^[A-Z]{1,2}\d[A-Z\d]?$/.test(code);
             if(!isFull&&!outcode)throw new Error('Enter a valid UK postcode or district.');
             const endpoint='https://api.postcodes.io/'+(isFull?'postcodes':'outcodes')+'/'+encodeURIComponent(code);
             const response=await fetch(endpoint);
@@ -4484,8 +4484,8 @@ function BookingScreen({
    Alert.alert('Select a future appointment','Choose a UK date and time at least 30 minutes from now.');return;
   }
   if(!service.trim()){Alert.alert('Choose a service');return;}
-  const normalized=jobPostcode.trim().toUpperCase().replace(/\\s+/g,'');
-  if(normalized && !/^[A-Z]{1,2}\\d[A-Z\\d]?(?:\\d[A-Z]{2})?$/.test(normalized)){
+  const normalized=jobPostcode.trim().toUpperCase().replace(/\s+/g,'');
+  if(normalized && !/^[A-Z]{1,2}\d[A-Z\d]?(?:\d[A-Z]{2})?$/.test(normalized)){
    Alert.alert('Check your job postcode','Enter a valid UK postcode or outward district such as LE1 or LE1 7RH.');return;
   }
   setSubmitting(true);
