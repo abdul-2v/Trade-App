@@ -1,7 +1,9 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,KeyboardAvoidingView,Platform,ScrollView,
- StyleSheet,Text,TextInput,View} from 'react-native';
-import {ArrowLeft,ArrowUp,Check,CheckCheck,MessageCircle,RotateCw,Search} from 'lucide-react-native';
+ StyleSheet,Text,TextInput,View,Image} from 'react-native';
+import {ArrowLeft,ArrowUp,Check,CheckCheck,ImagePlus,MessageCircle,RotateCw,Search,X} from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import {chatPhotoPath,decodeChatPhotoBase64} from './lib/chatPhoto';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {MotionPressable} from './Motion';
@@ -10,7 +12,8 @@ type Role='customer'|'tradesperson';
 type Inbox={id:string;otherName:string;otherTrade:string;avatar:string|null;
  lastMessage:string;updatedAt:string;unread:number};
 type Message={id:number;conversation_id:string;sender_id:string;body:string;
- read_at:string|null;created_at:string;client_token?:string|null};
+ read_at:string|null;created_at:string;client_token?:string|null;
+ attachment_path?:string|null;attachment_mime?:string|null};
 type Props={role:Role;onClose?:()=>void};
 
 const fmt=(iso:string)=>new Date(iso).toLocaleString('en-GB',
@@ -41,10 +44,53 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [chatError,setChatError]=useState('');
+ const [photo,setPhoto]=useState<{uri:string;base64:string}|null>(null);
+ const [mediaUrls,setMediaUrls]=useState<Record<string,string>>({});
+ const expiresRef=useRef<Record<string,number>>({});
+ const uploadedPhotoRef=useRef<{token:string;path:string}|null>(null);
  const scrollRef=useRef<any>(null);
  const selectedRef=useRef<string|null>(null);
  const tokenRef=useRef<string|null>(null);
  selectedRef.current=selectedId;
+
+ const signPhotos=useCallback(async(items:Message[])=>{
+  const now=Date.now();
+  const paths=[...new Set(items.map(m=>m.attachment_path).filter((v):v is string=>Boolean(v)))]
+    .filter(path=>!expiresRef.current[path]||expiresRef.current[path]<now+60000);
+  if(!paths.length)return;
+  const {data,error:signError}=await supabase.storage.from('tradarr-chat')
+    .createSignedUrls(paths,1800);
+  if(signError||!data)return;
+  const next:Record<string,string>={};
+  data.forEach(row=>{
+    if(row.path&&row.signedUrl&&!row.error){
+      next[row.path]=row.signedUrl;
+      expiresRef.current[row.path]=Date.now()+25*60000;
+    }
+  });
+  if(Object.keys(next).length)setMediaUrls(old=>({...old,...next}));
+ },[]);
+
+ const pickPhoto=async()=>{
+  if(busy)return;
+  try{
+   const result=await ImagePicker.launchImageLibraryAsync({
+     mediaTypes:['images'],quality:0.65,base64:true,exif:false,allowsEditing:false
+   });
+   if(result.canceled||!result.assets?.length)return;
+   const asset=result.assets[0];
+   const base64=asset.base64;
+   if(!base64)throw new Error('This photo could not be prepared. Choose a different image.');
+   if(asset.fileSize&&asset.fileSize>8*1024*1024)
+      throw new Error('Choose a photo smaller than 8MB.');
+   if(base64.length*0.75>8*1024*1024)
+      throw new Error('Choose a smaller photo to send.');
+   setPhoto({uri:asset.uri,base64});
+   tokenRef.current=null;uploadedPhotoRef.current=null;
+  }catch(error:any){
+   Alert.alert('Photo unavailable',error?.message||'Could not choose the photo.');
+  }
+ };
 
  const loadInbox=useCallback(async()=>{
   const {data:{user}}=await supabase.auth.getUser();
