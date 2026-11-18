@@ -1,13 +1,13 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {ArrowLeft,Bell,BellRing,BriefcaseBusiness,CalendarClock,
- CheckCheck,ChevronRight,MessageCircle,RefreshCw} from 'lucide-react-native';
+ CheckCheck,ChevronRight,MessageCircle,RefreshCw,FileText} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
 type AlertKind='message'|'job_offer'|'job_accepted'|'job_status'|'appointment'|
- 'appointment_change'|'route_match';
+ 'appointment_change'|'route_match'|'quote_update'|'appointment_reminder';
 export type TradarrAlert={
  id:string;kind:AlertKind;title:string;body:string;
  data:{screen?:string;jobId?:string;conversationId?:string};
@@ -45,7 +45,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
     const {data:{user}}=await supabase.auth.getUser();
     if(!user||!active)return;
     const channel=supabase.channel('tradarr-notifications-'+user.id)
-      .on('postgres_changes',{event:'INSERT',schema:'public',
+      .on('postgres_changes',{event:'*',schema:'public',
        table:'tradarr_notifications',filter:'recipient_id=eq.'+user.id},
        ()=>{if(active)void refresh()})
       .subscribe();
@@ -88,7 +88,8 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  };
  const iconFor=(kind:AlertKind)=>{
    if(kind==='message')return MessageCircle;
-   if(kind==='appointment'||kind==='appointment_change')return CalendarClock;
+   if(kind==='appointment'||kind==='appointment_change'||kind==='appointment_reminder')return CalendarClock;
+   if(kind==='quote_update')return FileText;
    if(kind==='job_offer'||kind==='route_match'||kind==='job_accepted'||kind==='job_status')
     return BriefcaseBusiness;
    return Bell;
