@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useState} from 'react';
-import {ActivityIndicator,StyleSheet,Text,View} from 'react-native';
+import {ActivityIndicator,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {CalendarClock,ChevronDown,ChevronRight,BriefcaseBusiness} from 'lucide-react-native';
 import {supabase} from './lib/supabase';
 import {formatUKDateTime} from './lib/scheduling';
@@ -38,7 +38,8 @@ export default function ConversationJobCards({conversationId,role,onOpenJob}:Pro
 
  if(loading)return <ActivityIndicator color={theme.colors.teal} style={{padding:8}}/>;
  if(!jobs.length)return null;
- return <View style={s.root}>
+ return <ScrollView style={s.root} contentContainerStyle={s.content}
+   nestedScrollEnabled keyboardShouldPersistTaps="handled">
   {jobs.map(job=>{
    const open=expanded===job.id;
    const confirmed=Boolean(job.appointment_id&&job.requested_start&&job.requested_end);
@@ -70,15 +71,16 @@ export default function ConversationJobCards({conversationId,role,onOpenJob}:Pro
        currentEnd={confirmed?job.requested_end:null} onUpdated={()=>{void reload()}}/>:null}
       <MotionPressable style={s.action} onPress={()=>onOpenJob(job.id)} accessibilityRole="button">
        <BriefcaseBusiness size={15} color="#FFFFFF"/>
-       <Text style={s.actionText}>{role==='customer'?'Open my job':'Open job details'}</Text>
+       <Text style={s.actionText}>{role==='customer'?'View job in Activity':'View job in Jobs'}</Text>
       </MotionPressable>
     </View>:null}
    </View>
   })}
- </View>;
+ </ScrollView>;
 }
 const s=StyleSheet.create({
- root:{paddingHorizontal:12,paddingVertical:7,backgroundColor:'#EDF4F0',gap:7,maxHeight:300},
+ root:{paddingHorizontal:12,backgroundColor:'#EDF4F0',maxHeight:275},
+ content:{paddingVertical:7,gap:7},
  card:{backgroundColor:'#FFFFFF',borderColor:'#DDE9E4',borderWidth:1,borderRadius:13},
  line:{padding:11,minHeight:54,flexDirection:'row',alignItems:'center',gap:9},
  title:{fontSize:12,fontWeight:'800',color:theme.colors.ink},
