@@ -2444,7 +2444,7 @@ function MapScreen({
 
             <Text style={styles.filterSectionLabel}>Maximum distance</Text>
             <View style={styles.filterOptionRow}>
-              {[5, 10, 20, 50].map(distance => ((
+              {[5, 10, 20, 50].map(distance => (
                 <MotionPressable
                   key={distance}
                   style={[styles.filterOption, maxDistance === distance && styles.filterOptionActive]}
@@ -7871,6 +7871,11 @@ function TradeSettingsScreen({
   const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
   const [workAreaSaved, setWorkAreaSaved] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
+  const [serviceRadius, setServiceRadius] = useState(20);
+  const [emergencyOptIn, setEmergencyOptIn] = useState(false);
+  const [workPostcode, setWorkPostcode] = useState('');
+  const [workAreaLabel, setWorkAreaLabel] = useState('');
+  const [savingCoverage, setSavingCoverage] = useState(false);
   const [bio, setBio] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -7905,7 +7910,7 @@ function TradeSettingsScreen({
           .single(),
         supabase
           .from('trade_availability')
-          .select('location_mode, work_area_latitude, work_area_longitude')
+          .select('location_mode, work_area_latitude, work_area_longitude, work_area_label, service_radius_miles, emergency_opt_in')
           .eq('user_id', user.id)
           .single(),
       ]);
@@ -7922,6 +7927,9 @@ function TradeSettingsScreen({
 
       if (availability) {
         setLocationMode(availability.location_mode === 'live' ? 'live' : 'work_area');
+        setServiceRadius(Number(availability.service_radius_miles) || 20);
+        setEmergencyOptIn(Boolean(availability.emergency_opt_in));
+        setWorkAreaLabel(availability.work_area_label || '');
         setWorkAreaSaved(
           typeof availability.work_area_latitude === 'number' &&
           typeof availability.work_area_longitude === 'number'
@@ -7987,22 +7995,104 @@ function TradeSettingsScreen({
     Alert.alert('Profile updated', 'Customers will now see your latest public details.');
   };
 
-  const setModeOnly = async (mode: 'work_area' | 'live') => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    setLocationMode(mode);
-
-    await supabase
-      .from('trade_availability')
-      .update({
-        location_mode: mode,
+  const saveCoverage = async (nextRadius: number, nextEmergency: boolean) => {
+    if (savingCoverage) return;
+    setSavingCoverage(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { error } = await supabase.from('trade_availability').upsert({
+        user_id: user.id,
+        service_radius_miles: nextRadius,
+        emergency_opt_in: nextEmergency,
         updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id);
+      }, { onConflict:'user_id' });
+      if (error) throw error;
+      setServiceRadius(nextRadius);
+      setEmergencyOptIn(nextEmergency);
+    } catch (error: any) {
+      Alert.alert('Could not save work settings', error?.message || 'Please try again.');
+    } finally {
+      setSavingCoverage(false);
+    }
+  };
+
+  const savePostcode = async () => {
+    const cleaned = workPostcode.replace(/\\s/g,'').toUpperCase();
+    if (!/^[A-Z]{1,2}[0-9][0-9A-Z]?[0-9][A-Z]{2}$/.test(cleaned)) {
+      Alert.alert('Check the postcode', 'Enter a full UK postcode, such as LE1 7RH.');
+      return;
+    }
+    setSavingLocation(true);
+    try {
+      const response = await fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(cleaned));
+      const payload = await response.json();
+      const result = payload?.result;
+      if (!response.ok || !result || !Number.isFinite(Number(result.latitude)) ||
+        !Number.isFinite(Number(result.longitude))) {
+        throw new Error('That postcode was not found. Check it and try again.');
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Please sign in again.');
+      // Only outward postcode and coarse coordinates reach the customer map.
+      const latitude = Number(Number(result.latitude).toFixed(2));
+      const longitude = Number(Number(result.longitude).toFixed(2));
+      const label = String(result.outcode || cleaned.slice(0,-3)).toUpperCase() + ' service area';
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('trade_availability').upsert({
+        user_id:user.id, work_area_label:label,
+        work_area_latitude:latitude, work_area_longitude:longitude,
+        updated_at:now,
+      }, {onConflict:'user_id'});
+      if (error) throw error;
+      // Updating the permanent area must not unexpectedly switch off Nearby Now.
+      if (locationMode === 'work_area') {
+        const { error:presenceError } = await supabase.from('trade_map_presence').upsert({
+          user_id:user.id,latitude,longitude,source_mode:'work_area',updated_at:now
+        },{onConflict:'user_id'});
+        if (presenceError) throw presenceError;
+      }
+      setWorkAreaSaved(true);
+      setWorkAreaLabel(label);
+      setWorkPostcode('');
+      Alert.alert('Service area saved', 'Customers within your chosen travel radius can now find you.');
+    } catch (error:any) {
+      Alert.alert('Could not save postcode', error?.message || 'Check your connection and try again.');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  const setModeOnly = async (mode: 'work_area' | 'live') => {
+    if (mode === 'live') {
+      await saveCurrentPosition('live');
+      return;
+    }
+    setSavingLocation(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Please sign in again.');
+      const { data: area, error:loadError } = await supabase.from('trade_availability')
+        .select('work_area_latitude, work_area_longitude').eq('user_id',user.id).single();
+      if (loadError) throw loadError;
+      if (area?.work_area_latitude == null || area?.work_area_longitude == null) {
+        throw new Error('Save a postcode or work area before switching to work-area mode.');
+      }
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('trade_availability')
+        .update({location_mode:'work_area',updated_at:now}).eq('user_id',user.id);
+      if (error) throw error;
+      const { error:presenceError } = await supabase.from('trade_map_presence').upsert({
+        user_id:user.id, latitude:Number(area.work_area_latitude),
+        longitude:Number(area.work_area_longitude),source_mode:'work_area',updated_at:now
+      },{onConflict:'user_id'});
+      if (presenceError) throw presenceError;
+      setLocationMode('work_area');
+    } catch(error:any) {
+      Alert.alert('Could not update map sharing',error?.message || 'Please try again.');
+    } finally {
+      setSavingLocation(false);
+    }
   };
 
   const saveCurrentPosition = async (mode: 'work_area' | 'live') => {
@@ -8033,8 +8123,8 @@ function TradeSettingsScreen({
       const exactLongitude = position.coords.longitude;
 
       // Public browsing uses a softened position. Exact GPS remains private.
-      const publicLatitude = Number(exactLatitude.toFixed(mode === 'live' ? 3 : 2));
-      const publicLongitude = Number(exactLongitude.toFixed(mode === 'live' ? 3 : 2));
+      const publicLatitude = Number(exactLatitude.toFixed(2));
+      const publicLongitude = Number(exactLongitude.toFixed(2));
       const now = new Date().toISOString();
 
       if (mode === 'live') {
@@ -8058,7 +8148,7 @@ function TradeSettingsScreen({
           .from('trade_availability')
           .update({
             location_mode: 'work_area',
-            work_area_label: 'Saved work area',
+            work_area_label: 'Saved approximate work area',
             work_area_latitude: publicLatitude,
             work_area_longitude: publicLongitude,
             updated_at: now,
@@ -8066,6 +8156,7 @@ function TradeSettingsScreen({
           .eq('user_id', user.id);
 
         setWorkAreaSaved(true);
+        setWorkAreaLabel('Saved approximate work area');
       }
 
       await supabase.from('trade_map_presence').upsert({
@@ -8316,17 +8407,61 @@ function TradeSettingsScreen({
             </View>
           </MotionPressable>
 
-          {locationMode === 'work_area' ? (
-            <MotionPressable
-              style={styles.locationSaveButton}
-              onPress={() => saveCurrentPosition('work_area')}
-              disabled={savingLocation}
-            >
-              <Text style={styles.locationSaveButtonText}>
-                {savingLocation ? 'Saving…' : workAreaSaved ? 'Update my work area' : 'Set my current area as work area'}
+          <View style={{marginTop:14,gap:8}}>
+            <Text style={styles.locationChoiceTitle}>Your main work area</Text>
+            <Text style={styles.locationChoiceText}>{workAreaSaved
+              ? 'Saved: ' + (workAreaLabel || 'Approximate work area')
+              : 'Set a postcode or use your current area. Your exact address is not shown.'}</Text>
+            <TextInput
+              value={workPostcode}
+              onChangeText={setWorkPostcode}
+              placeholder="Enter a UK postcode (e.g. LE1 7RH)"
+              placeholderTextColor="#7F8A98"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={{height:48,borderRadius:12,borderWidth:1,borderColor:'#DBE4E3',
+                backgroundColor:'#FFFFFF',paddingHorizontal:14,color:theme.colors.ink,fontSize:15}}
+            />
+            <MotionPressable style={styles.locationSaveButton} onPress={savePostcode}
+              disabled={savingLocation} accessibilityRole="button" accessibilityLabel="Save service area postcode">
+              <Text style={styles.locationSaveButtonText}>{savingLocation ? 'Saving…' : 'Save postcode work area'}</Text>
+            </MotionPressable>
+            <MotionPressable onPress={() => saveCurrentPosition('work_area')}
+              disabled={savingLocation} accessibilityRole="button"
+              style={{paddingVertical:10,alignItems:'center'}}>
+              <Text style={{fontSize:13,color:theme.colors.teal,fontWeight:'800'}}>
+                {workAreaSaved ? 'Update area from my location' : 'Or use my current area'}
               </Text>
             </MotionPressable>
-          ) : null}
+          </View>
+          <Text style={[styles.locationChoiceTitle,{marginTop:14}]}>How far will you travel?</Text>
+          <View style={{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:9,marginBottom:12}}>
+            {[5,10,20,30,50].map(miles => (
+              <MotionPressable key={miles} onPress={() => saveCoverage(miles,emergencyOptIn)}
+                disabled={savingCoverage} accessibilityRole="button"
+                style={{paddingHorizontal:12,paddingVertical:11,borderRadius:12,
+                  backgroundColor:serviceRadius === miles ? theme.colors.darkTeal : '#FFFFFF',
+                  borderWidth:1,borderColor:serviceRadius === miles ? theme.colors.darkTeal : '#DDE4E3'}}>
+                <Text style={{fontSize:12,fontWeight:'800',
+                  color:serviceRadius === miles ? '#FFFFFF' : theme.colors.ink}}>{miles} mi</Text>
+              </MotionPressable>
+            ))}
+          </View>
+          <MotionPressable onPress={() => saveCoverage(serviceRadius,!emergencyOptIn)}
+            disabled={savingCoverage} accessibilityRole="button"
+            accessibilityLabel="Toggle emergency job requests"
+            style={{padding:14,borderRadius:13,backgroundColor:'#FFFFFF',borderWidth:1,
+              borderColor:'#E0E8E6',flexDirection:'row',alignItems:'center',gap:10}}>
+            <View style={{flex:1,gap:3}}>
+              <Text style={styles.locationChoiceTitle}>Accept emergency call-outs</Text>
+              <Text style={styles.locationChoiceText}>Show me in Emergency when I'm available.</Text>
+            </View>
+            <View style={{width:42,height:25,borderRadius:13,padding:3,justifyContent:'center',
+              alignItems:emergencyOptIn ? 'flex-end' : 'flex-start',
+              backgroundColor:emergencyOptIn ? theme.colors.teal : '#B9C6C4'}}>
+              <View style={{width:19,height:19,borderRadius:10,backgroundColor:'#FFFFFF'}}/>
+            </View>
+          </MotionPressable>
 
           <MotionPressable
             style={[styles.locationChoice, locationMode === 'live' && styles.locationChoiceActive, { marginTop: 10 }]}
@@ -8338,7 +8473,7 @@ function TradeSettingsScreen({
             <View style={{ flex: 1 }}>
               <Text style={styles.locationChoiceTitle}>Live location while available</Text>
               <Text style={styles.locationChoiceText}>
-                Use your current position while you are available. Browsing customers still see a softened position; exact tracking can be shared after a job is accepted.
+                Share your approximate nearby area only while available and using Tradarr. Public updates expire after 10 minutes. Turn this off any time.
               </Text>
             </View>
           </MotionPressable>
@@ -8356,7 +8491,7 @@ function TradeSettingsScreen({
           ) : null}
 
           <Text style={styles.locationPrivacyNote}>
-            Your exact GPS location is kept separate from the public map.
+            Your work area remains listed when offline. Nearby Now never displays exact GPS coordinates.
           </Text>
         </View>
 
