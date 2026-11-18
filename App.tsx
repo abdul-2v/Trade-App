@@ -20,6 +20,8 @@ import CustomerPriceLensScreen from './CustomerPriceLensScreen';
 import CustomerCollectiveScreen from './CustomerCollectiveScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
+import BookingReschedulePanel from './BookingReschedulePanel';
+import {APPOINTMENT_TIMES,APPOINTMENT_LENGTHS,nextUKDays,ukSlotToISO,advanceISOByMinutes,formatUKDateTime} from './lib/scheduling';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
@@ -935,7 +937,7 @@ export default function App() {
           };
 
           const tradespersonId = selectedTrade.id.replace('live-', '');
-          const timing = booking.date + ' · ' + booking.time;
+          const timing = 'Requested '+formatUKDateTime(booking.startsAt);
           const { data: job, error: jobError } = await supabase
             .from('jobs')
             .insert({
@@ -944,6 +946,8 @@ export default function App() {
               issue: booking.service,
               job_mode: 'normal',
               timing,
+              requested_start: booking.startsAt,
+              requested_end: booking.endsAt,
               latitude: Number(coords.latitude.toFixed(2)),
               longitude: Number(coords.longitude.toFixed(2)),
               location_label: 'Approximate scheduled job area',
@@ -4388,92 +4392,103 @@ function UrgentScreen({
 }
 
 function BookingScreen({
-  trade,
-  back,
-  complete,
-  initialService,
-  initialTiming,
-}: {
-  trade: Trade;
-  back: () => void;
-  complete: (booking: { service: string; date: string; time: string }) => Promise<void> | void;
-  initialService?: string | null;
-  initialTiming?: string | null;
-}) {
-  const [service, setService] = useState(initialService || trade.services[0]);
-  const dates = ['Today', 'Tomorrow', 'This weekend'];
-  const times = ['08:00–10:00', '10:00–12:00', '14:00–16:00', 'Flexible'];
-  const [dateIndex, setDateIndex] = useState(initialTiming === 'Today' ? 0 : 1);
-  const [timeIndex, setTimeIndex] = useState(initialTiming === 'Flexible' ? 3 : 1);
-  const [submitting, setSubmitting] = useState(false);
+  trade,back,complete,initialService,initialTiming,
+}:{
+  trade:Trade;
+  back:()=>void;
+  complete:(booking:{service:string;date:string;time:string;startsAt:string;endsAt:string})=>Promise<void>|void;
+  initialService?:string|null;
+  initialTiming?:string|null;
+}){
+ const days=nextUKDays(7);
+ const [service,setService]=useState(initialService||trade.services[0]||'Other');
+ const [date,setDate]=useState(days[initialTiming==='Today'?0:1]||days[0]);
+ const [time,setTime]=useState(initialTiming==='Flexible'?'13:00':'10:00');
+ const [duration,setDuration]=useState(90);
+ const [submitting,setSubmitting]=useState(false);
+ const chosenStart=ukSlotToISO(date,time);
+ const chosenEnd=chosenStart?advanceISOByMinutes(chosenStart,duration):null;
+ const valid=Boolean(chosenStart&&chosenEnd&&Date.parse(chosenStart)>Date.now()+30*60000);
 
-  const submitBooking = async () => {
-    setSubmitting(true);
-    try {
-      await complete({
-        service,
-        date: dates[dateIndex],
-        time: times[timeIndex],
-      });
-    } catch (error: any) {
-      Alert.alert('Could not send booking request', error?.message || 'Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <CustomerShell>
-      <ScrollView contentContainerStyle={styles.plainPage}>
-        <HeaderBack title="Book a job" back={back} />
-        <View style={styles.bookTradeRow}>
-          <Image source={{ uri: trade.image }} style={styles.bookAvatar} />
-          <View>
-            <Text style={styles.bookTradeName}>{trade.name}</Text>
-            <Text style={styles.muted}>{trade.role} · {trade.distance} miles away</Text>
-          </View>
-        </View>
-
-        <Text style={styles.stepLine}>● Service   ○ Date & time   ○ Details</Text>
-        <Text style={styles.contentHeading}>What service do you need?</Text>
-
-        {Array.from(new Set([...(initialService ? [initialService] : []), ...trade.services, 'Emergency call-out', 'Other'])).map(item => (
-          <MotionPressable key={item} style={[styles.radioRow, service === item && styles.radioRowActive]} onPress={() => setService(item)}>
-            <View style={[styles.radio, service === item && styles.radioActive]}>{service === item ? <View style={styles.radioDot} /> : null}</View>
-            <Text style={styles.radioText}>{item}</Text>
-          </MotionPressable>
-        ))}
-
-        <Text style={styles.contentHeading}>When?</Text>
-        <View style={styles.twoCol}>
-          <MotionPressable
-            style={styles.pickCard}
-            onPress={() => setDateIndex(index => (index + 1) % dates.length)}
-          >
-            <Text style={styles.pickLabel}>Date</Text>
-            <Text style={styles.pickValue}>{dates[dateIndex]}</Text>
-            <Text style={styles.pickHint}>Tap to change</Text>
-          </MotionPressable>
-          <MotionPressable
-            style={styles.pickCard}
-            onPress={() => setTimeIndex(index => (index + 1) % times.length)}
-          >
-            <Text style={styles.pickLabel}>Time</Text>
-            <Text style={styles.pickValue}>{times[timeIndex]}</Text>
-            <Text style={styles.pickHint}>Tap to change</Text>
-          </MotionPressable>
-        </View>
-
-        <MotionPressable
-          style={[styles.largeBlueButton, submitting && { opacity: 0.55 }]}
-          onPress={submitBooking}
-          disabled={submitting}
-        >
-          {submitting ? <ActivityIndicator color={C.white} /> : <Text style={styles.largeBlueText}>Send booking request</Text>}
-        </MotionPressable>
-      </ScrollView>
-    </CustomerShell>
-  );
+ const submitBooking=async()=>{
+  if(!valid||!chosenStart||!chosenEnd){
+   Alert.alert('Select a future appointment','Choose a UK date and time at least 30 minutes from now.');return;
+  }
+  if(!service.trim()){Alert.alert('Choose a service');return;}
+  setSubmitting(true);
+  try{
+   await complete({service,date,time,startsAt:chosenStart,endsAt:chosenEnd});
+  }catch(error:any){
+   Alert.alert('Could not send booking request',error?.message||'Please try again.');
+  }finally{setSubmitting(false);}
+ };
+ return <CustomerShell>
+  <ScrollView contentContainerStyle={styles.plainPage} keyboardShouldPersistTaps="handled">
+   <HeaderBack title="Request an appointment" back={back}/>
+   <View style={styles.bookTradeRow}>
+    {trade.image?<Image source={{uri:trade.image}} style={styles.bookAvatar}/>:
+     <View style={[styles.bookAvatar,{alignItems:'center',justifyContent:'center',backgroundColor:'#E5EEEC'}]}>
+      <Text style={{fontWeight:'900',fontSize:20,color:theme.colors.teal}}>{trade.name.charAt(0)}</Text></View>}
+    <View style={{flex:1}}>
+     <Text style={styles.bookTradeName}>{trade.name}</Text>
+     <Text style={styles.muted}>{trade.role} · {trade.id.startsWith('live-')?'Works in your area':'Example profile'}</Text>
+    </View>
+   </View>
+   <Text style={styles.contentHeading}>What needs doing?</Text>
+   {Array.from(new Set([...(initialService?[initialService]:[]),...trade.services,'Other'])).map(item=>(
+    <MotionPressable key={item} style={[styles.radioRow,service===item&&styles.radioRowActive]}
+      onPress={()=>setService(item)}>
+     <View style={[styles.radio,service===item&&styles.radioActive]}>{service===item?<View style={styles.radioDot}/>:null}</View>
+     <Text style={styles.radioText}>{item}</Text>
+    </MotionPressable>
+   ))}
+   <Text style={styles.contentHeading}>Your preferred appointment day</Text>
+   <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:15}}>
+    {days.map(d=><MotionPressable key={d} onPress={()=>setDate(d)}
+      accessibilityRole="button" accessibilityLabel={'Select '+d}
+      style={{paddingVertical:11,paddingHorizontal:12,borderRadius:13,
+       backgroundColor:date===d?theme.colors.darkTeal:'#FFFFFF',
+       borderWidth:1,borderColor:date===d?theme.colors.darkTeal:theme.colors.line}}>
+      <Text style={{color:date===d?'#FFFFFF':theme.colors.ink,fontWeight:'800',fontSize:12}}>
+       {new Date(d+'T12:00:00Z').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}
+      </Text>
+    </MotionPressable>)}
+   </View>
+   <Text style={styles.contentHeading}>Preferred start time · UK</Text>
+   <View style={{flexDirection:'row',flexWrap:'wrap',gap:7,marginBottom:14}}>
+    {APPOINTMENT_TIMES.map(t=><MotionPressable key={t} onPress={()=>setTime(t)}
+      style={{borderRadius:13,minWidth:68,minHeight:42,alignItems:'center',justifyContent:'center',
+       backgroundColor:time===t?theme.colors.darkTeal:'#FFFFFF',
+       borderWidth:1,borderColor:time===t?theme.colors.darkTeal:theme.colors.line}}>
+      <Text style={{fontSize:12,fontWeight:'800',color:time===t?'#FFFFFF':theme.colors.ink}}>{t}</Text>
+    </MotionPressable>)}
+   </View>
+   <Text style={styles.contentHeading}>Estimated time needed</Text>
+   <View style={{flexDirection:'row',flexWrap:'wrap',gap:7,marginBottom:15}}>
+    {APPOINTMENT_LENGTHS.map(d=><MotionPressable key={d} onPress={()=>setDuration(d)}
+      style={{borderRadius:12,minHeight:43,paddingHorizontal:13,alignItems:'center',justifyContent:'center',
+       backgroundColor:duration===d?theme.colors.darkTeal:'#FFFFFF',
+       borderWidth:1,borderColor:duration===d?theme.colors.darkTeal:theme.colors.line}}>
+      <Text style={{fontWeight:'800',fontSize:12,color:duration===d?'#FFFFFF':theme.colors.ink}}>{d} min</Text>
+    </MotionPressable>)}
+   </View>
+   <View style={{borderRadius:17,padding:15,backgroundColor:theme.colors.tealTint,gap:6}}>
+    <Text style={{fontSize:14,fontWeight:'800',color:theme.colors.teal}}>
+     {chosenStart&&chosenEnd?formatUKDateTime(chosenStart)+' · '+duration+' minutes':'Choose a valid date and time'}
+    </Text>
+    <Text style={{color:theme.colors.muted,fontSize:12,lineHeight:19}}>
+      This is a requested time, not an available slot or a confirmed booking.
+      The tradesperson must accept. Tradarr prevents overlapping confirmed appointments.
+      Price and the scope of work must also be agreed separately.
+    </Text>
+   </View>
+   <MotionPressable onPress={submitBooking} disabled={submitting||!valid}
+    style={[styles.largeBlueButton,(submitting||!valid)&&{opacity:.5}]}>
+    {submitting?<ActivityIndicator color="#FFFFFF"/>:
+      <Text style={styles.largeBlueText}>Request this appointment</Text>}
+   </MotionPressable>
+  </ScrollView>
+ </CustomerShell>;
 }
 
 let lastCustomerActivity: {owner:string;items:RequestItem[]}|null=null;
