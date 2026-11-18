@@ -2688,7 +2688,7 @@ function MapMock({
         const permission = await Location.getForegroundPermissionsAsync();
 
         if (permission.status !== 'granted') {
-          if (mounted) setLocationStatus('denied');
+          if (mounted) {setCentre(fallback);setLocationStatus('denied');}
           return;
         }
 
@@ -2704,7 +2704,7 @@ function MapMock({
         });
         setLocationStatus('ready');
       } catch {
-        if (mounted) setLocationStatus('denied');
+        if (mounted) {setCentre(fallback);setLocationStatus('denied');}
       }
     };
 
@@ -3188,7 +3188,8 @@ function MapMock({
   };
   window.tradarrSetFocus=function(next){
     activeFocus=Array.isArray(next)&&next.length===2?next:null;
-    if(activeFocus)map.flyTo(activeFocus,Math.max(13.8,map.getZoom()),{
+    const target=activeFocus || (user.visible?[user.lat,user.lng]:centre);
+    map.flyTo(target,Math.max(13.8,map.getZoom()),{
       duration:.65,easeLinearity:.23
     });
   };
