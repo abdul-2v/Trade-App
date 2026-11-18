@@ -5344,7 +5344,7 @@ function MessagesScreen({navigate,userId}:{
  navigate:(screen:CustomerScreen)=>void;userId:string;
 }){
  return <CustomerShell current="messages" navigate={navigate}>
-   <TradarrInboxScreen role="customer" onOpenOther={()=>navigate('requests')}/>
+   <TradarrInboxScreen role="customer" onOpenOther={notice=>navigate(notice.kind==='quote_update'?'customerQuotes':'requests')}/>
  </CustomerShell>;
 }
 
@@ -7644,7 +7644,8 @@ function TradeMessagesScreen({navigate}:{
  return <TradeShell current="tradeMessages" navigate={navigate}>
    <TradarrInboxScreen role="tradesperson"
      onOpenOther={notice=>navigate(
-       notice.kind==='appointment'||notice.kind==='appointment_change'?'tradeDiary':'tradeJobs')}/>
+       notice.kind==='quote_update'?'tradeQuotes':
+       notice.kind==='appointment'||notice.kind==='appointment_change'||notice.kind==='appointment_reminder'?'tradeDiary':'tradeJobs')}/>
  </TradeShell>;
 }
 
