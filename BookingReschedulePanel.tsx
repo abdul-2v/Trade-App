@@ -22,6 +22,26 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
  const [duration,setDuration]=useState(60);
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
+ const [routeWindow,setRouteWindow]=useState<{start:string;end:string;mode:string}|null>(null);
+ const [routeMode,setRouteMode]=useState(false);
+ useEffect(()=>{
+  let active=true;
+  const loadWindow=async()=>{
+   const {data:job}=await supabase.from('jobs').select('job_mode,accepted_tradesperson_id').eq('id',jobId).maybeSingle();
+   if(!active||!job)return;
+   if(!['route','street_run'].includes(job.job_mode)){setRouteMode(false);return;}
+   setRouteMode(true);
+   const {data:offer}=await supabase.from('job_offers').select('route_plan_id')
+     .eq('job_id',jobId).eq('tradesperson_id',job.accepted_tradesperson_id)
+     .eq('status','accepted').maybeSingle();
+   if(!active||!offer?.route_plan_id)return;
+   const {data:plan}=await supabase.from('trade_route_plans').select('starts_at,ends_at,mode')
+     .eq('id',offer.route_plan_id).maybeSingle();
+   if(active&&plan)setRouteWindow({start:plan.starts_at,end:plan.ends_at,mode:plan.mode});
+  };
+  void loadWindow();
+  return()=>{active=false};
+ },[jobId]);
 
  const load=useCallback(async()=>{
   const [{data:{user}},{data,error}]=await Promise.all([
@@ -51,6 +71,12 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
    Alert.alert('Choose a future time','Pick a valid time at least 10 minutes from now (UK time).');
    return;
   }
+  if(routeMode&&routeWindow&&(Date.parse(start)<Date.parse(routeWindow.start) ||
+    Date.parse(end)>Date.parse(routeWindow.end))){
+   Alert.alert('Outside the planned journey',
+     'Choose a visit that starts and finishes inside the published journey window.');
+   return;
+  }
   if(start===currentStart&&end===currentEnd){
    Alert.alert('Already booked','That is already the agreed appointment time.');return;
   }
@@ -77,7 +103,8 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
    void load();return;
   }
   void load();onUpdatedRef.current?.();
-  if(next==='accepted')Alert.alert('Appointment rescheduled','Both sides can now see the agreed time in Tradarr.');
+  if(next==='accepted')Alert.alert('Appointment confirmed',
+   'Both sides can now see the agreed time in Tradarr.');
  };
 
  const confirmed=Boolean(currentStart&&currentEnd);
@@ -93,6 +120,17 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
       <Text style={s.detail}>The job is accepted, but neither party has confirmed the time. Propose a visit time for approval.</Text>}
    </View>
   </View>
+  {routeMode&&routeWindow&&!confirmed?(
+    <View style={{backgroundColor:'#EAF3F1',borderRadius:12,padding:11,gap:5}}>
+      <Text style={{color:theme.colors.teal,fontWeight:'800',fontSize:12}}>
+        {routeWindow.mode==='street_run'?'Street Run':'On My Way'} journey window
+      </Text>
+      <Text style={s.note}>{formatUKDateTime(routeWindow.start)} to {
+        new Date(routeWindow.end).toLocaleTimeString('en-GB',
+          {timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'})
+      }. Please leave time to travel between jobs.</Text>
+    </View>
+  ):null}
   {loading?<ActivityIndicator color={theme.colors.teal} />:pending&&change?(
    <View style={s.request}>
     <Text style={s.status}>{change.proposer_id===userId?'Waiting for the other person':'New time requested'}</Text>
