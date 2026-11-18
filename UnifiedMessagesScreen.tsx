@@ -15,7 +15,9 @@ type Inbox={id:string;otherName:string;otherTrade:string;avatar:string|null;
 type Message={id:number;conversation_id:string;sender_id:string;body:string;
  read_at:string|null;created_at:string;client_token?:string|null;
  attachment_path?:string|null;attachment_mime?:string|null};
-type Props={role:Role;onClose?:()=>void};
+type Props={role:Role;onClose?:()=>void;embedded?:boolean;
+ onThreadChange?:(open:boolean)=>void;onUnreadCountChange?:(count:number)=>void;
+ targetConversationId?:string|null;};
 
 const fmt=(iso:string)=>new Date(iso).toLocaleString('en-GB',
  {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -31,7 +33,8 @@ const makeToken=()=>{
  });
 };
 
-export default function UnifiedMessagesScreen({role,onClose}:Props){
+export default function UnifiedMessagesScreen({role,onClose,embedded=false,
+ onThreadChange,onUnreadCountChange,targetConversationId}:Props){
  const [uid,setUid]=useState('');
  const [inbox,setInbox]=useState<Inbox[]>([]);
  const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -288,6 +291,13 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
    .toLowerCase().includes(query.trim().toLowerCase())),[inbox,query]);
  const quick=role==='customer'?quickCustomer:quickTrade;
  const totalUnread=inbox.reduce((sum,item)=>sum+item.unread,0);
+ useEffect(()=>{onThreadChange?.(Boolean(selected));},[Boolean(selected),onThreadChange]);
+ useEffect(()=>{onUnreadCountChange?.(totalUnread);},[totalUnread,onUnreadCountChange]);
+ useEffect(()=>{
+  if(targetConversationId&&inbox.some(item=>item.id===targetConversationId)){
+    setSelectedId(targetConversationId);
+  }
+ },[targetConversationId,inbox]);
  return <KeyboardAvoidingView style={s.root} behavior={Platform.OS==='ios'?'padding':undefined}
    keyboardVerticalOffset={Platform.OS==='ios'?20:0}>
   {selected ? <>
@@ -374,18 +384,23 @@ export default function UnifiedMessagesScreen({role,onClose}:Props){
     </View>
     <Text style={s.privacy}>Sent messages cannot be edited. Double tick means read.</Text>
   </>:<>
-    <View style={s.head}>
+    {!embedded?<View style={s.head}>
      <View style={{flex:1}}><Text style={s.title}>Messages</Text>
       <Text style={s.sub}>{totalUnread?totalUnread+' unread messages':'Your conversations in one place'}</Text></View>
      <MotionPressable style={s.refresh} onPress={()=>{void loadInbox()}}
        accessibilityRole="button" accessibilityLabel="Refresh conversations">
       <RotateCw size={20} color={theme.colors.teal}/>
      </MotionPressable>
-    </View>
-    <View style={s.search}>
+    </View>:null}
+    <View style={[s.search,embedded&&{marginTop:6}]}>
      <Search size={19} color={theme.colors.muted}/>
      <TextInput value={query} onChangeText={setQuery} placeholder="Search conversations"
       style={{flex:1,fontSize:14,color:theme.colors.ink}} placeholderTextColor={theme.colors.muted}/>
+     {embedded?<MotionPressable onPress={()=>{void loadInbox()}}
+       accessibilityRole="button" accessibilityLabel="Refresh conversations"
+       style={{width:30,height:36,alignItems:'center',justifyContent:'center'}}>
+      <RotateCw size={18} color={theme.colors.teal}/>
+     </MotionPressable>:null}
     </View>
     {error ? <Text style={s.errorText}>{error}</Text> : null}
     {loadingInbox?<ActivityIndicator style={{marginTop:40}} color={theme.colors.teal}/>:
