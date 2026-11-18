@@ -4,10 +4,13 @@ import {ArrowLeft,CalendarDays,ChevronRight,Check,Clock3,MapPin,Plus,Pencil,User
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
+import BookingReschedulePanel from './BookingReschedulePanel';
+import {formatUKDateTime,ukSlotToISO,advanceISOByMinutes,ukDayOf} from './lib/scheduling';
 
 const C=theme.colors;
 type Customer={id:string;name:string;address:string|null};
-type Appointment={id:string;tradesperson_id:string;customer_id:string|null;customer_name:string|null;title:string;address:string|null;notes:string|null;starts_at:string;ends_at:string;status:'scheduled'|'completed'|'cancelled'};
+type Appointment={id:string;tradesperson_id:string;customer_id:string|null;customer_name:string|null;title:string;address:string|null;notes:string|null;starts_at:string;ends_at:string;job_id:string|null;grid_request_id:string|null;status:'scheduled'|'completed'|'cancelled'};
+type LinkedJob={id:string;issue:string;trade:string;timing:string;appointment_id:string|null};
 const day=(d:Date)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const clock=(d:Date)=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 function Field({label,value,change,multi,placeholder}:{label:string;value:string;change:(v:string)=>void;multi?:boolean;placeholder?:string}){
@@ -20,6 +23,9 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [items,setItems]=useState<Appointment[]>([]);
+ const [linkedJobs,setLinkedJobs]=useState<LinkedJob[]>([]);
+ const [selectedJobId,setSelectedJobId]=useState<string|null>(null);
+ const [pickJob,setPickJob]=useState(false);
  const [customers,setCustomers]=useState<Customer[]>([]);
  const [view,setView]=useState<'upcoming'|'past'>('upcoming');
  const [editing,setEditing]=useState(false);
@@ -37,45 +43,59 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
   const {data:a}=await supabase.auth.getUser();const id=a.user?.id;
   if(!id||!alive){if(alive)setLoading(false);return;}
   setUid(id);
-  const [appointments,people]=await Promise.all([
+  const [appointments,people,jobs]=await Promise.all([
    supabase.from('trade_appointments').select('*').eq('tradesperson_id',id).order('starts_at',{ascending:true}).limit(400),
    supabase.from('trade_customers').select('id,name,address').eq('tradesperson_id',id).order('name'),
+   supabase.from('jobs').select('id,issue,trade,timing,appointment_id')
+     .eq('accepted_tradesperson_id',id).in('status',['accepted','en_route','arrived','in_progress'])
+     .order('created_at',{ascending:false}).limit(60),
   ]);
   if(!alive)return;
   if(appointments.error)Alert.alert('Could not load diary',appointments.error.message);
   setItems((appointments.data||[]) as Appointment[]);
   setCustomers((people.data||[]) as Customer[]);
+  setLinkedJobs((jobs.data||[]) as LinkedJob[]);
   setLoading(false);
  })().catch(e=>{if(alive){setLoading(false);Alert.alert('Diary error',String(e))}});
  return()=>{alive=false};},[]);
- const startNew=()=>{setEditId(null);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(day(new Date()));setTime('09:00');setDuration(60);setEditing(true)};
+ const refreshAppointments=async()=>{
+  if(!uid)return;
+  const {data,error}=await supabase.from('trade_appointments').select('*')
+   .eq('tradesperson_id',uid).order('starts_at',{ascending:true}).limit(400);
+  if(!error)setItems((data||[]) as Appointment[]);
+ };
+ const startNew=()=>{setEditId(null);setSelectedJobId(null);setPickJob(false);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(ukDayOf(new Date()));setTime('09:00');setDuration(60);setEditing(true)};
  const startEdit=(v:Appointment)=>{const a=new Date(v.starts_at),b=new Date(v.ends_at);
-  setEditId(v.id);setCustomerId(v.customer_id);setTitle(v.title);setName(v.customer_name||'');setAddress(v.address||'');setNotes(v.notes||'');
-  setDate(day(a));setTime(clock(a));setDuration(Math.max(15,Math.round((b.getTime()-a.getTime())/60000)));setEditing(true);
+  if(v.job_id){Alert.alert('Confirmed booking','To change the time of an accepted Tradarr job, use Request a different time below. Both parties must agree.');return;}
+  if(v.grid_request_id){Alert.alert('Grid booking','This slot is tied to an accepted Grid request. Its time cannot be edited here.');return;}
+  setEditId(v.id);setCustomerId(v.customer_id);setSelectedJobId(null);setTitle(v.title);setName(v.customer_name||'');setAddress(v.address||'');setNotes(v.notes||'');
+  setDate(ukDayOf(a));setTime(a.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}));
+  setDuration(Math.max(15,Math.round((b.getTime()-a.getTime())/60000)));setEditing(true);
  };
  const setCustomer=(v:Customer|null)=>{setCustomerId(v?.id||null);if(v){setName(v.name);setAddress(v.address||'')}setPickCustomer(false)};
  const persist=async(a:Date,b:Date)=>{setSaving(true);
   const payload={tradesperson_id:uid,customer_id:customerId,customer_name:name.trim()||null,title:title.trim(),address:address.trim()||null,notes:notes.trim()||null,
-  starts_at:a.toISOString(),ends_at:b.toISOString(),updated_at:new Date().toISOString()};
+  job_id:selectedJobId,starts_at:a.toISOString(),ends_at:b.toISOString(),updated_at:new Date().toISOString()};
   const result=editId?
   await supabase.from('trade_appointments').update(payload).eq('id',editId).eq('tradesperson_id',uid).select('*').single():
   await supabase.from('trade_appointments').insert({...payload,status:'scheduled'}).select('*').single();
   setSaving(false);
   if(result.error||!result.data){Alert.alert('Could not save',result.error?.message||'Please try again');return;}
-  setItems(old=>[...old.filter(i=>i.id!==result.data.id),result.data as Appointment]);setEditing(false);setView('upcoming');
+  setItems(old=>[...old.filter(i=>i.id!==result.data.id),result.data as Appointment]);
+  if(selectedJobId)setLinkedJobs(old=>old.filter(j=>j.id!==selectedJobId));
+  setEditing(false);setView('upcoming');
  };
  const save=async()=>{
   if(!uid||saving)return;
-  if(!title.trim()){Alert.alert('Enter the job title');return;}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)){
-   Alert.alert('Check the date and time','Enter YYYY-MM-DD and HH:MM');return;
+  if(!title.trim()){Alert.alert('Enter a job title');return;}
+  const iso=ukSlotToISO(date,time);
+  const endIso=iso?advanceISOByMinutes(iso,duration):null;
+  if(!iso||!endIso||Date.parse(iso)<Date.now()-120000){
+   Alert.alert('Check the appointment','Enter a valid UK date and time. A new appointment must be in the future.');return;
   }
-  const a=new Date(date+'T'+time+':00'),b=new Date(a.getTime()+duration*60000);
-  if(Number.isNaN(a.getTime())||day(a)!==date||duration<=0||duration>1440){Alert.alert('Invalid date or duration');return;}
-  const overlap=items.find(v=>v.id!==editId&&v.status==='scheduled'&&a.getTime()<new Date(v.ends_at).getTime()&&b.getTime()>new Date(v.starts_at).getTime());
-  if(overlap){Alert.alert('Booking overlap','This overlaps '+overlap.title+'. Save both anyway?',[
-   {text:'Change time',style:'cancel'},{text:'Save anyway',onPress:()=>{void persist(a,b)}}
-  ]);return;}
+  const a=new Date(iso),b=new Date(endIso);
+  const overlap=items.find(v=>v.id!==editId&&v.status==='scheduled'&&a.getTime()<Date.parse(v.ends_at)&&b.getTime()>Date.parse(v.starts_at));
+  if(overlap){Alert.alert('Time already booked','This overlaps '+overlap.title+'. Choose another appointment time.');return;}
   await persist(a,b);
  };
  const updateStatus=async(v:Appointment,status:Appointment['status'])=>{
@@ -99,9 +119,27 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  </View>
  {loading?<ActivityIndicator style={{marginTop:50}} size="large" color={C.teal}/>:
  editing?<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
- <Text style={s.explain}>Keep track of your bookings. Appointments use your phone's local time.</Text>
+ <Text style={s.explain}>Your diary uses UK time. Confirmed Tradarr appointments block overlapping bookings, even if two devices try to book simultaneously.</Text>
  <View style={s.card}>
  <Field label="Work / appointment title *" value={title} change={setTitle} placeholder="e.g. Replace radiator valves"/>
+ {!editId&&linkedJobs.filter(j=>!j.appointment_id).length?<>
+ <Text style={s.label}>Link to an accepted Tradarr job (optional)</Text>
+ <MotionPressable style={s.customerPick} onPress={()=>setPickJob(x=>!x)}>
+  <CalendarDays size={18} color={C.teal}/>
+  <Text style={{flex:1,color:C.teal,fontSize:13,fontWeight:'800'}}>
+    {selectedJobId?linkedJobs.find(x=>x.id===selectedJobId)?.issue:'Choose accepted job'}
+  </Text><ChevronRight size={18} color={C.teal}/>
+ </MotionPressable>
+ {pickJob?<View style={s.pickList}>
+  <MotionPressable style={s.pickOption} onPress={()=>{setSelectedJobId(null);setPickJob(false);}}>
+   <Text style={s.pickText}>Private appointment (no linked job)</Text>
+  </MotionPressable>
+  {linkedJobs.filter(j=>!j.appointment_id).map(j=><MotionPressable key={j.id}
+    style={s.pickOption} onPress={()=>{setSelectedJobId(j.id);setTitle(j.issue);setPickJob(false)}}>
+   <Text style={s.pickText}>{j.trade} · {j.issue}</Text>
+  </MotionPressable>)}
+ </View>:null}
+ </>:null}
  <Text style={s.label}>Customer (optional)</Text>
  <MotionPressable style={s.customerPick} onPress={()=>setPickCustomer(x=>!x)}>
  <Users size={18} color={C.teal}/><Text style={{flex:1,color:C.teal,fontSize:13,fontWeight:'800'}}>{customerId?customers.find(x=>x.id===customerId)?.name:'Choose saved customer'}</Text><ChevronRight size={18} color={C.teal}/>
@@ -122,23 +160,30 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Save appointment</Text>}
  </MotionPressable></ScrollView>:
  <ScrollView contentContainerStyle={s.page}>
- <Text style={s.explain}>Keep private work and Tradarr appointments organised. Check your availability before accepting other bookings.</Text>
+ <Text style={s.explain}>Appointments from accepted Tradarr jobs and Grid slots appear alongside your private diary. Confirmed times cannot overlap.</Text>
  <View style={s.summary}><CalendarDays size={26} color={C.teal}/>
  <View style={{flex:1}}><Text style={s.summaryBig}>{items.filter(x=>x.status==='scheduled'&&new Date(x.ends_at).getTime()>=now).length} upcoming</Text>
  <Text style={s.summarySub}>Scheduled appointments</Text></View></View>
  <View style={s.tabs}>{(['upcoming','past'] as const).map(x=><MotionPressable key={x} onPress={()=>setView(x)} style={[s.tab,view===x&&s.tabOn]}>
  <Text style={[s.tabText,view===x&&s.tabTextOn]}>{x==='upcoming'?'Upcoming':'Past & completed'}</Text></MotionPressable>)}</View>
  {visible.length?visible.map(x=><View key={x.id} style={s.card}>
- <View style={s.entryHead}><View style={{flex:1}}><Text style={s.date}>{new Date(x.starts_at).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</Text>
- <Text style={s.entryTitle}>{x.title}</Text></View><Text style={s.time}>{clock(new Date(x.starts_at))}</Text></View>
+ <View style={s.entryHead}><View style={{flex:1}}><Text style={s.date}>{new Date(x.starts_at).toLocaleDateString('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short'})}</Text>
+ <Text style={s.entryTitle}>{x.title}</Text></View>
+ <Text style={s.time}>{new Date(x.starts_at).toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'})}</Text></View>
  <View style={s.info}><Clock3 size={15} color={C.muted}/><Text style={s.sub}>{Math.round((new Date(x.ends_at).getTime()-new Date(x.starts_at).getTime())/60000)} mins · {x.status}</Text></View>
  {x.customer_name?<View style={s.info}><Users size={15} color={C.muted}/><Text style={s.sub}>{x.customer_name}</Text></View>:null}
  {x.address?<View style={s.info}><MapPin size={15} color={C.muted}/><Text style={s.sub}>{x.address}</Text></View>:null}
  {x.notes?<Text style={s.note}>{x.notes}</Text>:null}
- <View style={s.actions}><MotionPressable onPress={()=>startEdit(x)} style={s.smallBtn}><Pencil size={16} color={C.teal}/><Text style={s.smallText}>Edit</Text></MotionPressable>
- {x.status==='scheduled'?<><MotionPressable onPress={()=>updateStatus(x,'completed')} style={s.smallBtn}><Check size={16} color={C.teal}/><Text style={s.smallText}>Complete</Text></MotionPressable>
+ {x.job_id&&x.status==='scheduled'?<BookingReschedulePanel jobId={x.job_id}
+   currentStart={x.starts_at} currentEnd={x.ends_at} onUpdated={()=>{void refreshAppointments()}}/>:null}
+ {x.grid_request_id?<Text style={s.note}>Grid booking · exact time reserved</Text>:null}
+ <View style={s.actions}>
+ {!x.job_id&&!x.grid_request_id?<MotionPressable onPress={()=>startEdit(x)} style={s.smallBtn}>
+  <Pencil size={16} color={C.teal}/><Text style={s.smallText}>Edit</Text></MotionPressable>:null}
+ {!x.job_id&&!x.grid_request_id&&x.status==='scheduled'?<><MotionPressable onPress={()=>updateStatus(x,'completed')} style={s.smallBtn}><Check size={16} color={C.teal}/><Text style={s.smallText}>Complete</Text></MotionPressable>
  <MotionPressable onPress={()=>updateStatus(x,'cancelled')} style={s.smallBtn}><Text style={s.smallText}>Cancel</Text></MotionPressable></>:null}
- <MotionPressable style={{marginLeft:'auto',padding:9}} onPress={()=>remove(x)}><Trash2 size={17} color={C.coralDark}/></MotionPressable></View>
+ {!x.job_id&&!x.grid_request_id?<MotionPressable style={{marginLeft:'auto',padding:9}}
+ onPress={()=>remove(x)}><Trash2 size={17} color={C.coralDark}/></MotionPressable>:null}</View>
  </View>):<View style={s.empty}><CalendarDays size={35} color={C.teal}/><Text style={s.emptyTitle}>{view==='upcoming'?'No upcoming bookings':'No past appointments'}</Text>
  <Text style={s.explain}>{view==='upcoming'?'Add a private job or appointment to organise your day.':'Completed or past bookings appear here.'}</Text>
  {view==='upcoming'?<MotionPressable onPress={startNew} style={s.primary}><Plus size={19} color="#FFFFFF"/><Text style={s.primaryText}>Add booking</Text></MotionPressable>:null}</View>}
