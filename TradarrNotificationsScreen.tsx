@@ -13,8 +13,9 @@ export type TradarrAlert={
  data:{screen?:string;jobId?:string;conversationId?:string};
  created_at:string;read_at:string|null;
 };
-type Props={onBack:()=>void;onOpen:(notification:TradarrAlert)=>void};
-export default function TradarrNotificationsScreen({onBack,onOpen}:Props){
+type Props={onBack:()=>void;onOpen:(notification:TradarrAlert)=>void;
+ embedded?:boolean;onUnreadCountChange?:(count:number)=>void};
+export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false,onUnreadCountChange}:Props){
  const [uid,setUid]=useState('');
  const [items,setItems]=useState<TradarrAlert[]>([]);
  const [loading,setLoading]=useState(true);
@@ -59,6 +60,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen}:Props){
  },[refresh]);
 
  const unread=useMemo(()=>items.filter(x=>!x.read_at).length,[items]);
+ useEffect(()=>{onUnreadCountChange?.(unread);},[unread,onUnreadCountChange]);
  const shown=useMemo(()=>unreadOnly?items.filter(x=>!x.read_at):items,
   [unreadOnly,items]);
 
@@ -92,7 +94,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen}:Props){
    return Bell;
  };
  return <View style={s.root}>
-  <View style={s.heading}>
+  {!embedded?<View style={s.heading}>
    <MotionPressable onPress={onBack} style={s.back} accessibilityRole="button"
      accessibilityLabel="Back to account">
       <ArrowLeft color={theme.colors.ink} size={21}/>
@@ -106,8 +108,8 @@ export default function TradarrNotificationsScreen({onBack,onOpen}:Props){
      accessibilityRole="button" accessibilityLabel="Refresh notifications">
     <RefreshCw size={19} color={theme.colors.teal}/>
    </MotionPressable>
-  </View>
-  <View style={s.tools}>
+  </View>:null}
+  <View style={[s.tools,embedded&&{paddingTop:9}]}>
    <View style={s.tabs}>
     {([{key:'all',label:'All'},{key:'unread',label:'Unread'}] as const).map(tab=>{
      const selected=unreadOnly===(tab.key==='unread');
