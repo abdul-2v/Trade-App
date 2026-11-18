@@ -1,4 +1,4 @@
-# TradeHub release test plan
+# Tradarr release test plan
 
 **Environment:** staging/test accounts only; do not send real customers to demo profiles.
 **Tester:** one customer, one real tradesperson, two physical phones, Supabase dashboard for records and GitHub Actions / Expo for build status.
@@ -84,3 +84,22 @@
 - [ ] Only launch after successful real end-to-end booking and user acceptance tests
 
 **Go/no-go:** Do not mark as launch-ready merely because all UI screens render or Expo publishes an OTA update. Confirm the live customer-to-tradesperson loop and safety controls first.
+
+## New bookings, messaging and journey acceptance criteria (not yet device-tested)
+
+- [ ] Provider publishes weekday working hours; customer sees free suggestions excluding a scheduled private diary booking.
+- [ ] A date with no provider hours remains a **preferred request**, not a guaranteed available slot.
+- [ ] Customer chooses a real future time/duration and professional acceptance creates exactly one linked diary booking.
+- [ ] Conflicting acceptances and overlapping Grid requests fail without double-booking.
+- [ ] Customer proposes an alternative time; professional accepts; both see the same saved UK time. Proposer cannot self-approve.
+- [ ] Cancelling an accepted job cancels its linked appointment; direct deletion of linked bookings is disallowed.
+- [ ] Both sides send a text, a photo-only message and a text-with-photo message; message read receipts and unread badges update.
+- [ ] Retry a failed send without duplicate content, load older messages without being forced to the bottom, test offline/online reconnection.
+- [ ] Unauthorized third account cannot view private chat attachments or read nonparticipant messages.
+- [ ] A professional publishes an On My Way or Street Run window anchored to an existing diary event. Incorrect trade and cancelled anchors are rejected.
+- [ ] Customer posts a matching flexible request; professional accepts without a fake confirmed appointment, ETA or price.
+- [ ] Proposed route visit fits the published window and 15-minute inter-job buffer, then appears on the journey board.
+- [ ] On My Way opens directions through extra visit to the saved original appointment; Street Run opens scheduled time-ordered multi-stop directions.
+- [ ] Never claim route directions are an optimised travel plan or that any savings are guaranteed.
+
+All above are separate from CI syntax, TypeScript and unit checks. See [architecture notes](docs/TRADARR_BOOKING_MESSAGING_ROUTING.md).
