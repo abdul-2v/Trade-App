@@ -8092,6 +8092,25 @@ function TradeSettingsScreen({
   const [bio, setBio] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [notificationPreference, setNotificationPreference] = useState(true);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+  const changeNotificationPreference = async (next:boolean) => {
+    if (savingNotifications) return;
+    setSavingNotifications(true);
+    try {
+      const {data:{user}} = await supabase.auth.getUser();
+      if (!user) throw new Error('Please sign in again.');
+      const {error} = await supabase.from('profiles').update({
+        notifications_enabled:next,updated_at:new Date().toISOString()
+      }).eq('id',user.id);
+      if (error) throw error;
+      setNotificationPreference(next);
+    } catch (error:any) {
+      Alert.alert('Could not save preference',error?.message || 'Please try again.');
+    } finally {
+      setSavingNotifications(false);
+    }
+  };
   // Presentation-only subpages. All saved profile/location logic remains unchanged.
   const [profilePage, setProfilePage] = useState<'overview' | 'edit' | 'account' | 'preview'>('overview');
   const profileSteps = [
@@ -8115,7 +8134,7 @@ function TradeSettingsScreen({
 
       if (!user || !active) return;
 
-      const [{ data: profile }, { data: availability }] = await Promise.all([
+      const [{ data: profile }, { data: availability }, { data: person }] = await Promise.all([
         supabase
           .from('tradesperson_profiles')
           .select('display_name, primary_trade, avatar_url, bio, public_phone')
@@ -8126,9 +8145,11 @@ function TradeSettingsScreen({
           .select('location_mode, work_area_latitude, work_area_longitude, work_area_label, service_radius_miles, emergency_opt_in')
           .eq('user_id', user.id)
           .single(),
+        supabase.from('profiles').select('notifications_enabled').eq('id',user.id).maybeSingle(),
       ]);
 
       if (!active) return;
+      if (person) setNotificationPreference(person.notifications_enabled !== false);
 
       if (profile) {
         setDisplayName(profile.display_name || 'Your trade profile');
@@ -8733,7 +8754,20 @@ function TradeSettingsScreen({
                 <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Invoices & PDFs</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
               </MotionPressable>
-              {['Payments & payouts', 'Notifications', 'Help & support'].map(item => (
+              <View style={styles.premiumAccountRow}>
+                <View style={styles.premiumChecklistIcon}><Bell size={19} color={theme.colors.teal}/></View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>Notification preferences</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Save your preference for job and message alerts</Text>
+                </View>
+                <Switch value={notificationPreference} onValueChange={changeNotificationPreference}
+                  disabled={savingNotifications} accessibilityLabel="Allow Tradarr notification preferences"
+                  trackColor={{false:'#B7C1C0',true:theme.colors.success}}/>
+              </View>
+              <Text style={{fontSize:11,color:theme.colors.muted,marginHorizontal:15,marginBottom:10,lineHeight:17}}>
+                Preference saved to your account. Phone push alerts still need a production app build and notification delivery setup.
+              </Text>
+              {['Payments & payouts', 'Help & support'].map(item => (
                 <View style={styles.premiumAccountRow} key={item}>
                   <View style={styles.premiumChecklistIcon}><UserRound size={19} color={theme.colors.teal} /></View>
                   <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
