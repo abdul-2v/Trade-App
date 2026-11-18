@@ -935,19 +935,30 @@ export default function App() {
 
           if (!user) throw new Error('Please sign in again.');
 
-          const permission = await Location.requestForegroundPermissionsAsync();
-          if (permission.status !== 'granted') {
-            throw new Error('Location permission is needed so the tradesperson knows the job area.');
+          let coords:{latitude:number;longitude:number};
+          let locationLabel='Approximate phone location';
+          let exactLocationLabel='Phone position; confirm the actual job address';
+          if(booking.jobPostcode){
+            const code=booking.jobPostcode.trim().toUpperCase().replace(/\\s+/g,'');
+            const isFull=/^[A-Z]{1,2}\\d[A-Z\\d]?\\d[A-Z]{2}$/.test(code);
+            const outcode=/^[A-Z]{1,2}\\d[A-Z\\d]?$/.test(code);
+            if(!isFull&&!outcode)throw new Error('Enter a valid UK postcode or district.');
+            const endpoint='https://api.postcodes.io/'+(isFull?'postcodes':'outcodes')+'/'+encodeURIComponent(code);
+            const response=await fetch(endpoint);
+            const result=(await response.json())?.result;
+            if(!response.ok||!result||!Number.isFinite(Number(result.latitude))||
+              !Number.isFinite(Number(result.longitude)))
+              throw new Error('That postcode could not be located. Check it and try again.');
+            coords={latitude:Number(result.latitude),longitude:Number(result.longitude)};
+            locationLabel='Customer postcode area '+(isFull?String(result.outcode||code.slice(0,-3)).toUpperCase():code);
+            exactLocationLabel='Approximate postcode area; confirm exact property address after acceptance';
+          }else{
+            const permission=await Location.requestForegroundPermissionsAsync();
+            if(permission.status!=='granted')
+              throw new Error('Enter a UK job postcode, or allow phone location access, to send the request.');
+            const position=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
+            coords={latitude:position.coords.latitude,longitude:position.coords.longitude};
           }
-
-          const position = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-
-          const coords = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
 
           const tradespersonId = selectedTrade.id.replace('live-', '');
           const timing = 'Requested '+formatUKDateTime(booking.startsAt);
@@ -963,7 +974,7 @@ export default function App() {
               requested_end: booking.endsAt,
               latitude: Number(coords.latitude.toFixed(2)),
               longitude: Number(coords.longitude.toFixed(2)),
-              location_label: 'Approximate scheduled job area',
+              location_label: locationLabel,
               search_radius_miles: Math.max(1, Math.ceil(selectedTrade.distance + 1)),
               preferred_tradesperson_id: tradespersonId,
               status: 'offered',
@@ -978,7 +989,7 @@ export default function App() {
             customer_id: user.id,
             latitude: coords.latitude,
             longitude: coords.longitude,
-            address_label: 'Customer job location',
+            address_label: exactLocationLabel,
           });
 
           if (locationError) {
@@ -990,7 +1001,7 @@ export default function App() {
             job_id: job.id,
             tradesperson_id: tradespersonId,
             distance_miles: Number(selectedTrade.distance.toFixed(2)),
-            eta_minutes: Math.max(8, selectedTrade.eta),
+            eta_minutes: null,
             status: 'offered',
           });
 
@@ -4417,7 +4428,7 @@ function BookingScreen({
 }:{
   trade:Trade;
   back:()=>void;
-  complete:(booking:{service:string;date:string;time:string;startsAt:string;endsAt:string})=>Promise<void>|void;
+  complete:(booking:{service:string;date:string;time:string;startsAt:string;endsAt:string;jobPostcode:string})=>Promise<void>|void;
   initialService?:string|null;
   initialTiming?:string|null;
 }){
@@ -4427,6 +4438,7 @@ function BookingScreen({
  const [time,setTime]=useState(initialTiming==='Flexible'?'13:00':'10:00');
  const [duration,setDuration]=useState(90);
  const [submitting,setSubmitting]=useState(false);
+ const [jobPostcode,setJobPostcode]=useState('');
  const [advertised,setAdvertised]=useState<{
   day:string;duration:number;loading:boolean;configured:boolean;times:string[];error:string;
  }>({day:'',duration:0,loading:true,configured:false,times:[],error:''});
@@ -4472,9 +4484,13 @@ function BookingScreen({
    Alert.alert('Select a future appointment','Choose a UK date and time at least 30 minutes from now.');return;
   }
   if(!service.trim()){Alert.alert('Choose a service');return;}
+  const normalized=jobPostcode.trim().toUpperCase().replace(/\\s+/g,'');
+  if(normalized && !/^[A-Z]{1,2}\\d[A-Z\\d]?(?:\\d[A-Z]{2})?$/.test(normalized)){
+   Alert.alert('Check your job postcode','Enter a valid UK postcode or outward district such as LE1 or LE1 7RH.');return;
+  }
   setSubmitting(true);
   try{
-   await complete({service,date,time,startsAt:chosenStart,endsAt:chosenEnd});
+   await complete({service,date,time,startsAt:chosenStart,endsAt:chosenEnd,jobPostcode:normalized});
   }catch(error:any){
    Alert.alert('Could not send booking request',error?.message||'Please try again.');
   }finally{setSubmitting(false);}
@@ -4499,6 +4515,23 @@ function BookingScreen({
      <Text style={styles.radioText}>{item}</Text>
     </MotionPressable>
    ))}
+   <Text style={styles.contentHeading}>Where is the work?</Text>
+   <View style={{backgroundColor:'#FFFFFF',borderRadius:14,padding:13,borderWidth:1,
+      borderColor:theme.colors.line,marginBottom:14,gap:6}}>
+     <Text style={{fontSize:12,color:theme.colors.muted,lineHeight:19}}>
+       Enter a UK postcode or postcode district to request a visit without GPS access.
+       Leave blank to use your phone location when you send the request.
+     </Text>
+     <TextInput value={jobPostcode} onChangeText={setJobPostcode}
+       placeholder="Job postcode · e.g. LE1 7RH" autoCapitalize="characters"
+       autoCorrect={false} placeholderTextColor="#889593"
+       accessibilityLabel="Job postcode"
+       style={{backgroundColor:'#F5F8F6',borderRadius:12,minHeight:48,paddingHorizontal:13,
+         color:theme.colors.ink,fontWeight:'700',fontSize:14}}/>
+     <Text style={{fontSize:11,color:theme.colors.muted,lineHeight:16}}>
+       This identifies the approximate job area. Confirm the full property address privately with the tradesperson after acceptance.
+     </Text>
+   </View>
    <Text style={styles.contentHeading}>Your preferred appointment day</Text>
    <ScrollView horizontal showsHorizontalScrollIndicator={false}
      contentContainerStyle={{flexDirection:'row',gap:8,paddingBottom:10,marginBottom:10}}>
