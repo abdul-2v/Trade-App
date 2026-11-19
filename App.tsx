@@ -14,6 +14,7 @@ import CustomerInvoicesScreen from './CustomerInvoicesScreen';
 import TradeTrustScreen from './TradeTrustScreen';
 import TradarrSupportScreen from './TradarrSupportScreen';
 import TradarrAdminGateway from './TradarrAdminGateway';
+import TradarrAccountSafetyScreen from './TradarrAccountSafetyScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
 import TradeGridScreen from './TradeGridScreen';
@@ -113,6 +114,7 @@ type CustomerScreen =
   | 'customerQuotes'
   | 'customerInvoices'
   | 'customerSupport'
+  | 'customerSafety'
   | 'staffConsole'
   | 'myHome'
   | 'grid'
@@ -125,7 +127,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeStaff';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -863,6 +865,9 @@ export default function App() {
     if (tradeScreen === 'tradeSupport') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
       <TradarrSupportScreen role="tradesperson" goBack={() => navigateTrade('tradeProfile')}/>
     </TradeShell>;
+    if (tradeScreen === 'tradeSafety') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
+      <TradarrAccountSafetyScreen goBack={() => navigateTrade('tradeProfile')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeStaff') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
       <TradarrAdminGateway goBack={() => navigateTrade('tradeProfile')}/>
     </TradeShell>;
@@ -1156,6 +1161,11 @@ export default function App() {
   if (customerScreen === 'customerSupport') {
     return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
       <TradarrSupportScreen role="customer" goBack={() => setCustomerScreen('customerProfile')}/>
+    </CustomerShell>;
+  }
+  if (customerScreen === 'customerSafety') {
+    return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
+      <TradarrAccountSafetyScreen goBack={() => setCustomerScreen('customerProfile')}/>
     </CustomerShell>;
   }
   if (customerScreen === 'staffConsole') {
@@ -3551,11 +3561,12 @@ function TradeProfileScreen({
     try {
       const {data:{user}} = await supabase.auth.getUser();
       if (!user) throw new Error('Sign in to report a profile.');
-      const {error} = await supabase.from('support_requests').insert({
-        submitted_by:user.id,
-        category:'safety',
-        subject:'Tradesperson profile report: '+trade.name.slice(0,65),
-        message:'Reported profile ID: '+trade.id.slice(5)+'\n'+detail,
+      const {error} = await supabase.from('tradarr_safety_reports').insert({
+        reporter_id:user.id,
+        target_type:'trader',
+        target_ref:trade.id.slice(5),
+        category:'misconduct',
+        details:detail,
       });
       if (error) throw error;
       setReportDetails('');
@@ -5845,7 +5856,7 @@ function CustomerProfileScreen({
             <Text style={styles.customerAccountRowStatus}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
           </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => Alert.alert('Privacy & security', 'Your account is secured by email and password. Use the sign-in screen to reset your password.')}
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerSafety')}
             accessibilityRole="button" accessibilityLabel="Privacy and security information">
             <View style={styles.customerAccountRowIcon}><LockKeyhole size={20} strokeWidth={2} color={theme.colors.teal} /></View>
             <Text style={styles.customerAccountRowText}>Privacy & security</Text>
@@ -8738,6 +8749,12 @@ function TradeSettingsScreen({
                   <Text style={styles.premiumChecklistTitle}>Credentials & verification</Text>
                   <Text style={styles.premiumChecklistSubtitle}>Submit private evidence for staff review</Text>
                 </View>
+                <ChevronRight size={21} color={theme.colors.muted}/>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeSafety')}
+                accessibilityRole="button" accessibilityLabel="Manage account safety, blocking, appeals and account deletion">
+                <View style={styles.premiumChecklistIcon}><LockKeyhole size={20} color={theme.colors.teal}/></View>
+                <Text style={[styles.premiumChecklistTitle,{flex:1}]}>Privacy & account safety</Text>
                 <ChevronRight size={21} color={theme.colors.muted}/>
               </MotionPressable>
               <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeSupport')}
