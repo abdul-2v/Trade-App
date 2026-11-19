@@ -109,3 +109,40 @@ For release, the still-flagged Supabase security-definer functions must be revie
 - [ ] Verify account deletion, moderation escalation, retention policy, and App Store/Play Store safety requirements before beta release.
 
 Use `npm run dev:auto` for the existing Expo Go workflow. Apple remote notifications still require compatible native credentials and a development/production build.
+
+
+## Admin enforcement, analytics and account deletion verification — 19 November 2026
+
+The live Supabase project and GitHub branch now include:
+
+- **MFA- and active-session-protected admin operations.** A valid, current Supabase `auth.sessions` record with AAL2, matching JWT session ID and verified staff claim is required for account browsing, analytics, moderation, private case evidence and irreversible deletion approval. A revoked session, password-only session, incorrect account or missing session ID is rejected.
+- **Account suspension/reinstatement:** written rationale, explicit confirmation, audit and in-app notification. Suspended users cannot initiate new marketplace jobs, offers, messages or other operational writes. They can still read existing records and submit appeals. Public trading listings also become unavailable during a suspension.
+- **Member blocking:** blocks both *new conversations* and *new messages* bilaterally, but retains past messages and contractual records for dispute resolution. Users manage blocks in Account → Privacy & safety.
+- **Report and appeal workflows:** structured safety reporting of profiles, conversational users and marketplace items, with staff review and reasoned status decisions. Formal appeals do not silently reverse prior restrictions; staff must separately restore an account or listing.
+- **Review moderation:** hide or restore verified job reviews, preserving the original and updating the trader's displayed rating/count, with an admin audit entry.
+- **Account activity:** privacy-restricted staff summaries of job, message, appointment, invoice and support activity. These are **not login tracking**.
+- **Business analytics:** 7-, 30- and 90-day registration/job trends, cohorts, booking outcomes, acceptance/completion/cancellation rates, quote conversion, a minimum-3-request coarse geographical view and **separately labelled trader invoices**. Tradarr platform revenue is null until its own payment source is integrated.
+- **Account deletion:** a user can request deletion. Authorised staff can review the case, run a conservative retention preflight via the active `tradarr-account-delete` Edge Function and, only if eligible, use explicit irreversible confirmation. The service blocks deletion if there are trade profiles, jobs, messages, invoices, documents or other contractual/retention records. It does not delete accounts automatically on request.
+
+### Executed non-destructive database tests
+
+- [x] Live AAL2 staff session accepted; same account with AAL1, missing session or mismatched session owner rejected
+- [x] Suspend an existing non-admin account inside a rollback transaction; its appeal submission still succeeded
+- [x] Existing conversation allowed before blocking; new message denied after a block
+- [x] New conversation denied when either account blocks the other
+- [x] Review hide and restore each audited, with rating recount recalculated; all review fixtures rolled back
+- [x] Account deletion preflight refused to erase an account with linked records; request fixture rolled back
+- [x] The admin analytics RPC returned a 30-day daily series and kept Tradarr platform revenue null
+- [x] Latest GitHub typecheck and Expo workflow passed after backend and app changes
+
+### Outstanding required checks
+
+- [ ] On a real iPhone, test the full Admin Gateway after signing in and completing TOTP verification
+- [ ] On two separate genuine identities, test restrictions, blocks, report/appeal responses, appointment notifications, permissions, and privacy boundaries
+- [ ] Test account deletion **only against a disposable account** with no trades, linked records or storage; verify completion audit, Supabase Auth removal, client sign-out and retained legal-data handling
+- [ ] Define appeal handling, report response hours, deletion retention windows and a procedure for restoring mistakenly suspended accounts
+- [ ] Enable **Leaked Password Protection** in the Supabase Dashboard under Authentication's password security settings. Supabase documents it as a Pro-and-above setting; the connected tools do not expose that toggle. As of this audit the Security Advisor still reports it disabled
+- [ ] Review the remaining expected `authenticated_security_definer_function_executable` advisories before public release. These functions serve scoped admin data or privacy-suppressed marketplace lookup; their grants are limited, but each must remain audited as its dependencies evolve
+- [ ] Enable and test native Apple push delivery once the Apple development credentials are available
+
+No customer, trader or admin account was deleted or left suspended during these verification tests. Do not report Tradarr as production-ready solely because GitHub and SQL checks pass.
