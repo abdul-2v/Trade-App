@@ -10,28 +10,29 @@ Updated 19 November 2026. This file describes the implemented beta workflows and
 - Recipient-specific Inbox Activity alerts notify tradespeople of credential decisions and expiry and customers/tradespeople of support case updates.
 - Public `tradesperson_profiles.is_verified` is server-computed from staff-approved identity **or business** evidence. Public `is_insured` requires staff-approved insurance evidence whose expiry has not passed. A daily database job removes lapsed insurance badges; it does not verify insurance with an insurer automatically.
 
-## Staff access is deliberately not provisioned automatically
+## Administrator Gateway and testing account
 
-**There are no staff-authorised accounts at the time of implementation.** An owner must designate a trusted, registered account.
+**Provisioned 19 November 2026:** The verified `abdurhajat@gmail.com` account has a server-managed `tradarr_staff` claim. The original account and customer records were preserved. **No separate login or shared admin password has been created.**
 
-Use the **Supabase Auth Admin API from a trusted server only** to set a server-owned claim in that account's `app_metadata`:
+- Re-sign into Tradarr to refresh the account claim, then open **Customer → Account → Admin Gateway · Secure access**.
+- The gateway requires an authenticator app with a six-digit TOTP code. Set up the factor inside the gateway. The database explicitly requires an `aal2` session before showing credential evidence, staff-only case notes or permitting reviewer decisions. Password-only sessions are insufficient, even if the account has the staff claim.
+- The same email can use **Customer → Account → Test tradesperson view**. This opens the Pro profile and lets the account owner set up an actual business name and trade. No fictional business was created automatically. On saving valid details, a tradesperson profile is inserted and `profiles.account_type` is changed to `tradesperson`, while the same account retains its customer jobs and data.
+- In Pro → Account, **Switch to customer app** returns to the ordinary customer interface. The admin gateway is also linked from the professional Account screen.
+- Switching viewpoints does **not** simulate two distinct identities. Genuine customer-to-trader messaging, accepting one's own requests, cross-account privacy and live booking tests still need another customer/tradesperson account.
+
+### Adding or removing other staff
+
+Use the **Supabase Auth Admin API from a trusted server only**, preserving all existing app metadata. Never include a Supabase service-role key in the Expo application:
 
 ```ts
-// Trusted backend or admin script only. Never ship a service-role key in Expo.
-// Fetch the chosen user's existing app_metadata first and preserve its keys.
-await supabaseAdmin.auth.admin.updateUserById(chosenStaffUserId, {
-  app_metadata: {
-    ...existingAppMetadata,
-    tradarr_staff: true,
-  },
+await supabaseAdmin.auth.admin.updateUserById(chosenStaffUserId,{
+  app_metadata:{...existingAppMetadata,tradarr_staff:true}
 });
 ```
 
-- Choose `chosenStaffUserId` from a known verified staff account; do not guess or assign a role just because someone is the first customer/tradesperson.
-- Never write the claim into `user_metadata` or grant it from a mobile client.
-- Require the staff member to sign out and back in after the change so their client gets fresh Auth metadata.
-- To revoke, remove `tradarr_staff` through the trusted Admin API. Database policies also re-check `auth.users.raw_app_meta_data` on every staff-authorised request, so a stale JWT cannot retain reviewer permissions.
-- Supabase backend `service_role` still bypasses RLS; keep its key only in the protected server environment.
+Remove the claim through the trusted Auth Admin API to revoke access. The database checks `auth.users.raw_app_meta_data` on every staff request, so revoked roles stop working even with a stale JWT. The additional MFA `aal2` session is required for every sensitive staff action.
+
+**Security:** The administrator password must be changed if it was shared in plaintext. Do not store credentials in the app, source code, GitHub, public comments, chat case notes or support attachments. Auth leaked-password protection remains to be enabled from Supabase Auth settings.
 
 ## Support operations
 
