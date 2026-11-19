@@ -3651,8 +3651,8 @@ function TradeProfileScreen({
           </View>
           {(trade.verified || trade.insured || trade.gasSafe) ? (
             <View style={styles.customerPublicBadges}>
-              {trade.verified ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>ID verified</Text></View> : null}
-              {trade.insured ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Insured</Text></View> : null}
+              {trade.verified ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Profile verified</Text></View> : null}
+              {trade.insured ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Insurance checked</Text></View> : null}
               {trade.gasSafe ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Gas Safe</Text></View> : null}
             </View>
           ) : null}
@@ -3714,8 +3714,8 @@ function TradeProfileScreen({
           <>
             <Text style={styles.customerPublicSectionTitle}>Profile information</Text>
             <View style={styles.customerPublicInformationCard}>
-              {trade.verified ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Photo ID marked verified</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
-              {trade.insured ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Insurance recorded</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
+              {trade.verified ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Identity or business evidence reviewed by Tradarr</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
+              {trade.insured ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Insurance evidence reviewed · valid at last status update</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
               {trade.gasSafe ? <View style={styles.customerPublicInformationRow}><ShieldCheck size={21} color={theme.colors.teal} /><Text style={styles.customerPublicInformationText}>Gas Safe listed</Text><CheckCircle2 size={20} color={theme.colors.success} /></View> : null}
             </View>
             {!isLiveProfile ? <Text style={styles.customerPublicNote}>Demo credentials are examples only.</Text> : null}
