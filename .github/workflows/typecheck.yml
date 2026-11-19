@@ -39,3 +39,6 @@ jobs:
 
       - name: Test booking and route matching logic
         run: npm run test:logic
+
+      - name: Stress test clustered map geometry with 10,000 fictional markers
+        run: node scripts/test-map-density.cjs
