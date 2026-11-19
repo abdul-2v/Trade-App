@@ -1,17 +1,19 @@
 import React,{useCallback,useEffect,useState} from 'react';
-import {ActivityIndicator,Alert,Linking,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,Linking,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,CalendarDays,Check,ChevronRight,MapPin,Navigation,Pause,Play,Plus,RefreshCw,Route,Users} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {formatUKDateTime} from './lib/scheduling';
 import type {RouteMode} from './lib/routeMatching';
+import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
 
 type Appointment={id:string;title:string;starts_at:string;ends_at:string;address:string|null};
 type Journey={id:string;anchor_appointment_id:string;mode:RouteMode;trade:string;start_area:string;end_area:string;
  starts_at:string;ends_at:string;status:string;max_deviation_miles:number;max_extra_visits:number};
 type Stop={jobId:string;routePlanId:string;issue:string;status:string;
- requestedStart:string|null;requestedEnd:string|null;latitude:number|null;longitude:number|null};
+ requestedStart:string|null;requestedEnd:string|null;appointmentId:string|null;
+ estimatedArrivalMinutes:number|null;etaUpdatedAt:string|null;latitude:number|null;longitude:number|null};
 type Props={goBack:()=>void;openDiary:()=>void;openMessages:()=>void};
 const C=theme.colors;
 
@@ -47,6 +49,8 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
  const [endPostcode,setEndPostcode]=useState('');
  const [distance,setDistance]=useState(3);
  const [capacity,setCapacity]=useState(1);
+ const [etaPickerJobId,setEtaPickerJobId]=useState<string|null>(null);
+ const [etaBusyJobId,setEtaBusyJobId]=useState<string|null>(null);
 
  const load=useCallback(async()=>{
   const {data:{user}}=await supabase.auth.getUser();
@@ -76,7 +80,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
   if(accepted.length){
    const ids=[...new Set(accepted.map(x=>x.job_id))];
    const [booked,where]=await Promise.all([
-    supabase.from('jobs').select('id,issue,status,requested_start,requested_end')
+    supabase.from('jobs').select('id,issue,status,requested_start,requested_end,appointment_id,estimated_arrival_minutes,eta_updated_at')
      .in('id',ids).eq('accepted_tradesperson_id',user.id),
     supabase.from('job_locations').select('job_id,latitude,longitude').in('job_id',ids)
    ]);
@@ -93,6 +97,8 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     return [{jobId:a.job_id,routePlanId:a.route_plan_id as string,
      issue:job.issue,status:job.status,
      requestedStart:job.requested_start,requestedEnd:job.requested_end,
+     appointmentId:job.appointment_id,estimatedArrivalMinutes:job.estimated_arrival_minutes,
+     etaUpdatedAt:job.eta_updated_at,
      latitude:location?.latitude==null?null:Number(location.latitude),
      longitude:location?.longitude==null?null:Number(location.longitude)}];
    });
@@ -101,12 +107,42 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
   setLoading(false);
  },[]);
  useEffect(()=>{void load()},[load]);
+ useEffect(()=>{
+  if(!uid)return;
+  let active=true;
+  const channel=supabase.channel('tradarr-route-work-'+uid+'-'+Date.now())
+   .on('postgres_changes',{schema:'public',table:'jobs',event:'UPDATE',
+     filter:'accepted_tradesperson_id=eq.'+uid},()=>{if(active)void load()})
+   .on('postgres_changes',{schema:'public',table:'trade_route_plans',event:'*',
+     filter:'tradesperson_id=eq.'+uid},()=>{if(active)void load()})
+   .subscribe();
+  const foreground=AppState.addEventListener('change',state=>{
+   if(state==='active'&&active)void load();
+  });
+  return()=>{active=false;foreground.remove();void supabase.removeChannel(channel)};
+ },[uid,load]);
 
  const reload=async()=>{
   if(refreshing)return;
   setRefreshing(true);try{await load()}finally{setRefreshing(false)}
  };
+ const shareEta=async(stop:Stop,minutes:number)=>{
+  if(etaBusyJobId||!uid||!stop.appointmentId){
+   if(!stop.appointmentId)Alert.alert('Booking not confirmed',
+    'Agree the visit time in Messages before starting an On My Way or Street Run journey.');
+   return;
+  }
+  setEtaBusyJobId(stop.jobId);
+  try{
+   await shareJobArrivalEstimate({jobId:stop.jobId,tradespersonId:uid,
+    status:stop.status,minutes});
+   setEtaPickerJobId(null);
+   await load();
+  }catch(e:any){Alert.alert('Arrival estimate not saved',e?.message||'Refresh and try again.');}
+  finally{setEtaBusyJobId(null);}
+ };
  const openStopDirections=(stop:Stop)=>{
+  if(!stop.appointmentId){Alert.alert('Time not confirmed','Agree the appointment before travelling.');return;}
   if(!Number.isFinite(stop.latitude)||!Number.isFinite(stop.longitude)||
     stop.latitude==null||stop.longitude==null){
    Alert.alert('Address needs confirming',
@@ -120,7 +156,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
 
  const openJourneyDirections=(plan:Journey)=>{
   const assigned=stops.filter(x=>x.routePlanId===plan.id);
-  const scheduled=assigned.filter(x=>x.requestedStart&&
+  const scheduled=assigned.filter(x=>x.appointmentId&&x.requestedStart&&
    x.latitude!=null&&x.longitude!=null&&
    Number.isFinite(x.latitude)&&Number.isFinite(x.longitude))
    .sort((a,b)=>Date.parse(a.requestedStart!)-Date.parse(b.requestedStart!));
@@ -318,8 +354,8 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           style={{borderRadius:13,backgroundColor:'#F5F8F6',padding:12,gap:6}}>
           <Text style={{fontWeight:'800',color:C.ink,fontSize:12}}>
             {index+1}. {stop.issue}</Text>
-          <Text style={s.note}>{stop.requestedStart
-            ? formatUKDateTime(stop.requestedStart)
+          <Text style={s.note}>{stop.appointmentId&&stop.requestedStart
+            ? 'Confirmed · '+formatUKDateTime(stop.requestedStart)
             : 'Time not yet confirmed — arrange in Messages'}</Text>
           <Text style={s.note}>{stop.latitude!=null&&stop.longitude!=null
             ? 'Customer location available after matching'
@@ -328,14 +364,36 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
             <MotionPressable style={s.secondary} onPress={openMessages}>
               <Text style={s.secondaryText}>Messages</Text>
             </MotionPressable>
-            {stop.requestedStart?<MotionPressable style={s.secondary}
+            {stop.appointmentId&&stop.requestedStart?<MotionPressable style={s.secondary}
                 onPress={()=>openStopDirections(stop)}>
                 <Navigation size={15} color={C.teal}/>
                 <Text style={s.secondaryText}>Directions</Text>
               </MotionPressable>:null}
           </View>
+          {stop.status==='en_route'&&stop.estimatedArrivalMinutes?
+           <Text style={s.note}>Shared ETA: approximately {stop.estimatedArrivalMinutes} minutes · {etaAgeLabel(stop.etaUpdatedAt)}</Text>:null}
+          {stop.appointmentId&&['accepted','en_route'].includes(stop.status)?<>
+           <MotionPressable style={s.secondary} disabled={etaBusyJobId===stop.jobId}
+            accessibilityRole="button"
+            onPress={()=>setEtaPickerJobId(x=>x===stop.jobId?null:stop.jobId)}>
+            <Navigation size={15} color={C.teal}/>
+            <Text style={s.secondaryText}>
+             {stop.status==='accepted'?'Start journey · choose ETA':'Update customer ETA'}
+            </Text>
+           </MotionPressable>
+           {etaPickerJobId===stop.jobId?<View style={{gap:6}}>
+            <Text style={s.note}>Choose an approximate arrival time. The customer sees your estimate, not your GPS location.</Text>
+            <View style={s.row}>
+             {ARRIVAL_ETA_PRESETS.map(minutes=><MotionPressable key={minutes}
+              style={s.chip} disabled={etaBusyJobId===stop.jobId}
+              onPress={()=>{void shareEta(stop,minutes)}} accessibilityRole="button">
+              <Text style={s.chipText}>{minutes} min</Text>
+             </MotionPressable>)}
+            </View>
+           </View>:null}
+          </>:null}
         </View>)}
-        {assigned.some(v=>v.requestedStart)?<MotionPressable
+        {assigned.some(v=>v.appointmentId&&v.requestedStart)?<MotionPressable
           style={[s.primary,{minHeight:44,marginTop:4}]}
           onPress={()=>openJourneyDirections(j)} accessibilityRole="button">
           <Text style={s.primaryText}>Open scheduled stops in Maps</Text>
