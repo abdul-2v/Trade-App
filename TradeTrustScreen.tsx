@@ -138,7 +138,10 @@ export default function TradeTrustScreen({goBack}:{goBack:()=>void}){
         <Text style={s.cardTitle}>{kinds.find(x=>x.kind===item.kind)?.title||item.kind}</Text>
         <Text style={s.muted}>Submitted {new Date(item.created_at).toLocaleDateString('en-GB')}</Text>
        </View>
-       <Text style={[s.status,item.status==='approved'&&s.approved]}>{label(item.status)}</Text>
+       <Text style={[s.status,item.status==='approved'&&!(item.kind==='insurance'&&item.valid_until&&item.valid_until<new Date().toISOString().slice(0,10))&&s.approved]}>
+       {item.kind==='insurance'&&item.status==='approved'&&item.valid_until&&item.valid_until<new Date().toISOString().slice(0,10)
+         ?'Expired · renew evidence':label(item.status)}
+      </Text>
       </View>
       {item.kind==='insurance'&&item.status==='approved'&&item.valid_until?
        <Text style={s.muted}>Approved cover expiry: {new Date(item.valid_until+'T12:00:00').toLocaleDateString('en-GB')}</Text>:null}
