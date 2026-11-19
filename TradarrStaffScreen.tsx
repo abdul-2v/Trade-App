@@ -13,10 +13,10 @@ type Case={id:string;submitted_by:string;category:string;subject:string;message:
 type Update={id:string;author_id:string;message:string;internal_only:boolean;created_at:string};
 const C=theme.colors;
 const date=(x:string)=>new Date(x).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-export default function TradarrStaffScreen({goBack}:{goBack:()=>void}){
+export default function TradarrStaffScreen({goBack,initialTab='credentials'}:{goBack:()=>void;initialTab?:'credentials'|'cases'}){
  const [uid,setUid]=useState('');
  const [authorised,setAuthorised]=useState(false);
- const [tab,setTab]=useState<'credentials'|'cases'>('credentials');
+ const [tab,setTab]=useState<'credentials'|'cases'>(initialTab);
  const [credentialRows,setCredentialRows]=useState<Evidence[]>([]);
  const [caseRows,setCaseRows]=useState<Case[]>([]);
  const [selectedCredential,setSelectedCredential]=useState<string|null>(null);
