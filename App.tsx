@@ -5567,7 +5567,10 @@ function MessagesScreen({navigate,userId}:{
  navigate:(screen:CustomerScreen)=>void;userId:string;
 }){
  return <CustomerShell current="messages" navigate={navigate}>
-   <TradarrInboxScreen role="customer" onOpenOther={notice=>navigate(notice.kind==='support_update'?'customerSupport':notice.kind==='invoice_update'?'customerInvoices':notice.kind==='quote_update'?'customerQuotes':'requests')}/>
+   <TradarrInboxScreen role="customer" onOpenOther={notice=>{
+      if(notice.kind==='admin_notice')return;
+      navigate(notice.kind==='support_update'?'customerSupport':notice.kind==='invoice_update'?'customerInvoices':notice.kind==='quote_update'?'customerQuotes':'requests');
+    }}/>
  </CustomerShell>;
 }
 
@@ -7926,11 +7929,13 @@ function TradeMessagesScreen({navigate}:{
 }){
  return <TradeShell current="tradeMessages" navigate={navigate}>
    <TradarrInboxScreen role="tradesperson"
-     onOpenOther={notice=>navigate(
-       notice.kind==='support_update'?'tradeSupport':
+     onOpenOther={notice=>{
+       if(notice.kind==='admin_notice')return;
+       navigate(notice.kind==='support_update'?'tradeSupport':
         notice.kind==='verification_update'?'tradeTrust':
         notice.kind==='quote_update'?'tradeQuotes':
-       notice.kind==='appointment'||notice.kind==='appointment_change'||notice.kind==='appointment_reminder'?'tradeDiary':'tradeJobs')}/>
+       notice.kind==='appointment'||notice.kind==='appointment_change'||notice.kind==='appointment_reminder'?'tradeDiary':'tradeJobs');
+     }}/>
  </TradeShell>;
 }
 
