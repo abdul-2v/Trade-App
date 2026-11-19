@@ -638,6 +638,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<TradeCategory | 'All'>('All');
   const [serviceIntent, setServiceIntent] = useState<{ trade: TradeCategory; service: string; timing: string } | null>(null);
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [customerRequestsSyncError,setCustomerRequestsSyncError]=useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
 
   useEffect(() => {
@@ -649,7 +650,7 @@ export default function App() {
 
     const loadCustomerRequests = async () => {
       const userId = session.user.id;
-      const [{ data: urgentRows }, { data: jobRows }] = await Promise.all([
+      const [urgentResult,jobResult] = await Promise.all([
         supabase
           .from('urgent_requests')
           .select('id, trade, issue, urgency, status, created_at')
@@ -663,6 +664,14 @@ export default function App() {
       ]);
 
       if (!active) return;
+      if(urgentResult.error||jobResult.error){
+        // Keep the last known jobs visible if the network drops.
+        setCustomerRequestsSyncError(true);
+        return;
+      }
+      setCustomerRequestsSyncError(false);
+      const urgentRows=urgentResult.data;
+      const jobRows=jobResult.data;
 
       const merged = [
         ...(urgentRows ?? []).map(row => ({
@@ -695,7 +704,10 @@ export default function App() {
       setRequests(merged);
     };
 
-    loadCustomerRequests();
+    void loadCustomerRequests();
+    const foreground=AppState.addEventListener('change',state=>{
+      if(state==='active'&&active)void loadCustomerRequests();
+    });
 
     urgentChannel = supabase
       .channel('customer-urgent-list-' + session.user.id)
@@ -727,8 +739,9 @@ export default function App() {
 
     return () => {
       active = false;
-      if (urgentChannel) supabase.removeChannel(urgentChannel);
-      if (jobsChannel) supabase.removeChannel(jobsChannel);
+      foreground.remove();
+      if (urgentChannel) void supabase.removeChannel(urgentChannel);
+      if (jobsChannel) void supabase.removeChannel(jobsChannel);
     };
   }, [session?.user.id, accountType]);
 
@@ -1085,6 +1098,7 @@ export default function App() {
     return (
       <RequestsScreen
         requests={requests}
+        syncError={customerRequestsSyncError}
         userId={session?.user.id||''}
         navigate={screen => {if(screen==='myHome')setHomeBackScreen('requests');setCustomerScreen(screen);}}
         openRequest={request => {
@@ -2861,8 +2875,15 @@ function MapMock({
           return;
         }
 
+        const cached=await Location.getLastKnownPositionAsync({
+          maxAge:120000,requiredAccuracy:200
+        });
+        if(mounted&&cached){
+          setCentre({latitude:cached.coords.latitude,longitude:cached.coords.longitude});
+          setLocationStatus('ready');
+        }
         const position = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.High,
         });
 
         if (!mounted) return;
@@ -2873,7 +2894,19 @@ function MapMock({
         });
         setLocationStatus('ready');
       } catch {
-        if (mounted) {setCentre(fallback);setLocationStatus('denied');}
+        // Preserve a valid recent location instead of replacing it with Leicester centre.
+        if(mounted){
+          const previous=await Location.getLastKnownPositionAsync({
+            maxAge:120000,requiredAccuracy:200
+          }).catch(()=>null);
+          if(previous){
+            setCentre({latitude:previous.coords.latitude,longitude:previous.coords.longitude});
+            setLocationStatus('ready');
+          }else{
+            setCentre(fallback);
+            setLocationStatus('denied');
+          }
+        }
       }
     };
 
@@ -4707,11 +4740,13 @@ function BookingScreen({
 let lastCustomerActivity: {owner:string;items:RequestItem[]}|null=null;
 function RequestsScreen({
   requests,
+  syncError,
   navigate,
   openRequest,
   userId,
 }: {
   requests: RequestItem[];
+  syncError:boolean;
   navigate: (screen: CustomerScreen) => void;
   openRequest: (request: RequestItem) => void;
   userId:string;
@@ -4799,6 +4834,12 @@ function RequestsScreen({
       <ScrollView style={styles.customerActivityScreen} contentContainerStyle={styles.customerActivityContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.customerActivityTitle}>Activity</Text>
         <Text style={styles.customerActivitySub}>{active.length ? active.length + ' open request' + (active.length === 1 ? '' : 's') : 'Your requests and bookings'}</Text>
+        {syncError?<View style={{padding:12,borderRadius:14,backgroundColor:'#FFF1DE',marginBottom:12}}>
+          <Text style={{fontSize:12,fontWeight:'800',color:'#705124'}}>Connection unavailable</Text>
+          <Text style={{fontSize:11,color:'#705124',lineHeight:17,marginTop:3}}>
+            Showing your last loaded requests. Reconnect to update booking status.
+          </Text>
+        </View>:null}
         <View style={styles.customerActivityQuoteRow}>
           <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('customerQuotes')}
             accessibilityRole="button" accessibilityLabel="View customer quotes">
