@@ -27,6 +27,7 @@ import UnifiedMessagesScreen from './UnifiedMessagesScreen';
 import TradarrInboxScreen from './TradarrInboxScreen';
 import {APPOINTMENT_TIMES,APPOINTMENT_LENGTHS,nextUKDays,ukSlotToISO,advanceISOByMinutes,formatUKDateTime} from './lib/scheduling';
 import {rankPublishedRoutes} from './lib/routeMatching';
+import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney } from './Motion';
@@ -3173,7 +3174,7 @@ function MapMock({
     const buckets = new Map();
 
     items.forEach((marker) => {
-      const point = map.latLngToContainerPoint([marker.lat, marker.lng]);
+      const point = map.project([marker.lat, marker.lng],zoom);
       const key = Math.floor(point.x / cellSize) + ':' + Math.floor(point.y / cellSize);
 
       if (!buckets.has(key)) buckets.set(key, []);
@@ -3225,7 +3226,7 @@ function MapMock({
       document.querySelectorAll('.trade-pin').forEach(function(node){
         node.classList.toggle('is-picked',node.getAttribute('data-id')===selectedMarkerId);
       });
-      map.flyTo([marker.lat,marker.lng],Math.max(14.4,map.getZoom()),{
+      map.flyTo([marker.lat,marker.lng],Math.max(15.1,map.getZoom()),{
         duration:.57,easeLinearity:.23
       });
       window.ReactNativeWebView.postMessage(JSON.stringify({type:'trade',id:marker.id}));
@@ -3259,7 +3260,7 @@ function MapMock({
         }
 
         const bounds = L.latLngBounds(group.members.map((marker) => [marker.lat, marker.lng]));
-        const nextZoom = Math.min(14.75, Math.max(map.getZoom() + 1.35, map.getBoundsZoom(bounds, false, [70,70])));
+        const nextZoom = Math.min(17, Math.max(map.getZoom() + 1.5, map.getBoundsZoom(bounds, false, [70,70])));
 
         map.flyTo([group.lat, group.lng], nextZoom, {
           duration: 0.62
@@ -3277,7 +3278,7 @@ function MapMock({
     const groups = clusterMarkers(visible, zoom);
 
     groups.forEach((group) => {
-      const showIndividual=markers.length===1||zoom>=15||(zoom>=14.35&&group.members.length===1);
+      const showIndividual=group.members.length===1||zoom>=15;
       const key=showIndividual
         ? 't:'+group.members[0].id+':'+Number(group.members[0].lat).toFixed(4)+
           ':'+Number(group.members[0].lng).toFixed(4)+':'+Boolean(group.members[0].available)
@@ -4959,7 +4960,7 @@ function RequestDetailScreen({
       .from(isMarketJob ? 'jobs' : 'urgent_requests')
       .select(
         isMarketJob
-          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, requested_start, requested_end, appointment_id, created_at, updated_at'
+          ? 'id, trade, issue, timing, job_mode, status, accepted_tradesperson_id, requested_start, requested_end, appointment_id, estimated_arrival_minutes, eta_updated_at, created_at, updated_at'
           : 'id, trade, issue, urgency, status, accepted_tradesperson_id, estimated_arrival_minutes, created_at, updated_at'
       )
       .eq('id', request.id)
@@ -5183,6 +5184,18 @@ function RequestDetailScreen({
               <View style={styles.customerRequestStateTag}><Text style={styles.customerRequestStateTagText}>{isDemo ? liveStatus + ' · DEMO' : liveStatus}</Text></View>
             </View>
             <Text style={styles.customerRequestTiming}>{displayUrgency}</Text>
+            {isMarketJob&&details?.status==='en_route'&&details?.estimated_arrival_minutes?
+              <View style={{backgroundColor:'#E8F4EF',borderRadius:17,padding:14,marginBottom:11}}>
+                <Text style={{fontSize:15,fontWeight:'900',color:theme.colors.teal}}>
+                  Your tradesperson is on the way
+                </Text>
+                <Text style={{fontSize:14,fontWeight:'800',color:theme.colors.ink,marginTop:6}}>
+                  Estimated arrival: approximately {details.estimated_arrival_minutes} minutes
+                </Text>
+                <Text style={{fontSize:11,color:theme.colors.muted,marginTop:5}}>
+                  {etaAgeLabel(details.eta_updated_at)} · Estimate provided by the tradesperson, not live GPS
+                </Text>
+              </View>:null}
             {isMarketJob && details?.requested_start && !details?.appointment_id ? (
               <View style={{borderRadius:16,padding:14,marginBottom:12,backgroundColor:'#F0F5F2'}}>
                 <Text style={{fontWeight:'800',fontSize:13,color:theme.colors.teal}}>
@@ -6701,6 +6714,7 @@ function TradeJobsScreen({
   const [offerFilter, setOfferFilter] = useState<TradeJobsEntry['filter']>(jobsEntry.filter);
   const [flexibleMode, setFlexibleMode] = useState<'all' | 'normal' | 'route' | 'street_run'>('all');
   const [showJobGuide, setShowJobGuide] = useState(false);
+  const [marketEtaPickerJobId,setMarketEtaPickerJobId]=useState<string|null>(null);
   const [isReceivingOffers, setIsReceivingOffers] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -6830,7 +6844,7 @@ function TradeJobsScreen({
     const [{ data: jobRows }, { data: exactLocationRows }] = await Promise.all([
       supabase
         .from('jobs')
-        .select('id, customer_id, trade, issue, job_mode, timing, status, accepted_tradesperson_id, standard_price, route_price, detour_minutes, requested_start, requested_end, appointment_id, flexible_deadline, created_at')
+        .select('id, customer_id, trade, issue, job_mode, timing, status, accepted_tradesperson_id, standard_price, route_price, detour_minutes, requested_start, requested_end, appointment_id, estimated_arrival_minutes, eta_updated_at, flexible_deadline, created_at')
         .in('id', jobIds),
       supabase
         .from('job_locations')
@@ -7183,6 +7197,13 @@ function TradeJobsScreen({
 
   const advanceMarketJob = async (job: MarketOfferJob) => {
     const current = job.request.status;
+    if(current==='accepted'){
+      if(['route','street_run'].includes(job.request.job_mode)&&!job.request.appointment_id){
+        Alert.alert('Booking not confirmed','Confirm an appointment with the customer before starting the journey.');return;
+      }
+      setMarketEtaPickerJobId(job.request.id);
+      return;
+    }
     const next =
       current === 'accepted'
         ? 'en_route'
@@ -7220,6 +7241,18 @@ function TradeJobsScreen({
     }
 
     await loadMarketJobs(currentUserId);
+  };
+
+  const setMarketJourneyEta=async(job:MarketOfferJob,minutes:number)=>{
+    if(busyId||!currentUserId)return;
+    setBusyId(job.offerId);
+    try{
+      await shareJobArrivalEstimate({jobId:job.request.id,
+        tradespersonId:currentUserId,status:job.request.status,minutes});
+      setMarketEtaPickerJobId(null);
+      await loadMarketJobs(currentUserId);
+    }catch(e:any){Alert.alert('ETA could not be shared',e?.message||'Refresh the job and try again.');}
+    finally{setBusyId(null);}
   };
 
   const openMarketDirections = (job: MarketOfferJob) => {
@@ -7461,6 +7494,10 @@ function TradeJobsScreen({
 
                 <Text style={styles.dispatchTradeIssue}>{job.request.issue}</Text>
                 <Text style={styles.marketTradeTiming}>{job.request.timing}</Text>
+                {job.request.status==='en_route'&&job.request.estimated_arrival_minutes?
+                 <Text style={[styles.marketTradeTiming,{color:theme.colors.teal,fontWeight:'800'}]}>
+                  Customer ETA · approximately {job.request.estimated_arrival_minutes} min · {etaAgeLabel(job.request.eta_updated_at)}
+                 </Text>:null}
                 {['accepted','en_route'].includes(job.request.status) ? (
                   <BookingReschedulePanel jobId={job.request.id}
                     currentStart={job.request.appointment_id?job.request.requested_start:null}
@@ -7501,6 +7538,29 @@ function TradeJobsScreen({
                     </MotionPressable>
                   ) : null}
                 </View>
+                {job.request.status==='en_route'?
+                 <MotionPressable onPress={()=>setMarketEtaPickerJobId(x=>x===job.request.id?null:job.request.id)}
+                   accessibilityRole="button" style={{alignSelf:'flex-start',paddingVertical:10,paddingHorizontal:13,
+                   backgroundColor:theme.colors.tealTint,borderRadius:14,marginTop:8}}>
+                   <Text style={{fontSize:12,fontWeight:'800',color:theme.colors.teal}}>Update arrival estimate</Text>
+                 </MotionPressable>:null}
+                {marketEtaPickerJobId===job.request.id?
+                 <View style={{marginTop:8,padding:10,backgroundColor:'#EDF4F0',borderRadius:15,gap:8}}>
+                  <Text style={{fontSize:12,fontWeight:'700',color:theme.colors.teal}}>
+                    {job.request.status==='accepted'?'Start journey':'Update ETA'} · share your estimate with the customer
+                  </Text>
+                  <View style={{flexDirection:'row',flexWrap:'wrap',gap:7}}>
+                   {ARRIVAL_ETA_PRESETS.map(minutes=><MotionPressable key={minutes}
+                    disabled={busyId===job.offerId}
+                    onPress={()=>{void setMarketJourneyEta(job,minutes)}}
+                    accessibilityRole="button"
+                    style={{paddingVertical:10,paddingHorizontal:11,backgroundColor:'#FFFFFF',
+                      borderRadius:13,borderWidth:1,borderColor:'#DCE7E1'}}>
+                    <Text style={{fontSize:12,fontWeight:'800',color:theme.colors.teal}}>{minutes} min</Text>
+                   </MotionPressable>)}
+                  </View>
+                  <Text style={{fontSize:10,color:theme.colors.muted}}>Estimated travel time only. No continuous GPS is shared.</Text>
+                 </View>:null}
               </View>
             ))}
           </>
