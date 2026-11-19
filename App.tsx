@@ -6524,21 +6524,31 @@ function TradeHomeScreen({
 
     const { data: saved, error } = await supabase
       .from('trade_availability')
-      .update({
+      // A customer who has completed trade activation may not have an availability
+      // row yet. Upsert creates it without inventing a public trade profile.
+      .upsert({
+        user_id: user.id,
         is_available: nextAvailable,
         radius_miles: nextRadius,
         available_until: nextAvailable ? durationToUntil(nextDuration) : null,
         updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id)
+      }, { onConflict: 'user_id' })
       .select('is_available,available_until')
       .maybeSingle();
 
     setSavingAvailability(false);
 
     if (error || !saved) {
-      Alert.alert('Could not update availability',
-        error?.message || 'Your availability could not be saved. Check your trade profile and try again.');
+      if (error?.code === '23503') {
+        Alert.alert('Complete your tradesperson profile',
+          'Set up and save your professional profile before receiving job offers. Your customer view will remain available.', [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open profile', onPress: () => navigate('tradeProfile') },
+          ]);
+      } else {
+        Alert.alert('Could not update availability',
+          error?.message || 'Your availability could not be saved. Check your trade profile and try again.');
+      }
       return;
     }
     // Only show Online when the database confirms the update actually applied.
@@ -6577,7 +6587,8 @@ function TradeHomeScreen({
 
     const { data: saved, error } = await supabase
       .from('trade_availability')
-      .update({
+      .upsert({
+        user_id: user.id,
         is_available: true,
         location_mode: 'work_area',
         work_area_label: area.name,
@@ -6586,8 +6597,7 @@ function TradeHomeScreen({
         radius_miles: Math.max(radius, 5),
         available_until: durationToUntil(duration),
         updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id)
+      }, { onConflict: 'user_id' })
       .select('is_available,available_until')
       .maybeSingle();
 
