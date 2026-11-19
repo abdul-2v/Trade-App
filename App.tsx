@@ -6221,9 +6221,9 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        <ClipboardList size={27} color="#FFFFFF" strokeWidth={2.1}/>
      </View>
      <View style={{flex:1,gap:5}}>
-       <Text style={styles.tradeInvoiceHeroEyebrow}>INVOICES & PAYMENTS</Text>
-       <Text style={styles.tradeInvoiceHeroTitle}>Get the paperwork done</Text>
-       <Text style={styles.tradeInvoiceHeroSub}>Create, share PDFs, and track what's sent and paid.</Text>
+       <Text style={styles.tradeInvoiceHeroEyebrow}>YOUR FIRST BUSINESS ESSENTIAL</Text>
+       <Text style={styles.tradeInvoiceHeroTitle}>Invoices & payments</Text>
+       <Text style={styles.tradeInvoiceHeroSub}>Create and share PDF invoices. Track what’s been sent, paid and outstanding.</Text>
      </View>
      <ChevronRight size={25} color="#E6F3F0"/>
    </MotionPressable>
