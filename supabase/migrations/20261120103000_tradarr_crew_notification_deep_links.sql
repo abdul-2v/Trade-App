@@ -37,7 +37,7 @@ begin
   v_key:='crew-message:'||new.id::text;
   v_meta:=jsonb_build_object('screen','tradeCrew','applicationId',new.application_id,'requestId',v_request);
  end if;
- if v_to is not null and v_to<>new.sender_id and v_key is not null then
+ if v_to is not null and v_key is not null then
   insert into public.tradarr_notifications(recipient_id,event_key,kind,title,body,data)
   values(v_to,v_key,'crew_update',v_title,v_body,v_meta)
   on conflict(recipient_id,event_key) do nothing;
