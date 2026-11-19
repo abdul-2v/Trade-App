@@ -23,20 +23,22 @@ function Field({label,value,onChange,placeholder,multiline}:{label:string;value:
 }
 export default function CustomerOneJobScreen({goBack,onFindTrade}:{goBack:()=>void;onFindTrade:(trade:string,task:string)=>void}){
  const [uid,setUid]=useState(''),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
+ const [loadError,setLoadError]=useState('');
+ const [reloadKey,setReloadKey]=useState(0);
  const [projects,setProjects]=useState<Project[]>([]),[selectedId,setSelectedId]=useState<string|null>(null);
  const [creating,setCreating]=useState(false),[title,setTitle]=useState(''),[address,setAddress]=useState(''),[brief,setBrief]=useState('');
  const [stages,setStages]=useState<Stage[]>([]),[addTrade,setAddTrade]=useState('Plumber'),[addTask,setAddTask]=useState(''),[editStages,setEditStages]=useState(false);
  const selected=projects.find(p=>p.id===selectedId)||null;
  const load=async()=>{
   const {data:a}=await supabase.auth.getUser();
-  if(!a.user){setLoading(false);return;}setUid(a.user.id);
+  if(!a.user){setLoadError('Sign in to view your projects.');setLoading(false);return;}setUid(a.user.id);
   const {data,error}=await supabase.from('customer_onejob_projects').select('*').eq('customer_id',a.user.id)
    .order('updated_at',{ascending:false}).limit(100);
-  if(error)Alert.alert('Could not load projects',error.message);
-  else setProjects((data||[]) as Project[]);
+  if(error)setLoadError('Could not load projects: '+error.message);
+  else{setLoadError('');setProjects((data||[]) as Project[]);}
   setLoading(false);
  };
- useEffect(()=>{void load();},[]);
+ useEffect(()=>{void load();},[reloadKey]);
  const create=async()=>{
   if(saving||!uid)return;
   if(title.trim().length<3||!stages.length){Alert.alert('Project details needed','Enter a project title and at least one trade stage.');return;}
@@ -64,11 +66,16 @@ export default function CustomerOneJobScreen({goBack,onFindTrade}:{goBack:()=>vo
  };
  const persist=async(project:Project,nextStages:Stage[])=>{
   setSaving(true);
-  const {data,error}=await supabase.from('customer_onejob_projects').update({stages:nextStages,updated_at:new Date().toISOString()})
-   .eq('id',project.id).eq('customer_id',uid).select('*').single();
-  setSaving(false);
-  if(error||!data){Alert.alert('Unable to save project',error?.message||'Try again.');return false;}
-  setProjects(old=>old.map(x=>x.id===project.id?data as Project:x));return true;
+  try{
+   const {data,error}=await supabase.from('customer_onejob_projects').update({stages:nextStages,updated_at:new Date().toISOString()})
+    .eq('id',project.id).eq('customer_id',uid).select('*').single();
+   if(error||!data)throw new Error(error?.message||'The project update was not saved.');
+   setProjects(old=>old.map(x=>x.id===project.id?data as Project:x));
+   return true;
+  }catch(e:any){
+   Alert.alert('Unable to save project',e?.message||'Check your connection and retry.');
+   return false;
+  }finally{setSaving(false);}
  };
  const deleteProject=(p:Project)=>Alert.alert('Delete this project?',p.title,[{text:'Cancel',style:'cancel'},
   {text:'Delete',style:'destructive',onPress:async()=>{
@@ -96,6 +103,15 @@ export default function CustomerOneJobScreen({goBack,onFindTrade}:{goBack:()=>vo
   <View style={s.header}><MotionPressable onPress={back} style={s.back}><ArrowLeft color={C.ink} size={22}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>ONEJOB</Text><Text style={s.heading}>{selected?'Project plan':creating?'New project':'Organise the whole job'}</Text></View></View>
   {loading?<ActivityIndicator size="large" color={C.teal} style={{marginTop:60}}/>:
+   loadError?<View style={s.errorCard}>
+     <ClipboardList size={31} color={C.coralDark}/>
+     <Text style={s.heading}>Could not load your projects</Text>
+     <Text style={s.meta}>{loadError}</Text>
+     <MotionPressable onPress={()=>{setLoading(true);setReloadKey(n=>n+1);}} style={s.primary}
+       accessibilityRole="button" accessibilityLabel="Retry loading projects">
+       <Text style={s.primaryText}>Try again</Text>
+     </MotionPressable>
+   </View>:
   <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
     {!selected&&!creating?<><View style={s.hero}><Users size={24} color="#D0E6E2"/>
       <Text style={s.heroTitle}>One project. Every trade in order.</Text>
@@ -201,4 +217,6 @@ const s=StyleSheet.create({
  stageSecondary:{flex:1,minHeight:46,backgroundColor:C.tealTint,borderRadius:18,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5},
  delete:{flexDirection:'row',gap:7,alignSelf:'center',marginTop:12,padding:15},
  deleteText:{color:C.coralDark,fontSize:12,fontWeight:'800'}
+ errorCard:{margin:19,padding:22,backgroundColor:'#FFFFFF',borderRadius:24,
+   alignItems:'center',gap:11,...theme.shadow},
 });
