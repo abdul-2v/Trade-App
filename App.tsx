@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
+import AppErrorBoundary from './AppErrorBoundary';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
 import TradeSuppliersMap from './TradeSuppliersMap';
 import TradeInvoicesScreen from './TradeInvoicesScreen';
@@ -458,6 +459,15 @@ function AppIcon({
 }
 
 export default function App() {
+  // A render crash anywhere in the customer, Crew, trader or admin flows
+  // should show a recoverable screen, rather than a silent blank view.
+  const [restartKey,setRestartKey]=useState(0);
+  return <AppErrorBoundary onRestart={()=>setRestartKey(x=>x+1)}>
+    <TradarrApp key={restartKey}/>
+  </AppErrorBoundary>;
+}
+
+function TradarrApp() {
   const [session, setSession] = useState<Session | null>(null);
   const signedInUserIdRef=useRef<string|null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -9149,13 +9159,15 @@ function TradeSettingsScreen({
               <Text style={{fontSize:11,color:theme.colors.muted,marginHorizontal:15,marginBottom:10,lineHeight:17}}>
                 Preference saved to your account. Phone push alerts still need a production app build and notification delivery setup.
               </Text>
-              {['Payments & payouts'].map(item => (
-                <View style={styles.premiumAccountRow} key={item}>
-                  <View style={styles.premiumChecklistIcon}><UserRound size={19} color={theme.colors.teal} /></View>
-                  <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
-                  <Text style={styles.premiumComingSoon}>Coming soon</Text>
+              <MotionPressable style={styles.premiumAccountRow} onPress={()=>navigate('tradeProfit')}
+                accessibilityRole="button" accessibilityLabel="Open income and job costs">
+                <View style={styles.premiumChecklistIcon}><HandCoins size={19} color={theme.colors.teal}/></View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>Income & job costs</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Review real job costs and estimated profit</Text>
                 </View>
-              ))}
+                <ChevronRight size={21} color={theme.colors.muted}/>
+              </MotionPressable>
             </View>
             <MotionPressable style={styles.backCustomerButton} onPress={switchToCustomer}>
               <Text style={styles.backCustomerText}>Switch to customer app</Text>
