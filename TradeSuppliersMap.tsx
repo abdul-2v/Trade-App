@@ -422,18 +422,28 @@ window.focusSupplier=function(lat,lng){
   });
   focusedHalo=L.marker([lat,lng],{
     icon:L.divIcon({className:'',html:'<div class="focus-halo"></div>',iconSize:[54,54],iconAnchor:[27,27]}),
-    interactive:false,zIndexOffset:180
+    // Keep the focus ring beneath the actual supplier pin.
+    interactive:false,zIndexOffset:-80
   }).addTo(map);
   playShopSweep();
+  // The previous flyToBounds zoomed OUT to fit the user's location, which
+  // clustered or hid the selected supplier behind the lower info panel.
+  // Keep the selected shop as the camera's focal point, at a zoom that
+  // displays individual pins, comfortably above the bottom sheet.
+  var focusZoom=Math.max(15.1,map.getZoom());
+  var screen=map.getSize();
+  var targetPoint=map.project([lat,lng],focusZoom);
+  var safeTop=Math.max(125,Math.min(screen.y*.38,screen.y-275));
+  var cameraCentre=map.unproject(L.point(targetPoint.x,
+    targetPoint.y+(screen.y/2-safeTop)),focusZoom);
+  map.flyTo(cameraCentre,focusZoom,
+    {duration:reducedMotion.matches?0:.83,easeLinearity:.22});
   if(userPoint){
-    // Visual straight-line comparison only: this is NOT a road route or ETA.
+    // Straight-line hint only. Directions uses the real road route.
     shopLink=L.polyline([[userPoint.lat,userPoint.lng],[lat,lng]],{
-      color:'#E0704C',weight:3.5,dashArray:'7,10',opacity:.96,
+      color:'#E0704C',weight:3,dashArray:'7,10',opacity:.83,
       interactive:false,className:'route-active'
     }).addTo(map);
-    var bounds=L.latLngBounds([[userPoint.lat,userPoint.lng],[lat,lng]]);
-    map.flyToBounds(bounds.pad(.33),{padding:[48,48],maxZoom:14.8,
-      duration:reducedMotion.matches?0:.95,easeLinearity:.2});
     if(!reducedMotion.matches){
       var animationStart=performance.now(),origin={lat:userPoint.lat,lng:userPoint.lng};
       travelDot=L.marker([origin.lat,origin.lng],{
@@ -452,9 +462,6 @@ window.focusSupplier=function(lat,lng){
       }
       travelFrame=requestAnimationFrame(travel);
     }
-  }else{
-    map.flyTo([lat,lng],Math.max(14,map.getZoom()),
-      {duration:reducedMotion.matches?0:.85,easeLinearity:.2});
   }
 };
 map.on('moveend zoomend resize',draw);
