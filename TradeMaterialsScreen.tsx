@@ -78,7 +78,7 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
   <Text style={s.eyebrow}>BUSINESS TOOLS</Text><Text style={s.title}>{selected?'Job materials':'Materials planner'}</Text></View>
   {!selected?<MotionPressable onPress={()=>setCreating(x=>!x)} style={s.new}><Plus size={20} color="#FFFFFF"/><Text style={s.newText}>New</Text></MotionPressable>:null}</View>
   {loading?<ActivityIndicator size="large" color={C.teal} style={{marginTop:65}}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
   {!selected?<>
    <Text style={s.explain}>Never arrive without the right parts. Build a materials list for each job, tick off what you've bought and find merchants nearby.</Text>
    <View style={s.statRow}><View style={s.stat}><Text style={s.statNumber}>{topSummary.lists}</Text><Text style={s.statLabel}>Job lists</Text></View>
