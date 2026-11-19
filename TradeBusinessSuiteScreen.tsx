@@ -11,6 +11,7 @@ import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
+export type QuoteDraftFromSuite={title:string;scope:string;labour:number;materials:number;markup:number};
 export type BusinessFeature='radar'|'quoteStudio'|'assistant'|'smartDiary'|
  'commandCentre'|'moneyHub'|'crewOps'|'repeatEngine'|'bookingProfile'|
  'documentVault'|'insights'|'growthKit';
@@ -92,8 +93,9 @@ function Empty({children}:{children:string}){return <View style={sx.empty}><Text
 function Metric({label,value}:{label:string;value:string|number}){return <View style={sx.metric}>
  <Text style={sx.metricValue}>{value}</Text><Text style={sx.muted}>{label}</Text></View>}
 
-export default function TradeBusinessSuiteScreen({feature,goBack,openTool}:{
+export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQuoteDraft}:{
  feature:BusinessFeature;goBack:()=>void;openTool:(screen:string)=>void;
+ openQuoteDraft:(draft:QuoteDraftFromSuite)=>void;
 }){
  const [uid,setUid]=useState('');
  const [rows,setRows]=useState<Record<string,R[]>>({});
@@ -412,12 +414,22 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool}:{
        }
        void shareText('Draft quote',quoteDraft());
      }}/>
-     <Btn label="Open full quote builder" secondary onPress={()=>openTool('tradeQuotes')}/>
+     <Btn label="Continue in full quote builder" secondary onPress={()=>{
+       if(!scopeTitle.trim()||!scopeBody.trim()){
+         Alert.alert('Add a scope first','Enter a template title and work scope first.');return;
+       }
+       openQuoteDraft({title:scopeTitle.trim(),scope:scopeBody.trim(),
+        labour:Math.max(0,num(labour)),materials:Math.max(0,num(materials)),markup:Math.max(0,num(markup))});
+     }}/>
+     <Btn label="Open Quotes without draft" secondary onPress={()=>openTool('tradeQuotes')}/>
     </Card>
     <Text style={sx.heading}>Saved quote templates</Text>
     {list('trade_suite_templates').filter(x=>x.category==='quote').map(t=><Card key={t.id}>
      <Text style={sx.cardTitle}>{t.title}</Text><Text style={sx.smallBody}>{t.body}</Text>
      <Btn label="Copy or share" secondary onPress={()=>void shareText(t.title,t.body)}/>
+     <Btn label="Use template in full quote" secondary onPress={()=>openQuoteDraft({
+       title:t.title,scope:t.body,labour:0,materials:0,markup:0
+     })}/>
      <Btn label="Delete template" secondary onPress={()=>confirmDelete('Delete template?',()=>changeDelete('trade_suite_templates',t.id))}/>
     </Card>)}
     {!list('trade_suite_templates').some(x=>x.category==='quote')?<Empty>No saved quote scopes yet.</Empty>:null}
