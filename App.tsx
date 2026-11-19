@@ -5069,11 +5069,11 @@ function RequestDetailScreen({
     setLiveStatus(isMarketJob ? marketJobStatusLabel(currentRequestStatus) : dispatchStatusLabel(currentRequestStatus));
     await buildMatchedTrade(data);
 
-    if (currentRequestStatus === 'completed' && !isMarketJob) {
+    if (currentRequestStatus === 'completed') {
       const { data: reviewRows } = await supabase
-        .from('job_reviews')
+        .from(isMarketJob ? 'market_job_reviews' : 'job_reviews')
         .select('rating, comment')
-        .eq('request_id', request.id)
+        .eq(isMarketJob ? 'job_id' : 'request_id', request.id)
         .limit(1);
 
       const existingReview = reviewRows?.[0];
@@ -5175,7 +5175,7 @@ function RequestDetailScreen({
   };
 
   const submitReview = async () => {
-    if (isDemo || isMarketJob || !details?.accepted_tradesperson_id || reviewSubmitted) return;
+    if (isDemo || !details?.accepted_tradesperson_id || reviewSubmitted || details.status!=='completed') return;
 
     if (!reviewRating) {
       Alert.alert('Choose a rating', 'Tap a star before submitting your review.');
@@ -5193,17 +5193,22 @@ function RequestDetailScreen({
       return;
     }
 
-    const { error } = await supabase.from('job_reviews').insert({
-      request_id: request.id,
+    const reviewPayload = {
+      [isMarketJob ? 'job_id' : 'request_id']: request.id,
       customer_id: user.id,
       tradesperson_id: details.accepted_tradesperson_id,
       rating: reviewRating,
       comment: reviewComment.trim() || null,
-    });
+    };
+    const { error } = await supabase.from(isMarketJob ? 'market_job_reviews' : 'job_reviews')
+      .insert(reviewPayload);
 
     if (error) {
       setReviewBusy(false);
-      Alert.alert('Could not submit review', error.message);
+      if(error.code==='23505'){
+        setReviewSubmitted(true);
+        Alert.alert('Already reviewed','This completed job has already received a review.');
+      }else Alert.alert('Could not submit review', error.message);
       return;
     }
 
@@ -5417,7 +5422,7 @@ function RequestDetailScreen({
               </View>
             )}
 
-            {liveStatus === 'Completed' && !isDemo && !isMarketJob && matchedTrade ? (
+            {liveStatus === 'Completed' && !isDemo && matchedTrade ? (
               <View style={styles.reviewCard}>
                 <View style={styles.reviewHeaderRow}>
                   <View style={styles.reviewIcon}>
@@ -5438,7 +5443,7 @@ function RequestDetailScreen({
                   </View>
                 ) : (
                   <>
-                    <Text style={styles.reviewText}>Rate {matchedTrade.name}. This can only be submitted after a completed real job.</Text>
+                    <Text style={styles.reviewText}>Rate {matchedTrade.name}. Reviews require a completed genuine Tradarr job, and each job can only be reviewed once.</Text>
                     <View style={styles.reviewStars}>
                       {[1, 2, 3, 4, 5].map(value => (
                         <MotionPressable
