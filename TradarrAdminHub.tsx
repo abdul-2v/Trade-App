@@ -122,7 +122,9 @@ const sectionToTarget=(section:Section,row:AdminRecord)=>{
  if(section==='cases')return 'case';
  return null;
 };
-export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
+export default function TradarrAdminHub({goBack,goToCustomer,goToTradesperson}:{
+ goBack:()=>void;goToCustomer?:()=>void;goToTradesperson?:()=>void;
+}){
  const [section,setSection]=useState<Section>('overview');
  const [overview,setOverview]=useState<Summary|null>(null);
  const [rows,setRows]=useState<AdminRecord[]>([]);
@@ -301,6 +303,20 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
      <Text style={s.heroBody}>Monitor the marketplace, review users and jobs, manage trust, and track every admin action without altering private customer records.</Text>
      <Text style={s.heroFoot}>Last synced {lastLoaded||'not yet'} · Figures from Supabase</Text>
     </View>
+    {(goToCustomer||goToTradesperson)?<View style={{flexDirection:'row',gap:10}}>
+      {goToCustomer?<MotionPressable onPress={goToCustomer} accessibilityRole="button"
+       accessibilityLabel="Exit admin and open customer view"
+       style={{flex:1,minHeight:48,borderRadius:15,backgroundColor:'#E5EFEB',
+        justifyContent:'center',alignItems:'center',padding:10}}>
+       <Text style={{fontSize:12,fontWeight:'900',color:C.teal}}>Customer view</Text>
+      </MotionPressable>:null}
+      {goToTradesperson?<MotionPressable onPress={goToTradesperson} accessibilityRole="button"
+       accessibilityLabel="Exit admin and open tradesperson view"
+       style={{flex:1,minHeight:48,borderRadius:15,backgroundColor:'#E5EFEB',
+        justifyContent:'center',alignItems:'center',padding:10}}>
+       <Text style={{fontSize:12,fontWeight:'900',color:C.teal}}>Tradesperson view</Text>
+      </MotionPressable>:null}
+     </View>:null}
     {loading?<ActivityIndicator color={C.teal} size="large" style={{marginVertical:35}}/>:<>
      <Text style={s.sectionTitle}>Platform overview</Text>
      <View style={s.metrics}>{summary.map(([title,value,note])=>
