@@ -147,3 +147,19 @@ All above are separate from CI syntax, TypeScript and unit checks. See [architec
 - [ ] Confirm that business verification and insurance remain **admin-controlled** and cannot be self-awarded through the profile editor.
 
 **Unfinished release prerequisites:** Two-phone customer/tradesperson tests; activation of Supabase Auth leaked-password protection; review of flagged public privileged RPCs; reliable support operations; account deletion and push credentials/development build. Don't mark the beta ready solely because GitHub checks are green.
+
+## K. Admin moderation, analytics and safety — 19 Nov 2026
+
+- [x] DB transaction: AAL2 staff + matching active session accepted; AAL1, missing session and mismatched identities rejected
+- [x] DB rollback: account suspension prevents normal marketplace activity while retaining an appeal route
+- [x] DB rollback: bilateral member blocks prevent new messages and new conversations
+- [x] DB rollback: hide/restore review recalculates published rating and writes distinct audit actions
+- [x] DB rollback: deletion preflight blocks erasure of an account with trade or contractual records
+- [x] Admin analytics: generated 30 daily buckets and kept platform revenue unconnected (not falsely equal to trader invoices)
+- [ ] Admin Gateway iOS real-device walkthrough: browse, charts, inspect user, suspend/reinstate test profile, review appeal, reply to case, verify MFA on app resume
+- [ ] Test safety reports and customer confirmation on two genuinely separate accounts; verify a third account cannot read the report
+- [ ] Test case deletion through its service endpoint only on disposable, eligible accounts and inspect audit/recovery outcome
+- [ ] Set Supabase leaked password protection in Dashboard (Pro+), then test reset flow
+- [ ] Confirm all production beta policies and legal/privacy notices before any actual launch
+
+**Caution:** Existing real accounts and their data were not modified by the SQL rollback tests. Account deletion has a gated finaliser but no real-account deletion has been tested.
