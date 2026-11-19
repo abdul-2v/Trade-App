@@ -40,6 +40,7 @@ import * as Location from 'expo-location';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   Linking,
   Modal,
@@ -439,6 +440,8 @@ function AppIcon({
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError,setAuthError]=useState('');
+  const [sessionCheckNonce,setSessionCheckNonce]=useState(0);
   const [accountType, setAccountType] = useState<'customer' | 'tradesperson'>('customer');
   const [recoveringPassword, setRecoveringPassword] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
@@ -447,27 +450,31 @@ export default function App() {
     let active = true;
 
     const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
-      setSession(data.session);
-
-      if (data.session?.user.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('account_type')
-          .eq('id', data.session.user.id)
-          .single();
-
-        if (profile?.account_type === 'tradesperson') {
-          setAccountType('tradesperson');
-          setMode('tradesperson');
-        } else {
-          setAccountType('customer');
-          setMode('customer');
+      try{
+        const {data,error}=await supabase.auth.getSession();
+        if(!active)return;
+        if(error)throw error;
+        setSession(data.session);
+        if(data.session?.user.id){
+          const roleResult=await Promise.race([
+            supabase.from('profiles').select('account_type')
+              .eq('id',data.session.user.id).maybeSingle(),
+            new Promise<never>((_,reject)=>setTimeout(
+              ()=>reject(new Error('Account verification timed out')),10000))
+          ]);
+          if(!active)return;
+          if(roleResult.error||!roleResult.data)
+            throw new Error(roleResult.error?.message||'Your account profile could not be loaded.');
+          const isTrade=roleResult.data.account_type==='tradesperson';
+          setAccountType(isTrade?'tradesperson':'customer');
+          setMode(isTrade?'tradesperson':'customer');
         }
+        if(active)setAuthError('');
+      }catch(error:any){
+        if(active)setAuthError(error?.message||'Could not restore your account. Check your connection.');
+      }finally{
+        if(active)setAuthLoading(false);
       }
-
-      setAuthLoading(false);
     };
 
     loadSession();
@@ -480,6 +487,7 @@ export default function App() {
       setSession(nextSession);
 
       if (!nextSession?.user.id) {
+        setAuthError('');
         setAuthLoading(false);
         setMode('customer');
         return;
@@ -489,23 +497,28 @@ export default function App() {
       // the auth client can be holding a session lock during this callback.
       const userId = nextSession.user.id;
       setTimeout(async () => {
-        if (!active) return;
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('account_type')
-          .eq('id', userId)
-          .maybeSingle();
-        if (!active) return;
-        const { data: current } = await supabase.auth.getSession();
-        if (!active || current.session?.user.id !== userId) return;
-        if (profile?.account_type === 'tradesperson') {
-          setAccountType('tradesperson');
-          setMode('tradesperson');
-        } else {
-          setAccountType('customer');
-          setMode('customer');
+        try{
+          if(!active)return;
+          const profileResult=await Promise.race([
+            supabase.from('profiles').select('account_type')
+             .eq('id',userId).maybeSingle(),
+            new Promise<never>((_,reject)=>setTimeout(
+              ()=>reject(new Error('Account verification timed out')),10000))
+          ]);
+          if(!active)return;
+          const {data:current,error:sessionError}=await supabase.auth.getSession();
+          if(!active||current.session?.user.id!==userId)return;
+          if(sessionError||profileResult.error||!profileResult.data)
+            throw new Error(profileResult.error?.message||sessionError?.message||'Could not check account type.');
+          const isTrade=profileResult.data.account_type==='tradesperson';
+          setAccountType(isTrade?'tradesperson':'customer');
+          setMode(isTrade?'tradesperson':'customer');
+          setAuthError('');
+        }catch(e:any){
+          if(active)setAuthError(e?.message||'Unable to verify your account while offline.');
+        }finally{
+          if(active)setAuthLoading(false);
         }
-        setAuthLoading(false);
       }, 0);
     });
 
@@ -513,7 +526,7 @@ export default function App() {
       active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [sessionCheckNonce]);
 
   useEffect(() => {
     const applyLatestUpdate = async () => {
@@ -731,6 +744,29 @@ export default function App() {
         <Text style={{ color: C.white, fontSize: 18, fontWeight: '800' }}>Loading Tradarr…</Text>
       </SafeAreaView>
     );
+  }
+
+  if(authError){
+    return <SafeAreaView style={[styles.safe,{backgroundColor:theme.colors.customerBackground,
+      padding:24,justifyContent:'center',alignItems:'center'}]}>
+      <Text style={{fontSize:23,fontWeight:'900',color:theme.colors.ink,textAlign:'center'}}>
+        Could not restore your account
+      </Text>
+      <Text style={{fontSize:13,lineHeight:20,color:theme.colors.muted,
+        textAlign:'center',marginTop:12}}>
+        Check your connection and try again. Your account and saved work have not been removed.
+      </Text>
+      <MotionPressable accessibilityRole="button" onPress={()=>{
+        setAuthError('');setAuthLoading(true);setSessionCheckNonce(v=>v+1);
+      }} style={{backgroundColor:theme.colors.darkTeal,borderRadius:17,
+        paddingHorizontal:27,paddingVertical:14,marginTop:25}}>
+        <Text style={{color:'#FFFFFF',fontWeight:'800'}}>Retry connection</Text>
+      </MotionPressable>
+      {session?<MotionPressable accessibilityRole="button" onPress={()=>{void supabase.auth.signOut()}}
+        style={{padding:15,marginTop:11}}>
+        <Text style={{color:theme.colors.teal,fontWeight:'800'}}>Sign out</Text>
+      </MotionPressable>:null}
+    </SafeAreaView>;
   }
 
   if (recoveringPassword) {
