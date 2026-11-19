@@ -237,6 +237,10 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool}:{
  const saveQuoteTemplate=()=>void run(async()=>{
   if(scopeTitle.trim().length<2||scopeBody.trim().length<5)
    throw new Error('Add a template name and meaningful job scope.');
+  if([labour,materials,markup].some(v=>v.trim()&&!Number.isFinite(Number(v))))
+   throw new Error('Labour, materials and markup must be valid numbers.');
+  if(Number(labour)<0||Number(materials)<0||Number(markup)<0||Number(markup)>1000)
+   throw new Error('Costs cannot be negative; markup must be 0–1000%.');
   await create('trade_suite_templates',{category:'quote',title:scopeTitle.trim(),body:quoteDraft()});
   Alert.alert('Template saved','You can reuse or share this scope alongside the full Quotes tool.');
  });
@@ -383,7 +387,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool}:{
     <Text style={sx.heading}>Live offers matched to your account</Text>
     {radarItems.filter(x=>(!urgentOnly||x.kind==='urgent')&&
      (num(x.distance)<=Number(maxMiles)||!x.distance)&&
-     (x.value==null||num(x.value)>=Number(minValue))&&
+     (Number(minValue)<=0||(x.value!=null&&num(x.value)>=Number(minValue)))&&
      (!tradeFilter.trim()||(String(x.job?.trade||'')).toLowerCase().includes(tradeFilter.trim().toLowerCase())))
      .map(x=><Card key={x.id}><Text style={sx.cardTitle}>{x.job?.issue||'New '+x.kind+' work'}</Text>
       <Text style={sx.muted}>{x.job?.trade||'Trade offer'} · {x.kind==='urgent'?'Urgent':'Flexible'} · {num(x.distance).toFixed(1)} miles</Text>
@@ -402,7 +406,12 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool}:{
      <View style={sx.summary}><Text style={sx.heading}>Indicative subtotal: {pound((num(labour)+num(materials)*(1+num(markup)/100)))}</Text>
       <Text style={sx.muted}>Before any VAT. Draft only — no invoice or payment is created.</Text></View>
      <Btn label="Save as quote template" onPress={saveQuoteTemplate} disabled={busy}/>
-     <Btn label="Share draft scope" secondary onPress={()=>void shareText('Draft quote',quoteDraft())}/>
+     <Btn label="Share draft scope" secondary onPress={()=>{
+       if(!scopeTitle.trim()||!scopeBody.trim()){
+        Alert.alert('Add scope details','Enter a title and scope before sharing.');return;
+       }
+       void shareText('Draft quote',quoteDraft());
+     }}/>
      <Btn label="Open full quote builder" secondary onPress={()=>openTool('tradeQuotes')}/>
     </Card>
     <Text style={sx.heading}>Saved quote templates</Text>
