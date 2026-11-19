@@ -9184,33 +9184,6 @@ function TradeSettingsScreen({
   );
 }
 
-function Opportunity({ title, distance, time, price }: { title: string; distance: string; time: string; price: string }) {
-  return (
-    <View style={styles.opportunity}>
-      <View style={styles.opportunityTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.opportunityTitle}>{title}</Text>
-          <Text style={styles.opportunityMeta}>{distance} · {time}</Text>
-        </View>
-        <MotionPressable style={styles.viewJobButton}><Text style={styles.viewJobText}>View</Text></MotionPressable>
-      </View>
-      <View style={styles.opportunityBottom}>
-        <Text style={styles.opportunityPrice}>{price}</Text>
-        <Text style={styles.opportunityTag}>Nearby customer</Text>
-      </View>
-    </View>
-  );
-}
-
-function TradeStat({ number, label }: { number: string; label: string }) {
-  return (
-    <View style={styles.tradeStat}>
-      <Text style={styles.tradeStatNumber}>{number}</Text>
-      <Text style={styles.tradeStatLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function HeaderBack({ title, back }: { title: string; back: () => void }) {
   return (
     <View style={styles.headerBack}>
