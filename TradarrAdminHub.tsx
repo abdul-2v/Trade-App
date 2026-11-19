@@ -144,6 +144,29 @@ export default function TradarrAdminHub({goBack,goToCustomer,goToTradesperson}:{
  const [saving,setSaving]=useState(false);
  const [error,setError]=useState('');
  const [lastLoaded,setLastLoaded]=useState('');
+ const [gatewayCheckBusy,setGatewayCheckBusy]=useState(false);
+ const runGatewayCheck=async()=>{
+  if(gatewayCheckBusy)return;
+  setGatewayCheckBusy(true);
+  try{
+   const [identity,assurance,dashboard,directory]=await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    supabase.rpc('tradarr_admin_dashboard'),
+    supabase.rpc('tradarr_admin_browse',{p_section:'users',p_search:'',p_limit:1})
+   ]);
+   const checks=[
+    ['Current staff role',!identity.error&&identity.data.user?.app_metadata?.tradarr_staff===true],
+    ['Authenticator verified',!assurance.error&&assurance.data?.currentLevel==='aal2'],
+    ['Admin metrics read',!dashboard.error&&!!dashboard.data],
+    ['Protected user directory read',!directory.error&&Array.isArray(directory.data)]
+   ] as Array<[string,boolean]>;
+   Alert.alert(checks.every(x=>x[1])?'Gateway checks passed':'Gateway needs attention',
+    checks.map(([name,passed])=>(passed?'✓ ':'✕ ')+name).join('\n')+
+    '\n\nRead-only check. Suspension, appeals and reports still need controlled device testing.');
+  }catch(e:any){Alert.alert('Gateway check failed',e?.message||'Try again online.');}
+  finally{setGatewayCheckBusy(false);}
+ };
 
  const browseSection=section!=='overview'&&section!=='verification'&&section!=='support';
  useEffect(()=>{
@@ -317,6 +340,14 @@ export default function TradarrAdminHub({goBack,goToCustomer,goToTradesperson}:{
        <Text style={{fontSize:12,fontWeight:'900',color:C.teal}}>Tradesperson view</Text>
       </MotionPressable>:null}
      </View>:null}
+    <MotionPressable
+      onPress={()=>{void runGatewayCheck()}} disabled={gatewayCheckBusy}
+      accessibilityRole="button" accessibilityLabel="Run read only administrator security and data checks"
+      style={{minHeight:46,borderRadius:14,backgroundColor:'#E6F0EB',
+       flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9}}>
+      {gatewayCheckBusy?<ActivityIndicator size="small" color={C.teal}/>:<ShieldCheck size={18} color={C.teal}/>}
+      <Text style={{fontWeight:'900',fontSize:12,color:C.teal}}>Run admin health check</Text>
+     </MotionPressable>
     {loading?<ActivityIndicator color={C.teal} size="large" style={{marginVertical:35}}/>:<>
      <Text style={s.sectionTitle}>Platform overview</Text>
      <View style={s.metrics}>{summary.map(([title,value,note])=>
