@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -43,6 +43,8 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
   const [loading, setLoading] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
+  const resendTimerRef=useRef<ReturnType<typeof setInterval>|null>(null);
+  useEffect(()=>()=>{if(resendTimerRef.current)clearInterval(resendTimerRef.current);},[]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -56,16 +58,18 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
   );
 
   const startResendCooldown = () => {
+    if(resendTimerRef.current)clearInterval(resendTimerRef.current);
     setResendSeconds(60);
-    const timer = setInterval(() => {
-      setResendSeconds(current => {
-        if (current <= 1) {
-          clearInterval(timer);
+    resendTimerRef.current=setInterval(()=>{
+      setResendSeconds(current=>{
+        if(current<=1){
+          if(resendTimerRef.current)clearInterval(resendTimerRef.current);
+          resendTimerRef.current=null;
           return 0;
         }
-        return current - 1;
+        return current-1;
       });
-    }, 1000);
+    },1000);
   };
 
   const signUp = async () => {
@@ -213,7 +217,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
           <View style={styles.brandRow}>
             <View style={styles.logo}><Text style={styles.logoText}>T</Text></View>
             <View>
-              <Text style={styles.brand}>Trade<Text style={styles.brandBlue}>Hub</Text></Text>
+              <Text style={styles.brand}>Trad<Text style={styles.brandBlue}>arr</Text></Text>
               <Text style={styles.brandCaption}>LOCAL HELP. MADE SIMPLE.</Text>
             </View>
           </View>
@@ -231,7 +235,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
               ? 'Find trusted tradespeople or join as a trade professional.'
               : mode === 'verify'
                 ? `Confirm the verification email sent to ${pendingEmail}.`
-                : 'Sign in to continue to TradeHub.'}
+                : 'Sign in to continue to Tradarr.'}
           </Text>
 
           {mode === 'verify' ? (
@@ -239,7 +243,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
               <View style={styles.verifyCard}>
                 <Text style={styles.verifyCardTitle}>Check your email</Text>
                 <Text style={styles.verifyCardText}>
-                  We sent a verification link to {pendingEmail}. Open it, confirm your email, then return to TradeHub.
+                  We sent a verification link to {pendingEmail}. Open it, confirm your email, then return to Tradarr.
                 </Text>
               </View>
 
