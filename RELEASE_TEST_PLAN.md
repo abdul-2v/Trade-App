@@ -127,3 +127,23 @@ All above are separate from CI syntax, TypeScript and unit checks. See [architec
 **Security configuration still required:** Enable Supabase Auth leaked-password protection in the dashboard. Existing public `SECURITY DEFINER` RPCs require a separate permission review. `tradarr_push_outbox` intentionally has RLS enabled with no client policies (service-only); don't add a public read/write policy just to suppress the linter.
 
 **Real-device status as of this change:** unverified. No customer-to-tradesperson end-to-end journey or authenticated conversion has been performed on two phones. Apple remote push remains unavailable until native APNs credentials and a development build are available.
+
+
+## J. Issued invoices, completed-job reviews and business onboarding (19 Nov 2026)
+
+**Automated:** GitHub Actions passed typecheck, syntax, Expo dependency validation and existing logic tests for this implementation. Supabase confirmed RLS policies and invoice/review triggers exist. **End-to-end tests below still require separate signed-in devices.**
+
+- [ ] Create a real standard booking and a separate urgent job on two accounts. Complete both, then submit a review from the customer account. Confirm each job allows exactly one review and both ratings update the tradesperson profile average/count.
+- [ ] Attempt a review before completion and a review from an unrelated customer. Neither must be accepted. Two concurrent reviews for the same job must not create duplicates.
+- [ ] Trader creates an invoice for the real assigned job. Before marking it sent, the customer must see no new invoice. When marked sent, it appears in **Activity > Invoices**, with correct business, job, item prices, VAT, total and due date.
+- [ ] Trader marks the invoice paid; customer sees the updated status and an Inbox Activity alert. Do not claim Tradarr processed the payment; the status is self-reported by the trader.
+- [ ] Customer exports the invoice PDF and checks long descriptions, special characters, multiline notes, amount calculations, branding, and small-screen layout.
+- [ ] An unrelated signed-in customer must not read or guess a different customer's invoice ID, and an external/private invoice must not appear in the customer records.
+- [ ] Once an invoice is issued or linked to an accepted quote, attempts to change amounts, recipient, line items or link fields must fail at the database layer. Draft external invoices may still be prepared; valid status transitions remain available.
+- [ ] Tradesperson uploads a JPEG, PNG and, if available, WebP avatar within 2 MB. Check the photo appears on their public map marker, customer profile and tradesperson profile after restarting the app.
+- [ ] Non-owner account cannot upload an avatar into another tradesperson's folder. File size, MIME and filename restrictions are enforced. Profile photos are public assets: check that no sensitive personal details are visible.
+- [ ] Setup checklist updates as name, primary trade, photo, bio, work area and genuine working hours are completed; working-hours shortcut opens the correct editor.
+- [ ] Reconnect after a temporary network failure; invoices, profile photos and customer notifications refresh without duplicate records.
+- [ ] Confirm that business verification and insurance remain **admin-controlled** and cannot be self-awarded through the profile editor.
+
+**Unfinished release prerequisites:** Two-phone customer/tradesperson tests; activation of Supabase Auth leaked-password protection; review of flagged public privileged RPCs; reliable support operations; account deletion and push credentials/development build. Don't mark the beta ready solely because GitHub checks are green.
