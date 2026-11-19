@@ -6,11 +6,12 @@ import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
 type Kind='helper'|'skilled'|'apprentice';
-type Tab='hire'|'work'|'people'|'saved'|'profile';
+type Tab='hire'|'work'|'people'|'saved'|'profile'|'activity';
 type CrewProfile={user_id:string;display_name:string;headline:string;trade:string;level:Kind;area_label:string;experience_years:number;about:string;availability_note:string;is_visible:boolean;adult_confirmed:boolean};
 type CrewRequest={id:string;owner_id:string;kind:Kind;title:string;trade:string;area_label:string;description:string;starts_at:string|null;ends_at:string|null;pay_amount:number;pay_unit:'hour'|'day'|'year';positions:number;employment_basis:string;status:'open'|'closed';expires_at:string;created_at:string};
 type CrewApplication={id:string;request_id:string;worker_id:string;note:string;status:'applied'|'shortlisted'|'accepted'|'declined'|'withdrawn';created_at:string};
 type CrewMessage={id:string;application_id:string;sender_id:string;body:string;created_at:string};
+type CrewNotice={id:string;title:string;body:string;data:{applicationId?:string};read_at:string|null;created_at:string};
 
 const C=theme.colors;
 const kinds:{key:Kind;label:string}[]=[{key:'helper',label:'Extra pair of hands'},{key:'skilled',label:'Skilled trade mate'},{key:'apprentice',label:'Apprenticeship'}];
@@ -67,6 +68,7 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
  const [openRequest,setOpenRequest]=useState<string|null>(null);
  const [threadId,setThreadId]=useState<string|null>(null);
  const [messages,setMessages]=useState<CrewMessage[]>([]);
+ const [notices,setNotices]=useState<CrewNotice[]>([]);
  const [messageDraft,setMessageDraft]=useState('');
  const [name,setName]=useState('');
  const [headline,setHeadline]=useState('');
@@ -89,19 +91,22 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
   const {data:{user},error:authErr}=await supabase.auth.getUser();
   if(authErr||!user){setError('Please sign in to use Crew.');setLoading(false);return;}
   setUid(user.id);
-  const [p,r,a,f]=await Promise.all([
+  const [p,r,a,f,n]=await Promise.all([
    supabase.from('crew_profiles').select('*').order('updated_at',{ascending:false}).limit(150),
    supabase.from('crew_requests').select('*').order('created_at',{ascending:false}).limit(150),
    supabase.from('crew_applications').select('*').order('created_at',{ascending:false}).limit(300),
    supabase.from('crew_saved').select('worker_id').eq('owner_id',user.id),
+   supabase.from('tradarr_notifications').select('id,title,body,data,read_at,created_at')
+    .eq('recipient_id',user.id).eq('kind','crew_update').order('created_at',{ascending:false}).limit(80),
   ]);
-  const firstError=p.error||r.error||a.error||f.error;
+  const firstError=p.error||r.error||a.error||f.error||n.error;
   if(firstError)setError('Crew is unavailable: '+firstError.message);
   else{
    setProfiles((p.data||[]) as CrewProfile[]);
    setRequests((r.data||[]) as CrewRequest[]);
    setApplications((a.data||[]) as CrewApplication[]);
    setSaved((f.data||[]).map(x=>x.worker_id));
+   setNotices((n.data||[]) as CrewNotice[]);
    setError('');
   }
   setLoading(false);
@@ -111,6 +116,13 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
   const sub=AppState.addEventListener('change',state=>{if(state==='active')void refresh();});
   return()=>sub.remove();
  },[refresh]);
+ useEffect(()=>{
+  if(!uid||viewerRole!=='crew')return;
+  const ch=supabase.channel('crew-activity-'+uid)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'tradarr_notifications',filter:'recipient_id=eq.'+uid},
+      ()=>{void refresh();}).subscribe();
+  return()=>{void supabase.removeChannel(ch);};
+ },[uid,viewerRole,refresh]);
  useEffect(()=>{
   if(!myProfile||hasProfile)return;
   setName(myProfile.display_name);setHeadline(myProfile.headline);
@@ -200,7 +212,8 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
   setMessageDraft('');await loadMessages(threadId);
  });
  const tabItems:{key:Tab;label:string}[]=viewerRole==='crew'?
-  [{key:'work',label:'Find work'},{key:'profile',label:'My profile'}]:
+  [{key:'work',label:'Find work'},{key:'activity',label:'Activity'+(notices.some(n=>!n.read_at)?' •':'')},
+   {key:'profile',label:'My profile'}]:
   [{key:'hire',label:'Hire'},{key:'work',label:'Find work'},{key:'people',label:'People'},
    {key:'saved',label:'My Crew'},{key:'profile',label:'My profile'}];
  const thread=applications.find(x=>x.id===threadId);
@@ -364,6 +377,24 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
      <Text style={s.muted}>{p?p.headline+' · '+p.area_label:'Profile is not currently publicly available'}</Text>
      <MainButton secondary label="Remove from My Crew" onPress={()=>toggleSaved(id)}/>
     </View>;})}
+   </>:null}
+   {!loading&&tab==='activity'&&viewerRole==='crew'?<>
+    <Text style={s.sectionTitle}>Crew activity</Text>
+    <Text style={[s.muted,{marginBottom:15}]}>Application updates and private messages appear here.</Text>
+    {!notices.length?<Text style={s.muted}>No Crew updates yet.</Text>:null}
+    {notices.map(n=><MotionPressable key={n.id} style={s.card} accessibilityRole="button"
+      accessibilityLabel={n.title} onPress={()=>void run(async()=>{
+        if(!n.read_at){const {error:e}=await supabase.from('tradarr_notifications')
+          .update({read_at:new Date().toISOString()}).eq('id',n.id).is('read_at',null);
+         if(e)throw e;}
+        if(n.data?.applicationId)setThreadId(n.data.applicationId);
+        else setTab('work');
+      })}>
+      <View style={s.cardTop}><Text style={s.cardTitle}>{n.title}</Text>
+       {!n.read_at?<Text style={s.tag}>New</Text>:null}</View>
+      <Text style={s.detail}>{n.body}</Text>
+      <Text style={s.muted}>{niceDate(n.created_at)}</Text>
+    </MotionPressable>)}
    </>:null}
    {!loading&&tab==='profile'?<>
     <Text style={s.sectionTitle}>My Crew profile</Text>
