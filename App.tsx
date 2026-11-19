@@ -38,6 +38,8 @@ import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
+import {decodeChatPhotoBase64,detectChatPhotoMime} from './lib/chatPhoto';
 import {
   ActivityIndicator,
   Alert,
@@ -7903,6 +7905,8 @@ function TradeSettingsScreen({
   const [bio, setBio] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar,setUploadingAvatar]=useState(false);
+  const [workingHoursConfigured,setWorkingHoursConfigured]=useState(false);
   const [notificationPreference, setNotificationPreference] = useState(true);
   const [savingNotifications, setSavingNotifications] = useState(false);
   const changeNotificationPreference = async (next:boolean) => {
@@ -7930,6 +7934,7 @@ function TradeSettingsScreen({
     avatarUrl != null,
     !!bio.trim(),
     workAreaSaved,
+    workingHoursConfigured,
   ];
   const completedProfileSteps = profileSteps.filter(Boolean).length;
   const profileProgress = Math.round(completedProfileSteps / profileSteps.length * 100);
@@ -7945,7 +7950,7 @@ function TradeSettingsScreen({
 
       if (!user || !active) return;
 
-      const [{ data: profile }, { data: availability }, { data: person }] = await Promise.all([
+      const [{ data: profile }, { data: availability }, { data: person }, { data: hours }] = await Promise.all([
         supabase
           .from('tradesperson_profiles')
           .select('display_name, primary_trade, avatar_url, bio, public_phone')
@@ -7957,10 +7962,12 @@ function TradeSettingsScreen({
           .eq('user_id', user.id)
           .single(),
         supabase.from('profiles').select('notifications_enabled').eq('id',user.id).maybeSingle(),
+        supabase.from('trade_working_hours').select('weekday,enabled').eq('tradesperson_id',user.id),
       ]);
 
       if (!active) return;
       if (person) setNotificationPreference(person.notifications_enabled !== false);
+      setWorkingHoursConfigured(Boolean(hours?.some(h=>h.enabled)));
 
       if (profile) {
         setDisplayName(profile.display_name || 'Your trade profile');
@@ -7988,6 +7995,40 @@ function TradeSettingsScreen({
       active = false;
     };
   }, []);
+
+  const chooseProfilePhoto=async()=>{
+    if(uploadingAvatar)return;
+    setUploadingAvatar(true);
+    try{
+      const picker=await ImagePicker.launchImageLibraryAsync({
+        mediaTypes:['images'],allowsEditing:true,aspect:[1,1],quality:0.7,base64:true
+      });
+      if(picker.canceled||!picker.assets?.[0])return;
+      const photo=picker.assets[0];
+      if(!photo.base64)throw new Error('The chosen photo could not be read. Choose a different image.');
+      const mime=detectChatPhotoMime(photo.base64);
+      const bytes=decodeChatPhotoBase64(photo.base64);
+      if(bytes.length>2*1024*1024)throw new Error('Choose a smaller photo. Profile photos can be up to 2 MB.');
+      const {data:{user}}=await supabase.auth.getUser();
+      if(!user)throw new Error('Sign in to upload your profile photo.');
+      const extension=mime==='image/jpeg'?'jpg':mime==='image/png'?'png':'webp';
+      const key=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,13);
+      const path=user.id+'/'+key+'.'+extension;
+      const {error:uploadError}=await supabase.storage.from('tradarr-avatars')
+        .upload(path,bytes,{contentType:mime,cacheControl:'3600',upsert:false});
+      if(uploadError)throw uploadError;
+      const {data:publicAsset}=supabase.storage.from('tradarr-avatars').getPublicUrl(path);
+      if(!publicAsset.publicUrl)throw new Error('The photo link could not be generated.');
+      const {data:saved,error:profileError}=await supabase.from('tradesperson_profiles')
+        .update({avatar_url:publicAsset.publicUrl,updated_at:new Date().toISOString()})
+        .eq('user_id',user.id).select('user_id').maybeSingle();
+      if(profileError||!saved)throw new Error(profileError?.message||'Your trade profile was not found.');
+      setAvatarUrl(publicAsset.publicUrl);
+      Alert.alert('Profile photo updated','Your new photo will appear publicly on your profile and map marker.');
+    }catch(error:any){
+      Alert.alert('Could not update photo',error?.message||'Please check your connection and retry.');
+    }finally{setUploadingAvatar(false);}
+  };
 
   const savePublicProfile = async () => {
     const cleanName = displayName.trim();
@@ -8285,6 +8326,32 @@ function TradeSettingsScreen({
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted} />
               </MotionPressable>
+              <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}
+                accessibilityRole="button" accessibilityLabel="Edit trade and business details">
+                <View style={[styles.premiumChecklistIcon,{backgroundColor:theme.colors.tealTint}]}>
+                  <BriefcaseBusiness size={21} color={theme.colors.teal}/>
+                </View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>
+                    {profileSteps[0]&&profileSteps[1]?'Business identity ready':'Add business name and trade'}
+                  </Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Show customers exactly who you are and what you do</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted}/>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => navigate('tradeHours')}
+                accessibilityRole="button" accessibilityLabel="Set tradesperson working hours">
+                <View style={[styles.premiumChecklistIcon,{backgroundColor:'#EBEEF7'}]}>
+                  <CalendarClock size={21} color="#465C7F"/>
+                </View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>
+                    {workingHoursConfigured?'Working hours configured':'Set your working hours'}
+                  </Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Let customers request times you actually work</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted}/>
+              </MotionPressable>
               <MotionPressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
                 accessibilityRole="button" accessibilityLabel="Complete profile setup">
                 <Text style={styles.premiumPrimaryText}>Complete setup</Text>
@@ -8318,9 +8385,18 @@ function TradeSettingsScreen({
               <View style={{ flex: 1 }}>
                 <Text style={styles.premiumChecklistTitle}>Profile photo</Text>
                 <Text style={styles.premiumChecklistSubtitle}>Your current customer-facing photo</Text>
-                <Text style={styles.premiumPhotoFootnote}>Photo upload is not available here yet</Text>
+                <Text style={styles.premiumPhotoFootnote}>Your photo is public on your Tradarr profile. Choose a clear picture customers can recognise.</Text>
               </View>
             </View>
+            <MotionPressable onPress={()=>{void chooseProfilePhoto()}}
+              disabled={uploadingAvatar} accessibilityRole="button"
+              style={[styles.premiumProfileSaveTop,{alignSelf:'flex-start',marginBottom:14,paddingHorizontal:18,gap:8}]}>
+              {uploadingAvatar?<ActivityIndicator color={theme.colors.teal} size="small"/>:
+                <Camera size={16} color={theme.colors.teal}/>}
+              <Text style={styles.premiumProfileSaveTopText}>
+                {uploadingAvatar?'Uploading photo…':avatarUrl?'Change profile photo':'Upload profile photo'}
+              </Text>
+            </MotionPressable>
         <View style={styles.tradeEditCard}>
           <View style={styles.tradeEditHeader}>
             <View style={styles.tradeEditIcon}>
@@ -8554,9 +8630,9 @@ function TradeSettingsScreen({
                 <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Public profile</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
               </MotionPressable>
-              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHome')}>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeHours')}>
                 <View style={styles.premiumChecklistIcon}><Clock3 size={20} color={theme.colors.teal} /></View>
-                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & hours</Text>
+                <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & working hours</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
               </MotionPressable>
               <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeInvoices')}
