@@ -111,7 +111,7 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
    <Text style={s.eyebrow}>PRICE INTELLIGENCE</Text><Text style={s.heading}>{screen==='edit'?'Price comparison':screen==='new'?'New price check':'Price Lens'}</Text>
   </View>{screen==='list'?<MotionPressable onPress={()=>setScreen('new')} style={s.new}><Plus color="#FFFFFF" size={18}/><Text style={s.newText}>New</Text></MotionPressable>:null}</View>
   {loading?<ActivityIndicator color={C.teal} size="large" style={{marginTop:70}}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
   {screen==='list'?<>
     <View style={s.hero}><Scale color="#CBE8E1" size={25}/>
