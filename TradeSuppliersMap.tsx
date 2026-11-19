@@ -269,7 +269,16 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 @keyframes routeMarch{to{stroke-dashoffset:-24}}
 .pin,.cluster{animation:markerDrop .37s cubic-bezier(.18,.87,.26,1.08) both}
 .pin{transition:transform .24s ease,box-shadow .26s ease}
-.pin.is-selected{transform:scale(1.14);box-shadow:0 0 0 6px #F2A98477,0 7px 18px #132E3577;border-color:#F2A984}
+.pin.is-selected{transform:scale(1.18);box-shadow:0 0 0 5px #F2A98466,0 7px 18px #132E3577;border-color:#F2A984}
+.pin.is-selected:after{content:"";position:absolute;inset:-12px;border:2px solid #E0704C;border-radius:16px;pointer-events:none;animation:chosenPulse 1.65s ease-out infinite}
+@keyframes chosenPulse{0%{transform:scale(.72);opacity:.85}100%{transform:scale(1.65);opacity:0}}
+@keyframes clusterBloom{0%{box-shadow:0 0 0 0 #E0704C99;transform:scale(.88)}70%{box-shadow:0 0 0 17px #E0704C00;transform:scale(1.14)}100%{box-shadow:0 0 0 20px #E0704C00;transform:scale(1)}}
+.cluster.is-opening{animation:clusterBloom .58s cubic-bezier(.16,.8,.3,1) both}
+.focus-halo{position:relative;width:54px;height:54px;border:2px solid #E0704C;border-radius:50%;box-shadow:0 0 0 6px #E0704C28;animation:focusArrive 1.1s cubic-bezier(.16,.8,.3,1) both;pointer-events:none}
+.focus-halo:after{content:"";position:absolute;inset:8px;border:1.5px dashed #E0704C;border-radius:50%;animation:focusRotate 3.2s linear infinite;pointer-events:none}
+.travel-beacon{width:13px;height:13px;border-radius:50%;background:#E0704C;border:3px solid white;box-sizing:border-box;box-shadow:0 0 0 5px #E0704C44,0 2px 10px #12384499;pointer-events:none}
+@keyframes focusArrive{0%{transform:scale(.45);opacity:0}60%{transform:scale(1.13);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes focusRotate{to{transform:rotate(360deg)}}
 #shop-sweep{position:absolute;inset:0;pointer-events:none;z-index:500;opacity:0;
   background:linear-gradient(108deg,transparent 28%,rgba(145,213,203,.02) 39%,rgba(120,213,198,.22) 50%,rgba(255,255,255,.04) 61%,transparent 75%);transform:translateX(-100%)}
 @keyframes shopSweep{0%{transform:translateX(-100%);opacity:0}20%{opacity:1}80%{opacity:.9}100%{transform:translateX(110%);opacity:0}}
@@ -279,7 +288,7 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 .you-pin:before,.you-pin:after{content:"";position:absolute;inset:-5px;border:2px solid #E0704C;border-radius:50%;pointer-events:none;animation:sonar 2.6s ease-out infinite}
 .you-pin:after{animation-delay:1.3s}
 .leaflet-interactive.route-active{animation:routeMarch 1s linear infinite}
-@media(prefers-reduced-motion:reduce){.pin,.cluster,.you-pin:before,.you-pin:after,.route-active,#shop-sweep{animation:none!important}.pin{transition:none!important}}
+@media(prefers-reduced-motion:reduce){.pin,.cluster,.you-pin:before,.you-pin:after,.route-active,#shop-sweep,.pin.is-selected:after,.focus-halo,.focus-halo:after{animation:none!important}.pin{transition:none!important}}
 </style></head><body><div id="map"></div><div id="shop-sweep"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
@@ -304,12 +313,21 @@ function playShopSweep(){
  el.classList.remove('play');void el.offsetWidth;el.classList.add('play');
 }
 var userPoint=null, userMarker=null, userLabelMarker=null, workMarker=null, accuracyArea=null, shopLink=null;
+var focusedHalo=null,travelDot=null,travelFrame=0;
+var reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+function stopFocusAnimation(){
+ if(travelFrame)cancelAnimationFrame(travelFrame);
+ travelFrame=0;
+ removeFeature(travelDot);travelDot=null;
+ removeFeature(focusedHalo);focusedHalo=null;
+}
 function removeFeature(feature){if(feature && map.hasLayer(feature))map.removeLayer(feature);}
 window.updateLocations=function(points){
   removeFeature(userMarker);removeFeature(userLabelMarker);removeFeature(workMarker);removeFeature(accuracyArea);
   userMarker=null;userLabelMarker=null;workMarker=null;accuracyArea=null;
   var current=points&&points.current, work=points&&points.workArea;
-  userPoint=current||null;
+  // Work-area pin is an appropriate origin when live GPS is not shared.
+  userPoint=current||work||null;
   if(work && (!current || Math.abs(current.lat-work.lat)+Math.abs(current.lng-work.lng)>.001)){
     var wicon=L.divIcon({className:'',html:'<span class="work-pin">Work area</span>',iconSize:[75,24],iconAnchor:[37,12]});
     workMarker=L.marker([work.lat,work.lng],{icon:wicon,interactive:false,zIndexOffset:400}).addTo(map);
@@ -333,6 +351,7 @@ window.moveMapArea=function(lat,lng){
   if(Number.isFinite(lat)&&Number.isFinite(lng))map.flyTo([lat,lng],Math.max(12.6,map.getZoom()),{duration:.72,easeLinearity:.22});
 };
 window.clearShopLine=function(){
+  stopFocusAnimation();
   removeFeature(shopLink);shopLink=null;selectedShopId=null;
   document.querySelectorAll('.pin.is-selected').forEach(function(el){el.classList.remove('is-selected');});
 };
