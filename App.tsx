@@ -26,6 +26,7 @@ import CustomerRescueScreen from './CustomerRescueScreen';
 import CustomerPriceLensScreen from './CustomerPriceLensScreen';
 import CustomerCollectiveScreen from './CustomerCollectiveScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
+import TradarrCrewScreen from './TradarrCrewScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
@@ -127,7 +128,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -856,6 +857,9 @@ export default function App() {
       <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
+    if (tradeScreen === 'tradeCrew') return <TradeShell current="tradeCrew" navigate={navigateTrade}>
+      <TradarrCrewScreen goBack={() => navigateTrade('tradeTools')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
@@ -6113,7 +6117,7 @@ function TradeShell({
       <ScreenReveal route={current} scope="trade">{children}</ScreenReveal>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective'].includes(current));
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective','tradeCrew'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -6173,7 +6177,17 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
       <Text style={styles.tradeToolsQuickName}>{title}</Text><Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
     </MotionPressable>)}
    </View>
-   <Text style={styles.tradeToolsSectionTitle}>Make every job count</Text>
+   <MotionPressable onPress={()=>navigate('tradeCrew')} accessibilityRole="button"
+      accessibilityLabel="Open Tradarr Crew" style={[styles.tradeToolsPowerCard,{width:'100%',minHeight:112,marginBottom:17,
+      backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:14}]}>
+      <View style={{width:48,height:48,borderRadius:16,backgroundColor:'#214B4B',alignItems:'center',justifyContent:'center'}}>
+        <Users color="#DBEFE9" size={26}/>
+      </View>
+      <View style={{flex:1}}><Text style={[styles.tradeToolsPowerTitle,{fontSize:18,marginTop:0}]}>Tradarr Crew</Text>
+        <Text style={styles.tradeToolsPowerText}>Find an extra pair of hands, skilled mates or apprentices.</Text></View>
+      <ChevronRight size={21} color="#DBEFE9"/>
+    </MotionPressable>
+    <Text style={styles.tradeToolsSectionTitle}>Make every job count</Text>
    <View style={styles.tradeToolsPowerRow}>
      <MotionPressable onPress={()=>navigate('tradeProfit')} style={[styles.tradeToolsPowerCard,{backgroundColor:theme.colors.darkTeal}]}
        accessibilityRole="button" accessibilityLabel="Open Job Profit calculator">
@@ -7943,7 +7957,8 @@ function TradeMessagesScreen({navigate}:{
    <TradarrInboxScreen role="tradesperson"
      onOpenOther={notice=>{
        if(notice.kind==='admin_notice')return;
-       if(notice.data?.screen==='accountSafety')return navigate('tradeSafety');
+       if(notice.kind==='crew_update')return navigate('tradeCrew');
+        if(notice.data?.screen==='accountSafety')return navigate('tradeSafety');
        navigate(notice.kind==='support_update'?'tradeSupport':
         notice.kind==='verification_update'?'tradeTrust':
         notice.kind==='quote_update'?'tradeQuotes':
