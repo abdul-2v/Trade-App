@@ -389,7 +389,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
     {refreshing?<ActivityIndicator color={C.teal} size="small"/>:
      <RefreshCw color={C.teal} size={21}/>}</MotionPressable>
   </View>
-  <ScrollView style={{flex:1}} contentContainerStyle={sx.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+  <ScrollView automaticallyAdjustKeyboardInsets style={{flex:1}} contentContainerStyle={sx.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
    {loading?<ActivityIndicator size="large" color={C.teal}/>:null}
    {problem?<Card><Text style={sx.warning}>{problem}</Text><Btn label="Try again" secondary onPress={()=>void refresh()}/></Card>:null}
    {!loading&&!problem&&feature==='radar'?<>
