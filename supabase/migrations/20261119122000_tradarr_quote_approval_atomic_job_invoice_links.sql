@@ -61,7 +61,7 @@ create or replace function public.tradarr_convert_quote_to_invoice(p_quote_id uu
 returns uuid language plpgsql security invoker set search_path='' as $$
 declare q public.trade_quotes%rowtype;
         delivery public.trade_customer_proposals%rowtype;
-        invoice_id uuid;
+        v_invoice_id uuid;
 begin
  if (select auth.uid()) is null then
   raise exception 'Sign in before invoicing' using errcode='42501';
@@ -72,12 +72,12 @@ begin
   raise exception 'Quote is unavailable or not owned by this account' using errcode='42501';
  end if;
  if q.invoice_id is not null then return q.invoice_id; end if;
- select i.id into invoice_id from public.trade_invoices i
+ select i.id into v_invoice_id from public.trade_invoices i
  where i.quote_id=q.id and i.tradesperson_id=q.tradesperson_id limit 1;
- if invoice_id is not null then
-  update public.trade_quotes set invoice_id=invoice_id,status='converted',updated_at=now()
+ if v_invoice_id is not null then
+  update public.trade_quotes set invoice_id=v_invoice_id,status='converted',updated_at=now()
    where id=q.id;
-  return invoice_id;
+  return v_invoice_id;
  end if;
  select * into delivery from public.trade_customer_proposals where quote_id=q.id;
  if found and delivery.decision<>'accepted' then
@@ -100,10 +100,10 @@ begin
   q.title||case when q.description is null then '' else E'\n'||q.description end,
   q.items,current_date,current_date,current_date+14,q.vat_rate,q.subtotal,q.vat_amount,
   q.total,null,q.notes,'draft')
- returning id into invoice_id;
- update public.trade_quotes set invoice_id=invoice_id,status='converted',updated_at=now()
+ returning id into v_invoice_id;
+ update public.trade_quotes set invoice_id=v_invoice_id,status='converted',updated_at=now()
   where id=q.id;
- return invoice_id;
+ return v_invoice_id;
 end $$;
 revoke all on function public.tradarr_convert_quote_to_invoice(uuid) from public,anon;
 grant execute on function public.tradarr_convert_quote_to_invoice(uuid) to authenticated;
