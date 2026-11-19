@@ -129,7 +129,7 @@ export default function TradarrStaffScreen({goBack}:{goBack:()=>void}){
     .select('id,author_id,message,internal_only,created_at').single();
   setSaving(false);
   if(e||!data){Alert.alert('Reply failed',e?.message||'Try again.');return;}
-  setUpdates(old=>[...old,data as Update[] extends (infer U)[]?U:never]);
+  setUpdates(old=>[...old,data as Update]);
   setReply('');setInternal(false);
  };
  const back=()=>selectedCredential?setSelectedCredential(null):selectedCase?setSelectedCase(null):goBack();
