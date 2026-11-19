@@ -84,7 +84,7 @@ export default function CustomerGridScreen({goBack,openMessages}:{goBack:()=>voi
   <View style={s.head}><MotionPressable style={s.back} onPress={slot?()=>setSelected(null):goBack}><ArrowLeft size={22} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>TRADARR GRID</Text><Text style={s.heading}>{slot?'Request this slot':'Local work slots'}</Text></View></View>
   {loading?<ActivityIndicator size="large" color={C.teal} style={{marginTop:60}}/>:
-   <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
+   <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
     {error?<Text style={s.error}>{error}</Text>:null}
     {slot?<><View style={s.hero}><Navigation size={24} color="#D0E6E2"/><Text style={s.heroTitle}>{slot.trade} · {slot.area_label}</Text>

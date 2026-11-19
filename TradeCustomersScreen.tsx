@@ -27,6 +27,9 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
   const [userId, setUserId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError,setLoadError]=useState('');
+  const [historyError,setHistoryError]=useState('');
+  const [loadKey,setLoadKey]=useState(0);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotes, setQuotes] = useState<Doc[]>([]);
   const [invoices, setInvoices] = useState<Doc[]>([]);
@@ -41,7 +44,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
   const [notes, setNotes] = useState('');
   const selected = customers.find(c => c.id === selectedId) || null;
   const visible = useMemo(() => customers.filter(c =>
-    (c.name + ' ' + (c.phone || '') + ' ' + (c.address || '')).toLowerCase().includes(search.trim().toLowerCase())
+    (c.name + ' ' + (c.phone || '') + ' ' + (c.email || '') + ' ' + (c.address || '')).toLowerCase().includes(search.trim().toLowerCase())
   ), [customers, search]);
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
-      if (!uid || !alive) { if (alive) setLoading(false); return; }
+      if (!uid || !alive) { if (alive){setLoadError('Sign in to see your customer book.');setLoading(false);} return; }
       setUserId(uid);
       const [c, q, i, a] = await Promise.all([
         supabase.from('trade_customers').select('*').eq('tradesperson_id', uid).order('name'),
@@ -58,15 +61,24 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
         supabase.from('trade_appointments').select('id,customer_id,title,status,starts_at').eq('tradesperson_id', uid).order('starts_at', { ascending: false }).limit(250),
       ]);
       if (!alive) return;
-      if (c.error) Alert.alert('Could not load customers', c.error.message);
+      if (c.error){
+        setLoadError('Could not load your saved customers: '+c.error.message);
+        setLoading(false);return;
+      }
+      setLoadError('');
+      setHistoryError(q.error||i.error||a.error
+        ?'Some work history could not be loaded. The customer list is still available; totals may be incomplete.'
+        :'');
       setCustomers((c.data || []) as Customer[]);
       setQuotes((q.data || []) as Doc[]);
       setInvoices((i.data || []) as Doc[]);
       setAppointments((a.data || []) as Doc[]);
       setLoading(false);
-    })().catch(err => { if (alive) { Alert.alert('Customer book unavailable', String(err)); setLoading(false); } });
+    })().catch(err => { if (alive) {
+      setLoadError('Customer book unavailable: '+(err?.message||String(err)));setLoading(false);
+    }});
     return () => { alive = false; };
-  }, []);
+  }, [loadKey]);
 
   const newCustomer = () => {
     setSelectedId(null); setName(''); setPhone(''); setEmail(''); setAddress(''); setNotes('');
@@ -80,31 +92,44 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
   const save = async () => {
     if (saving) return;
     if (!name.trim()) { Alert.alert('Customer name needed', 'Enter a name before saving.'); return; }
+    if(name.trim().length>120){Alert.alert('Name too long','Please shorten the customer name.');return;}
+    const normalisedEmail=email.trim().toLowerCase();
+    if(normalisedEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalisedEmail)){
+      Alert.alert('Check email address','Enter a valid customer email address or leave it blank.');return;
+    }
+    const normalisedPhone=phone.trim();
+    if(normalisedPhone&&!/^\+?[\d ()-]{7,22}$/.test(normalisedPhone)){
+      Alert.alert('Check phone number','Enter a valid phone number or leave it blank.');return;
+    }
     if (!userId) { Alert.alert('Sign in required', 'Sign in to save customers.'); return; }
     setSaving(true);
+    try{
     const payload = {
-      tradesperson_id: userId, name: name.trim(), phone: phone.trim() || null,
-      email: email.trim() || null, address: address.trim() || null, notes: notes.trim() || null,
+      tradesperson_id: userId, name: name.trim(), phone: normalisedPhone || null,
+      email: normalisedEmail || null, address: address.trim() || null, notes: notes.trim() || null,
       updated_at: new Date().toISOString(),
     };
     const result = selectedId
       ? await supabase.from('trade_customers').update(payload).eq('id', selectedId).eq('tradesperson_id', userId).select('*').single()
       : await supabase.from('trade_customers').insert(payload).select('*').single();
-    setSaving(false);
     if (result.error || !result.data) { Alert.alert('Could not save customer', result.error?.message || 'Please try again.'); return; }
     const item = result.data as Customer;
     setCustomers(old => [...old.filter(c => c.id !== item.id), item].sort((a,b) => a.name.localeCompare(b.name)));
     setSelectedId(item.id);
     setScreen('detail');
+    }catch(error:any){Alert.alert('Could not save customer',error?.message||'Check your connection and try again.');}
+    finally{setSaving(false);}
   };
   const removeCustomer = (customer: Customer) => {
     Alert.alert('Delete this customer?', 'This removes the contact from your book. Existing invoices and quotes remain in your account.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        const { error } = await supabase.from('trade_customers').delete().eq('id', customer.id).eq('tradesperson_id', userId);
-        if (error) { Alert.alert('Could not delete customer', error.message); return; }
-        setCustomers(old => old.filter(c => c.id !== customer.id));
-        setScreen('list');
+        try {
+          const { error } = await supabase.from('trade_customers').delete().eq('id', customer.id).eq('tradesperson_id', userId);
+          if (error) throw error;
+          setCustomers(old => old.filter(c => c.id !== customer.id));
+          setScreen('list');
+        }catch(error:any){Alert.alert('Could not delete customer',error?.message||'Try again.');}
       } },
     ]);
   };
@@ -127,8 +152,18 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
       </MotionPressable> : null}
     </View>
     {loading ? <ActivityIndicator size="large" color={C.teal} style={{ marginTop: 60 }}/> :
-      screen === 'list' ? <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
-        <Text style={s.intro}>Keep your private customers, addresses and work history together. Only you can see these records.</Text>
+      loadError?<View style={s.errorPanel}>
+        <Users color={C.coralDark} size={32}/>
+        <Text style={s.emptyTitle}>Customer book unavailable</Text>
+        <Text style={s.emptySub}>{loadError}</Text>
+        <MotionPressable style={s.action} onPress={()=>{setLoadError('');setLoading(true);setLoadKey(x=>x+1);}}
+          accessibilityRole="button" accessibilityLabel="Retry loading customers">
+          <Text style={s.actionText}>Try again</Text>
+        </MotionPressable>
+      </View>:
+      screen === 'list' ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+        <Text style={s.intro}>Keep private customer contact details and work history together. Only your business account can see this book.</Text>
+        {historyError?<Text style={s.warning}>{historyError}</Text>:null}
         <View style={s.searchRow}><Search size={19} color={C.muted}/>
           <TextInput value={search} onChangeText={setSearch} placeholder="Search customers"
             style={s.searchInput} placeholderTextColor="#8C999C" />
@@ -147,7 +182,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
             {!search.trim() ? <MotionPressable onPress={newCustomer} style={s.action}><Plus color="#FFFFFF" size={19}/><Text style={s.actionText}>Add a customer</Text></MotionPressable> : null}
           </View>}
       </ScrollView> :
-      screen === 'edit' ? <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+      screen === 'edit' ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
         <Text style={s.intro}>Save a contact once, then select them when preparing a quote or appointment.</Text>
         <View style={s.panel}>
           <Field label="Customer or company name *" value={name} change={setName} placeholder="e.g. Sarah Williams"/>
@@ -159,7 +194,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
         <MotionPressable onPress={save} disabled={saving} style={s.action}>
           {saving ? <ActivityIndicator color="#FFFFFF"/> : <Text style={s.actionText}>Save customer</Text>}
         </MotionPressable>
-      </ScrollView> : selected ? <ScrollView contentContainerStyle={s.page}>
+      </ScrollView> : selected ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page}>
         <View style={s.detailCard}>
           <View style={s.detailTop}>
             <View style={s.avatar}><Text style={s.avatarText}>{selected.name.slice(0,1).toUpperCase()}</Text></View>
@@ -174,6 +209,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
           {selected.notes ? <View style={s.detailLine}><Text style={s.detailLabel}>Private notes</Text><Text style={s.detailValue}>{selected.notes}</Text></View> : null}
         </View>
         <Text style={s.section}>Work history</Text>
+        {historyError?<Text style={s.warning}>{historyError}</Text>:null}
         <View style={s.stats}>
           <View style={s.stat}><FileText size={20} color={C.teal}/><Text style={s.statN}>{quotesFor.length}</Text><Text style={s.statLabel}>Quotes</Text></View>
           <View style={s.stat}><Receipt size={20} color={C.teal}/><Text style={s.statN}>{invoicesFor.length}</Text><Text style={s.statLabel}>Invoices</Text></View>
@@ -232,6 +268,10 @@ const s=StyleSheet.create({
   statLabel:{fontSize:11,color:theme.colors.muted},
   helper:{fontSize:11,color:theme.colors.muted,lineHeight:17,marginTop:12,marginBottom:10},
   history:{backgroundColor:'#FFFFFF',borderRadius:16,padding:15,marginBottom:8},
+  errorPanel:{margin:20,padding:24,backgroundColor:'#FFFFFF',borderRadius:23,
+    alignItems:'center',gap:12,...theme.shadow},
+  warning:{fontSize:12,color:theme.colors.coralDark,backgroundColor:'#FFF1E9',
+    borderRadius:14,padding:12,lineHeight:19,marginBottom:13},
   delete:{alignSelf:'center',padding:14,flexDirection:'row',alignItems:'center',gap:7,marginTop:15},
   deleteText:{color:theme.colors.coralDark,fontWeight:'800',fontSize:12},
 });

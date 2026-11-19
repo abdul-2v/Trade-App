@@ -89,7 +89,11 @@ function Pill({label,active,onPress}:{label:string;active:boolean;onPress:()=>vo
  </MotionPressable>
 }
 function Card({children}:{children:React.ReactNode}){return <View style={sx.card}>{children}</View>}
-function Empty({children}:{children:string}){return <View style={sx.empty}><Text style={sx.muted}>{children}</Text></View>}
+function Empty({children}:{children:string}){return <View style={sx.empty}>
+  <View style={sx.emptyIcon}><ClipboardCheck size={22} color={C.teal}/></View>
+  <Text style={sx.emptyTitle}>Nothing here yet</Text>
+  <Text style={[sx.muted,{textAlign:'center'}]}>{children}</Text>
+ </View>}
 function Metric({label,value}:{label:string;value:string|number}){return <View style={sx.metric}>
  <Text style={sx.metricValue}>{value}</Text><Text style={sx.muted}>{label}</Text></View>}
 
@@ -102,6 +106,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
  const [problem,setProblem]=useState('');
+ const [refreshing,setRefreshing]=useState(false);
  const [tradeFilter,setTradeFilter]=useState('');
  const [maxMiles,setMaxMiles]=useState('15');
  const [minValue,setMinValue]=useState('0');
@@ -137,6 +142,8 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
 
  const list=(name:string)=>rows[name]||[];
  const refresh=useCallback(async()=>{
+  setRefreshing(true);
+  try {
   const {data:{user},error:authError}=await supabase.auth.getUser();
   if(authError||!user){setProblem('Please sign in as a tradesperson.');setLoading(false);return;}
   const id=user.id;
@@ -172,6 +179,8 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
   if(booking){setBusinessHeadline(booking.headline||'');setBusinessServices(booking.services||'');
    setBookingNotes(booking.booking_instructions||'');}
   setRows(next);setProblem('');setLoading(false);
+  } catch(e) {setProblem(err(e));setLoading(false);}
+  finally {setRefreshing(false);}
  },[feature]);
  useEffect(()=>{void refresh();},[refresh]);
  const run=async(action:()=>Promise<void>)=>{
@@ -202,6 +211,11 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
  const customers=list('trade_customers');
  const costs=list('trade_job_costs');
  const tasks=list('trade_suite_job_tasks');
+ const filteredRadar=radarItems.filter(x=>(!urgentOnly||x.kind==='urgent')&&
+  (num(x.distance)<=Number(maxMiles)||!x.distance)&&
+  (Number(minValue)<=0||(x.value!=null&&num(x.value)>=Number(minValue)))&&
+  (!tradeFilter.trim()||(String(x.job?.trade||'')).toLowerCase()
+     .includes(tradeFilter.trim().toLowerCase())));
  const sentQuotes=quotes.filter(x=>['sent','accepted','converted'].includes(x.status));
  const wonQuotes=quotes.filter(x=>['accepted','converted'].includes(x.status));
  const issuedInvoices=invoices.filter(x=>x.status!=='draft'&&x.status!=='void');
@@ -372,12 +386,13 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
     <Text style={sx.title}>{titles[feature]}</Text>
     <Text style={sx.muted}>{subtitles[feature]}</Text></View>
    <MotionPressable onPress={()=>void refresh()} accessibilityRole="button" accessibilityLabel="Refresh" style={sx.back}>
-    <RefreshCw color={C.teal} size={21}/></MotionPressable>
+    {refreshing?<ActivityIndicator color={C.teal} size="small"/>:
+     <RefreshCw color={C.teal} size={21}/>}</MotionPressable>
   </View>
-  <ScrollView style={{flex:1}} contentContainerStyle={sx.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+  <ScrollView automaticallyAdjustKeyboardInsets style={{flex:1}} contentContainerStyle={sx.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
    {loading?<ActivityIndicator size="large" color={C.teal}/>:null}
    {problem?<Card><Text style={sx.warning}>{problem}</Text><Btn label="Try again" secondary onPress={()=>void refresh()}/></Card>:null}
-   {!loading&&feature==='radar'?<>
+   {!loading&&!problem&&feature==='radar'?<>
     <Card><Text style={sx.heading}>Your opportunity preferences</Text>
      <Input label="Trade (leave blank for all)" value={tradeFilter} onChange={setTradeFilter} placeholder="Plumbing"/>
      <Input label="Maximum distance (miles)" value={maxMiles} onChange={setMaxMiles} number/>
@@ -387,18 +402,22 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Text style={sx.muted}>Filters help you review real offers. They do not create or guarantee new customer demand.</Text>
     </Card>
     <Text style={sx.heading}>Live offers matched to your account</Text>
-    {radarItems.filter(x=>(!urgentOnly||x.kind==='urgent')&&
-     (num(x.distance)<=Number(maxMiles)||!x.distance)&&
-     (Number(minValue)<=0||(x.value!=null&&num(x.value)>=Number(minValue)))&&
-     (!tradeFilter.trim()||(String(x.job?.trade||'')).toLowerCase().includes(tradeFilter.trim().toLowerCase())))
-     .map(x=><Card key={x.id}><Text style={sx.cardTitle}>{x.job?.issue||'New '+x.kind+' work'}</Text>
+    {filteredRadar.map(x=><Card key={x.id}><Text style={sx.cardTitle}>{x.job?.issue||'New '+x.kind+' work'}</Text>
       <Text style={sx.muted}>{x.job?.trade||'Trade offer'} · {x.kind==='urgent'?'Urgent':'Flexible'} · {num(x.distance).toFixed(1)} miles</Text>
       {x.value!=null?<Text style={sx.pillText}>Indicative offer value: {pound(x.value)}</Text>:null}
       <Btn label="Review in Jobs" secondary onPress={()=>openTool('tradeJobs')}/></Card>)}
-    {!radarItems.length?<Empty>No live job offers matched to your account yet. Stay visible and check Jobs for updates.</Empty>:null}
+    {!filteredRadar.length?<Card>
+       <Text style={sx.cardTitle}>{radarItems.length?'No offers meet these filters':'No new offers yet'}</Text>
+       <Text style={sx.muted}>{radarItems.length
+         ? 'Some offers exist, but your trade, distance or minimum value filters hide them. Adjust the filters above.'
+         : 'No new offer is currently addressed to your account. Stay visible on the customer map and check Jobs.'}</Text>
+       {radarItems.length?<Btn label="Clear filters" secondary onPress={()=>{
+         setTradeFilter('');setMaxMiles('100');setMinValue('0');setUrgentOnly(false);
+       }}/>:null}
+     </Card>:null}
     <Btn label="Open full job marketplace" onPress={()=>openTool('tradeJobs')}/>
    </>:null}
-   {!loading&&feature==='quoteStudio'?<>
+   {!loading&&!problem&&feature==='quoteStudio'?<>
     <Card><Text style={sx.heading}>Build a reusable quote scope</Text>
      <Input label="Template / project name" value={scopeTitle} onChange={setScopeTitle} placeholder="Bathroom installation"/>
      <Input label="Work included" value={scopeBody} onChange={setScopeBody} multiline placeholder="Preparation, labour, included materials and exclusions..."/>
@@ -434,7 +453,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
     </Card>)}
     {!list('trade_suite_templates').some(x=>x.category==='quote')?<Empty>No saved quote scopes yet.</Empty>:null}
    </>:null}
-   {!loading&&feature==='assistant'?<>
+   {!loading&&!problem&&feature==='assistant'?<>
     <Card><View style={sx.iconHeading}><Lightbulb color={C.teal} size={25}/><Text style={sx.heading}>Based on your real records</Text></View>
      <Text style={sx.muted}>The assistant currently provides calculated business guidance. It does not invent an AI answer, access private customer messages or take actions on your behalf.</Text>
      <View style={sx.wrap}>{([
@@ -446,11 +465,16 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Btn label={question==='quotes'?'Review quotes':question==='money'?'View invoices':'Open customer book'}
        onPress={()=>openTool(question==='quotes'?'tradeQuotes':question==='money'?'tradeInvoices':'tradeCustomers')}/>
     </Card>
-    <Card><Text style={sx.heading}>AI-powered conversation</Text>
-     <Text style={sx.muted}>Secure generative responses require a separate server-side AI integration and data permissions. This screen will not pretend a model answered a question until that integration is configured.</Text>
+    <Card><Text style={sx.heading}>Suggested priorities</Text>
+     {insightsContent().map((item,i)=><View key={i} style={sx.row}>
+       <Check size={19} color={C.teal}/>
+       <Text style={[sx.smallBody,{flex:1}]}>{item}</Text>
+      </View>)}
+     <Btn label="Open profit tracker" secondary onPress={()=>openTool('tradeProfit')}/>
+     <Text style={sx.muted}>Suggestions use your own saved records, not generative AI. Nothing is sent or changed automatically.</Text>
     </Card>
    </>:null}
-   {!loading&&feature==='smartDiary'?<>
+   {!loading&&!problem&&feature==='smartDiary'?<>
     <Card><Text style={sx.heading}>Your future bookings</Text>
      <Metric label="Upcoming appointments" value={latestTwo.length}/>
      <Text style={sx.muted}>Gap suggestions use confirmed diary times, not a live travel-time calculation. Check your working hours and journey before offering a slot.</Text>
@@ -464,7 +488,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
     {!gaps.length?<Empty>No gaps of at least an hour between upcoming appointments were found. Empty diary days can still be scheduled manually.</Empty>:null}
     <Btn label="Plan On My Way / Street Run" secondary onPress={()=>openTool('tradeRoutes')}/>
    </>:null}
-   {!loading&&feature==='commandCentre'?<>
+   {!loading&&!problem&&feature==='commandCentre'?<>
     <Text style={sx.heading}>Your accepted jobs</Text>
     {!jobOptions.length?<Empty>No accepted marketplace jobs yet. New jobs will appear here when you accept customer work.</Empty>:null}
     {jobOptions.map(j=><MotionPressable accessibilityRole="button" accessibilityLabel={'Open checklist for '+j.title}
@@ -487,7 +511,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Btn label="Open Jobs" secondary onPress={()=>openTool('tradeJobs')}/>
     </Card>:null}
    </>:null}
-   {!loading&&feature==='moneyHub'?<>
+   {!loading&&!problem&&feature==='moneyHub'?<>
     <View style={sx.metrics}><Metric label="Marked paid" value={pound(totalRevenue)}/>
      <Metric label="Sent & outstanding" value={pound(sum(dueInvoices,'total'))}/>
      <Metric label="Recorded costs" value={pound(totalCosts)}/>
@@ -498,11 +522,11 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
       <Text style={sx.muted}>Due {shortDate(x.due_date)}</Text></View>)}
      {!dueInvoices.length?<Text style={sx.muted}>No invoices currently marked sent and unpaid.</Text>:null}
      <Text style={sx.muted}>Figures come from invoices manually marked paid and recorded costs. This is not tax advice, bank reconciliation or Making Tax Digital filing.</Text>
-     <Btn label="Open invoices" onPress={()=>openTool('tradeInvoices')}/>
+     <Btn label={invoices.length?'Open invoices':'Create your first invoice'} onPress={()=>openTool('tradeInvoices')}/>
      <Btn label="Open job costs and profit" secondary onPress={()=>openTool('tradeProfit')}/>
     </Card>
    </>:null}
-   {!loading&&feature==='crewOps'?<>
+   {!loading&&!problem&&feature==='crewOps'?<>
     <Card><Text style={sx.heading}>Crew team records</Text>
      <Metric label="Accepted Crew applications" value={acceptedCrew.length}/>
      <Text style={sx.muted}>Log time and agreed costs for accepted Crew workers. These are internal business notes, not payroll records, a contract or proof of payment.</Text>
@@ -526,7 +550,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Btn label="Remove log" secondary onPress={()=>confirmDelete('Delete hours record?',()=>changeDelete('trade_suite_crew_hours',x.id))}/>
     </Card>)}
    </>:null}
-   {!loading&&feature==='repeatEngine'?<>
+   {!loading&&!problem&&feature==='repeatEngine'?<>
     <Card><Text style={sx.heading}>Schedule a service follow-up</Text>
      <Text style={sx.muted}>Save your reminder first. Nothing is sent automatically to customers.</Text>
      <Text style={sx.label}>Select customer</Text>
@@ -551,11 +575,17 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
     })}
     <Text style={sx.muted}>Promotional or rebooking messages may be direct marketing. Check permission or the full UK soft opt-in conditions and honour opt-outs before contacting anyone.</Text>
    </>:null}
-   {!loading&&feature==='bookingProfile'?<>
-    <Card><Text style={sx.heading}>Your business contact card</Text>
-     <Text style={sx.muted}>Customise details you can share with customers. A hosted public booking website and live booking URL are not implemented yet.</Text>
-     <Text style={sx.cardTitle}>{bookingProfile?.business_name||bookingProfile?.display_name||'Your business'}</Text>
-     <Text style={sx.muted}>{bookingProfile?.primary_trade||'Trade'} · {bookingProfile?.public_phone||'No public telephone recorded'}</Text>
+   {!loading&&!problem&&feature==='bookingProfile'?<>
+    <Card><Text style={sx.heading}>Your shareable contact card</Text>
+     <Text style={sx.muted}>Prepare a professional introduction to share with customers. Saving here does not create a public website or change your public listing.</Text>
+     <View style={sx.bookingPreview}>
+       <Text style={sx.bookingPreviewEyebrow}>TRADARR · BUSINESS PROFILE</Text>
+       <Text style={sx.bookingPreviewName}>{bookingProfile?.business_name||bookingProfile?.display_name||'Your business'}</Text>
+       <Text style={sx.bookingPreviewTrade}>{bookingProfile?.primary_trade||'Trade professional'}</Text>
+       <Text style={sx.bookingPreviewBody}>{businessHeadline.trim()||'Add a headline to introduce your business.'}</Text>
+       <Text style={sx.bookingPreviewBody}>{businessServices.trim()||'Add your services so customers know what you offer.'}</Text>
+       <Text style={sx.bookingPreviewTrade}>{bookingProfile?.public_phone||'Contact through Tradarr'}</Text>
+     </View>
      <Input label="Headline" value={businessHeadline} onChange={setBusinessHeadline} placeholder="Your reliable local plumber"/>
      <Input label="Services offered" value={businessServices} onChange={setBusinessServices} multiline placeholder="Bathrooms, repairs, heating..."/>
      <Input label="How customers should contact you" value={bookingNotes} onChange={setBookingNotes} multiline placeholder="Call or message to request an appointment"/>
@@ -568,7 +598,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Btn label="Edit public tradesperson profile" secondary onPress={()=>openTool('tradeProfile')}/>
     </Card>
    </>:null}
-   {!loading&&feature==='documentVault'?<>
+   {!loading&&!problem&&feature==='documentVault'?<>
     <Card><Text style={sx.heading}>Upload a private business document</Text>
      <Text style={sx.muted}>PDF, JPG, PNG, WebP or Word (.docx), up to 10 MB. Files are private to your business account and not automatically published as verified evidence.</Text>
      <Btn label={chosen?'Selected: '+chosen.name:'Choose file'} secondary onPress={()=>void pickDocument()}/>
@@ -593,7 +623,7 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
     </Card>)}
     {!list('trade_suite_documents').length?<Empty>No private documents saved yet.</Empty>:null}
    </>:null}
-   {!loading&&feature==='insights'?<>
+   {!loading&&!problem&&feature==='insights'?<>
     <View style={sx.metrics}><Metric label="Quotes prepared" value={quotes.length}/>
      <Metric label="Accepted or invoiced" value={wonQuotes.length}/>
      <Metric label="Quote win rate" value={sentQuotes.length?Math.round(wonQuotes.length/sentQuotes.length*100)+'%':'—'}/>
@@ -602,13 +632,19 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Metric label="Payment recorded" value={pound(totalRevenue)}/>
      <Metric label="Sent & unpaid" value={pound(sum(dueInvoices,'total'))}/>
      <Metric label="Recorded costs" value={pound(totalCosts)}/></View>
+    {quotes.length+invoices.length+customers.length===0?<Card>
+       <Text style={sx.heading}>Build your business dashboard</Text>
+       <Text style={sx.muted}>Start with a customer, quote or invoice. As work is recorded, the figures and follow-ups will appear here.</Text>
+       <Btn label="Create an invoice" onPress={()=>openTool('tradeInvoices')}/>
+       <Btn label="Add a customer" secondary onPress={()=>openTool('tradeCustomers')}/>
+     </Card>:null}
     <Card><Text style={sx.heading}>Suggested next actions</Text>
      {insightsContent().map((x,i)=><View style={sx.line} key={i}><Text style={sx.smallBody}>{x}</Text></View>)}
      <Text style={sx.muted}>Figures are based on your saved records, which may be incomplete. They do not include bank reconciliation, tax calculations or every off-app job.</Text>
      <Btn label="Open profit tracker" secondary onPress={()=>openTool('tradeProfit')}/>
     </Card>
    </>:null}
-   {!loading&&feature==='growthKit'?<>
+   {!loading&&!problem&&feature==='growthKit'?<>
     <Card><Text style={sx.heading}>Communication templates</Text>
      <Text style={sx.muted}>Save messages for follow-ups, reviews and general customer care. Tradarr never sends them automatically from this tool.</Text>
      <Text style={sx.label}>Template type</Text>
@@ -619,6 +655,21 @@ export default function TradeBusinessSuiteScreen({feature,goBack,openTool,openQu
      <Input label="Message text" value={templateBody} onChange={setTemplateBody} multiline
       placeholder="Hello, just following up about the quotation..."/>
      <Btn label="Save message template" onPress={templateSave} disabled={busy}/>
+    </Card>
+    <Card>
+      <Text style={sx.heading}>Start with an editable example</Text>
+      <Text style={sx.muted}>Choose a draft, personalise the wording and save it. Nothing is sent automatically.</Text>
+      <View style={sx.wrap}>
+        {[
+          {title:'Quote follow-up',type:'follow_up' as const,
+           body:'Hello, just checking whether you had any questions about the quotation I sent. Please let me know if I can clarify anything.'},
+          {title:'Thank you after a job',type:'general' as const,
+           body:'Thank you for choosing us. If there is anything you need help with following the work, please get in touch.'},
+          {title:'Review invitation',type:'review' as const,
+           body:'Thank you for your custom. If you were happy with the completed work, we would appreciate an honest review of your experience.'}
+        ].map(item=><Pill key={item.title} label={item.title} active={templateTitle===item.title}
+          onPress={()=>{setTemplateTitle(item.title);setTemplateType(item.type);setTemplateBody(item.body);}}/>)}
+      </View>
     </Card>
     <Text style={sx.heading}>Saved message templates</Text>
     {list('trade_suite_templates').filter(t=>t.category!=='quote').map(t=><Card key={t.id}>
@@ -661,7 +712,16 @@ const sx=StyleSheet.create({
  pill:{borderRadius:30,paddingHorizontal:12,paddingVertical:9,backgroundColor:'#E9F0EE'},
  pillText:{fontSize:12,fontWeight:'700',color:C.teal},
  wrap:{flexDirection:'row',flexWrap:'wrap',gap:6,marginVertical:4},
- empty:{backgroundColor:'#EDF3F0',padding:17,borderRadius:17},
+ empty:{backgroundColor:'#EDF3F0',paddingHorizontal:22,paddingVertical:25,
+   borderRadius:20,alignItems:'center',gap:7},
+ emptyIcon:{height:45,width:45,borderRadius:15,backgroundColor:'#DCEBE6',
+   alignItems:'center',justifyContent:'center',marginBottom:4},
+ emptyTitle:{color:C.ink,fontSize:15,fontWeight:'900'},
+ bookingPreview:{backgroundColor:C.darkTeal,borderRadius:20,padding:18,gap:7},
+ bookingPreviewEyebrow:{fontSize:10,color:'#B5DBD5',fontWeight:'900',letterSpacing:1.1},
+ bookingPreviewName:{fontSize:20,fontWeight:'900',color:'#FFFFFF'},
+ bookingPreviewTrade:{fontSize:13,fontWeight:'800',color:'#C9E1DB'},
+ bookingPreviewBody:{fontSize:13,color:'#E4F0EB',lineHeight:19},
  line:{borderBottomWidth:1,borderBottomColor:'#EDF0EE',paddingBottom:10,gap:5},
  row:{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:5},
  check:{width:25,height:25,borderWidth:1.5,borderColor:C.teal,borderRadius:7,alignItems:'center',justifyContent:'center'},

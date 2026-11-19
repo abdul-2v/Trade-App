@@ -7,7 +7,10 @@ import {theme} from './theme';
 const C=theme.colors;
 type Failed={id:string;source:'normal'|'urgent';trade:string;issue:string;status:string;created_at:string};
 const dateText=(s:string)=>new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-export default function CustomerRescueScreen({goBack,onRetry}:{goBack:()=>void;onRetry:(trade:string,issue:string,urgent:boolean)=>void}){
+export default function CustomerRescueScreen({goBack,onRetry,onStartNew}:{
+ goBack:()=>void;onRetry:(trade:string,issue:string,urgent:boolean)=>void;
+ onStartNew?:()=>void;
+}){
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[rows,setRows]=useState<Failed[]>([]);
  const [selected,setSelected]=useState<string|null>(null),[error,setError]=useState('');
  const load=async(refresh=false)=>{
@@ -30,7 +33,8 @@ export default function CustomerRescueScreen({goBack,onRetry}:{goBack:()=>void;o
   setLoading(false);setRefreshing(false);
  };
  useEffect(()=>{void load();},[]);
- const picked=rows.find(x=>x.id===selected)||null;
+ // Normal and urgent requests are stored in different tables and can share IDs.
+ const picked=rows.find(x=>x.source+':'+x.id===selected)||null;
  const retry=(urgent:boolean)=>{
   if(!picked)return;
   Alert.alert('Start a replacement request?',
@@ -44,8 +48,16 @@ export default function CustomerRescueScreen({goBack,onRetry}:{goBack:()=>void;o
   {loading?<ActivityIndicator color={C.teal} size="large" style={{marginTop:60}}/>:
   <ScrollView contentContainerStyle={s.page}
    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
-   {error?<Text style={s.error}>{error}</Text>:null}
-   {picked?<><View style={s.hero}><LifeBuoy color="#D0E7E2" size={28}/>
+   {error?<View style={s.empty}>
+     <LifeBuoy size={31} color={C.coralDark}/>
+     <Text style={s.cardTitle}>Could not load your request history</Text>
+     <Text style={s.body}>{error}</Text>
+     <MotionPressable style={s.primary} onPress={()=>void load(true)}
+       accessibilityRole="button" accessibilityLabel="Retry loading request history">
+       <RefreshCcw color="#FFFFFF" size={18}/>
+       <Text style={s.primaryText}>Try again</Text>
+     </MotionPressable>
+    </View>:picked?<><View style={s.hero}><LifeBuoy color="#D0E7E2" size={28}/>
      <Text style={s.heroTitle}>{picked.issue}</Text>
      <Text style={s.heroSub}>{picked.trade} · Original request {picked.status} · {dateText(picked.created_at)}</Text></View>
      <View style={s.card}><Text style={s.cardTitle}>Recover without starting from scratch</Text>
@@ -58,14 +70,20 @@ export default function CustomerRescueScreen({goBack,onRetry}:{goBack:()=>void;o
      <Text style={s.heroTitle}>A cancelled job shouldn't mean starting over.</Text>
      <Text style={s.heroSub}>Re-use the details from a cancelled or expired Tradarr request and look for another tradesperson.</Text></View>
     <Text style={s.section}>Requests you can rescue</Text>
-    {rows.length?rows.map(v=><MotionPressable key={v.source+v.id} onPress={()=>setSelected(v.id)}
+    {rows.length?rows.map(v=><MotionPressable key={v.source+v.id} onPress={()=>setSelected(v.source+':'+v.id)}
       style={s.row} accessibilityRole="button" accessibilityLabel={'Rescue '+v.issue}>
       <View style={s.icon}><RefreshCcw size={20} color={C.teal}/></View>
       <View style={{flex:1}}><Text style={s.rowTitle}>{v.issue}</Text>
        <Text style={s.meta}>{v.trade} · {v.status} · {dateText(v.created_at)}</Text></View><ArrowRight size={19} color={C.teal}/>
      </MotionPressable>):<View style={s.empty}><ShieldCheck size={30} color={C.teal}/>
       <Text style={s.cardTitle}>No cancelled requests to rescue</Text>
-      <Text style={s.body}>That's good news. If one of your confirmed jobs is cancelled in Tradarr, you'll be able to restart your search from here.</Text></View>}
+      <Text style={s.body}>Nothing to recover? You can still post a new request and look for available local tradespeople.</Text>
+      {onStartNew?<MotionPressable onPress={onStartNew} style={s.primary}
+        accessibilityRole="button" accessibilityLabel="Start a new customer job request">
+        <ArrowRight color="#FFFFFF" size={18}/>
+        <Text style={s.primaryText}>Start a new request</Text>
+      </MotionPressable>:null}
+     </View>}
     <View style={s.hint}><Clock3 size={20} color={C.teal}/>
      <Text style={s.fine}>Rescue currently uses recorded cancelled or expired requests. A live replacement-matching network will depend on real tradesperson capacity and consent.</Text>
     </View>

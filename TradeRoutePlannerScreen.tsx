@@ -263,7 +263,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
    </MotionPressable>
   </View>
   {loading?<ActivityIndicator style={{marginTop:40}} color={C.teal}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
    <View style={s.intro}>
     <Route color={C.teal} size={24}/>
     <View style={{flex:1}}>

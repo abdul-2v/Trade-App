@@ -80,7 +80,7 @@ export default function CustomerHomePassportScreen({goBack}:{goBack:()=>void}){
    <View style={{flex:1}}><Text style={s.overline}>YOUR PROPERTY</Text><Text style={s.heading}>{screen==='newProperty'?'Add property':screen==='newRecord'?'Add home record':'My Home'}</Text></View>
   </View>
   {busy?<ActivityIndicator size="large" color={C.teal} style={{marginTop:60}}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
    {error?<View style={s.card}><Text style={s.meta}>{error}</Text></View>:null}
    {screen==='newProperty'?<>
