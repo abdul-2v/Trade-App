@@ -651,7 +651,8 @@ export default function App() {
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
 
   useEffect(() => {
-    if (!session?.user.id || accountType !== 'customer') return;
+    // A professional can still use the customer view with the same account.
+    if (!session?.user.id || mode !== 'customer') return;
 
     let active = true;
     let urgentChannel: any = null;
@@ -752,7 +753,7 @@ export default function App() {
       if (urgentChannel) void supabase.removeChannel(urgentChannel);
       if (jobsChannel) void supabase.removeChannel(jobsChannel);
     };
-  }, [session?.user.id, accountType]);
+  }, [session?.user.id, mode]);
 
 
   const openTrade = (trade: Trade) => {
