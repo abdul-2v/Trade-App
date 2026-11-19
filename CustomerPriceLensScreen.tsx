@@ -33,6 +33,7 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
  const [name,setName]=useState(''),[amount,setAmount]=useState(''),[included,setIncluded]=useState(''),[excluded,setExcluded]=useState('');
  const [vatIncluded,setVatIncluded]=useState(true),[deposit,setDeposit]=useState('0'),[saving,setSaving]=useState(false);
  const [band,setBand]=useState<Band|null>(null),[bandLoading,setBandLoading]=useState(false);
+ const [loadError,setLoadError]=useState('');
  const selected=checks.find(x=>x.id===selectedId)||null;
  const load=useCallback(async(refresh=false)=>{
   refresh?setRefreshing(true):setLoading(true);
@@ -43,7 +44,11 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
    supabase.from('trade_customer_proposals').select('id,job_id,urgent_request_id,document,decision,delivered_at')
     .eq('customer_id',user.user.id).order('delivered_at',{ascending:false}).limit(100)
   ]);
-  if(c.error||r.error)Alert.alert('Could not load prices',c.error?.message||r.error?.message||'Please try again.');
+  if(c.error||r.error){
+    setLoadError(c.error?.message||r.error?.message||'Could not load saved quotations.');
+    setLoading(false);setRefreshing(false);return;
+  }
+  setLoadError('');
   setChecks((c.data||[]) as Check[]);setReceived((r.data||[]) as Received[]);
   setLoading(false);setRefreshing(false);
  },[]);
@@ -113,7 +118,15 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
   {loading?<ActivityIndicator color={C.teal} size="large" style={{marginTop:70}}/>:
   <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
-  {screen==='list'?<>
+  {loadError?<View style={s.errorPanel}>
+    <Scale color={C.coralDark} size={28}/>
+    <Text style={s.cardTitle}>Price comparisons unavailable</Text>
+    <Text style={s.meta}>{loadError}</Text>
+    <MotionPressable onPress={()=>void load(true)} style={s.primary}
+      accessibilityRole="button" accessibilityLabel="Try loading price comparisons again">
+      <Text style={s.primaryText}>Try again</Text>
+    </MotionPressable>
+  </View>:screen==='list'?<>
     <View style={s.hero}><Scale color="#CBE8E1" size={25}/>
      <Text style={s.heroTitle}>Compare the actual work, not just the total.</Text>
      <Text style={s.heroSub}>Understand what's included, spot missing details and keep your competing quotes together.</Text></View>
@@ -233,4 +246,6 @@ const s=StyleSheet.create({
  tipText:{flex:1,fontSize:11,color:C.teal,lineHeight:18},
  delete:{flexDirection:'row',alignItems:'center',gap:8,alignSelf:'center',marginTop:14,padding:14},
  deleteText:{fontSize:12,fontWeight:'800',color:C.coralDark}
+ errorPanel:{backgroundColor:'#FFFFFF',marginTop:18,borderRadius:23,padding:24,
+   gap:13,alignItems:'center',...theme.shadow},
 });
