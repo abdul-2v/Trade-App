@@ -7,10 +7,10 @@ import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
 type AlertKind='message'|'job_offer'|'job_accepted'|'job_status'|'appointment'|
- 'appointment_change'|'route_match'|'quote_update'|'appointment_reminder'|'invoice_update';
+ 'appointment_change'|'route_match'|'quote_update'|'appointment_reminder'|'invoice_update'|'verification_update'|'support_update';
 export type TradarrAlert={
  id:string;kind:AlertKind;title:string;body:string;
- data:{screen?:string;jobId?:string;conversationId?:string;invoiceId?:string};
+ data:{screen?:string;jobId?:string;conversationId?:string;invoiceId?:string;caseId?:string;credentialId?:string};
  created_at:string;read_at:string|null;
 };
 type Props={onBack:()=>void;onOpen:(notification:TradarrAlert)=>void;
@@ -92,7 +92,8 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  const iconFor=(kind:AlertKind)=>{
    if(kind==='message')return MessageCircle;
    if(kind==='appointment'||kind==='appointment_change'||kind==='appointment_reminder')return CalendarClock;
-   if(kind==='quote_update'||kind==='invoice_update')return FileText;
+   if(kind==='quote_update'||kind==='invoice_update'||kind==='verification_update')return FileText;
+    if(kind==='support_update')return MessageCircle;
    if(kind==='job_offer'||kind==='route_match'||kind==='job_accepted'||kind==='job_status')
     return BriefcaseBusiness;
    return Bell;
