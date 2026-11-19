@@ -6196,14 +6196,9 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
  ];
  const quick=[
   {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Create a quote',detail:'Estimate a job'},
-  {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Create an invoice',detail:'Bill a customer'},
-  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add a booking',detail:'Plan an appointment'},
-  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Add a customer',detail:'Save contact details'}
+  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add a booking',detail:'Plan an appointment'}
  ];
  const sections=[
-  {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Quotes & estimates',detail:'Build quotes, share PDFs and convert to invoices'},
-  {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Invoices & payments',detail:'Create bills and track sent or paid invoices'},
-  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
   {route:'tradeHours' as TradeScreen,Icon:Clock3,title:'Working hours & availability',detail:'Publish bookable openings and weekly hours'},
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
@@ -6217,17 +6212,39 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
    <View style={styles.premiumScreenHeading}><View style={{flex:1}}>
     <Text style={styles.premiumEyebrow}>Run your business</Text>
     <Text style={styles.premiumPageTitle}>Tools</Text>
-    <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Quote work, manage customers and keep your diary organised.</Text>
+    <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Invoices, jobs and everything you need to run your business.</Text>
    </View></View>
-   <View style={{backgroundColor:theme.colors.darkTeal,borderRadius:24,padding:20,marginBottom:16,gap:7}}>
-     <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
-       <Sparkles size={24} color="#D0E4DC"/>
-       <Text style={{fontSize:19,fontWeight:'900',color:'#FFFFFF'}}>Your business toolkit</Text>
+   <Text style={styles.tradeToolsSectionTitle}>Your essentials</Text>
+   <MotionPressable onPress={()=>navigate('tradeInvoices')} accessibilityRole="button"
+     accessibilityLabel="Open invoices and payments" style={styles.tradeInvoiceHero}>
+     <View style={styles.tradeInvoiceHeroIcon}>
+       <ClipboardList size={27} color="#FFFFFF" strokeWidth={2.1}/>
      </View>
-     <Text style={{color:'#D3E4DC',fontSize:13,lineHeight:20}}>
-       Twelve tools to help find work, plan jobs, organise customers and run the business.
-     </Text>
+     <View style={{flex:1,gap:5}}>
+       <Text style={styles.tradeInvoiceHeroEyebrow}>YOUR FIRST BUSINESS ESSENTIAL</Text>
+       <Text style={styles.tradeInvoiceHeroTitle}>Invoices & payments</Text>
+       <Text style={styles.tradeInvoiceHeroSub}>Create and share PDF invoices. Track what’s been sent, paid and outstanding.</Text>
+     </View>
+     <ChevronRight size={25} color="#E6F3F0"/>
+   </MotionPressable>
+   <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
+   <View style={styles.tradeToolsGrid}>
+     {quick.map(({route,Icon,title,detail})=><MotionPressable key={route}
+       style={[styles.tradeToolsQuick,{minHeight:90,padding:14}]}
+       onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={title}>
+       <View style={{flexDirection:'row',alignItems:'center',gap:9,marginBottom:6}}>
+         <View style={[styles.tradeToolsQuickIcon,{width:36,height:36,borderRadius:12,marginBottom:0}]}>
+           <Icon size={20} color={theme.colors.teal}/>
+         </View>
+         <Text style={[styles.tradeToolsQuickName,{flex:1}]}>{title}</Text>
+       </View>
+       <Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
+     </MotionPressable>)}
    </View>
+   <Text style={styles.tradeToolsSectionTitle}>Your business toolkit</Text>
+   <Text style={[styles.premiumScreenSub,{marginTop:-9,marginBottom:15}]}>
+     Twelve specialist tools, organised around how you work.
+   </Text>
    {suiteGroups.map(group=><View key={group.title} style={{marginBottom:13}}>
      <Text style={styles.tradeToolsSectionTitle}>{group.title}</Text>
      <View style={styles.tradeToolsList}>
@@ -6242,14 +6259,6 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        </MotionPressable>)}
      </View>
    </View>)}
-   <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
-   <View style={styles.tradeToolsGrid}>
-    {quick.map(({route,Icon,title,detail})=><MotionPressable key={route} style={styles.tradeToolsQuick}
-     onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={title}>
-      <View style={styles.tradeToolsQuickIcon}><Icon size={23} color={theme.colors.teal} strokeWidth={2}/></View>
-      <Text style={styles.tradeToolsQuickName}>{title}</Text><Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
-    </MotionPressable>)}
-   </View>
    <MotionPressable onPress={()=>navigate('tradeCrew')} accessibilityRole="button"
       accessibilityLabel="Open Tradarr Crew" style={[styles.tradeToolsPowerCard,{width:'100%',minHeight:112,marginBottom:17,
       backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:14}]}>
@@ -6275,7 +6284,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        <Text style={styles.tradeToolsPowerText}>Plan what to buy, tick it off and find nearby merchants.</Text>
      </MotionPressable>
    </View>
-   <Text style={styles.tradeToolsSectionTitle}>Manage your business</Text>
+   <Text style={styles.tradeToolsSectionTitle}>More business essentials</Text>
    <View style={styles.tradeToolsList}>
     {sections.map(({route,Icon,title,detail},index)=><MotionPressable key={route}
      onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={'Open '+title}
@@ -6679,7 +6688,7 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeHomePage]} showsVerticalScrollIndicator={false}>
         <View style={styles.premiumTopRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
@@ -6742,29 +6751,28 @@ function TradeHomeScreen({
           <ArrowRight size={20} color={theme.colors.white} strokeWidth={2.4} />
         </MotionPressable>
         <View style={styles.tradeDiscoverChoices}>
-          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
-            accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
-            <View style={[styles.tradeDiscoverChoiceIcon, { backgroundColor: theme.colors.coralTint }]}>
-              <Zap size={22} color={theme.colors.coralDark} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.tradeDiscoverChoiceTitle}>Urgent call-outs</Text>
-            <Text style={styles.tradeDiscoverChoiceSub}>Jobs needing a quick response</Text>
-            <View style={styles.tradeDiscoverChoiceFoot}><Text style={styles.tradeDiscoverChoiceLink}>See urgent offers</Text>
-              <ArrowRight size={14} color={theme.colors.teal} /></View>
-          </MotionPressable>
-          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
-            accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
-            <View style={[styles.tradeDiscoverChoiceIcon, { backgroundColor: theme.colors.tealTint }]}>
-              <Route size={22} color={theme.colors.teal} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.tradeDiscoverChoiceTitle}>Flexible jobs</Text>
-            <Text style={styles.tradeDiscoverChoiceSub}>Bookings, On My Way and Street Run</Text>
-            <View style={styles.tradeDiscoverChoiceFoot}><Text style={styles.tradeDiscoverChoiceLink}>See flexible offers</Text>
-              <ArrowRight size={14} color={theme.colors.teal} /></View>
-          </MotionPressable>
-        </View>
-
-        <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
+           <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
+             accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
+             <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.coralTint}]}>
+               <Zap size={20} color={theme.colors.coralDark} strokeWidth={2.2}/>
+             </View>
+             <View style={{flex:1,minWidth:0}}>
+               <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Urgent call-outs</Text>
+               <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={1}>Quick response</Text>
+             </View>
+           </MotionPressable>
+           <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
+             accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
+             <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.tealTint}]}>
+               <Route size={20} color={theme.colors.teal} strokeWidth={2.2}/>
+             </View>
+             <View style={{flex:1,minWidth:0}}>
+               <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Flexible jobs</Text>
+               <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={1}>Plan ahead</Text>
+             </View>
+           </MotionPressable>
+         </View>
+         <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
           accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
           <View style={styles.tradeGridHomeIcon}><Route size={23} color={theme.colors.teal}/></View>
           <View style={{flex:1}}><Text style={styles.tradeGridHomeTitle}>A gap in your diary?</Text>
@@ -10819,6 +10827,14 @@ const styles = StyleSheet.create({
   tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
 
   // Premium pro UI – shared across the tradesperson tabs.
+  tradeInvoiceHero: { minHeight: 126, borderRadius: 24, backgroundColor: theme.colors.darkTeal,
+    padding: 18, flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 15,
+    ...theme.shadow },
+  tradeInvoiceHeroIcon: { width: 49, height: 49, backgroundColor: '#31595D',
+    borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tradeInvoiceHeroEyebrow: { color: '#B5DAD2', fontSize: 10, letterSpacing: 1.15, fontWeight: '900' },
+  tradeInvoiceHeroTitle: { color: theme.colors.white, fontSize: 19, lineHeight: 24, fontWeight: '900' },
+  tradeInvoiceHeroSub: { color: '#D3E7E1', fontSize: 12, lineHeight: 18 },
   tradeToolsPowerRow: {flexDirection:'row',justifyContent:'space-between',gap:11,marginBottom:25},
   tradeToolsPowerCard: {width:'48%',minHeight:172,borderRadius:23,padding:17,justifyContent:'space-between'},
   tradeToolsPowerTitle: {color:'#FFFFFF',fontSize:16,fontWeight:'800',marginTop:12,lineHeight:22},
@@ -10843,13 +10859,14 @@ const styles = StyleSheet.create({
   premiumTabLabel: { marginTop: 3, color: theme.colors.muted, fontSize: 10.5, fontWeight: '500' },
   premiumTabLabelActive: { color: theme.colors.ink, fontWeight: '800' },
   premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
-  premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 21 },
+  tradeHomePage: { paddingHorizontal: 22, paddingTop: 20 },
+  premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   premiumEyebrow: { color: theme.colors.muted, fontSize: 16, fontWeight: '500' },
   premiumPageTitle: { color: theme.colors.ink, fontSize: 34, lineHeight: 40, letterSpacing: -1.3, fontWeight: '800' },
   premiumHeaderAvatar: { width: 54, height: 54, backgroundColor: theme.colors.darkTeal, borderRadius: 27, alignItems: 'center', justifyContent: 'center', shadowColor: theme.colors.ink, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
   premiumHeaderAvatarImage: { height: 54, width: 54, borderRadius: 27 },
   premiumHeaderAvatarText: { fontSize: 24, color: theme.colors.white, fontWeight: '800' },
-  premiumHomeMap: { height: 260, borderRadius: 30, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 15, ...theme.shadow },
+  premiumHomeMap: { height: 246, borderRadius: 28, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 11, ...theme.shadow },
   premiumMapPreview: { ...StyleSheet.absoluteFill },
   premiumMapOpen: { ...StyleSheet.absoluteFill },
   premiumMapStatus: { position: 'absolute', top: 18, left: 18, right: 76, minHeight: 43, paddingHorizontal: 14, borderRadius: 23, backgroundColor: '#334A4E', alignItems: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#51696D' },
@@ -10883,23 +10900,24 @@ const styles = StyleSheet.create({
   premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
   premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
   tradeHomeSectionHint: { color: theme.colors.muted, fontSize: 12, lineHeight: 19, marginTop: -9, marginBottom: 15 },
-  tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 12, marginBottom: 14 },
+  tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, marginBottom: 10 },
   tradeDiscoverTitle: { color: theme.colors.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.7 },
   tradeDiscoverSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
-  tradeDiscoverMain: { minHeight: 88, borderRadius: 24, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
-    alignItems: 'center', gap: 13, paddingHorizontal: 17, paddingVertical: 15, marginBottom: 12, ...theme.shadow },
+  tradeDiscoverMain: { minHeight: 85, borderRadius: 23, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
+    alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13, marginBottom: 11, ...theme.shadow },
   tradeDiscoverMainIcon: { width: 47, height: 47, borderRadius: 16, backgroundColor: '#31595D',
     justifyContent: 'center', alignItems: 'center' },
   tradeDiscoverEyebrow: { color: '#ACD1CD', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
   tradeDiscoverMainTitle: { color: theme.colors.white, fontSize: 18, fontWeight: '800', marginTop: 3 },
   tradeDiscoverMainSub: { color: '#D3E3E1', fontSize: 12, marginTop: 4, lineHeight: 17 },
-  tradeDiscoverChoices: { flexDirection: 'row', gap: 12, marginBottom: 23 },
-  tradeDiscoverChoice: { flex: 1, minHeight: 177, backgroundColor: theme.colors.white, borderRadius: 24,
-    paddingHorizontal: 14, paddingVertical: 15, ...theme.shadow },
-  tradeDiscoverChoiceIcon: { width: 43, height: 43, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 15, fontWeight: '800', lineHeight: 20 },
-  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5, flexGrow: 1 },
+  tradeDiscoverChoices: { flexDirection: 'row', gap: 10, marginBottom: 25 },
+  tradeDiscoverChoice: { flex: 1, minWidth: 0, minHeight: 78, backgroundColor: theme.colors.white,
+    borderRadius: 21, paddingHorizontal: 11, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 9, ...theme.shadow },
+  tradeDiscoverChoiceIcon: { width: 36, height: 36, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center' },
+  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 13, fontWeight: '800', lineHeight: 17, flexShrink: 1 },
+  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
   tradeDiscoverChoiceFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   tradeDiscoverChoiceLink: { color: theme.colors.teal, fontSize: 11, fontWeight: '800' },
   tradeDiscoverEmptyAction: { marginTop: 15, minHeight: 37, flexDirection: 'row', alignItems: 'center', gap: 5,
