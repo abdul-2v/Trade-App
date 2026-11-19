@@ -2338,9 +2338,14 @@ function MapScreen({
           }),
         ]);
         if (lookupError) throw lookupError;
-        profiles = (results || []).map(row => row.profile);
-        availability = (results || []).map(row => row.availability);
-        presence = (results || []).filter(row => row.presence).map(row => row.presence);
+        const marketplaceRows = (results || []) as Array<{
+          profile: Record<string, any>;
+          availability: Record<string, any>;
+          presence: Record<string, any> | null;
+        }>;
+        profiles = marketplaceRows.map(row => row.profile);
+        availability = marketplaceRows.map(row => row.availability);
+        presence = marketplaceRows.filter(row => row.presence).map(row => row.presence);
       } catch {
         if (active) {
           setMarketError(true);
