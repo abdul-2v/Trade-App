@@ -76,7 +76,7 @@ export default function TradeProfitScreen({goBack}:{goBack:()=>void}){
  return <View style={s.root}>
  <View style={s.header}><MotionPressable style={s.back} onPress={goBack}><ArrowLeft color={C.ink} size={23}/></MotionPressable>
  <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text><Text style={s.title}>Job profit</Text></View></View>
- {loading?<ActivityIndicator color={C.teal} size="large" style={{marginTop:65}}/>:<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+ {loading?<ActivityIndicator color={C.teal} size="large" style={{marginTop:65}}/>:<ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
  <Text style={s.explain}>Know what a job is really worth. Record your actual material, labour and travel costs against each quote or invoice.</Text>
  <View style={s.stats}>
   <View style={s.stat}><Text style={s.statLabel}>Invoiced ex VAT</Text><Text style={s.statAmount}>{pounds(totals.invoiced)}</Text></View>
