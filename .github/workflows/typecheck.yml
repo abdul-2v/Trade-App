@@ -28,6 +28,9 @@ jobs:
       - name: Check TS and TSX syntax (Metro red-screen prevention)
         run: npm run check:syntax
 
+      - name: Audit interactive controls in every screen
+        run: npm run check:ux
+
       - name: Check Expo-compatible dependency versions
         run: CI=1 npx expo install --check
 
