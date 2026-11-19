@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useState} from 'react';
-import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,CheckCircle2,KeyRound,LockKeyhole,ShieldCheck} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
@@ -14,7 +14,9 @@ const C=theme.colors;
  * sensitive reads/writes require aal2 (a fresh verified authenticator factor).
  * The password is never handled here; TOTP setup secrets stay only in memory.
  */
-export default function TradarrAdminGateway({goBack}:{goBack:()=>void}){
+export default function TradarrAdminGateway({goBack,goToCustomer,goToTradesperson}:{
+ goBack:()=>void;goToCustomer?:()=>void;goToTradesperson?:()=>void;
+}){
  const [step,setStep]=useState<Step>('loading');
  const [factorId,setFactorId]=useState('');
  const [secret,setSecret]=useState('');
@@ -43,6 +45,15 @@ export default function TradarrAdminGateway({goBack}:{goBack:()=>void}){
   }catch(e:any){setError(e?.message||'Could not verify administrator access.');setStep('denied');}
  },[]);
  useEffect(()=>{void check();},[check]);
+ // Revalidate staff status and MFA on return from the background. A revoked
+ // administrator must not keep a previously mounted, privileged screen.
+ useEffect(()=>{
+  if(step!=='ready')return;
+  const sub=AppState.addEventListener('change',state=>{
+   if(state==='active')void check();
+  });
+  return()=>sub.remove();
+ },[step,check]);
  const enroll=async()=>{
   if(busy)return;
   setBusy(true);setError('');
@@ -78,7 +89,7 @@ export default function TradarrAdminGateway({goBack}:{goBack:()=>void}){
   }catch(e:any){setCode('');setError(e?.message||'Incorrect code. Please try a fresh code.');}
   finally{setBusy(false);}
  };
- if(step==='ready')return <TradarrAdminHub goBack={goBack}/>;
+ if(step==='ready')return <TradarrAdminHub goBack={goBack} goToCustomer={goToCustomer} goToTradesperson={goToTradesperson}/>;
  return <View style={s.root}>
   <View style={s.head}>
    <MotionPressable style={s.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Leave Admin Gateway">
