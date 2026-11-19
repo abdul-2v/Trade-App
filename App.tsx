@@ -5580,6 +5580,7 @@ function MessagesScreen({navigate,userId}:{
  return <CustomerShell current="messages" navigate={navigate}>
    <TradarrInboxScreen role="customer" onOpenOther={notice=>{
       if(notice.kind==='admin_notice')return;
+      if(notice.data?.screen==='accountSafety')return navigate('customerSafety');
       navigate(notice.kind==='support_update'?'customerSupport':notice.kind==='invoice_update'?'customerInvoices':notice.kind==='quote_update'?'customerQuotes':'requests');
     }}/>
  </CustomerShell>;
@@ -7942,6 +7943,7 @@ function TradeMessagesScreen({navigate}:{
    <TradarrInboxScreen role="tradesperson"
      onOpenOther={notice=>{
        if(notice.kind==='admin_notice')return;
+       if(notice.data?.screen==='accountSafety')return navigate('tradeSafety');
        navigate(notice.kind==='support_update'?'tradeSupport':
         notice.kind==='verification_update'?'tradeTrust':
         notice.kind==='quote_update'?'tradeQuotes':
