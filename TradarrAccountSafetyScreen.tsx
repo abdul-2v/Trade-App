@@ -20,6 +20,10 @@ export default function TradarrAccountSafetyScreen({goBack}:{goBack:()=>void}){
  const [deletions,setDeletions]=useState<Deletion[]>([]);
  const [conversations,setConversations]=useState<Conversation[]>([]);
  const [blocked,setBlocked]=useState<string[]>([]);
+ const [reports,setReports]=useState<{id:string;category:string;status:string;created_at:string}[]>([]);
+ const [reportPeer,setReportPeer]=useState<string|null>(null);
+ const [reportCategory,setReportCategory]=useState<'harassment'|'fraud'|'safety'|'fake_profile'|'misconduct'|'other'>('safety');
+ const [reportText,setReportText]=useState('');
  const [topic,setTopic]=useState<typeof topics[number]>('account_suspension');
  const [appealText,setAppealText]=useState('');
  const [deleteText,setDeleteText]=useState('');
@@ -34,7 +38,7 @@ export default function TradarrAccountSafetyScreen({goBack}:{goBack:()=>void}){
    const {data:{user},error:e}=await supabase.auth.getUser();
    if(e||!user)throw new Error('Sign in to manage account safety.');
    setUid(user.id);
-   const [moderation,appealQuery,deleteQuery,chatQuery,blockQuery]=await Promise.all([
+   const [moderation,appealQuery,deleteQuery,chatQuery,blockQuery,reportQuery]=await Promise.all([
     supabase.from('tradarr_account_moderation').select('suspended,reason').eq('user_id',user.id).maybeSingle(),
     supabase.from('tradarr_moderation_appeals').select('id,topic,status,decision_note,created_at')
      .eq('appellant_id',user.id).order('created_at',{ascending:false}).limit(30),
@@ -42,19 +46,45 @@ export default function TradarrAccountSafetyScreen({goBack}:{goBack:()=>void}){
      .eq('user_id',user.id).order('created_at',{ascending:false}).limit(20),
     supabase.from('conversations').select('id,customer_id,tradesperson_id,customer_display_name,tradesperson_display_name')
      .or('customer_id.eq.'+user.id+',tradesperson_id.eq.'+user.id).limit(80),
-    supabase.from('tradarr_user_blocks').select('blocked_id').eq('blocker_id',user.id)
+    supabase.from('tradarr_user_blocks').select('blocked_id').eq('blocker_id',user.id),
+    supabase.from('tradarr_safety_reports').select('id,category,status,created_at')
+     .eq('reporter_id',user.id).order('created_at',{ascending:false}).limit(30)
    ]);
-   for(const v of [moderation,appealQuery,deleteQuery,chatQuery,blockQuery])if(v.error)throw v.error;
+   for(const v of [moderation,appealQuery,deleteQuery,chatQuery,blockQuery,reportQuery])if(v.error)throw v.error;
    setSuspended(moderation.data?.suspended===true);
    setSuspensionReason(moderation.data?.reason||'');
    setAppeals((appealQuery.data||[]) as Appeal[]);
    setDeletions((deleteQuery.data||[]) as Deletion[]);
    setConversations((chatQuery.data||[]) as Conversation[]);
-   setBlocked((blockQuery.data||[]).map(x=>x.blocked_id));setError('');
+   setBlocked((blockQuery.data||[]).map(x=>x.blocked_id));
+   setReports((reportQuery.data||[]) as {id:string;category:string;status:string;created_at:string}[]);setError('');
   }catch(e:any){setError(e?.message||'Unable to load account security information.');}
   finally{setLoading(false);setRefreshing(false);}
  },[]);
  useEffect(()=>{void load();},[load]);
+ const report=async()=>{
+  if(!reportPeer||!uid||saving)return;
+  const description=reportText.trim();
+  if(description.length<15){
+   Alert.alert('More details needed','Explain what happened in at least 15 characters.');return;
+  }
+  const perform=async()=>{
+   setSaving(true);
+   try{
+    const {error:e}=await supabase.from('tradarr_safety_reports').insert({
+     reporter_id:uid,target_type:'user',target_ref:reportPeer,
+     category:reportCategory,details:description
+    });
+    if(e)throw e;
+    setReportText('');setReportPeer(null);
+    await load(true);
+    Alert.alert('Report received','Your report was added to the staff Safety & appeals queue. It is not an emergency service.');
+   }catch(e:any){Alert.alert('Could not submit report',e?.message||'Please retry.');}
+   finally{setSaving(false);}
+  };
+  Alert.alert('Submit safety report?','This report goes to the Tradarr moderation team, not to the reported person.',
+   [{text:'Cancel',style:'cancel'},{text:'Submit report',onPress:()=>{void perform()}}]);
+ };
  const sendAppeal=async()=>{
   if(saving||!uid)return;
   if(appealText.trim().length<20){Alert.alert('Explain your appeal','Write at least 20 characters describing why you disagree.');return;}
@@ -159,7 +189,41 @@ export default function TradarrAccountSafetyScreen({goBack}:{goBack:()=>void}){
         </Text>
        </MotionPressable>
       </View>)}
+     {peers.length?<View style={{gap:12}}>
+      <Text style={s.title}>Report a conversation participant</Text>
+      <Text style={s.muted}>Select a user you have spoken to; the report is private to you and the review team.</Text>
+      <View style={s.options}>{peers.map(peer=><MotionPressable
+        key={peer.id} onPress={()=>setReportPeer(peer.id)}
+        style={[s.chip,reportPeer===peer.id&&s.chipSelected]}>
+        <Text style={[s.chipText,reportPeer===peer.id&&{color:'#FFFFFF'}]}>
+         {peer.name||peer.id.slice(0,8)}
+        </Text>
+       </MotionPressable>)}</View>
+      {reportPeer?<View style={{gap:10}}>
+       <View style={s.options}>
+        {(['harassment','fraud','safety','fake_profile','misconduct','other'] as const).map(category=>
+         <MotionPressable key={category} onPress={()=>setReportCategory(category)}
+          style={[s.chip,reportCategory===category&&s.chipSelected]}>
+          <Text style={[s.chipText,reportCategory===category&&{color:'#FFFFFF'}]}>{sentence(category)}</Text>
+         </MotionPressable>)}
+       </View>
+       <TextInput style={s.input} multiline maxLength={2500}
+        value={reportText} onChangeText={setReportText}
+        placeholder="Describe what happened, including relevant job or conversation details"
+        placeholderTextColor={C.muted}/>
+       <MotionPressable disabled={saving||reportText.trim().length<15}
+        onPress={()=>{void report()}}
+        style={[s.primary,(saving||reportText.trim().length<15)&&s.disabled]}>
+        <Text style={s.primaryText}>Submit private safety report</Text>
+       </MotionPressable>
+      </View>:null}
+     </View>:null}
     </View>
+    <Text style={s.section}>Your safety reports</Text>
+    {reports.length?reports.map(item=><View key={item.id} style={s.card}>
+      <Text style={s.overline}>{sentence(item.category)} · {sentence(item.status)}</Text>
+      <Text style={s.muted}>Submitted {date(item.created_at)}</Text>
+     </View>):<Text style={s.muted}>No reports submitted yet.</Text>}
     <Text style={s.section}>Moderation appeals</Text>
     {appeals.map(item=><View key={item.id} style={s.card}>
       <Text style={s.overline}>{sentence(item.topic)} · {sentence(item.status)}</Text>
