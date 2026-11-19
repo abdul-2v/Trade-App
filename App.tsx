@@ -11,6 +11,9 @@ import TradeProfitScreen from './TradeProfitScreen';
 import TradeMaterialsScreen from './TradeMaterialsScreen';
 import CustomerQuotesScreen from './CustomerQuotesScreen';
 import CustomerInvoicesScreen from './CustomerInvoicesScreen';
+import TradeTrustScreen from './TradeTrustScreen';
+import TradarrSupportScreen from './TradarrSupportScreen';
+import TradarrStaffScreen from './TradarrStaffScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
 import TradeGridScreen from './TradeGridScreen';
@@ -109,6 +112,8 @@ type CustomerScreen =
   | 'requestDetail'
   | 'customerQuotes'
   | 'customerInvoices'
+  | 'customerSupport'
+  | 'staffConsole'
   | 'myHome'
   | 'grid'
   | 'oneJob'
@@ -120,7 +125,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeStaff';
 type Mode = 'customer' | 'tradesperson';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -844,6 +849,15 @@ export default function App() {
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
+    if (tradeScreen === 'tradeTrust') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
+      <TradeTrustScreen goBack={() => navigateTrade('tradeProfile')}/>
+    </TradeShell>;
+    if (tradeScreen === 'tradeSupport') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
+      <TradarrSupportScreen role="tradesperson" goBack={() => navigateTrade('tradeProfile')}/>
+    </TradeShell>;
+    if (tradeScreen === 'tradeStaff') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
+      <TradarrStaffScreen goBack={() => navigateTrade('tradeProfile')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeHours') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeWorkingHoursScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
@@ -858,7 +872,8 @@ export default function App() {
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
-    if (tradeScreen === 'tradeProfile') return <TradeSettingsScreen {...tradeProps} signOut={() => supabase.auth.signOut()} />;
+    if (tradeScreen === 'tradeProfile') return <TradeSettingsScreen {...tradeProps}
+      staffAccess={session?.user.app_metadata?.tradarr_staff===true} signOut={() => supabase.auth.signOut()} />;
     return <TradeHomeScreen {...tradeProps} />;
   }
 
@@ -1128,6 +1143,16 @@ export default function App() {
         openActivity={() => setCustomerScreen('requests')}/>
     </CustomerShell>;
   }
+  if (customerScreen === 'customerSupport') {
+    return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
+      <TradarrSupportScreen role="customer" goBack={() => setCustomerScreen('customerProfile')}/>
+    </CustomerShell>;
+  }
+  if (customerScreen === 'staffConsole') {
+    return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
+      <TradarrStaffScreen goBack={() => setCustomerScreen('customerProfile')}/>
+    </CustomerShell>;
+  }
   if (customerScreen === 'myHome') {
     return <CustomerShell current={homeBackScreen} navigate={setCustomerScreen}>
       <CustomerHomePassportScreen goBack={() => setCustomerScreen(homeBackScreen)}/>
@@ -1176,6 +1201,7 @@ export default function App() {
         }}
         signOut={() => supabase.auth.signOut()}
         accountType={accountType}
+        staffAccess={session?.user.app_metadata?.tradarr_staff===true}
       />
     );
   }
@@ -5539,12 +5565,14 @@ function CustomerProfileScreen({
   switchToTrade,
   signOut,
   accountType,
+  staffAccess,
 }: {
   navigate: (screen: CustomerScreen) => void;
   openTrade: (trade: Trade) => void;
   switchToTrade: () => void;
   signOut: () => void;
   accountType: 'customer' | 'tradesperson';
+  staffAccess:boolean;
 }) {
   const [profile, setProfile] = useState({
     first_name: '',
@@ -5808,12 +5836,19 @@ function CustomerProfileScreen({
             <Text style={styles.customerAccountRowText}>Privacy & security</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
           </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('help')}
-            accessibilityRole="button" accessibilityLabel="Contact help and support">
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerSupport')}
+            accessibilityRole="button" accessibilityLabel="Open support cases and help">
             <View style={styles.customerAccountRowIcon}><CircleHelp size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.customerAccountRowText}>Help & support</Text>
+            <Text style={styles.customerAccountRowText}>Help, reports & support cases</Text>
             <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
           </MotionPressable>
+          {staffAccess?<MotionPressable style={styles.customerAccountRow}
+            onPress={() => navigate('staffConsole')} accessibilityRole="button"
+            accessibilityLabel="Open staff moderation console">
+            <View style={styles.customerAccountRowIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
+            <Text style={styles.customerAccountRowText}>Staff: Review & safety</Text>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>:null}
         </View>
 
         {accountType === 'tradesperson' ? (
@@ -7885,11 +7920,13 @@ function TradeSettingsScreen({
   navigate,
   switchToCustomer,
   signOut,
+  staffAccess,
 }: {
   screen: TradeScreen;
   navigate: (screen: TradeScreen) => void;
   switchToCustomer: () => void;
   signOut: () => void;
+  staffAccess:boolean;
 }) {
   const [displayName, setDisplayName] = useState('Your trade profile');
   const [primaryTrade, setPrimaryTrade] = useState('Tradesperson');
@@ -8339,6 +8376,17 @@ function TradeSettingsScreen({
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted}/>
               </MotionPressable>
+              <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => navigate('tradeTrust')}
+                accessibilityRole="button" accessibilityLabel="Submit credentials and verification evidence">
+                <View style={[styles.premiumChecklistIcon,{backgroundColor:'#EAF4EE'}]}>
+                  <ShieldCheck size={21} color={theme.colors.teal}/>
+                </View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>Evidence & verification</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Submit insurance, identity and business evidence for review</Text>
+                </View>
+                <ChevronRight size={20} color={theme.colors.muted}/>
+              </MotionPressable>
               <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => navigate('tradeHours')}
                 accessibilityRole="button" accessibilityLabel="Set tradesperson working hours">
                 <View style={[styles.premiumChecklistIcon,{backgroundColor:'#EBEEF7'}]}>
@@ -8635,6 +8683,28 @@ function TradeSettingsScreen({
                 <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Availability & working hours</Text>
                 <ChevronRight size={21} color={theme.colors.muted} />
               </MotionPressable>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeTrust')}
+                accessibilityRole="button" accessibilityLabel="Submit insurance and business credentials">
+                <View style={styles.premiumChecklistIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>Credentials & verification</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>Submit private evidence for staff review</Text>
+                </View>
+                <ChevronRight size={21} color={theme.colors.muted}/>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeSupport')}
+                accessibilityRole="button" accessibilityLabel="Manage help and support cases">
+                <View style={styles.premiumChecklistIcon}><CircleHelp size={20} color={theme.colors.teal}/></View>
+                <Text style={[styles.premiumChecklistTitle,{flex:1}]}>Help, reports & support</Text>
+                <ChevronRight size={21} color={theme.colors.muted}/>
+              </MotionPressable>
+              {staffAccess?<MotionPressable style={styles.premiumAccountRow}
+                onPress={() => navigate('tradeStaff')} accessibilityRole="button"
+                accessibilityLabel="Open staff moderation console">
+                <View style={styles.premiumChecklistIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
+                <Text style={[styles.premiumChecklistTitle,{flex:1}]}>Staff: Review & safety</Text>
+                <ChevronRight size={21} color={theme.colors.muted}/>
+              </MotionPressable>:null}
               <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeInvoices')}
                 accessibilityRole="button" accessibilityLabel="Invoices">
                 <View style={styles.premiumChecklistIcon}><ClipboardList size={20} color={theme.colors.teal} /></View>
@@ -8654,7 +8724,7 @@ function TradeSettingsScreen({
               <Text style={{fontSize:11,color:theme.colors.muted,marginHorizontal:15,marginBottom:10,lineHeight:17}}>
                 Preference saved to your account. Phone push alerts still need a production app build and notification delivery setup.
               </Text>
-              {['Payments & payouts', 'Help & support'].map(item => (
+              {['Payments & payouts'].map(item => (
                 <View style={styles.premiumAccountRow} key={item}>
                   <View style={styles.premiumChecklistIcon}><UserRound size={19} color={theme.colors.teal} /></View>
                   <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>{item}</Text>
