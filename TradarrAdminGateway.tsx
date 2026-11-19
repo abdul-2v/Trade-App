@@ -4,7 +4,7 @@ import {ArrowLeft,CheckCircle2,KeyRound,LockKeyhole,ShieldCheck} from 'lucide-re
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
-import TradarrStaffScreen from './TradarrStaffScreen';
+import TradarrAdminHub from './TradarrAdminHub';
 
 type Step='loading'|'denied'|'setup'|'enrolling'|'challenge'|'ready';
 const C=theme.colors;
@@ -78,7 +78,7 @@ export default function TradarrAdminGateway({goBack}:{goBack:()=>void}){
   }catch(e:any){setCode('');setError(e?.message||'Incorrect code. Please try a fresh code.');}
   finally{setBusy(false);}
  };
- if(step==='ready')return <TradarrStaffScreen goBack={goBack}/>;
+ if(step==='ready')return <TradarrAdminHub goBack={goBack}/>;
  return <View style={s.root}>
   <View style={s.head}>
    <MotionPressable style={s.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Leave Admin Gateway">
