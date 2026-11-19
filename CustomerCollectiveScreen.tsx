@@ -136,7 +136,7 @@ export default function CustomerCollectiveScreen({goBack,openMessages}:{goBack:(
    <Text style={s.heading}>{screen==='create'?'Start a group':screen==='detail'?'Collective details':'Tradarr Collective'}</Text></View>
   {screen==='list'?<MotionPressable style={s.new} onPress={()=>setScreen('create')}><Plus size={18} color="#FFFFFF"/><Text style={s.newText}>New</Text></MotionPressable>:null}</View>
   {loading?<ActivityIndicator size="large" color={C.teal} style={{marginTop:60}}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
    {screen==='list'?<>
     <View style={s.hero}><Users size={25} color="#D1E9E2"/>
