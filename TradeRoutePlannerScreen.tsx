@@ -2,6 +2,7 @@ import React,{useCallback,useEffect,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,Linking,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,CalendarDays,Check,ChevronRight,MapPin,Navigation,Pause,Play,Plus,RefreshCw,Route,Users} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
+import * as Location from 'expo-location';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {formatUKDateTime} from './lib/scheduling';
@@ -15,6 +16,11 @@ type Stop={jobId:string;routePlanId:string;issue:string;status:string;
  requestedStart:string|null;requestedEnd:string|null;appointmentId:string|null;
  estimatedArrivalMinutes:number|null;etaUpdatedAt:string|null;latitude:number|null;longitude:number|null};
 type Props={goBack:()=>void;openDiary:()=>void;openMessages:()=>void};
+type RoadPreview={
+ roadDistanceMiles:number;drivingMinutes:number;extraDrivingMinutes:number|null;
+ stopOrder:string[];scheduleFeasibleOptimization:boolean;originType:'current_device'|'postcode_area';
+ calculatedAt:string;estimateOnly:boolean;trafficAware:boolean;pricingSavingsGBP:null;
+};
 const C=theme.colors;
 
 async function postcodeArea(value:string){
@@ -51,8 +57,13 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
  const [capacity,setCapacity]=useState(1);
  const [etaPickerJobId,setEtaPickerJobId]=useState<string|null>(null);
  const [etaBusyJobId,setEtaBusyJobId]=useState<string|null>(null);
+ const [roadPreviews,setRoadPreviews]=useState<Record<string,RoadPreview>>({});
+ const [roadErrors,setRoadErrors]=useState<Record<string,string>>({});
+ const [roadBusy,setRoadBusy]=useState<string|null>(null);
 
  const load=useCallback(async()=>{
+  // Discard road calculations after any diary, acceptance or job-status change.
+  setRoadPreviews({});
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setLoading(false);return;}
   setUid(user.id);
@@ -154,6 +165,33 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     .catch(()=>Alert.alert('Could not open maps','Please check that a map app is available.'));
  };
 
+ const calculateRoadRoute=async(plan:Journey)=>{
+  if(roadBusy)return;
+  setRoadBusy(plan.id);
+  setRoadErrors(prev=>({...prev,[plan.id]:''}));
+  try{
+   let origin:{latitude:number;longitude:number}|undefined;
+   // Only use device GPS for this one explicit request. Never store it in a
+   // journey or send it to other traders / customers.
+   const permission=await Location.getForegroundPermissionsAsync();
+   if(permission.granted){
+    const fix=await Promise.race([
+     Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced}).catch(()=>null),
+     new Promise<null>(resolve=>setTimeout(()=>resolve(null),6500))
+    ]);
+    if(fix)origin={latitude:fix.coords.latitude,longitude:fix.coords.longitude};
+   }
+   const {data,error}=await supabase.functions.invoke('tradarr-road-route',{
+    body:{planId:plan.id,...(origin?{origin}:{})}
+   });
+   if(error||!data||data.error||data.trafficAware!==true)
+    throw new Error(data?.error||'Live road routing is not available. Check the Google Routes service setup.');
+   setRoadPreviews(prev=>({...prev,[plan.id]:data as RoadPreview}));
+  }catch(e:any){
+   setRoadErrors(prev=>({...prev,[plan.id]:
+    e?.message||'Could not check road travel. Google Maps directions are still available.'}));
+  }finally{setRoadBusy(null);}
+ };
  const openJourneyDirections=(plan:Journey)=>{
   const assigned=stops.filter(x=>x.routePlanId===plan.id);
   const scheduled=assigned.filter(x=>x.appointmentId&&x.requestedStart&&
@@ -165,7 +203,18 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     'Agree appointment times with customers and confirm their addresses before opening directions.');return;
   }
   const max=4;
-  const selected=scheduled.slice(0,plan.mode==='on_my_way'?1:max);
+  const preview=roadPreviews[plan.id];
+  const currentIds=scheduled.map(stop=>stop.jobId);
+  // The server only recommends a new stop order when it remains compatible
+  // with all confirmed appointments. Otherwise keep chronological order.
+  const safeOrder=preview?.scheduleFeasibleOptimization &&
+   Date.now()-Date.parse(preview.calculatedAt)<10*60000 &&
+   preview.stopOrder.length===currentIds.length &&
+   preview.stopOrder.every(id=>currentIds.includes(id));
+  const ordered=safeOrder
+   ? preview.stopOrder.map(id=>scheduled.find(stop=>stop.jobId===id)!).filter(Boolean)
+   : scheduled;
+  const selected=ordered.slice(0,plan.mode==='on_my_way'?1:max);
   const points=selected.map(x=>x.latitude+','+x.longitude);
   const anchor=appointments.find(x=>x.id===plan.anchor_appointment_id);
   const originalDestination=anchor?.address?.trim();
@@ -393,12 +442,36 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
            </View>:null}
           </>:null}
         </View>)}
+        {assigned.length>0&&assigned.every(v=>v.appointmentId&&v.requestedStart&&
+          v.latitude!=null&&v.longitude!=null)?<>
+         <MotionPressable style={s.secondary}
+          disabled={roadBusy!==null}
+          accessibilityRole="button"
+          accessibilityLabel="Calculate traffic aware road route"
+          onPress={()=>{void calculateRoadRoute(j)}}>
+          {roadBusy===j.id?<ActivityIndicator size="small" color={C.teal}/>:<Route size={16} color={C.teal}/>}
+          <Text style={s.secondaryText}>Calculate real road route</Text>
+         </MotionPressable>
+         {roadPreviews[j.id]?<View style={s.hint}>
+          <Text style={s.cardTitle}>Traffic-aware driving estimate</Text>
+          <Text style={s.note}>{roadPreviews[j.id].roadDistanceMiles.toFixed(1)} road miles · approximately {roadPreviews[j.id].drivingMinutes} minutes driving</Text>
+          {roadPreviews[j.id].extraDrivingMinutes!=null?
+            <Text style={s.note}>Additional road travel versus a direct journey: about {roadPreviews[j.id].extraDrivingMinutes} minutes</Text>:null}
+          <Text style={s.note}>{roadPreviews[j.id].scheduleFeasibleOptimization?
+           'Road-based stop order checked against your confirmed appointment windows.':
+           'Confirmed appointment order preserved.'}</Text>
+          <Text style={s.note}>Starting from {roadPreviews[j.id].originType==='current_device'?
+           'your current device position':'the approximate published postcode area'}.
+           Road traffic changes. Savings in pounds cannot be verified without agreed prices.</Text>
+         </View>:null}
+         {roadErrors[j.id]?<Text style={[s.note,{color:'#AD4A31'}]}>{roadErrors[j.id]}</Text>:null}
+        </>:null}
         {assigned.some(v=>v.appointmentId&&v.requestedStart)?<MotionPressable
           style={[s.primary,{minHeight:44,marginTop:4}]}
           onPress={()=>openJourneyDirections(j)} accessibilityRole="button">
           <Text style={s.primaryText}>Open scheduled stops in Maps</Text>
         </MotionPressable>:null}
-        <Text style={s.note}>Stops follow agreed appointment times; Google Maps calculates driving directions when opened. On My Way includes the original diary destination when its address is saved. Tradarr does not optimise road travel times or guarantee detours.</Text>
+        <Text style={s.note}>Stops follow confirmed appointment times unless a road-checked order is feasible. Live road estimates need the privately configured Google Routes service. On My Way includes the original diary destination. No guaranteed arrival time or discount is promised.</Text>
        </View>;
      })()}
 
