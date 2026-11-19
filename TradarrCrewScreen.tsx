@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,AppState,KeyboardAvoidingView,Platform,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,KeyboardAvoidingView,Linking,Platform,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,BriefcaseBusiness,CalendarDays,Check,ChevronRight,Clock3,GraduationCap,Heart,MapPin,MessageCircle,Plus,RefreshCw,Send,ShieldCheck,Users,UserRound,Wallet} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
@@ -168,8 +168,18 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
   if((postStart.trim()&&!start)||(postEnd.trim()&&!end)||Boolean(start)!==Boolean(end))
    throw new Error('Use dates like 2026-11-21 08:00 for both start and end, or leave both blank.');
   if(start&&end&&new Date(end)<=new Date(start))throw new Error('End time must be after start time.');
+  if(postUnit==='year')throw new Error('Use an hourly rate during the Crew pilot.');
+  if(postKind==='apprentice'&&postUnit!=='hour')throw new Error('Use an hourly rate for apprenticeships.');
+  const floor=postKind==='apprentice'?8:12.71;
+  if(postUnit==='hour'&&amount<floor)throw new Error('This hourly rate is below the current Crew pilot minimum. Check UK minimum wage rules.');
+  if(postUnit==='day'){
+   if(!start||!end)throw new Error('Daily rates need a start and end time.');
+   const hours=(new Date(end).getTime()-new Date(start).getTime())/3600000;
+   if(hours<=0||hours>24||amount/hours<12.71)
+     throw new Error('Daily rate must cover a shift of up to 24 hours and meet at least £12.71 per hour.');
+  }
   const basis=postKind==='apprentice'?'employment':postBasis;
-  const unit=postKind==='apprentice'&&postUnit==='day'?'hour':postUnit;
+  const unit=postUnit;
   const {error:e}=await supabase.from('crew_requests').insert({
    owner_id:uid,kind:postKind,title:postTitle.trim(),trade:postTrade.trim(),
    area_label:postArea.trim(),description:postDescription.trim(),starts_at:start,ends_at:end,
@@ -312,18 +322,21 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
      <Field label="Work and requirements" value={postDescription} onChange={setPostDescription} multiline
        placeholder="Describe tasks, skills, supervision, equipment, and site access. Do not include the full job address."/>
      {postKind!=='apprentice'?<>
-      <Field label="Start (optional, YYYY-MM-DD HH:mm)" value={postStart} onChange={setPostStart} placeholder="2026-11-21 08:00"/>
-      <Field label="End (optional, YYYY-MM-DD HH:mm)" value={postEnd} onChange={setPostEnd} placeholder="2026-11-21 16:00"/>
+      <Field label="Start (required for daily pay, YYYY-MM-DD HH:mm)" value={postStart} onChange={setPostStart} placeholder="2026-11-21 08:00"/>
+      <Field label="End (required for daily pay, YYYY-MM-DD HH:mm)" value={postEnd} onChange={setPostEnd} placeholder="2026-11-21 16:00"/>
      </>:<Text style={s.notice}>Apprenticeships are paid employment and require an approved training programme, an apprenticeship agreement and a training plan. Tradarr only introduces applicants.</Text>}
      <Field label="Pay offered (£)" value={postPay} onChange={setPostPay} keyboardType="numeric" placeholder="120"/>
      <Text style={s.fieldLabel}>Pay per</Text>
-     <View style={s.wrap}>{(['hour','day','year'] as const).filter(x=>postKind!=='apprentice'||x!=='day').map(x=>
+     <View style={s.wrap}>{(['hour','day'] as const).filter(x=>postKind!=='apprentice'||x!=='day').map(x=>
       <Chip key={x} label={x==='hour'?'Hour':x==='day'?'Day':'Year'} selected={postUnit===x} onPress={()=>setPostUnit(x)}/>)}</View>
      <Field label="How many people?" value={postPositions} onChange={setPostPositions} keyboardType="numeric"/>
      {postKind!=='apprentice'?<><Text style={s.fieldLabel}>Intended arrangement</Text>
       <View style={s.wrap}>{([{v:'employment',t:'Employed'},{v:'self_employed',t:'Self-employed'},{v:'to_confirm',t:'Discuss first'}] as const).map(x=>
        <Chip key={x.v} label={x.t} selected={postBasis===x.v} onPress={()=>setPostBasis(x.v)}/>)}</View></>:null}
-     <Text style={s.notice}>Advertised pay must meet applicable UK law. Agree employment status, insurance, right-to-work and site safety before work starts. Never advertise an unpaid trial.</Text>
+     <Text style={s.notice}>2026/27 pilot checks: at least £12.71/hour for helpers or skilled mates; from £8/hour for eligible apprentices, though higher age-based rates may apply. No unpaid trials. Confirm all legal pay, employment status, insurance, right-to-work and site safety before work starts.</Text>
+     <MotionPressable style={s.link} onPress={()=>{void Linking.openURL('https://www.gov.uk/national-minimum-wage-rates')}} accessibilityRole="link">
+       <Text style={s.linkText}>Check current UK minimum wage rates</Text><ChevronRight color={C.teal} size={17}/>
+     </MotionPressable>
      <MainButton label={busy?'Publishing…':'Publish request'} onPress={publish} disabled={busy}/>
     </View>:null}
     <Text style={s.sectionTitle}>My requests ({ownRequests.length})</Text>
