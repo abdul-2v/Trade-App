@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,Platform,ScrollView,Share,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,Platform,ScrollView,Share,StyleSheet,Text,TextInput,View} from 'react-native';
 import type {ScrollViewInstance} from 'react-native';
 import {ArrowLeft,Check,ChevronRight,FileText,Plus,Send,Share2,Trash2,Users} from 'lucide-react-native';
 import * as Print from 'expo-print';
@@ -17,7 +17,7 @@ type Customer={id:string;name:string;phone:string|null;email:string|null;address
 type Extra={name:string;price:number};
 type DraftExtra={name:string;price:string};
 type AppJobRecipient={id:string;customer_id:string;trade:string;issue:string;status:string;job_kind:'job'|'urgent'};
-type QuoteDelivery={id:string;quote_id:string;decision:string;feedback:string|null;customer_id:string};
+type QuoteDelivery={id:string;quote_id:string;decision:string;feedback:string|null;customer_id:string;job_id:string|null;urgent_request_id:string|null};
 type Quote={
  id:string;tradesperson_id:string;quote_no:number;customer_id:string|null;business_name:string;business_address:string;
  business_email:string|null;business_phone:string|null;vat_number:string|null;
@@ -212,7 +212,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       .in('status',['accepted','en_route','arrived','in_progress','completed']).order('created_at',{ascending:false}).limit(50),
    supabase.from('urgent_requests').select('id,customer_id,trade,issue,status').eq('accepted_tradesperson_id',id)
       .in('status',['matched','en_route','arrived','completed']).order('created_at',{ascending:false}).limit(50),
-   supabase.from('trade_customer_proposals').select('id,quote_id,decision,feedback,customer_id').eq('tradesperson_id',id),
+   supabase.from('trade_customer_proposals').select('id,quote_id,decision,feedback,customer_id,job_id,urgent_request_id').eq('tradesperson_id',id),
   ]);
   if(!alive)return;
   if(docs.error)Alert.alert('Unable to load quotes',docs.error.message);
@@ -231,6 +231,33 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   setLoading(false);
  })().catch(e=>{if(alive){setLoading(false);Alert.alert('Quote error',String(e))}});
  return()=>{alive=false};},[]);
+ // Keep in-app approvals fresh even when the tradesperson leaves this screen open.
+ useEffect(()=>{
+  if(!uid)return;
+  let alive=true;
+  const refresh=async()=>{
+   const [q,p]=await Promise.all([
+    supabase.from('trade_quotes').select('*').eq('tradesperson_id',uid)
+     .order('created_at',{ascending:false}).limit(100),
+    supabase.from('trade_customer_proposals')
+     .select('id,quote_id,decision,feedback,customer_id,job_id,urgent_request_id')
+     .eq('tradesperson_id',uid)
+   ]);
+   if(!alive)return;
+   if(!q.error)setQuotes((q.data||[]) as Quote[]);
+   if(!p.error)setDeliveries((p.data||[]) as QuoteDelivery[]);
+  };
+  const channel=supabase.channel('tradarr-quote-sync-'+uid+'-'+Date.now())
+   .on('postgres_changes',{event:'*',schema:'public',table:'trade_customer_proposals',
+     filter:'tradesperson_id=eq.'+uid},()=>{void refresh()})
+   .on('postgres_changes',{event:'*',schema:'public',table:'trade_quotes',
+     filter:'tradesperson_id=eq.'+uid},()=>{void refresh()})
+   .subscribe();
+  const foreground=AppState.addEventListener('change',state=>{
+   if(state==='active')void refresh();
+  });
+  return()=>{alive=false;foreground.remove();void supabase.removeChannel(channel);};
+ },[uid]);
  const newQuote=()=>{
   setCustomerId(null);setCustomerName('');setCustomerEmail('');setCustomerPhone('');setCustomerAddress('');
   setTitle('');setDescription('');setNotes('');setQuoteDate(day(new Date()));setValidUntil(addDays(30));
@@ -336,34 +363,27 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const convert=async(q:Quote)=>{
   if(converting)return;
   if(q.invoice_id){onInvoiceCreated(q.invoice_id);return;}
-  if(q.status==='declined'){Alert.alert('Quote declined','This estimate is marked declined. Create a new quote if the scope has changed.');return;}
-  setConverting(true);
-  // Invoice details are a snapshot of the quote, so the itemised charges do not need to be retyped.
-  const payload={
-   tradesperson_id:uid,invoice_no:0,source:'external',app_job_id:null,urgent_request_id:null,
-   quote_id:q.id,customer_id:q.customer_id,
-   business_name:q.business_name,business_legal_name:null,business_address:q.business_address,
-   business_email:q.business_email,business_phone:q.business_phone,vat_number:q.vat_number,
-   customer_name:q.customer_name,customer_email:q.customer_email,customer_address:q.customer_address,
-   description:q.title+(q.description?'\n'+q.description:''),
-   items:q.items,invoice_date:day(new Date()),service_date:day(new Date()),due_date:addDays(14),
-   vat_rate:q.vat_rate,subtotal:q.subtotal,vat_amount:q.vat_amount,total:q.total,
-   payment_details:null,notes:q.notes,status:'draft' as const,
-  };
-  const {data,error}=await supabase.from('trade_invoices').insert(payload).select('id').single();
-  let invoiceId=data?.id as string|undefined;
-  if(error||!invoiceId){
-   // A previous partial conversion may have created an invoice before the quote was updated.
-   const existing=await supabase.from('trade_invoices').select('id').eq('quote_id',q.id).eq('tradesperson_id',uid).maybeSingle();
-   invoiceId=existing.data?.id;
-   if(!invoiceId){setConverting(false);Alert.alert('Could not create invoice',error?.message||'Please try again.');return;}
+  const delivery=deliveries.find(d=>d.quote_id===q.id);
+  if(delivery&&delivery.decision!=='accepted'){
+   Alert.alert('Customer approval required',
+    delivery.decision==='pending'
+     ?'The customer must accept this quotation inside Tradarr before it can be invoiced.'
+     :'This quotation was not accepted. Prepare a revised quote instead.');
+   return;
   }
-  const update=await supabase.from('trade_quotes').update({invoice_id:invoiceId,status:'converted',updated_at:new Date().toISOString()})
-   .eq('id',q.id).eq('tradesperson_id',uid).select('*').single();
-  if(update.data)setQuotes(old=>old.map(v=>v.id===q.id?update.data as Quote:v));
-  setConverting(false);
-  if(update.error)Alert.alert('Invoice created','Your invoice was saved, but the quote status could not be updated. You can still view it in Invoices.');
-  onInvoiceCreated(invoiceId);
+  if(q.status==='declined'){
+   Alert.alert('Quote declined','A declined quotation cannot become an invoice.');return;
+  }
+  setConverting(true);
+  try{
+   // Server transaction: validated approval, job links, invoice number and idempotency.
+   const {data,error}=await supabase.rpc('tradarr_convert_quote_to_invoice',{p_quote_id:q.id});
+   if(error||!data)throw new Error(error?.message||'The invoice could not be created.');
+   const invoiceId=String(data);
+   setQuotes(old=>old.map(v=>v.id===q.id?{...v,invoice_id:invoiceId,status:'converted'}:v));
+   onInvoiceCreated(invoiceId);
+  }catch(e:any){Alert.alert('Could not create invoice',e?.message||'Please retry.');}
+  finally{setConverting(false);}
  };
  const createMaterials=async(q:Quote)=>{
   if(creatingKit)return;
@@ -406,7 +426,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       const payload={quote_id:q.id,tradesperson_id:uid,customer_id:job.customer_id,
         job_id:job.job_kind==='job'?job.id:null,urgent_request_id:job.job_kind==='urgent'?job.id:null};
       const {data,error}=await supabase.from('trade_customer_proposals').insert(payload)
-        .select('id,quote_id,decision,feedback,customer_id').single();
+        .select('id,quote_id,decision,feedback,customer_id,job_id,urgent_request_id').single();
       setSendingToApp(false);
       if(error||!data){Alert.alert('Could not deliver proposal',error?.message||'Please try again.');return;}
       setDeliveries(old=>[data as QuoteDelivery,...old]);
@@ -483,6 +503,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <Text style={s.deliveryStatusTitle}>Sent in Tradarr · {selectedDelivery.decision==='pending'?'Awaiting customer decision':
           selectedDelivery.decision==='accepted'?'Customer accepted':
           selectedDelivery.decision==='declined'?'Customer declined':'Changes requested'}</Text>
+        {selectedDelivery.job_id||selectedDelivery.urgent_request_id?
+         <Text style={s.deliveryStatusText}>Linked to {selectedDelivery.job_id?'scheduled job':'urgent job'} · {appJobs.find(j=>j.id===(selectedDelivery.job_id||selectedDelivery.urgent_request_id))?.issue||'Tradarr work'}</Text>:null}
         {selectedDelivery.feedback?<Text style={s.deliveryStatusText}>Customer message: {selectedDelivery.feedback}</Text>:null}
       </View>:<MotionPressable style={s.sendInApp} onPress={()=>setScreen('send')} accessibilityRole="button">
         <Send color="#FFFFFF" size={18}/><Text style={s.sendInAppText}>Send inside Tradarr</Text><ChevronRight size={19} color="#FFFFFF"/>
@@ -491,12 +513,13 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <Text style={s.primaryText}>{sharing?'Preparing PDF…':'Share quote PDF'}</Text></MotionPressable>
       <View style={s.statusRow}>
         {selected.status==='draft'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'sent')}><Check size={16} color={C.teal}/><Text style={s.actionText}>Mark sent</Text></MotionPressable>:null}
-        {selected.status==='sent'||selected.status==='draft'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'accepted')}>
+        {!selectedDelivery&&(selected.status==='sent'||selected.status==='draft')?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'accepted')}>
          <Check size={16} color={C.teal}/><Text style={s.actionText}>Mark accepted</Text></MotionPressable>:null}
-        {selected.status==='sent'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'declined')}>
+        {!selectedDelivery&&selected.status==='sent'?<MotionPressable style={s.action} onPress={()=>setStatus(selected,'declined')}>
          <Text style={s.actionText}>Mark declined</Text></MotionPressable>:null}
       </View>
-      {selected.status!=='declined'?<MotionPressable style={s.convert} onPress={()=>convert(selected)} disabled={converting}>
+      {selected.status!=='declined'&&(!selectedDelivery||selectedDelivery.decision==='accepted'||!!selected.invoice_id)?
+       <MotionPressable style={s.convert} onPress={()=>{void convert(selected)}} disabled={converting}>
        {converting?<ActivityIndicator color={C.teal}/>:<Text style={s.convertText}>{selected.invoice_id?'View linked invoice':'Convert to invoice'}</Text>}
        <ChevronRight size={19} color={C.teal}/></MotionPressable>:null}
       <MotionPressable style={s.partsAction} onPress={()=>reviseQuote(selected)} accessibilityRole="button"
