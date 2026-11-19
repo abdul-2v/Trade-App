@@ -8105,25 +8105,47 @@ function TradeSettingsScreen({
       return;
     }
 
-    const { error } = await supabase
-      .from('tradesperson_profiles')
-      .update({
-        display_name: cleanName,
-        primary_trade: primaryTrade,
-        public_phone: cleanPhone || null,
-        bio: bio.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id);
-
-    setSavingProfile(false);
-
-    if (error) {
-      Alert.alert('Could not save profile', error.message);
+    // The same signed-in account can be a customer and a real tradesperson.
+    // Do not create a fictional public business for a testing-only visit.
+    const {data:existing,error:readError}=await supabase
+      .from('tradesperson_profiles').select('user_id')
+      .eq('user_id',user.id).maybeSingle();
+    if(readError){
+      setSavingProfile(false);
+      Alert.alert('Could not check business profile',readError.message);
       return;
     }
-
-    Alert.alert('Profile updated', 'Customers will now see your latest public details.');
+    const fields={
+      display_name:cleanName,
+      primary_trade:primaryTrade,
+      public_phone:cleanPhone||null,
+      bio:bio.trim()||null,
+      updated_at:new Date().toISOString(),
+    };
+    const profileWrite=existing
+      ?await supabase.from('tradesperson_profiles').update(fields)
+         .eq('user_id',user.id).select('user_id').maybeSingle()
+      :await supabase.from('tradesperson_profiles')
+         .insert({user_id:user.id,...fields}).select('user_id').maybeSingle();
+    if(profileWrite.error||!profileWrite.data){
+      setSavingProfile(false);
+      Alert.alert('Could not save trade profile',
+        profileWrite.error?.message||'The business profile could not be confirmed.');
+      return;
+    }
+    // Once a real business profile exists, include professional access in
+    // ordinary logins. The customer side remains available through Switch.
+    const {data:roleSaved,error:roleError}=await supabase.from('profiles')
+      .update({account_type:'tradesperson',updated_at:new Date().toISOString()})
+      .eq('id',user.id).select('id').maybeSingle();
+    setSavingProfile(false);
+    if(roleError||!roleSaved){
+      Alert.alert('Trade profile saved, setup incomplete',
+        roleError?.message||'Your customer account still needs the tradesperson role. Try saving again.');
+      return;
+    }
+    Alert.alert('Tradesperson profile saved',
+      'Your account now supports both tradesperson and customer views. Switch between them in Account.');
   };
 
   const saveCoverage = async (nextRadius: number, nextEmergency: boolean) => {
