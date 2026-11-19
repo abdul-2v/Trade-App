@@ -101,6 +101,20 @@ Deno.serve(async req=>{
     return respond(409,{error:'Add the original appointment address in your diary'});
   const key=Deno.env.get('GOOGLE_ROUTES_API_KEY');
   if(!key)return respond(503,{error:'Live road routing is not configured yet. Use Maps directions for now'});
+  // Cost protection: only this server has a service-role credential. The public
+  // app cannot call the quota RPC, forge paid usage or read its counters.
+  const serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if(!serviceKey)return respond(503,{error:'Road routing security is not configured'});
+  const service=createClient(supabaseUrl,serviceKey,{
+    auth:{autoRefreshToken:false,persistSession:false}
+  });
+  const {data:admitted,error:quotaError}=await service.rpc('tradarr_consume_road_route_quota',{
+    p_user_id:user.id
+  });
+  if(quotaError)return respond(503,{error:'Could not verify road-routing limits'});
+  if(admitted!==true)return respond(429,{
+    error:'Road-routing previews are limited to one per minute and 20 per day. Try again later. Google Maps directions still work.'
+  });
   const origin=point(preciseOrigin||area);
   const destination=plan.mode==='on_my_way'
     ? {address:anchor.address+', United Kingdom'}
