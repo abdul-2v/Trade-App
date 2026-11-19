@@ -127,7 +127,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
       </MotionPressable> : null}
     </View>
     {loading ? <ActivityIndicator size="large" color={C.teal} style={{ marginTop: 60 }}/> :
-      screen === 'list' ? <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+      screen === 'list' ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
         <Text style={s.intro}>Keep your private customers, addresses and work history together. Only you can see these records.</Text>
         <View style={s.searchRow}><Search size={19} color={C.muted}/>
           <TextInput value={search} onChangeText={setSearch} placeholder="Search customers"
@@ -147,7 +147,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
             {!search.trim() ? <MotionPressable onPress={newCustomer} style={s.action}><Plus color="#FFFFFF" size={19}/><Text style={s.actionText}>Add a customer</Text></MotionPressable> : null}
           </View>}
       </ScrollView> :
-      screen === 'edit' ? <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+      screen === 'edit' ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
         <Text style={s.intro}>Save a contact once, then select them when preparing a quote or appointment.</Text>
         <View style={s.panel}>
           <Field label="Customer or company name *" value={name} change={setName} placeholder="e.g. Sarah Williams"/>
@@ -159,7 +159,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
         <MotionPressable onPress={save} disabled={saving} style={s.action}>
           {saving ? <ActivityIndicator color="#FFFFFF"/> : <Text style={s.actionText}>Save customer</Text>}
         </MotionPressable>
-      </ScrollView> : selected ? <ScrollView contentContainerStyle={s.page}>
+      </ScrollView> : selected ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page}>
         <View style={s.detailCard}>
           <View style={s.detailTop}>
             <View style={s.avatar}><Text style={s.avatarText}>{selected.name.slice(0,1).toUpperCase()}</Text></View>
