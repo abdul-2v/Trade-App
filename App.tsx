@@ -13,7 +13,7 @@ import CustomerQuotesScreen from './CustomerQuotesScreen';
 import CustomerInvoicesScreen from './CustomerInvoicesScreen';
 import TradeTrustScreen from './TradeTrustScreen';
 import TradarrSupportScreen from './TradarrSupportScreen';
-import TradarrStaffScreen from './TradarrStaffScreen';
+import TradarrAdminGateway from './TradarrAdminGateway';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
 import TradeGridScreen from './TradeGridScreen';
@@ -856,7 +856,7 @@ export default function App() {
       <TradarrSupportScreen role="tradesperson" goBack={() => navigateTrade('tradeProfile')}/>
     </TradeShell>;
     if (tradeScreen === 'tradeStaff') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
-      <TradarrStaffScreen goBack={() => navigateTrade('tradeProfile')}/>
+      <TradarrAdminGateway goBack={() => navigateTrade('tradeProfile')}/>
     </TradeShell>;
     if (tradeScreen === 'tradeHours') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeWorkingHoursScreen goBack={() => navigateTrade('tradeTools')}/>
@@ -1150,7 +1150,7 @@ export default function App() {
   }
   if (customerScreen === 'staffConsole') {
     return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
-      <TradarrStaffScreen goBack={() => setCustomerScreen('customerProfile')}/>
+      <TradarrAdminGateway goBack={() => setCustomerScreen('customerProfile')}/>
     </CustomerShell>;
   }
   if (customerScreen === 'myHome') {
@@ -1197,7 +1197,9 @@ export default function App() {
         openTrade={openTrade}
         switchToTrade={() => {
           setMode('tradesperson');
-          setTradeScreen('tradeHome');
+          // First-time professional testers enter Profile; no fictional
+          // tradesperson is published before completing real trade details.
+          setTradeScreen(accountType==='tradesperson'?'tradeHome':'tradeProfile');
         }}
         signOut={() => supabase.auth.signOut()}
         accountType={accountType}
@@ -5846,18 +5848,22 @@ function CustomerProfileScreen({
             onPress={() => navigate('staffConsole')} accessibilityRole="button"
             accessibilityLabel="Open staff moderation console">
             <View style={styles.customerAccountRowIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
-            <Text style={styles.customerAccountRowText}>Staff: Review & safety</Text>
+            <Text style={styles.customerAccountRowText}>Admin Gateway · Secure access</Text>
             <ChevronRight size={20} color={theme.colors.muted}/>
           </MotionPressable>:null}
         </View>
 
-        {accountType === 'tradesperson' ? (
+        {(accountType === 'tradesperson'||staffAccess) ? (
           <MotionPressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
             accessibilityRole="button" accessibilityLabel="Switch to Tradarr Pro">
             <BriefcaseBusiness size={21} strokeWidth={2} color={theme.colors.teal} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.customerAccountRowText}>Open Tradarr Pro</Text>
-              <Text style={styles.customerAccountRowDetail}>Manage jobs and availability</Text>
+              <Text style={styles.customerAccountRowText}>
+                {accountType==='tradesperson'?'Open Tradarr Pro':'Test tradesperson view'}
+              </Text>
+              <Text style={styles.customerAccountRowDetail}>
+                {accountType==='tradesperson'?'Manage jobs and availability':'Complete your business profile to activate trade features'}
+              </Text>
             </View>
             <ChevronRight size={20} color={theme.colors.teal} />
           </MotionPressable>
@@ -8704,7 +8710,7 @@ function TradeSettingsScreen({
                 onPress={() => navigate('tradeStaff')} accessibilityRole="button"
                 accessibilityLabel="Open staff moderation console">
                 <View style={styles.premiumChecklistIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
-                <Text style={[styles.premiumChecklistTitle,{flex:1}]}>Staff: Review & safety</Text>
+                <Text style={[styles.premiumChecklistTitle,{flex:1}]}>Admin Gateway · Secure access</Text>
                 <ChevronRight size={21} color={theme.colors.muted}/>
               </MotionPressable>:null}
               <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradeInvoices')}
