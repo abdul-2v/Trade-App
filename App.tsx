@@ -1242,7 +1242,9 @@ function TradarrApp() {
       openMessages={() => setCustomerScreen('messages')}/>
   </CustomerShell>;
   if (customerScreen === 'rescue') return <CustomerShell current="discover" navigate={setCustomerScreen}>
-    <CustomerRescueScreen goBack={() => setCustomerScreen('discover')} onRetry={(trade,issue,urgent)=>{
+    <CustomerRescueScreen goBack={() => setCustomerScreen('discover')}
+      onStartNew={()=>{setServiceIntent(null);setCustomerScreen('urgent');}}
+      onRetry={(trade,issue,urgent)=>{
       setSelectedCategory(trade as TradeCategory);
       setServiceIntent({trade:trade as TradeCategory,service:issue,timing:urgent?'Now':'Next few days'});
       setCustomerScreen(urgent?'urgent':'map');
