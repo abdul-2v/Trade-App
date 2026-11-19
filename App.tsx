@@ -8602,7 +8602,9 @@ function TradeSettingsScreen({
               <ArrowRight size={20} color={theme.colors.teal}/>
             </MotionPressable>
             <View style={styles.premiumProfileChecklist}>
-              <View style={styles.premiumProfileProgressRow}>
+              <MotionPressable style={styles.premiumProfileProgressRow}
+                onPress={()=>setProfilePage('setup')} accessibilityRole="button"
+                accessibilityLabel="Show incomplete profile setup steps">
                 <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileProgress}%</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.premiumProgressTitle}>
@@ -8612,7 +8614,7 @@ function TradeSettingsScreen({
                     {missingProfileStepLabels.length?' · '+missingProfileStepLabels.length+' remaining':''}
                   </Text>
                 </View>
-              </View>
+              </MotionPressable>
               <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
                 <View style={[styles.premiumChecklistIcon, { backgroundColor: theme.colors.coralTint }]}><Camera size={21} color={theme.colors.coralDark} /></View>
                 <View style={{ flex: 1 }}>
