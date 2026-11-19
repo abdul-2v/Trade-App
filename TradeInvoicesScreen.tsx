@@ -380,7 +380,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     </View>
 
     {loading ? <ActivityIndicator style={{ marginTop: 60 }} size="large" color={theme.colors.teal} /> :
-      screen === 'list' ? <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
+      screen === 'list' ? <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
         <Text style={s.explainer}>Professional invoices for Tradarr jobs and your own customers. Create, save and share PDFs in seconds.</Text>
         <View style={s.statRow}>
           <View style={s.stat}><Text style={s.statLabel}>Paid</Text><Text style={s.statNumber}>{money(paid)}</Text></View>
@@ -453,7 +453,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             <Text style={s.heroButtonText}>Back to invoices</Text>
           </MotionPressable>
         </View>
-      ) : <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      ) : <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={s.explainer}>Add the job and customer details. Tradarr handles the layout, calculations, invoice number and PDF.</Text>
         <Text style={s.section}>Where was the job from?</Text>
         <View style={s.pillRow}>
