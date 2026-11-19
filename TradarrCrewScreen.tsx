@@ -82,6 +82,10 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
  const [adult,setAdult]=useState(false);
  const [hasProfile,setHasProfile]=useState(false);
  const [search,setSearch]=useState('');
+ const [reportFor,setReportFor]=useState<{userId:string;source:string}|null>(null);
+ const [reportDetails,setReportDetails]=useState('');
+ const [reportReason,setReportReason]=useState<'safety'|'fraud'|'misconduct'|'harassment'|'other'>('safety');
+ const [blocked,setBlocked]=useState<string[]>([]);
  const myProfile=useMemo(()=>profiles.find(p=>p.user_id===uid),[profiles,uid]);
  const ownRequests=requests.filter(x=>x.owner_id===uid);
  const activeRequests=requests.filter(x=>x.owner_id!==uid&&x.status==='open'&&new Date(x.expires_at)>new Date());
@@ -91,15 +95,16 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
   const {data:{user},error:authErr}=await supabase.auth.getUser();
   if(authErr||!user){setError('Please sign in to use Crew.');setLoading(false);return;}
   setUid(user.id);
-  const [p,r,a,f,n]=await Promise.all([
+  const [p,r,a,f,n,b]=await Promise.all([
    supabase.from('crew_profiles').select('*').order('updated_at',{ascending:false}).limit(150),
    supabase.from('crew_requests').select('*').order('created_at',{ascending:false}).limit(150),
    supabase.from('crew_applications').select('*').order('created_at',{ascending:false}).limit(300),
    supabase.from('crew_saved').select('worker_id').eq('owner_id',user.id),
    supabase.from('tradarr_notifications').select('id,title,body,data,read_at,created_at')
     .eq('recipient_id',user.id).eq('kind','crew_update').order('created_at',{ascending:false}).limit(80),
+   supabase.from('tradarr_user_blocks').select('blocked_id').eq('blocker_id',user.id),
   ]);
-  const firstError=p.error||r.error||a.error||f.error||n.error;
+  const firstError=p.error||r.error||a.error||f.error||n.error||b.error;
   if(firstError)setError('Crew is unavailable: '+firstError.message);
   else{
    setProfiles((p.data||[]) as CrewProfile[]);
@@ -107,6 +112,7 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
    setApplications((a.data||[]) as CrewApplication[]);
    setSaved((f.data||[]).map(x=>x.worker_id));
    setNotices((n.data||[]) as CrewNotice[]);
+   setBlocked((b.data||[]).map(x=>x.blocked_id));
    setError('');
   }
   setLoading(false);
@@ -144,8 +150,14 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
    is_visible:visible,adult_confirmed:true,updated_at:new Date().toISOString()};
   if(!Number.isInteger(payload.experience_years)||payload.experience_years<0||payload.experience_years>60)
    throw new Error('Enter a valid number of years of experience.');
-  const {error:e}=await supabase.from('crew_profiles').upsert(payload,{onConflict:'user_id'});
-  if(e)throw e;Alert.alert('Saved','Your Crew profile has been updated.');
+  // Upsert attempts to UPDATE immutable user_id on conflicts. Use explicit owner-only
+  // inserts/updates so Supabase column-level grants remain least-privilege.
+  const {user_id:ownerId,...changes}=payload;
+  const result=myProfile
+    ?await supabase.from('crew_profiles').update(changes).eq('user_id',ownerId)
+    :await supabase.from('crew_profiles').insert(payload);
+  if(result.error)throw result.error;
+  Alert.alert('Saved','Your Crew profile has been updated.');
  });
  const publish=()=>void run(async()=>{
   const amount=Number(postPay),positions=Number(postPositions);
@@ -190,6 +202,25 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
     .delete().eq('owner_id',uid).eq('worker_id',workerId);if(e)throw e;}
   else{const {error:e}=await supabase.from('crew_saved').insert({owner_id:uid,worker_id:workerId});if(e)throw e;}
  });
+ const sendReport=()=>void run(async()=>{
+  if(!reportFor)throw new Error('Choose a listing or profile first.');
+  if(reportDetails.trim().length<15)throw new Error('Explain your concern in at least 15 characters.');
+  const {error:e}=await supabase.from('tradarr_safety_reports').insert({
+   reporter_id:uid,target_type:'user',target_ref:reportFor.userId,
+   category:reportReason,details:'Crew '+reportFor.source+': '+reportDetails.trim(),status:'open'
+  });
+  if(e)throw e;
+  setReportFor(null);setReportDetails('');
+  Alert.alert('Report submitted','The Tradarr team can review your report.');
+ });
+ const blockUser=(otherId:string)=>Alert.alert('Block this user?',
+  'Their Crew listings and profile will be hidden from you. New Crew conversations cannot start.',[
+   {text:'Cancel',style:'cancel'},
+   {text:'Block',style:'destructive',onPress:()=>void run(async()=>{
+    const {error:e}=await supabase.from('tradarr_user_blocks').insert({blocker_id:uid,blocked_id:otherId});
+    if(e)throw e;
+   })}
+  ]);
  const loadMessages=useCallback(async(id:string)=>{
   const {data,error:e}=await supabase.from('crew_messages').select('*')
     .eq('application_id',id).order('created_at',{ascending:true}).limit(150);
@@ -254,6 +285,16 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
    </ScrollView>
    {error?<View style={[s.card,{borderColor:'#EAB6A3'}]}><Text style={{color:'#9A3F20'}}>{error}</Text></View>:null}
    {loading?<ActivityIndicator style={{marginTop:60}} color={C.teal}/>:null}
+   {reportFor?<View style={s.card}>
+     <Text style={s.sectionTitle}>Report a Crew concern</Text>
+     <Text style={s.muted}>Reports go to Tradarr staff for review.</Text>
+     <View style={s.wrap}>{([{v:'safety',label:'Unsafe work'},{v:'fraud',label:'Fraud'},{v:'misconduct',label:'Misconduct'},{v:'harassment',label:'Harassment'},{v:'other',label:'Other'}] as const)
+      .map(x=><Chip key={x.v} label={x.label} selected={reportReason===x.v} onPress={()=>setReportReason(x.v)}/>)}</View>
+     <Field label="What happened?" value={reportDetails} onChange={setReportDetails} multiline
+       placeholder="Explain why you're reporting this person or listing."/>
+     <MainButton label="Submit report" onPress={sendReport} disabled={busy}/>
+     <MainButton secondary label="Cancel" onPress={()=>{setReportFor(null);setReportDetails('');}}/>
+    </View>:null}
    {!loading&&tab==='hire'&&viewerRole==='tradesperson'?<>
     <View style={s.hero}>
      <Users size={29} color="#C6DDD5"/><Text style={s.heroTitle}>Need an extra pair of hands?</Text>
@@ -308,6 +349,7 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
          {(a.status==='applied'||a.status==='shortlisted')?<MainButton label="Accept" onPress={()=>changeApplication(a.id,'accepted')}/>:null}
          {(a.status==='applied'||a.status==='shortlisted')?<MainButton secondary label="Decline" onPress={()=>changeApplication(a.id,'declined')}/>:null}
          <MainButton secondary label="Messages" onPress={()=>setThreadId(a.id)}/>
+         <MainButton secondary label="Report applicant" onPress={()=>{setReportFor({userId:a.worker_id,source:'applicant '+a.id});setReportDetails('');}}/>
         </View>
        </View>;
       })}
@@ -333,6 +375,10 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
        <Text style={s.muted}>{r.positions} place(s)</Text>
        {r.starts_at?<Text style={s.muted}>{niceDate(r.starts_at)}</Text>:null}</View>
       {r.kind==='apprentice'?<Text style={s.notice}>Training-provider registration and formal apprenticeship arrangements are required before an apprenticeship begins.</Text>:null}
+      <View style={s.actions}>
+       <MainButton secondary label="Report listing" onPress={()=>{setReportFor({userId:r.owner_id,source:'listing '+r.id});setReportDetails('');}}/>
+       {!blocked.includes(r.owner_id)?<MainButton secondary label="Block hirer" onPress={()=>blockUser(r.owner_id)}/>:null}
+      </View>
       {applied?<><Text style={s.status}>Application: {applied.status}</Text>
        <View style={s.actions}><MainButton secondary label="Messages" onPress={()=>setThreadId(applied.id)}/>
        {['applied','shortlisted','accepted'].includes(applied.status)?<MainButton secondary label="Withdraw" onPress={()=>changeApplication(applied.id,'withdrawn')}/>:null}</View></>:
@@ -366,6 +412,8 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
      {p.about?<Text style={s.detail}>{p.about}</Text>:null}
      <MainButton secondary label={saved.includes(p.user_id)?'Remove from My Crew':'Save to My Crew'}
       onPress={()=>toggleSaved(p.user_id)}/>
+     <MainButton secondary label="Report profile" onPress={()=>{setReportFor({userId:p.user_id,source:'profile'});setReportDetails('');}}/>
+     {!blocked.includes(p.user_id)?<MainButton secondary label="Block user" onPress={()=>blockUser(p.user_id)}/>:null}
     </View>)}
    </>:null}
    {!loading&&tab==='saved'&&viewerRole==='tradesperson'?<>
@@ -421,7 +469,7 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
    </>:null}
    </>}
    <View style={s.footer}><ShieldCheck size={19} color={C.teal}/>
-    <Text style={[s.muted,{flex:1}]}>Crew makes introductions, not employment offers. Hirers must check suitability, contracts, lawful pay, insurance and site safety. Report suspicious requests through Tradarr Support.</Text>
+    <Text style={[s.muted,{flex:1}]}>Crew makes introductions, not employment offers. Hirers must check suitability, contracts, lawful pay, insurance and site safety. Use Report listing/profile to flag concerns; you can also block users.</Text>
    </View>
   </ScrollView>
  </KeyboardAvoidingView>;
