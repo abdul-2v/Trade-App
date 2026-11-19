@@ -908,7 +908,9 @@ function TradarrApp() {
       <TradarrAccountSafetyScreen goBack={() => navigateTrade('tradeProfile')}/>
     </TradeShell>;
     if (tradeScreen === 'tradeStaff') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
-      <TradarrAdminGateway goBack={() => navigateTrade('tradeProfile')}/>
+      <TradarrAdminGateway goBack={() => navigateTrade('tradeProfile')}
+        goToCustomer={() => {setMode('customer');setCustomerScreen('home');}}
+        goToTradesperson={() => {setMode('tradesperson');setTradeScreen('tradeHome');}}/>
     </TradeShell>;
     if (tradeScreen === 'tradeHours') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeWorkingHoursScreen goBack={() => navigateTrade('tradeTools')}/>
@@ -1210,7 +1212,9 @@ function TradarrApp() {
   }
   if (customerScreen === 'staffConsole') {
     return <CustomerShell current="customerProfile" navigate={setCustomerScreen}>
-      <TradarrAdminGateway goBack={() => setCustomerScreen('customerProfile')}/>
+      <TradarrAdminGateway goBack={() => setCustomerScreen('customerProfile')}
+        goToCustomer={() => {setMode('customer');setCustomerScreen('home');}}
+        goToTradesperson={() => {setMode('tradesperson');setTradeScreen('tradeHome');}}/>
     </CustomerShell>;
   }
   if (customerScreen === 'myHome') {
