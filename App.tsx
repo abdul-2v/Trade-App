@@ -6352,7 +6352,7 @@ function TradeHomeScreen({
 
       if (!user || !active) return;
 
-      const [{ data: person }, { data: availability }, { data: tradeProfile }, { data: mapPresence }] = await Promise.all([
+      const [{ data: person }, { data: availability }, { data: tradeProfile }, { data: mapPresence }, { data: workingHours }] = await Promise.all([
         supabase.from('profiles').select('first_name').eq('id', user.id).single(),
         supabase
           .from('trade_availability')
@@ -6368,6 +6368,8 @@ function TradeHomeScreen({
           .select('latitude, longitude, source_mode, updated_at')
           .eq('user_id', user.id)
           .maybeSingle(),
+        supabase.from('trade_working_hours').select('weekday,enabled')
+          .eq('tradesperson_id',user.id),
       ]);
 
       if (!active) return;
@@ -6415,6 +6417,7 @@ function TradeHomeScreen({
           Boolean(tradeProfile.avatar_url),
           Boolean(tradeProfile.bio?.trim()),
           Boolean(availability?.work_area_latitude != null && availability?.work_area_longitude != null),
+          Boolean(workingHours?.some(entry=>entry.enabled)),
         ];
         setProfileCompletion(Math.round((checks.filter(Boolean).length / checks.length) * 100));
       }
