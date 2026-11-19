@@ -12,7 +12,7 @@
 
 **Google Routes API:** A server-side `GOOGLE_ROUTES_API_KEY` Supabase Edge Function secret is required. Before setting it, activate billing, enable the Google Routes API and set a conservative daily quota and billing alerts in Google Cloud. Do **not** put this credential into `App.tsx`, `.env` with `EXPO_PUBLIC_`, or a mobile API bundle. Without this secret, the route preview deliberately reports that the service is not configured; existing Google Maps navigation links still work.
 
-Google may charge for traffic-aware and optimized route queries. Both the direct and via-stop journeys may need separate requests. Keep road-preview requests user-initiated while pricing and safeguards are validated. Public Overpass endpoints remain best-effort; do not promise guaranteed coverage of every town or merchant.
+Google may charge for traffic-aware and optimized route queries. Both the direct and via-stop journeys may need separate requests. The edge service enforces a **service-only, database-backed quota of one preview per trader per minute, at most 20 per UTC day**, with no public access to the counters. Set a separate absolute project-wide Google Cloud quota because many registered traders could still generate substantial billable requests. Public Overpass endpoints remain best-effort; do not promise guaranteed coverage of every town or merchant.
 
 ## Physical-device acceptance: NOT yet signed off
 
