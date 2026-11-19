@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
@@ -34,6 +34,28 @@ const ALL_TRADES: TradeName[] = ['Plumber', 'Electrician', 'Builder', 'Heating',
 const PLUMBING: TradeName[] = ['Plumber', 'Heating'];
 const BUILDING: TradeName[] = ['Builder', 'Roofer', 'Carpenter'];
 const STORE_CACHE = new Map<string, { expires: number; stores: Supplier[] }>();
+const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?(?:\d[A-Z]{2})?$/;
+async function lookupUKArea(input: string): Promise<{point: Coordinates; label: string}> {
+  const compact = input.toUpperCase().replace(/\s+/g, '');
+  if (!UK_POSTCODE.test(compact)) throw new Error('Enter a UK postcode or district, such as LE1 or B1 1AA.');
+  const full = /\d[A-Z]{2}$/.test(compact);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9000);
+  try {
+    const response = await fetch('https://api.postcodes.io/' + (full ? 'postcodes/' : 'outcodes/') +
+      encodeURIComponent(compact), {signal: controller.signal});
+    const data = await response.json();
+    if (!response.ok || !data?.result ||
+      !Number.isFinite(Number(data.result.latitude)) || !Number.isFinite(Number(data.result.longitude))) {
+      throw new Error('Could not locate that postcode. Check it and try again.');
+    }
+    return {point: {latitude: Number(data.result.latitude), longitude: Number(data.result.longitude)},
+      label: String(data.result.outcode || compact.slice(0, -3)).toUpperCase()};
+  } catch (error: any) {
+    if (error?.name === 'AbortError') throw new Error('Postcode search timed out. Try again.');
+    throw error;
+  } finally {clearTimeout(timeout);}
+}
 
 // Real, verified Leicester merchants are ready instantly, even if the public
 // Overpass endpoint is slow or unavailable. Pins are postcode-centre approximations.
@@ -206,37 +228,35 @@ async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<
   // Public Overpass is best-effort, not a production guaranteed live service.
   // Use one maintained endpoint, with an absolute deadline even on devices where
   // AbortController does not reliably stop a React Native fetch.
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | null = null;
   const query = overpassQuery(centre, radiusMiles);
-  const url = 'https://overpass.private.coffee/api/interpreter';
-
-  try {
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new Error('Merchant lookup timed out.'));
-      }, 13500);
-    });
-    const request = fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: 'data=' + encodeURIComponent(query),
-      signal: controller.signal,
-    }).then(async response => {
-      if (!response.ok) throw new Error('Merchant lookup unavailable (' + response.status + ').');
+  // Public OSM endpoints are best effort. Retry a different operator on timeout or rate limit.
+  // Keep each request bounded so a trader outside Leicester never sees a permanent spinner.
+  let lastError: Error = new Error('Merchant lookup unavailable.');
+  for (const endpoint of ['https://overpass.private.coffee/api/interpreter',
+                           'https://overpass.kumi.systems/api/interpreter']) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8500);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: 'data=' + encodeURIComponent(query),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('Merchant map server returned ' + response.status);
       const data = await response.json() as { elements?: OsmElement[]; remark?: string };
-      if (data.remark) throw new Error('Merchant lookup returned an incomplete result.');
-      if (!Array.isArray(data.elements)) throw new Error('Invalid merchant map data.');
-      return convertResults(data.elements, centre, radiusMiles);
-    });
-    const result = await Promise.race([request, deadline]);
-    STORE_CACHE.set(key, { stores: result, expires: Date.now() + 15 * 60 * 1000 });
-    return result;
-  } finally {
-    if (timer) clearTimeout(timer);
-    controller.abort();
+      if (data.remark || !Array.isArray(data.elements)) throw new Error('Merchant map returned incomplete data.');
+      const result = convertResults(data.elements, centre, radiusMiles);
+      STORE_CACHE.set(key, {stores: result, expires: Date.now() + 15 * 60 * 1000});
+      return result;
+    } catch (error: any) {
+      lastError = error instanceof Error ? error : new Error('Merchant lookup failed.');
+    } finally {
+      clearTimeout(timeout);
+      controller.abort();
+    }
   }
+  throw lastError;
 }
 
 // The map stays mounted during filtering, preserving the user's zoom and position.
@@ -360,8 +380,9 @@ function draw(){
  var bounds=map.getBounds().pad(.18);
  shops.forEach(function(shop){
   if(!bounds.contains([shop.lat,shop.lng]))return;
-  var p=map.latLngToContainerPoint([shop.lat,shop.lng]);
-  var spacing=zoom>=14?0:zoom>=12.7?44:57;
+  var p=map.project([shop.lat,shop.lng],zoom);
+  // World-pixel buckets remain stable while panning; selected pins always open individually.
+  var spacing=(zoom>=15||shop.id===selectedShopId)?0:zoom>=13.5?44:zoom>=12.7?56:76;
   var key=spacing?Math.floor(p.x/spacing)+':'+Math.floor(p.y/spacing):shop.id;
   if(!buckets[key])buckets[key]=[];
   buckets[key].push(shop);
@@ -430,7 +451,7 @@ window.focusSupplier=function(lat,lng){
   // clustered or hid the selected supplier behind the lower info panel.
   // Keep the selected shop as the camera's focal point, at a zoom that
   // displays individual pins, comfortably above the bottom sheet.
-  var focusZoom=Math.max(15.1,map.getZoom());
+  var focusZoom=Math.max(15.4,map.getZoom());
   var screen=map.getSize();
   var targetPoint=map.project([lat,lng],focusZoom);
   var safeTop=Math.max(125,Math.min(screen.y*.38,screen.y-275));
@@ -486,6 +507,25 @@ export default function TradeSuppliersMap() {
   const [problem, setProblem] = useState<string | null>(null);
   const [sourceNote, setSourceNote] = useState('');
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const [postcodeInput, setPostcodeInput] = useState('');
+  const [postcodeBusy, setPostcodeBusy] = useState(false);
+  const [postcodeError, setPostcodeError] = useState('');
+  const [manualArea, setManualArea] = useState<Coordinates | null>(null);
+  const manualAreaActive = useRef(false);
+  const searchPostcode = async () => {
+    if (postcodeBusy) return;
+    setPostcodeBusy(true); setPostcodeError('');
+    try {
+      const result = await lookupUKArea(postcodeInput);
+      manualAreaActive.current = true;
+      setManualArea(result.point);
+      setCentre(result.point);
+      setSelected(null);
+      setPositionName('Searching near ' + result.label + ' · postcode area');
+    } catch (error: any) {
+      setPostcodeError(error?.message || 'Could not search that postcode.');
+    } finally {setPostcodeBusy(false);}
+  };
 
   useEffect(() => {
     let active = true;
@@ -498,7 +538,7 @@ export default function TradeSuppliersMap() {
       setGpsPosition(next);
       setGpsAccuracy(position.coords.accuracy ?? null);
       setGpsState('ready');
-      if (changeMapArea || haversine(queryOrigin, next) > 2.5) {
+      if (!manualAreaActive.current && (changeMapArea || haversine(queryOrigin, next) > 2.5)) {
         queryOrigin = next;
         setCentre(next);
         setPositionName('Near your current location');
@@ -611,8 +651,8 @@ export default function TradeSuppliersMap() {
     return () => { active = false; };
   }, [positionReady, centre.latitude, centre.longitude, radius, refreshIndex]);
 
-  const referencePosition = gpsPosition || centre;
-  const usingGps = gpsState === 'ready' && !!gpsPosition;
+  const referencePosition = manualArea || gpsPosition || centre;
+  const usingGps = !manualArea && gpsState === 'ready' && !!gpsPosition;
   const visible = useMemo(() => shops
     .filter(shop => {
       if (filter === 'all') return true;
@@ -669,6 +709,9 @@ export default function TradeSuppliersMap() {
 
   const centreOnMyLocation = async () => {
     try {
+      manualAreaActive.current = false;
+      setManualArea(null);
+      setPostcodeError('');
       let permission = await Location.getForegroundPermissionsAsync();
       if (!permission.granted && !permission.canAskAgain) {
         await Linking.openSettings();
@@ -753,6 +796,28 @@ export default function TradeSuppliersMap() {
             </MotionPressable>
           ))}
         </ScrollView>
+        <View style={S.areaSearch}>
+          <TextInput
+            value={postcodeInput}
+            onChangeText={setPostcodeInput}
+            onSubmitEditing={() => { void searchPostcode(); }}
+            placeholder="Find merchants by UK postcode, e.g. B1 1AA"
+            placeholderTextColor="#B1C6C6"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="search"
+            style={S.areaInput}
+            accessibilityLabel="Search trade merchants by UK postcode"
+          />
+          <MotionPressable
+            onPress={() => { void searchPostcode(); }}
+            disabled={postcodeBusy || !postcodeInput.trim()}
+            style={S.areaButton} accessibilityRole="button"
+            accessibilityLabel="Search postcode">
+            {postcodeBusy ? <ActivityIndicator size="small" color={LIGHT}/> : <Text style={S.areaButtonText}>Search</Text>}
+          </MotionPressable>
+        </View>
+        {postcodeError ? <Text style={S.areaError}>{postcodeError}</Text> : null}
       </View>
       <View style={S.mapArea}>
         <MapWebView
@@ -773,7 +838,7 @@ export default function TradeSuppliersMap() {
         />
         <View pointerEvents="none" style={S.locationLegend}>
           <View style={usingGps ? S.youDot : S.workDot} />
-          <Text style={S.legendText}>{savedWorkArea ? 'Work area' : usingGps ? 'My location' : 'Leicester area'}</Text>
+          <Text style={S.legendText}>{manualArea ? 'Searched area' : usingGps ? 'My location' : savedWorkArea ? 'Work area' : 'Leicester area'}</Text>
         </View>
         <MotionPressable
           style={S.recenterButton}
@@ -816,7 +881,7 @@ export default function TradeSuppliersMap() {
                 <View style={{ flex: 1 }}>
                   <Text style={S.storeTitle} numberOfLines={2}>{selected.name}</Text>
                   <Text style={S.storeMeta}>
-                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
+                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {manualArea ? 'from searched postcode' : usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
                   </Text>
                 </View>
                 <MotionPressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></MotionPressable>
@@ -840,7 +905,7 @@ export default function TradeSuppliersMap() {
               <View style={S.panelHeaderRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={S.panelTitle}>Closest {primaryTrade ? primaryTrade.toLowerCase() + ' suppliers' : 'trade suppliers'}</Text>
-                  <Text style={S.panelHint}>{usingGps ? 'Nearest to your location' : 'Nearest to ' + (savedWorkArea ? 'your work area' : 'Leicester')} · straight-line miles</Text>
+                  <Text style={S.panelHint}>{usingGps ? 'Nearest to your location' : 'Nearest to ' + (manualArea ? 'searched postcode' : savedWorkArea ? 'your work area' : 'Leicester')} · straight-line miles</Text>
                 </View>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow} style={S.nearbyScroll}>
@@ -884,6 +949,13 @@ const S = StyleSheet.create({
   chipActive: { backgroundColor: theme.colors.white, borderColor: theme.colors.white },
   chipText: { color: '#ECF4F2', fontSize: 12, fontWeight: '700' },
   chipTextActive: { color: theme.colors.ink },
+  areaSearch:{flexDirection:'row',alignItems:'center',marginTop:11,gap:7},
+  areaInput:{flex:1,minHeight:43,borderRadius:13,borderWidth:1,borderColor:'#627B7F',
+    backgroundColor:'#324A50',paddingHorizontal:12,color:'#FFFFFF',fontSize:12},
+  areaButton:{backgroundColor:theme.colors.coral,borderRadius:13,minWidth:69,minHeight:43,
+    justifyContent:'center',alignItems:'center',paddingHorizontal:10},
+  areaButtonText:{color:'#FFFFFF',fontSize:12,fontWeight:'900'},
+  areaError:{marginTop:5,color:'#FFE6D5',fontSize:11},
   mapArea: { flex: 1, backgroundColor: '#738E90', overflow: 'hidden' },
   webView: { flex: 1, backgroundColor: '#738E90' },
   counter: { position: 'absolute', top: 13, left: 14, borderRadius: 18, minHeight: 39, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687' },
