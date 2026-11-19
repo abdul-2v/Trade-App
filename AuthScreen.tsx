@@ -16,7 +16,7 @@ import { theme } from './theme';
 import { MotionPressable } from './Motion';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 
-type AccountType = 'customer' | 'tradesperson';
+type AccountType = 'customer' | 'tradesperson' | 'crew';
 
 const trades = ['Plumber', 'Electrician', 'Builder', 'Heating', 'Locksmith', 'Carpenter', 'Roofer'];
 
@@ -32,6 +32,7 @@ const normaliseUkMobile = (value: string) => {
 export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (email: string) => void }) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'verify'>('signup');
   const [accountType, setAccountType] = useState<AccountType>('customer');
+  const [crewAdultConfirmed,setCrewAdultConfirmed]=useState(false);
   const [primaryTrade, setPrimaryTrade] = useState('Plumber');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -100,6 +101,11 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
 
     if (password !== confirmPassword) {
       Alert.alert('Passwords do not match', 'Enter the same password in both password fields.');
+      return;
+    }
+
+    if (accountType === 'crew' && !crewAdultConfirmed) {
+      Alert.alert('Age confirmation required','Crew is currently available to people aged 18 or over.');
       return;
     }
 
@@ -232,7 +238,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
 
           <Text style={styles.sub}>
             {mode === 'signup'
-              ? 'Find trusted tradespeople or join as a trade professional.'
+              ? 'Find a tradesperson, run your trade business or join a local Crew.'
               : mode === 'verify'
                 ? `Confirm the verification email sent to ${pendingEmail}.`
                 : 'Sign in to continue to Tradarr.'}
@@ -295,7 +301,27 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                     Tradesperson
                   </Text>
                 </MotionPressable>
+                <MotionPressable
+                  style={[styles.segmentButton, accountType === 'crew' && styles.segmentActive]}
+                  onPress={() => setAccountType('crew')}
+                  accessibilityRole="button" accessibilityLabel="Join as Crew helper or apprentice"
+                >
+                  <Text style={[styles.segmentText, accountType === 'crew' && styles.segmentTextActive]}>
+                    Crew
+                  </Text>
+                </MotionPressable>
               </View>
+              {accountType === 'crew' ? <>
+                <Text style={styles.crewHint}>Looking for work as a helper, mate or apprentice? This account is for finding opportunities and will not create a public tradesperson listing.</Text>
+                <MotionPressable style={styles.termsRow} accessibilityRole="checkbox"
+                  accessibilityState={{checked:crewAdultConfirmed}}
+                  onPress={()=>setCrewAdultConfirmed(v=>!v)}>
+                  <View style={[styles.checkbox,crewAdultConfirmed&&styles.checkboxActive]}>
+                    {crewAdultConfirmed?<Text style={styles.checkboxTick}>✓</Text>:null}
+                  </View>
+                  <Text style={styles.termsText}>I confirm I am at least 18 years old.</Text>
+                </MotionPressable>
+              </> : null}
 
               {accountType === 'tradesperson' ? (
                 <>
@@ -476,7 +502,8 @@ const styles = StyleSheet.create({
   segment: { flexDirection: 'row', backgroundColor: '#EAE7E0', borderRadius: 21, padding: 5, marginBottom: 6 },
   segmentButton: { flex: 1, minHeight: 49, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   segmentActive: { backgroundColor: theme.colors.darkTeal },
-  segmentText: { color: theme.colors.muted, fontSize: 14, fontWeight: '800' },
+  segmentText: { color: theme.colors.muted, fontSize: 12, fontWeight: '800' },
+  crewHint: {fontSize:12,lineHeight:19,color:theme.colors.muted,marginTop:12,marginBottom:3},
   segmentTextActive: { color: '#FFFFFF' },
   tradeRow: { paddingRight: 15, paddingVertical: 2 },
   tradeChip: { paddingHorizontal: 15, paddingVertical: 12, backgroundColor: '#FFFFFF', borderRadius: 21, marginRight: 8 },
