@@ -40,8 +40,8 @@ function MainButton({label,onPress,disabled=false,secondary=false}:{label:string
  <Text style={[s.actionText,secondary&&{color:C.teal}]}>{label}</Text>
  </MotionPressable>;
 }
-export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
- const [tab,setTab]=useState<Tab>('hire');
+export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{goBack:()=>void;viewerRole?:'tradesperson'|'crew'}){
+ const [tab,setTab]=useState<Tab>(viewerRole==='crew'?'work':'hire');
  const [uid,setUid]=useState('');
  const [loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(false);
@@ -199,10 +199,10 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
   if(e)throw e;
   setMessageDraft('');await loadMessages(threadId);
  });
- const tabItems:{key:Tab;label:string}[]=[
-  {key:'hire',label:'Hire'},{key:'work',label:'Find work'},{key:'people',label:'People'},
-  {key:'saved',label:'My Crew'},{key:'profile',label:'My profile'}
- ];
+ const tabItems:{key:Tab;label:string}[]=viewerRole==='crew'?
+  [{key:'work',label:'Find work'},{key:'profile',label:'My profile'}]:
+  [{key:'hire',label:'Hire'},{key:'work',label:'Find work'},{key:'people',label:'People'},
+   {key:'saved',label:'My Crew'},{key:'profile',label:'My profile'}];
  const thread=applications.find(x=>x.id===threadId);
  const threadRequest=requests.find(x=>x.id===thread?.request_id);
 
@@ -210,10 +210,10 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
   <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}
    showsVerticalScrollIndicator={false}>
    <View style={s.header}>
-    <MotionPressable accessibilityRole="button" accessibilityLabel="Back to Tools" onPress={goBack} style={s.back}>
+    <MotionPressable accessibilityRole="button" accessibilityLabel={viewerRole==='crew'?'Sign out':'Back to Tools'} onPress={goBack} style={s.back}>
      <ArrowLeft color={C.ink} size={22}/></MotionPressable>
     <View style={{flex:1}}><Text style={s.eyebrow}>TRADARR FOR TRADES</Text><Text style={s.title}>Crew</Text>
-     <Text style={s.subtitle}>Find a hand. Build your team.</Text></View>
+     <Text style={s.subtitle}>{viewerRole==='crew'?'Find local work. Grow your skills.':'Find a hand. Build your team.'}</Text></View>
     <MotionPressable accessibilityRole="button" accessibilityLabel="Refresh Crew" onPress={()=>void refresh()} style={s.back}>
      <RefreshCw color={C.teal} size={20}/></MotionPressable>
    </View>
@@ -241,7 +241,7 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
    </ScrollView>
    {error?<View style={[s.card,{borderColor:'#EAB6A3'}]}><Text style={{color:'#9A3F20'}}>{error}</Text></View>:null}
    {loading?<ActivityIndicator style={{marginTop:60}} color={C.teal}/>:null}
-   {!loading&&tab==='hire'?<>
+   {!loading&&tab==='hire'&&viewerRole==='tradesperson'?<>
     <View style={s.hero}>
      <Users size={29} color="#C6DDD5"/><Text style={s.heroTitle}>Need an extra pair of hands?</Text>
      <Text style={s.heroText}>Post paid opportunities for site helpers, experienced mates or future apprentices.</Text>
@@ -308,6 +308,7 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
     {!myProfile?<View style={s.card}><Text style={s.cardTitle}>Create your Crew profile</Text>
       <Text style={s.muted}>Show the skills and experience you can offer to other tradespeople.</Text>
       <MainButton label="Set up my profile" onPress={()=>setTab('profile')}/></View>:null}
+    <Field label="Search by trade or town" value={search} onChange={setSearch} placeholder="Plumbing, Leicester…"/>
     {activeRequests.filter(r=>(r.title+' '+r.trade+' '+r.area_label).toLowerCase().includes(search.toLowerCase())).map(r=>{
      const applied=applications.find(a=>a.request_id===r.id&&a.worker_id===uid);
      return <View key={r.id} style={s.card}>
@@ -332,7 +333,6 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
         else setApplicationFor(r.id);}}/>}
      </View>;
     })}
-    <Field label="Search by trade or town" value={search} onChange={setSearch} placeholder="Plumbing, Leicester…"/>
     {!activeRequests.length?<Text style={s.muted}>No live Crew opportunities yet. Check back as tradespeople begin posting.</Text>:null}
     <Text style={s.sectionTitle}>My applications ({myApplications.length})</Text>
     {myApplications.map(a=><View key={a.id} style={s.card}>
@@ -341,7 +341,7 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
       <MainButton secondary label="View messages" onPress={()=>setThreadId(a.id)}/>
     </View>)}
    </>:null}
-   {!loading&&tab==='people'?<>
+   {!loading&&tab==='people'&&viewerRole==='tradesperson'?<>
     <Text style={s.sectionTitle}>Available Crew</Text>
     <Text style={[s.muted,{marginBottom:14}]}>Only people who choose to be visible appear here. These are self-described skills, not verified qualifications.</Text>
     {!profiles.filter(p=>p.user_id!==uid).length?<Text style={s.muted}>No public Crew profiles yet.</Text>:null}
@@ -355,7 +355,7 @@ export default function TradarrCrewScreen({goBack}:{goBack:()=>void}){
       onPress={()=>toggleSaved(p.user_id)}/>
     </View>)}
    </>:null}
-   {!loading&&tab==='saved'?<>
+   {!loading&&tab==='saved'&&viewerRole==='tradesperson'?<>
     <Text style={s.sectionTitle}>My Crew</Text>
     <Text style={[s.muted,{marginBottom:14}]}>Keep trusted helpers in one place. Saving someone does not mean they have accepted future work.</Text>
     {!saved.length?<Text style={s.muted}>Nobody saved yet. Visit People to add your first crew member.</Text>:null}
