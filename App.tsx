@@ -10,6 +10,7 @@ import TradeDiaryScreen from './TradeDiaryScreen';
 import TradeProfitScreen from './TradeProfitScreen';
 import TradeMaterialsScreen from './TradeMaterialsScreen';
 import CustomerQuotesScreen from './CustomerQuotesScreen';
+import CustomerInvoicesScreen from './CustomerInvoicesScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
 import TradeGridScreen from './TradeGridScreen';
@@ -105,6 +106,7 @@ type CustomerScreen =
   | 'requests'
   | 'requestDetail'
   | 'customerQuotes'
+  | 'customerInvoices'
   | 'myHome'
   | 'grid'
   | 'oneJob'
@@ -1115,6 +1117,12 @@ export default function App() {
   if (customerScreen === 'customerQuotes') {
     return <CustomerShell current="requests" navigate={setCustomerScreen}>
       <CustomerQuotesScreen goBack={() => setCustomerScreen('requests')}
+        openActivity={() => setCustomerScreen('requests')}/>
+    </CustomerShell>;
+  }
+  if (customerScreen === 'customerInvoices') {
+    return <CustomerShell current="requests" navigate={setCustomerScreen}>
+      <CustomerInvoicesScreen goBack={() => setCustomerScreen('requests')}
         openActivity={() => setCustomerScreen('requests')}/>
     </CustomerShell>;
   }
@@ -4846,6 +4854,13 @@ function RequestsScreen({
             <View style={styles.customerActivityQuoteIcon}><FileText size={22} color={theme.colors.teal}/></View>
             <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>Quote Centre</Text>
               <Text style={styles.customerActivityQuoteSub}>Review, compare and accept proposals</Text></View>
+            <ChevronRight size={20} color={theme.colors.teal}/>
+          </MotionPressable>
+          <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('customerInvoices')}
+            accessibilityRole="button" accessibilityLabel="View issued invoices and receipts">
+            <View style={styles.customerActivityQuoteIcon}><FileText size={22} color={theme.colors.teal}/></View>
+            <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>Invoices</Text>
+              <Text style={styles.customerActivityQuoteSub}>Issued invoices, payment status and PDFs</Text></View>
             <ChevronRight size={20} color={theme.colors.teal}/>
           </MotionPressable>
           <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('myHome')}
