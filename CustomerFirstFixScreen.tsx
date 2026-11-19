@@ -125,7 +125,7 @@ export default function CustomerFirstFixScreen({goBack,onUseBrief}:{goBack:()=>v
    <ArrowLeft size={22} color={C.ink}/></MotionPressable>
   <View style={{flex:1}}><Text style={s.eyebrow}>FIRSTFIX</Text><Text style={s.heading}>{selected?'Repair brief':creating?'Prepare a repair':'Arrive ready'}</Text></View></View>
   {busy?<ActivityIndicator size="large" color={C.teal} style={{marginTop:60}}/>:
-   <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+   <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
    {!selected&&!creating?<><View style={s.hero}><Camera size={27} color="#D1E6E2"/>
      <Text style={s.heroTitle}>Help your tradesperson prepare before arriving.</Text>
      <Text style={s.heroText}>Create a proper repair brief with symptoms, model details and private photos. Fewer surprises, clearer enquiries.</Text>
