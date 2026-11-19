@@ -8191,7 +8191,7 @@ function TradeSettingsScreen({
     }
   };
   // Presentation-only subpages. All saved profile/location logic remains unchanged.
-  const [profilePage, setProfilePage] = useState<'overview' | 'edit' | 'account' | 'preview'>('overview');
+  const [profilePage, setProfilePage] = useState<'overview' | 'setup' | 'edit' | 'account' | 'preview'>('overview');
   const profileSteps = [
     !!displayName.trim() && displayName !== 'Your trade profile',
     customerCategoryOrder.includes(primaryTrade as TradeCategory),
@@ -8202,7 +8202,16 @@ function TradeSettingsScreen({
   ];
   const completedProfileSteps = profileSteps.filter(Boolean).length;
   const profileProgress = Math.round(completedProfileSteps / profileSteps.length * 100);
-
+  // Same six checks as the percentage. Show the exact unfinished tasks,
+  // rather than sending everyone back to the generic edit form.
+  const missingProfileStepLabels = [
+    !profileSteps[0] ? 'Business / display name' : null,
+    !profileSteps[1] ? 'Main trade' : null,
+    !profileSteps[2] ? 'Profile photo' : null,
+    !profileSteps[3] ? 'Business bio' : null,
+    !profileSteps[4] ? 'Service area' : null,
+    !profileSteps[5] ? 'Working hours' : null,
+  ].filter((x):x is string=>Boolean(x));
 
   useEffect(() => {
     let active = true;
@@ -8581,12 +8590,26 @@ function TradeSettingsScreen({
                 </View>
               </View>
             </View>
+            <MotionPressable style={styles.tradeViewSwitchCard}
+              onPress={switchToCustomer} accessibilityRole="button"
+              accessibilityLabel="Switch to customer view using this signed-in account">
+              <View style={styles.tradeViewSwitchIcon}><UserRound color={theme.colors.teal} size={23}/></View>
+              <View style={{flex:1}}>
+                <Text style={styles.tradeViewSwitchTitle}>Switch to customer view</Text>
+                <Text style={styles.tradeViewSwitchSub}>Same login · your business account stays intact</Text>
+              </View>
+              <ArrowRight size={20} color={theme.colors.teal}/>
+            </MotionPressable>
             <View style={styles.premiumProfileChecklist}>
               <View style={styles.premiumProfileProgressRow}>
                 <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileProgress}%</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumProgressTitle}>Complete your profile</Text>
-                  <Text style={styles.premiumProgressSub}>{completedProfileSteps} of {profileSteps.length} steps done</Text>
+                  <Text style={styles.premiumProgressTitle}>
+                    {profileProgress===100?'Your profile setup is complete':'Complete your profile'}
+                  </Text>
+                  <Text style={styles.premiumProgressSub}>{completedProfileSteps} of {profileSteps.length} steps done
+                    {missingProfileStepLabels.length?' · '+missingProfileStepLabels.length+' remaining':''}
+                  </Text>
                 </View>
               </View>
               <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('edit')}>
@@ -8650,9 +8673,11 @@ function TradeSettingsScreen({
                 </View>
                 <ChevronRight size={20} color={theme.colors.muted}/>
               </MotionPressable>
-              <MotionPressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('edit')}
-                accessibilityRole="button" accessibilityLabel="Complete profile setup">
-                <Text style={styles.premiumPrimaryText}>Complete setup</Text>
+              <MotionPressable style={styles.premiumPrimaryButton} onPress={() => setProfilePage('setup')}
+                accessibilityRole="button" accessibilityLabel="See exactly what is left to complete">
+                <Text style={styles.premiumPrimaryText}>
+                  {profileProgress===100?'Review your completed setup':'See what is left · '+missingProfileStepLabels.length+' to do'}
+                </Text>
               </MotionPressable>
             </View>
             <MotionPressable style={styles.premiumProfileCheckRow} onPress={() => setProfilePage('account')}
@@ -8769,28 +8794,166 @@ function TradeSettingsScreen({
 
 
           </>
+
+        ) : profilePage === 'setup' ? (
+          <>
+            <View style={styles.premiumProfileEditHeader}>
+              <MotionPressable style={styles.premiumBackButton} onPress={()=>setProfilePage('overview')}
+                accessibilityRole="button" accessibilityLabel="Back to profile">
+                <ArrowLeft size={22} color={theme.colors.ink}/>
+              </MotionPressable>
+              <Text style={styles.premiumProfileEditTitle}>Your setup checklist</Text>
+              <View style={{width:44}}/>
+            </View>
+            <View style={styles.tradeSetupSummary}>
+              <Text style={styles.tradeSetupEyebrow}>YOUR BUSINESS PROFILE</Text>
+              <Text style={styles.tradeSetupNumber}>{completedProfileSteps} / {profileSteps.length} complete</Text>
+              <Text style={styles.tradeSetupDetail}>
+                {missingProfileStepLabels.length
+                  ? 'Still to do: '+missingProfileStepLabels.join(', ')+'.'
+                  : 'All six setup steps are complete. You can update them any time.'}
+              </Text>
+            </View>
+            <Text style={styles.tradeSetupSectionHeading}>
+              {missingProfileStepLabels.length?'Finish these steps':'Your setup steps'}
+            </Text>
+            {[
+              {name:'Business / display name',hint:'How customers recognise your business',done:profileSteps[0],target:'edit'},
+              {name:'Choose your main trade',hint:'The type of work you do',done:profileSteps[1],target:'edit'},
+              {name:'Profile photograph',hint:'Help customers recognise you',done:profileSteps[2],target:'edit'},
+              {name:'About your business',hint:'Explain your services and experience',done:profileSteps[3],target:'edit'},
+              {name:'Service area',hint:'Where you take customer work',done:profileSteps[4],target:'account'},
+              {name:'Working hours',hint:'Times customers can request appointments',done:profileSteps[5],target:'hours'},
+            ].sort((a,b)=>Number(a.done)-Number(b.done)).map((step,index)=>
+              <MotionPressable key={step.name} style={styles.tradeSetupStep}
+                onPress={()=>step.target==='hours'?navigate('tradeHours'):setProfilePage(step.target as 'edit'|'account')}
+                accessibilityRole="button"
+                accessibilityLabel={(step.done?'Completed: ':'Complete: ')+step.name}>
+                <View style={[styles.tradeSetupStepIcon,step.done&&styles.tradeSetupStepDone]}>
+                  {step.done?<CheckCircle2 size={21} color={theme.colors.teal}/>
+                    :<Text style={styles.tradeSetupIndex}>{index+1}</Text>}
+                </View>
+                <View style={{flex:1,gap:3}}>
+                  <Text style={styles.tradeSetupStepName}>{step.name}</Text>
+                  <Text style={styles.tradeSetupStepHint}>{step.hint}</Text>
+                  <Text style={[styles.tradeSetupStepStatus,step.done&&{color:theme.colors.teal}]}>
+                    {step.done?'Completed':'Needs completing · tap to open'}
+                  </Text>
+                </View>
+                <ChevronRight size={21} color={theme.colors.teal}/>
+              </MotionPressable>
+            )}
+            <Text style={[styles.premiumProfileEditHint,{marginTop:10}]}>
+              Identity and insurance verification are separate reviews, not automatically counted as approved.
+            </Text>
+          </>
         ) : profilePage === 'preview' ? (
           <>
             <View style={styles.premiumProfileEditHeader}>
               <MotionPressable style={styles.premiumBackButton} onPress={() => setProfilePage('overview')}
                 accessibilityRole="button" accessibilityLabel="Back to profile">
-                <ArrowLeft size={22} color={theme.colors.ink} strokeWidth={2} />
+                <ArrowLeft size={22} color={theme.colors.ink}/>
               </MotionPressable>
-              <Text style={styles.premiumProfileEditTitle}>Public preview</Text>
-              <View style={{ width: 44 }} />
+              <Text style={styles.premiumProfileEditTitle}>Customer view preview</Text>
+              <View style={{width:44}}/>
             </View>
-            <View style={styles.premiumPhotoCard}>
-              {avatarUrl
-                ? <Image source={{ uri: avatarUrl }} style={styles.premiumProfileAvatar} />
-                : <View style={styles.premiumProfileAvatar}><Text style={styles.premiumProfileAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text></View>}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.premiumChecklistTitle}>{displayName}</Text>
-                <Text style={styles.premiumChecklistSubtitle}>{primaryTrade}</Text>
+            <View style={styles.tradePublicPreviewHeader}>
+              <Text style={styles.tradePublicPreviewEyebrow}>YOUR PUBLIC BUSINESS PROFILE</Text>
+              <View style={styles.tradePublicPreviewPerson}>
+                {avatarUrl
+                  ? <Image source={{uri:avatarUrl}} style={styles.tradePublicPreviewAvatar}/>
+                  : <View style={[styles.tradePublicPreviewAvatar,{alignItems:'center',justifyContent:'center',backgroundColor:'#396E6F'}]}>
+                    <Text style={{color:'#FFFFFF',fontSize:34,fontWeight:'900'}}>{displayName.charAt(0).toUpperCase()}</Text>
+                  </View>}
+                <View style={{flex:1,gap:6}}>
+                  <Text style={styles.tradePublicPreviewName}>{displayName}</Text>
+                  <Text style={styles.tradePublicPreviewTrade}>{primaryTrade}</Text>
+                  <View style={styles.tradePublicPreviewBadge}>
+                    <MapPin size={14} color="#D0ECE4"/>
+                    <Text style={{fontSize:11,fontWeight:'800',color:'#D0ECE4'}}>
+                      {workAreaSaved?(workAreaLabel||'Service area set'):'Service area not set'}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
-            {bio.trim() ? <Text style={styles.premiumProfileEditHint}>{bio}</Text> : null}
-            {publicPhone.trim() ? <Text style={styles.premiumProfileEditHint}>Contact: {publicPhone}</Text> : null}
-            <Text style={styles.premiumProfileEditHint}>Only saved details are visible to customers.</Text>
+            <View style={styles.tradePublicPreviewCard}>
+              <View style={styles.tradePublicPreviewCardTitle}>
+                <BriefcaseBusiness size={21} color={theme.colors.teal}/>
+                <Text style={styles.tradePublicPreviewSectionTitle}>About the business</Text>
+              </View>
+              <Text style={styles.tradePublicPreviewBody}>
+                {bio.trim()||'You have not added your business description yet. Tell customers what you specialise in.'}
+              </Text>
+              {!bio.trim()?<MotionPressable onPress={()=>setProfilePage('edit')}
+                accessibilityRole="button" style={styles.tradePublicPreviewEdit}>
+                <Text style={{color:theme.colors.teal,fontWeight:'800'}}>Add your description</Text>
+                <ArrowRight size={16} color={theme.colors.teal}/>
+              </MotionPressable>:null}
+            </View>
+            <View style={styles.tradePublicPreviewCard}>
+              <View style={styles.tradePublicPreviewCardTitle}>
+                <MapPin size={21} color={theme.colors.teal}/>
+                <Text style={styles.tradePublicPreviewSectionTitle}>Location & availability</Text>
+              </View>
+              <View style={styles.tradePublicPreviewDetailRow}>
+                <Text style={styles.tradePublicPreviewLabel}>Service area</Text>
+                <Text style={styles.tradePublicPreviewValue}>
+                  {workAreaSaved?(workAreaLabel||'Selected work area'):'Not yet selected'}
+                </Text>
+              </View>
+              <View style={styles.tradePublicPreviewDetailRow}>
+                <Text style={styles.tradePublicPreviewLabel}>Travel radius</Text>
+                <Text style={styles.tradePublicPreviewValue}>
+                  {workAreaSaved?serviceRadius+' miles':'Set your area first'}
+                </Text>
+              </View>
+              <View style={styles.tradePublicPreviewDetailRow}>
+                <Text style={styles.tradePublicPreviewLabel}>Working hours</Text>
+                <Text style={styles.tradePublicPreviewValue}>
+                  {workingHoursConfigured?'Hours set in your diary':'Not yet configured'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.tradePublicPreviewCard}>
+              <View style={styles.tradePublicPreviewCardTitle}>
+                <MessageCircle size={21} color={theme.colors.teal}/>
+                <Text style={styles.tradePublicPreviewSectionTitle}>Contact & enquiries</Text>
+              </View>
+              <Text style={styles.tradePublicPreviewBody}>
+                Customers can contact you through Tradarr after a suitable match.
+              </Text>
+              {publicPhone.trim()?
+                <View style={styles.tradePublicPreviewDetailRow}>
+                  <Text style={styles.tradePublicPreviewLabel}>Public phone</Text>
+                  <Text style={styles.tradePublicPreviewValue}>{publicPhone}</Text>
+                </View>:<Text style={styles.tradePublicPreviewBody}>No public phone number added.</Text>}
+              <View style={styles.tradePublicPreviewMockAction}>
+                <MessageCircle size={20} color="#FFFFFF"/>
+                <Text style={{color:'#FFFFFF',fontSize:15,fontWeight:'800'}}>Message / request work</Text>
+              </View>
+              <Text style={styles.tradePublicPreviewDisclaimer}>
+                Preview only — this does not send a request or guarantee that your account is currently bookable.
+              </Text>
+            </View>
+            <View style={styles.tradePublicPreviewCard}>
+              <View style={styles.tradePublicPreviewCardTitle}>
+                <ShieldCheck size={21} color={theme.colors.teal}/>
+                <Text style={styles.tradePublicPreviewSectionTitle}>Trust & verification</Text>
+              </View>
+              <Text style={styles.tradePublicPreviewBody}>
+                Identity, insurance and qualification badges only appear to customers when actually reviewed and approved.
+              </Text>
+              <MotionPressable onPress={()=>navigate('tradeTrust')} style={styles.tradePublicPreviewEdit}
+                accessibilityRole="button" accessibilityLabel="Manage verification evidence">
+                <Text style={{color:theme.colors.teal,fontWeight:'800'}}>Manage verification</Text>
+                <ArrowRight size={16} color={theme.colors.teal}/>
+              </MotionPressable>
+            </View>
+            <MotionPressable style={styles.premiumPrimaryButton} onPress={()=>setProfilePage('edit')}
+              accessibilityRole="button" accessibilityLabel="Edit your public trade profile">
+              <Text style={styles.premiumPrimaryText}>Edit public profile</Text>
+            </MotionPressable>
           </>
         ) : (
           <>
@@ -11006,6 +11169,48 @@ const styles = StyleSheet.create({
   premiumProfileHeroTrade: { color: '#D1E2E1', fontSize: 14, marginTop: 4 },
   premiumProfileHeroNote: { marginTop: 8, color: '#A7C5C4', fontSize: 12 },
   premiumProfileChecklist: { borderRadius: 30, backgroundColor: theme.colors.white, padding: 18, marginBottom: 22, ...theme.shadow },
+  tradeViewSwitchCard: {minHeight:66,borderRadius:22,backgroundColor:'#FFFFFF',marginBottom:16,
+    paddingHorizontal:16,paddingVertical:12,flexDirection:'row',alignItems:'center',gap:12,...theme.shadow},
+  tradeViewSwitchIcon: {width:42,height:42,borderRadius:14,backgroundColor:theme.colors.tealTint,
+    justifyContent:'center',alignItems:'center'},
+  tradeViewSwitchTitle: {fontSize:15,fontWeight:'900',color:theme.colors.ink},
+  tradeViewSwitchSub: {fontSize:11,color:theme.colors.muted,marginTop:4},
+  tradeSetupSummary: {backgroundColor:theme.colors.darkTeal,padding:20,borderRadius:26,marginBottom:20,gap:8},
+  tradeSetupEyebrow: {fontSize:11,color:'#BDE0D9',letterSpacing:1.1,fontWeight:'900'},
+  tradeSetupNumber: {fontSize:28,fontWeight:'900',color:'#FFFFFF'},
+  tradeSetupDetail: {fontSize:13,lineHeight:20,color:'#D2E8E4'},
+  tradeSetupSectionHeading: {color:theme.colors.ink,fontSize:19,fontWeight:'900',marginBottom:13},
+  tradeSetupStep: {backgroundColor:'#FFFFFF',borderRadius:19,padding:15,marginBottom:10,
+    flexDirection:'row',alignItems:'center',gap:11,...theme.shadow},
+  tradeSetupStepIcon: {width:43,height:43,borderRadius:15,backgroundColor:'#FFF0E8',
+    alignItems:'center',justifyContent:'center'},
+  tradeSetupStepDone: {backgroundColor:theme.colors.tealTint},
+  tradeSetupIndex: {fontWeight:'900',fontSize:15,color:theme.colors.coralDark},
+  tradeSetupStepName: {fontSize:15,fontWeight:'900',color:theme.colors.ink},
+  tradeSetupStepHint: {fontSize:12,lineHeight:18,color:theme.colors.muted},
+  tradeSetupStepStatus: {fontSize:11,fontWeight:'800',color:theme.colors.coralDark},
+  tradePublicPreviewHeader: {backgroundColor:theme.colors.darkTeal,borderRadius:28,padding:19,
+    marginBottom:14,...theme.shadow},
+  tradePublicPreviewEyebrow: {color:'#B6D6D0',fontSize:11,fontWeight:'900',letterSpacing:1.1,marginBottom:15},
+  tradePublicPreviewPerson: {flexDirection:'row',alignItems:'center',gap:14},
+  tradePublicPreviewAvatar: {width:86,height:86,borderRadius:43},
+  tradePublicPreviewName: {color:'#FFFFFF',fontSize:24,fontWeight:'900'},
+  tradePublicPreviewTrade: {color:'#D1E6E2',fontSize:14,fontWeight:'700'},
+  tradePublicPreviewBadge: {flexDirection:'row',alignItems:'center',gap:5,alignSelf:'flex-start',padding:6,
+    backgroundColor:'#315052',borderRadius:13,maxWidth:'100%'},
+  tradePublicPreviewCard: {backgroundColor:'#FFFFFF',borderRadius:23,padding:18,marginBottom:13,gap:12,...theme.shadow},
+  tradePublicPreviewCardTitle: {flexDirection:'row',alignItems:'center',gap:10},
+  tradePublicPreviewSectionTitle: {fontSize:17,fontWeight:'900',color:theme.colors.ink},
+  tradePublicPreviewBody: {fontSize:13,lineHeight:21,color:theme.colors.muted},
+  tradePublicPreviewDetailRow: {flexDirection:'row',justifyContent:'space-between',
+    alignItems:'flex-start',gap:10,paddingVertical:10,borderBottomWidth:1,borderColor:theme.colors.line},
+  tradePublicPreviewLabel: {fontSize:12,color:theme.colors.muted,flexShrink:1},
+  tradePublicPreviewValue: {fontSize:12,fontWeight:'800',color:theme.colors.ink,
+    flex:1,textAlign:'right'},
+  tradePublicPreviewMockAction: {minHeight:52,borderRadius:25,backgroundColor:theme.colors.darkTeal,
+    flexDirection:'row',gap:10,alignItems:'center',justifyContent:'center',opacity:.82},
+  tradePublicPreviewDisclaimer: {fontSize:11,lineHeight:18,color:theme.colors.muted},
+  tradePublicPreviewEdit: {paddingVertical:8,flexDirection:'row',alignItems:'center',gap:7,alignSelf:'flex-start'},
   premiumProfileProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 15 },
   premiumProfileCheckRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 17, borderTopWidth: 1, borderTopColor: theme.colors.line },
   premiumChecklistIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
