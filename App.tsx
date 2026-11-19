@@ -6196,14 +6196,9 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
  ];
  const quick=[
   {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Create a quote',detail:'Estimate a job'},
-  {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Create an invoice',detail:'Bill a customer'},
-  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add a booking',detail:'Plan an appointment'},
-  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Add a customer',detail:'Save contact details'}
+  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add a booking',detail:'Plan an appointment'}
  ];
  const sections=[
-  {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Quotes & estimates',detail:'Build quotes, share PDFs and convert to invoices'},
-  {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Invoices & payments',detail:'Create bills and track sent or paid invoices'},
-  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Job diary',detail:'Appointments, times and private bookings'},
   {route:'tradeHours' as TradeScreen,Icon:Clock3,title:'Working hours & availability',detail:'Publish bookable openings and weekly hours'},
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
@@ -6217,39 +6212,21 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
    <View style={styles.premiumScreenHeading}><View style={{flex:1}}>
     <Text style={styles.premiumEyebrow}>Run your business</Text>
     <Text style={styles.premiumPageTitle}>Tools</Text>
-    <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Quote work, manage customers and keep your diary organised.</Text>
+    <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Invoices, jobs and everything you need to run your business.</Text>
    </View></View>
-   <View style={{backgroundColor:theme.colors.darkTeal,borderRadius:24,padding:20,marginBottom:16,gap:7}}>
-     <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
-       <Sparkles size={24} color="#D0E4DC"/>
-       <Text style={{fontSize:19,fontWeight:'900',color:'#FFFFFF'}}>Your business toolkit</Text>
+   <Text style={styles.tradeToolsSectionTitle}>Your essentials</Text>
+   <MotionPressable onPress={()=>navigate('tradeInvoices')} accessibilityRole="button"
+     accessibilityLabel="Open invoices and payments" style={styles.tradeInvoiceHero}>
+     <View style={styles.tradeInvoiceHeroIcon}>
+       <ClipboardList size={27} color="#FFFFFF" strokeWidth={2.1}/>
      </View>
-     <Text style={{color:'#D3E4DC',fontSize:13,lineHeight:20}}>
-       Twelve tools to help find work, plan jobs, organise customers and run the business.
-     </Text>
-   </View>
-   {suiteGroups.map(group=><View key={group.title} style={{marginBottom:13}}>
-     <Text style={styles.tradeToolsSectionTitle}>{group.title}</Text>
-     <View style={styles.tradeToolsList}>
-       {group.tools.map(({id,title,detail,Icon},index)=><MotionPressable key={id}
-         onPress={()=>openBusinessSuite(id)} accessibilityRole="button"
-         accessibilityLabel={'Open '+title}
-         style={[styles.tradeToolsRow,index>0&&styles.tradeToolsRowDivider]}>
-         <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal} strokeWidth={2}/></View>
-         <View style={{flex:1}}><Text style={styles.tradeToolsRowTitle}>{title}</Text>
-           <Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
-         <ChevronRight size={20} color={theme.colors.teal}/>
-       </MotionPressable>)}
+     <View style={{flex:1,gap:5}}>
+       <Text style={styles.tradeInvoiceHeroEyebrow}>INVOICES & PAYMENTS</Text>
+       <Text style={styles.tradeInvoiceHeroTitle}>Get the paperwork done</Text>
+       <Text style={styles.tradeInvoiceHeroSub}>Create, share PDFs, and track what's sent and paid.</Text>
      </View>
-   </View>)}
-   <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
-   <View style={styles.tradeToolsGrid}>
-    {quick.map(({route,Icon,title,detail})=><MotionPressable key={route} style={styles.tradeToolsQuick}
-     onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={title}>
-      <View style={styles.tradeToolsQuickIcon}><Icon size={23} color={theme.colors.teal} strokeWidth={2}/></View>
-      <Text style={styles.tradeToolsQuickName}>{title}</Text><Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
-    </MotionPressable>)}
-   </View>
+     <ChevronRight size={25} color="#E6F3F0"/>
+   </MotionPressable>
    <MotionPressable onPress={()=>navigate('tradeCrew')} accessibilityRole="button"
       accessibilityLabel="Open Tradarr Crew" style={[styles.tradeToolsPowerCard,{width:'100%',minHeight:112,marginBottom:17,
       backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:14}]}>
@@ -6275,7 +6252,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        <Text style={styles.tradeToolsPowerText}>Plan what to buy, tick it off and find nearby merchants.</Text>
      </MotionPressable>
    </View>
-   <Text style={styles.tradeToolsSectionTitle}>Manage your business</Text>
+   <Text style={styles.tradeToolsSectionTitle}>More business essentials</Text>
    <View style={styles.tradeToolsList}>
     {sections.map(({route,Icon,title,detail},index)=><MotionPressable key={route}
      onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={'Open '+title}
@@ -10819,6 +10796,14 @@ const styles = StyleSheet.create({
   tradeEmptyCompact: { borderRadius: 28, backgroundColor: theme.colors.white, paddingVertical: 25, paddingHorizontal: 20, alignItems: 'center', marginBottom: 18, gap: 7, ...theme.shadow },
 
   // Premium pro UI – shared across the tradesperson tabs.
+  tradeInvoiceHero: { minHeight: 126, borderRadius: 24, backgroundColor: theme.colors.darkTeal,
+    padding: 18, flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 15,
+    ...theme.shadow },
+  tradeInvoiceHeroIcon: { width: 49, height: 49, backgroundColor: '#31595D',
+    borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tradeInvoiceHeroEyebrow: { color: '#B5DAD2', fontSize: 10, letterSpacing: 1.15, fontWeight: '900' },
+  tradeInvoiceHeroTitle: { color: theme.colors.white, fontSize: 19, lineHeight: 24, fontWeight: '900' },
+  tradeInvoiceHeroSub: { color: '#D3E7E1', fontSize: 12, lineHeight: 18 },
   tradeToolsPowerRow: {flexDirection:'row',justifyContent:'space-between',gap:11,marginBottom:25},
   tradeToolsPowerCard: {width:'48%',minHeight:172,borderRadius:23,padding:17,justifyContent:'space-between'},
   tradeToolsPowerTitle: {color:'#FFFFFF',fontSize:16,fontWeight:'800',marginTop:12,lineHeight:22},
