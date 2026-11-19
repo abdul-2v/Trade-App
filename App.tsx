@@ -27,6 +27,8 @@ import CustomerPriceLensScreen from './CustomerPriceLensScreen';
 import CustomerCollectiveScreen from './CustomerCollectiveScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
 import TradarrCrewScreen from './TradarrCrewScreen';
+import TradeBusinessSuiteScreen from './TradeBusinessSuiteScreen';
+import type {BusinessFeature} from './TradeBusinessSuiteScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
@@ -37,7 +39,7 @@ import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/job
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney } from './Motion';
-import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole } from 'lucide-react-native';
+import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -128,7 +130,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
 type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -575,6 +577,7 @@ export default function App() {
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
   const [homeBackScreen,setHomeBackScreen]=useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
+  const [businessFeature,setBusinessFeature]=useState<BusinessFeature>('radar');
   const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
   const [materialKitPreviewId,setMaterialKitPreviewId]=useState<string|null>(null);
   const [tradeJobsEntry, setTradeJobsEntry] = useState<TradeJobsEntry>({ view: 'offers', filter: 'all' });
@@ -872,6 +875,10 @@ export default function App() {
       <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
+    if (tradeScreen === 'tradeBusinessSuite') return <TradeShell current="tradeTools" navigate={navigateTrade}>
+      <TradeBusinessSuiteScreen feature={businessFeature} goBack={() => navigateTrade('tradeTools')}
+        openTool={screen => navigateTrade(screen as TradeScreen)} />
+    </TradeShell>;
     if (tradeScreen === 'tradeCrew') return <TradeShell current="tradeCrew" navigate={navigateTrade}>
       <TradarrCrewScreen viewerRole="tradesperson" goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
@@ -900,7 +907,8 @@ export default function App() {
     </TradeShell>;
     if (tradeScreen === 'tradeGrid') return <TradeShell current="tradeGrid" navigate={navigateTrade}>
       <TradeGridScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
-    if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade} />;
+    if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade}
+      openBusinessSuite={feature=>{setBusinessFeature(feature);navigateTrade('tradeBusinessSuite');}} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
@@ -6158,7 +6166,31 @@ function TradeShell({
   );
 }
 
-function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
+function TradeToolsScreen({navigate,openBusinessSuite}:{
+ navigate:(screen:TradeScreen)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
+}){
+ const suiteGroups=[
+  {title:'Find & organise work',tools:[
+   {id:'radar' as BusinessFeature,title:'Opportunity Radar',detail:'Find live matched opportunities',Icon:Radar},
+   {id:'smartDiary' as BusinessFeature,title:'Smart Diary',detail:'Find gaps and plan more work',Icon:CalendarClock},
+   {id:'commandCentre' as BusinessFeature,title:'Job Command Centre',detail:'Checklists for accepted jobs',Icon:ClipboardCheck}
+  ]},
+  {title:'Quotes & money',tools:[
+   {id:'quoteStudio' as BusinessFeature,title:'Smart Quote Studio',detail:'Scope templates and estimates',Icon:FileText},
+   {id:'moneyHub' as BusinessFeature,title:'Money Hub',detail:'Payments, costs and invoices',Icon:HandCoins},
+   {id:'documentVault' as BusinessFeature,title:'Document Vault',detail:'Private business files',Icon:FolderLock}
+  ]},
+  {title:'Customers & growth',tools:[
+   {id:'repeatEngine' as BusinessFeature,title:'Repeat Customer Engine',detail:'Keep service reminders',Icon:Repeat},
+   {id:'bookingProfile' as BusinessFeature,title:'Business Booking Profile',detail:'Prepare your shareable contact card',Icon:Globe},
+   {id:'growthKit' as BusinessFeature,title:'Growth Toolkit',detail:'Reusable customer messages',Icon:Megaphone}
+  ]},
+  {title:'People & smart tools',tools:[
+   {id:'crewOps' as BusinessFeature,title:'Crew Operations',detail:'Manage helper work hours',Icon:Users},
+   {id:'assistant' as BusinessFeature,title:'Business Assistant',detail:'Record-based suggestions',Icon:Bot},
+   {id:'insights' as BusinessFeature,title:'Business Insights',detail:'Real KPIs and opportunities',Icon:BarChart3}
+  ]}
+ ];
  const quick=[
   {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Create a quote',detail:'Estimate a job'},
   {route:'tradeInvoices' as TradeScreen,Icon:ClipboardList,title:'Create an invoice',detail:'Bill a customer'},
@@ -6184,6 +6216,29 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
     <Text style={styles.premiumPageTitle}>Tools</Text>
     <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Quote work, manage customers and keep your diary organised.</Text>
    </View></View>
+   <View style={{backgroundColor:theme.colors.darkTeal,borderRadius:24,padding:20,marginBottom:16,gap:7}}>
+     <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
+       <Sparkles size={24} color="#D0E4DC"/>
+       <Text style={{fontSize:19,fontWeight:'900',color:'#FFFFFF'}}>Your business toolkit</Text>
+     </View>
+     <Text style={{color:'#D3E4DC',fontSize:13,lineHeight:20}}>
+       Twelve tools to help find work, plan jobs, organise customers and run the business.
+     </Text>
+   </View>
+   {suiteGroups.map(group=><View key={group.title} style={{marginBottom:13}}>
+     <Text style={styles.tradeToolsSectionTitle}>{group.title}</Text>
+     <View style={styles.tradeToolsList}>
+       {group.tools.map(({id,title,detail,Icon},index)=><MotionPressable key={id}
+         onPress={()=>openBusinessSuite(id)} accessibilityRole="button"
+         accessibilityLabel={'Open '+title}
+         style={[styles.tradeToolsRow,index>0&&styles.tradeToolsRowDivider]}>
+         <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal} strokeWidth={2}/></View>
+         <View style={{flex:1}}><Text style={styles.tradeToolsRowTitle}>{title}</Text>
+           <Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
+         <ChevronRight size={20} color={theme.colors.teal}/>
+       </MotionPressable>)}
+     </View>
+   </View>)}
    <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
    <View style={styles.tradeToolsGrid}>
     {quick.map(({route,Icon,title,detail})=><MotionPressable key={route} style={styles.tradeToolsQuick}
@@ -6228,7 +6283,7 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
       <ChevronRight size={21} color={theme.colors.teal}/>
     </MotionPressable>)}
    </View>
-   <Text style={styles.tradeToolsFooter}>Your business records are private to your tradesperson account. More tools can be added here later.</Text>
+   <Text style={styles.tradeToolsFooter}>Your business records remain private to your account. All twelve toolkit sections are available without a subscription.</Text>
   </ScrollView>
  </TradeShell>;
 }
