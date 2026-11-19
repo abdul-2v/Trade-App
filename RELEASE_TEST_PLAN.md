@@ -103,3 +103,27 @@
 - [ ] Never claim route directions are an optimised travel plan or that any savings are guaranteed.
 
 All above are separate from CI syntax, TypeScript and unit checks. See [architecture notes](docs/TRADARR_BOOKING_MESSAGING_ROUTING.md).
+
+
+## I. 19 November 2026 integration verification (not yet device-tested)
+
+**Build status:** The code commits for map clustering, quoted work, ETA updates, and auth recovery passed GitHub Actions TypeScript/Expo/logic checks. This is a build check, not proof that the workflows succeeded with two authenticated phones.
+
+### Customer device + tradesperson device
+
+- [ ] On separate signed-in devices, create a normal job for a genuine tradesperson. Accept exactly once; another trade must not be able to accept or change status.
+- [ ] Send a quote from the linked job, then confirm the customer can review the immutable quote snapshot. Decline and request changes in separate test quotes; neither may convert to an invoice.
+- [ ] On an accepted quote, convert to an invoice using the transactional RPC. Check `trade_invoices.quote_id`, `app_job_id` / `urgent_request_id`, `source`, owner, totals and `trade_quotes.invoice_id`. Tap Convert twice: exactly one invoice must exist.
+- [ ] Agree a booking on both devices. Route job must refuse Start Journey until the appointment is confirmed. Confirm that simultaneous booking attempts do not overlap.
+- [ ] With a confirmed On My Way or Street Run visit, select an ETA on tradesperson device and confirm customer sees approximately the same minutes and receives an in-app status alert. Update ETA, arrive, and complete; the old ETA must disappear.
+- [ ] Start a Street Run with multiple matched offers. Verify capacity and time windows, exact job addresses remain private, route stop ordering follows confirmed appointments, and map directions are described as approximate rather than guaranteed.
+- [ ] Zoom into clusters and back out; a single person must render as an avatar, groups should split before zoom 17 and not change grouping simply by panning.
+- [ ] Disable location permission, search a postcode, and check that the map shows the searched area without claiming it is live GPS. Give permission, revisit map, and check recent/high-accuracy position fallback.
+- [ ] Disable the internet after activity is loaded, return to Activity and verify a connection warning appears while last-loaded bookings remain visible; reconnect and verify updated statuses.
+- [ ] Restart both apps: account type, appointments, quotes, invoice links, and messages must remain correct. Signing out on one phone must not show cached data belonging to another account.
+- [ ] Inspect RLS using each signed-in role: nonowners cannot change `jobs.customer_id`, `accepted_tradesperson_id`, appointment fields, protected quote snapshots, rating/verified fields, or invoice source/quote/job links.
+- [ ] Test expired Auth session, resending verification after cooldown, offline sign-in/restore, password reset, and retrying the connection. No role may default to Customer merely because its account lookup fails.
+
+**Security configuration still required:** Enable Supabase Auth leaked-password protection in the dashboard. Existing public `SECURITY DEFINER` RPCs require a separate permission review. `tradarr_push_outbox` intentionally has RLS enabled with no client policies (service-only); don't add a public read/write policy just to suppress the linter.
+
+**Real-device status as of this change:** unverified. No customer-to-tradesperson end-to-end journey or authenticated conversion has been performed on two phones. Apple remote push remains unavailable until native APNs credentials and a development build are available.
