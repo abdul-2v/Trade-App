@@ -448,6 +448,7 @@ function AppIcon({
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const signedInUserIdRef=useRef<string|null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError,setAuthError]=useState('');
   const [sessionCheckNonce,setSessionCheckNonce]=useState(0);
@@ -465,6 +466,7 @@ export default function App() {
         if(error)throw error;
         setSession(data.session);
         if(data.session?.user.id){
+          signedInUserIdRef.current=data.session.user.id;
           const roleResult=await Promise.race([
             supabase.from('profiles').select('account_type')
               .eq('id',data.session.user.id).maybeSingle(),
@@ -493,6 +495,9 @@ export default function App() {
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
       if (event === 'PASSWORD_RECOVERY') setRecoveringPassword(true);
+      const newUserId=nextSession?.user.id??null;
+      const switchedAccount=signedInUserIdRef.current!==newUserId;
+      signedInUserIdRef.current=newUserId;
       setSession(nextSession);
 
       if (!nextSession?.user.id) {
@@ -521,7 +526,9 @@ export default function App() {
             throw new Error(profileResult.error?.message||sessionError?.message||'Could not check account type.');
           const isTrade=profileResult.data.account_type==='tradesperson';
           setAccountType(isTrade?'tradesperson':'customer');
-          setMode(isTrade?'tradesperson':'customer');
+          // MFA/session refresh must not kick an admin out of the gateway or
+          // unexpectedly switch customer/tradesperson testing views.
+          if(switchedAccount)setMode(isTrade?'tradesperson':'customer');
           setAuthError('');
         }catch(e:any){
           if(active)setAuthError(e?.message||'Unable to verify your account while offline.');
