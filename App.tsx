@@ -2327,28 +2327,20 @@ function MapScreen({
       let availability: any[] | null = null;
       let presence: any[] | null = null;
       try {
-        const query = Promise.all([
-          supabase.from('tradesperson_profiles')
-            .select('user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'),
-          supabase.from('trade_availability')
-            .select('user_id, is_available, radius_miles, service_radius_miles, emergency_opt_in, available_until, location_mode, work_area_latitude, work_area_longitude, work_area_label'),
-          supabase.from('trade_map_presence')
-            .select('user_id, latitude, longitude, source_mode, updated_at'),
-        ]);
-        const [{ data: profileRows, error: profileError },
-          { data: availabilityRows, error: availabilityError },
-          { data: presenceRows, error: presenceError }] = await Promise.race([
-          query,
+        // Query one bounded, RLS-enforced server-side read model rather than
+        // downloading every UK trader and relying on Supabase's 1,000-row cap.
+        const {data: results, error: lookupError} = await Promise.race([
+          supabase.rpc('tradarr_public_marketplace_search',{
+            p_lat: reference.latitude, p_lon: reference.longitude, p_limit: 350,
+          }),
           new Promise<never>((_, reject) => {
             timeout = setTimeout(() => reject(new Error('Marketplace search timed out.')), 15000);
           }),
         ]);
-        if (profileError || availabilityError || presenceError) {
-          throw profileError || availabilityError || presenceError;
-        }
-        profiles = profileRows;
-        availability = availabilityRows;
-        presence = presenceRows;
+        if (lookupError) throw lookupError;
+        profiles = (results || []).map(row => row.profile);
+        availability = (results || []).map(row => row.availability);
+        presence = (results || []).filter(row => row.presence).map(row => row.presence);
       } catch {
         if (active) {
           setMarketError(true);
@@ -3320,13 +3312,16 @@ function MapMock({
   const activeLayers=new Map();
   let renderFrame=null;
 
-  const cellSizeForZoom = (zoom) => {
+  const cellSizeForZoom = (zoom, count) => {
     if (zoom <= 10.75) return 170;
     if (zoom <= 11.75) return 145;
     if (zoom <= 12.75) return 118;
     if (zoom <= 13.75) return 92;
     if (zoom <= 14.5) return 68;
-    return 48;
+    if (zoom < 15.75) return 40;
+    if (zoom < 16.75) return 24;
+    // Avoid mounting hundreds of image-backed DOM pins at once in dense areas.
+    return count > 160 ? 20 : 0;
   };
 
   const visibleMarkers = () => {
@@ -3335,20 +3330,21 @@ function MapMock({
   };
 
   const clusterMarkers = (items, zoom) => {
-    if (zoom >= 15) {
+    const cellSize = cellSizeForZoom(zoom,items.length);
+    if (!cellSize) {
       return items.map((marker) => ({
         members: [marker],
         lat: marker.lat,
         lng: marker.lng,
       }));
     }
-
-    const cellSize = cellSizeForZoom(zoom);
     const buckets = new Map();
 
     items.forEach((marker) => {
       const point = map.project([marker.lat, marker.lng],zoom);
-      const key = Math.floor(point.x / cellSize) + ':' + Math.floor(point.y / cellSize);
+      const key = marker.id===selectedMarkerId
+        ? 'selected:' + marker.id
+        : Math.floor(point.x / cellSize) + ':' + Math.floor(point.y / cellSize);
 
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key).push(marker);
@@ -3399,7 +3395,7 @@ function MapMock({
       document.querySelectorAll('.trade-pin').forEach(function(node){
         node.classList.toggle('is-picked',node.getAttribute('data-id')===selectedMarkerId);
       });
-      map.flyTo([marker.lat,marker.lng],Math.max(15.1,map.getZoom()),{
+      map.flyTo([marker.lat,marker.lng],Math.max(16,map.getZoom()),{
         duration:.57,easeLinearity:.23
       });
       window.ReactNativeWebView.postMessage(JSON.stringify({type:'trade',id:marker.id}));
@@ -3445,13 +3441,13 @@ function MapMock({
   const renderTrades = () => {
     const desired=new Set();
     const zoom = map.getZoom();
-    document.body.classList.toggle('show-trade-labels', zoom >= 15);
+    document.body.classList.toggle('show-trade-labels', zoom >= 15.75);
 
     const visible = visibleMarkers();
     const groups = clusterMarkers(visible, zoom);
 
     groups.forEach((group) => {
-      const showIndividual=group.members.length===1||zoom>=15;
+      const showIndividual=group.members.length===1;
       const key=showIndividual
         ? 't:'+group.members[0].id+':'+Number(group.members[0].lat).toFixed(4)+
           ':'+Number(group.members[0].lng).toFixed(4)+':'+Boolean(group.members[0].available)
