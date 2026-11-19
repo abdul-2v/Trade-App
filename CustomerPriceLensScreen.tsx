@@ -245,7 +245,7 @@ const s=StyleSheet.create({
  tip:{padding:14,borderRadius:19,backgroundColor:C.tealTint,flexDirection:'row',gap:11,marginTop:10},
  tipText:{flex:1,fontSize:11,color:C.teal,lineHeight:18},
  delete:{flexDirection:'row',alignItems:'center',gap:8,alignSelf:'center',marginTop:14,padding:14},
- deleteText:{fontSize:12,fontWeight:'800',color:C.coralDark}
+ deleteText:{fontSize:12,fontWeight:'800',color:C.coralDark},
  errorPanel:{backgroundColor:'#FFFFFF',marginTop:18,borderRadius:23,padding:24,
    gap:13,alignItems:'center',...theme.shadow},
 });
