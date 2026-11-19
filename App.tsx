@@ -129,7 +129,7 @@ type CustomerScreen =
   | 'customerProfile';
 
 type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
-type Mode = 'customer' | 'tradesperson';
+type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
 type RequestItem = {
@@ -455,7 +455,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError,setAuthError]=useState('');
   const [sessionCheckNonce,setSessionCheckNonce]=useState(0);
-  const [accountType, setAccountType] = useState<'customer' | 'tradesperson'>('customer');
+  const [accountType, setAccountType] = useState<'customer' | 'tradesperson' | 'crew'>('customer');
   const [recoveringPassword, setRecoveringPassword] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
 
@@ -479,9 +479,10 @@ export default function App() {
           if(!active)return;
           if(roleResult.error||!roleResult.data)
             throw new Error(roleResult.error?.message||'Your account profile could not be loaded.');
-          const isTrade=roleResult.data.account_type==='tradesperson';
-          setAccountType(isTrade?'tradesperson':'customer');
-          setMode(isTrade?'tradesperson':'customer');
+          const accountRole:Mode=roleResult.data.account_type==='crew'?'crew':
+            roleResult.data.account_type==='tradesperson'?'tradesperson':'customer';
+          setAccountType(accountRole);
+          setMode(accountRole);
         }
         if(active)setAuthError('');
       }catch(error:any){
@@ -527,11 +528,12 @@ export default function App() {
           if(!active||current.session?.user.id!==userId)return;
           if(sessionError||profileResult.error||!profileResult.data)
             throw new Error(profileResult.error?.message||sessionError?.message||'Could not check account type.');
-          const isTrade=profileResult.data.account_type==='tradesperson';
-          setAccountType(isTrade?'tradesperson':'customer');
+          const accountRole:Mode=profileResult.data.account_type==='crew'?'crew':
+            profileResult.data.account_type==='tradesperson'?'tradesperson':'customer';
+          setAccountType(accountRole);
           // MFA/session refresh must not kick an admin out of the gateway or
           // unexpectedly switch customer/tradesperson testing views.
-          if(switchedAccount)setMode(isTrade?'tradesperson':'customer');
+          if(switchedAccount)setMode(accountRole);
           setAuthError('');
         }catch(e:any){
           if(active)setAuthError(e?.message||'Unable to verify your account while offline.');
@@ -831,6 +833,13 @@ export default function App() {
     }} />;
   }
 
+  if (mode === 'crew') {
+    return <SafeAreaView style={{flex:1,backgroundColor:theme.colors.customerBackground}}>
+      <StatusBar barStyle="dark-content"/>
+      <TradarrCrewScreen viewerRole="crew" goBack={()=>{void supabase.auth.signOut()}}/>
+    </SafeAreaView>;
+  }
+
   if (mode === 'tradesperson') {
     const tradeProps = {
       screen: tradeScreen,
@@ -858,7 +867,7 @@ export default function App() {
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
     if (tradeScreen === 'tradeCrew') return <TradeShell current="tradeCrew" navigate={navigateTrade}>
-      <TradarrCrewScreen goBack={() => navigateTrade('tradeTools')}/>
+      <TradarrCrewScreen viewerRole="tradesperson" goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
