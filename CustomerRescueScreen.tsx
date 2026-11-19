@@ -83,7 +83,7 @@ export default function CustomerRescueScreen({goBack,onRetry,onStartNew}:{
         <ArrowRight color="#FFFFFF" size={18}/>
         <Text style={s.primaryText}>Start a new request</Text>
       </MotionPressable>:null}
-     </View>
+     </View>}
     <View style={s.hint}><Clock3 size={20} color={C.teal}/>
      <Text style={s.fine}>Rescue currently uses recorded cancelled or expired requests. A live replacement-matching network will depend on real tradesperson capacity and consent.</Text>
     </View>
