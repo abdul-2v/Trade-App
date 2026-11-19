@@ -268,6 +268,8 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
  if(section==='verification'||section==='support')
   return <TradarrStaffScreen key={section} initialTab={section==='support'?'cases':'credentials'}
    goBack={()=>changeSection('overview')}/>;
+ if(section==='analytics')return <TradarrAdminAnalyticsScreen goBack={()=>changeSection('overview')}/>;
+ if(section==='moderation')return <TradarrAdminModerationScreen goBack={()=>changeSection('overview')}/>;
  return <View style={s.root}>
   <View style={s.head}>
    <MotionPressable onPress={goPrevious} style={s.back}
