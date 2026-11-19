@@ -26,6 +26,7 @@ import CustomerRescueScreen from './CustomerRescueScreen';
 import CustomerPriceLensScreen from './CustomerPriceLensScreen';
 import CustomerCollectiveScreen from './CustomerCollectiveScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
+import TradarrCrewScreen from './TradarrCrewScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
@@ -127,8 +128,8 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
-type Mode = 'customer' | 'tradesperson';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
+type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
 type RequestItem = {
@@ -454,7 +455,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError,setAuthError]=useState('');
   const [sessionCheckNonce,setSessionCheckNonce]=useState(0);
-  const [accountType, setAccountType] = useState<'customer' | 'tradesperson'>('customer');
+  const [accountType, setAccountType] = useState<'customer' | 'tradesperson' | 'crew'>('customer');
   const [recoveringPassword, setRecoveringPassword] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
 
@@ -478,9 +479,10 @@ export default function App() {
           if(!active)return;
           if(roleResult.error||!roleResult.data)
             throw new Error(roleResult.error?.message||'Your account profile could not be loaded.');
-          const isTrade=roleResult.data.account_type==='tradesperson';
-          setAccountType(isTrade?'tradesperson':'customer');
-          setMode(isTrade?'tradesperson':'customer');
+          const accountRole:Mode=roleResult.data.account_type==='crew'?'crew':
+            roleResult.data.account_type==='tradesperson'?'tradesperson':'customer';
+          setAccountType(accountRole);
+          setMode(accountRole);
         }
         if(active)setAuthError('');
       }catch(error:any){
@@ -526,11 +528,12 @@ export default function App() {
           if(!active||current.session?.user.id!==userId)return;
           if(sessionError||profileResult.error||!profileResult.data)
             throw new Error(profileResult.error?.message||sessionError?.message||'Could not check account type.');
-          const isTrade=profileResult.data.account_type==='tradesperson';
-          setAccountType(isTrade?'tradesperson':'customer');
+          const accountRole:Mode=profileResult.data.account_type==='crew'?'crew':
+            profileResult.data.account_type==='tradesperson'?'tradesperson':'customer';
+          setAccountType(accountRole);
           // MFA/session refresh must not kick an admin out of the gateway or
           // unexpectedly switch customer/tradesperson testing views.
-          if(switchedAccount)setMode(isTrade?'tradesperson':'customer');
+          if(switchedAccount)setMode(accountRole);
           setAuthError('');
         }catch(e:any){
           if(active)setAuthError(e?.message||'Unable to verify your account while offline.');
@@ -830,6 +833,13 @@ export default function App() {
     }} />;
   }
 
+  if (mode === 'crew') {
+    return <SafeAreaView style={{flex:1,backgroundColor:theme.colors.customerBackground}}>
+      <StatusBar barStyle="dark-content"/>
+      <TradarrCrewScreen viewerRole="crew" goBack={()=>{void supabase.auth.signOut()}}/>
+    </SafeAreaView>;
+  }
+
   if (mode === 'tradesperson') {
     const tradeProps = {
       screen: tradeScreen,
@@ -856,6 +866,9 @@ export default function App() {
       <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
+    if (tradeScreen === 'tradeCrew') return <TradeShell current="tradeCrew" navigate={navigateTrade}>
+      <TradarrCrewScreen viewerRole="tradesperson" goBack={() => navigateTrade('tradeTools')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeCollective') return <TradeShell current="tradeCollective" navigate={navigateTrade}>
       <TradeCollectiveScreen goBack={() => navigateTrade('tradeTools')}/>
     </TradeShell>;
@@ -1222,7 +1235,7 @@ export default function App() {
           setTradeScreen(accountType==='tradesperson'?'tradeHome':'tradeProfile');
         }}
         signOut={() => supabase.auth.signOut()}
-        accountType={accountType}
+        accountType={accountType==='crew'?'customer':accountType}
         staffAccess={session?.user.app_metadata?.tradarr_staff===true}
       />
     );
@@ -6113,7 +6126,7 @@ function TradeShell({
       <ScreenReveal route={current} scope="trade">{children}</ScreenReveal>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective'].includes(current));
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective','tradeCrew'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -6173,7 +6186,17 @@ function TradeToolsScreen({navigate}:{navigate:(screen:TradeScreen)=>void}){
       <Text style={styles.tradeToolsQuickName}>{title}</Text><Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
     </MotionPressable>)}
    </View>
-   <Text style={styles.tradeToolsSectionTitle}>Make every job count</Text>
+   <MotionPressable onPress={()=>navigate('tradeCrew')} accessibilityRole="button"
+      accessibilityLabel="Open Tradarr Crew" style={[styles.tradeToolsPowerCard,{width:'100%',minHeight:112,marginBottom:17,
+      backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:14}]}>
+      <View style={{width:48,height:48,borderRadius:16,backgroundColor:'#214B4B',alignItems:'center',justifyContent:'center'}}>
+        <Users color="#DBEFE9" size={26}/>
+      </View>
+      <View style={{flex:1}}><Text style={[styles.tradeToolsPowerTitle,{fontSize:18,marginTop:0}]}>Tradarr Crew</Text>
+        <Text style={styles.tradeToolsPowerText}>Find an extra pair of hands, skilled mates or apprentices.</Text></View>
+      <ChevronRight size={21} color="#DBEFE9"/>
+    </MotionPressable>
+    <Text style={styles.tradeToolsSectionTitle}>Make every job count</Text>
    <View style={styles.tradeToolsPowerRow}>
      <MotionPressable onPress={()=>navigate('tradeProfit')} style={[styles.tradeToolsPowerCard,{backgroundColor:theme.colors.darkTeal}]}
        accessibilityRole="button" accessibilityLabel="Open Job Profit calculator">
@@ -7943,7 +7966,8 @@ function TradeMessagesScreen({navigate}:{
    <TradarrInboxScreen role="tradesperson"
      onOpenOther={notice=>{
        if(notice.kind==='admin_notice')return;
-       if(notice.data?.screen==='accountSafety')return navigate('tradeSafety');
+       if(notice.kind==='crew_update')return navigate('tradeCrew');
+        if(notice.data?.screen==='accountSafety')return navigate('tradeSafety');
        navigate(notice.kind==='support_update'?'tradeSupport':
         notice.kind==='verification_update'?'tradeTrust':
         notice.kind==='quote_update'?'tradeQuotes':
