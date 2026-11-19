@@ -144,8 +144,14 @@ export default function TradarrCrewScreen({goBack,viewerRole='tradesperson'}:{go
    is_visible:visible,adult_confirmed:true,updated_at:new Date().toISOString()};
   if(!Number.isInteger(payload.experience_years)||payload.experience_years<0||payload.experience_years>60)
    throw new Error('Enter a valid number of years of experience.');
-  const {error:e}=await supabase.from('crew_profiles').upsert(payload,{onConflict:'user_id'});
-  if(e)throw e;Alert.alert('Saved','Your Crew profile has been updated.');
+  // Upsert attempts to UPDATE immutable user_id on conflicts. Use explicit owner-only
+  // inserts/updates so Supabase column-level grants remain least-privilege.
+  const {user_id:ownerId,...changes}=payload;
+  const result=myProfile
+    ?await supabase.from('crew_profiles').update(changes).eq('user_id',ownerId)
+    :await supabase.from('crew_profiles').insert(payload);
+  if(result.error)throw result.error;
+  Alert.alert('Saved','Your Crew profile has been updated.');
  });
  const publish=()=>void run(async()=>{
   const amount=Number(postPay),positions=Number(postPositions);
