@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import AuthScreen from './AuthScreen';
 import PasswordRecoveryScreen from './PasswordRecoveryScreen';
@@ -131,6 +131,12 @@ type CustomerScreen =
 type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
 type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
+
+// Both trade Home and Jobs use the same server-side availability rules.
+// A missing/failed database result must never be interpreted as "offline".
+const tradeAvailabilityActive = (row: { is_available: boolean; available_until: string | null }): boolean =>
+  Boolean(row.is_available &&
+    (!row.available_until || new Date(row.available_until).getTime() > Date.now()));
 
 type RequestItem = {
   id: string;
@@ -6301,10 +6307,7 @@ function TradeHomeScreen({
 
       if (person?.first_name) setFirstName(person.first_name);
       if (availability) {
-        setAvailable(Boolean(
-          availability.is_available
-          && (!availability.available_until || new Date(availability.available_until).getTime() > Date.now())
-        ));
+        setAvailable(tradeAvailabilityActive(availability));
         setRadius(Number(availability.radius_miles) || 10);
         setLocationMode(availability.location_mode === 'live' ? 'live' : 'work_area');
 
@@ -6355,6 +6358,32 @@ function TradeHomeScreen({
       active = false;
     };
   }, []);
+
+  // Keep Home current if the session expires or availability changes elsewhere.
+  // The Jobs screen reads the same persisted trade_availability row.
+  useEffect(() => {
+    let active = true;
+    const check = async () => {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (!active || authError || !user) return;
+      const { data, error } = await supabase.from('trade_availability')
+        .select('is_available,available_until').eq('user_id', user.id).maybeSingle();
+      if (active && !error && data && !savingAvailability) {
+        setAvailable(tradeAvailabilityActive(data));
+      }
+    };
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') void check();
+    });
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') void check();
+    }, 30000);
+    return () => {
+      active = false;
+      foreground.remove();
+      clearInterval(interval);
+    };
+  }, [savingAvailability]);
 
   useEffect(() => {
     let active = true;
@@ -6493,7 +6522,7 @@ function TradeHomeScreen({
       return;
     }
 
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from('trade_availability')
       .update({
         is_available: nextAvailable,
@@ -6501,15 +6530,19 @@ function TradeHomeScreen({
         available_until: nextAvailable ? durationToUntil(nextDuration) : null,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .select('is_available,available_until')
+      .maybeSingle();
 
     setSavingAvailability(false);
 
-    if (error) {
-      Alert.alert('Could not update availability', error.message);
+    if (error || !saved) {
+      Alert.alert('Could not update availability',
+        error?.message || 'Your availability could not be saved. Check your trade profile and try again.');
       return;
     }
-    setAvailable(nextAvailable);
+    // Only show Online when the database confirms the update actually applied.
+    setAvailable(tradeAvailabilityActive(saved));
   };
 
   const changeAvailable = async (value: boolean) => {
@@ -6542,7 +6575,7 @@ function TradeHomeScreen({
       return;
     }
 
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from('trade_availability')
       .update({
         is_available: true,
@@ -6554,12 +6587,15 @@ function TradeHomeScreen({
         available_until: durationToUntil(duration),
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .select('is_available,available_until')
+      .maybeSingle();
 
     setRadarBusy(null);
 
-    if (error) {
-      Alert.alert('Could not move work area', error.message);
+    if (error || !saved || !tradeAvailabilityActive(saved)) {
+      Alert.alert('Could not move work area',
+        error?.message || 'Your change was not confirmed. Please try again.');
       return;
     }
 
@@ -6904,20 +6940,60 @@ function TradeJobsScreen({
   const [showJobGuide, setShowJobGuide] = useState(false);
   const [marketEtaPickerJobId,setMarketEtaPickerJobId]=useState<string|null>(null);
   const [isReceivingOffers, setIsReceivingOffers] = useState<boolean | null>(null);
+  const [availabilityCheckError, setAvailabilityCheckError] = useState(false);
+  const availabilityRequest = useRef(0);
+
+  const refreshAvailability = useCallback(async () => {
+    const request = ++availabilityRequest.current;
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (request !== availabilityRequest.current) return;
+    if (authError || !user) {
+      setIsReceivingOffers(null);
+      setAvailabilityCheckError(true);
+      return;
+    }
+    const { data, error } = await supabase.from('trade_availability')
+      .select('is_available,available_until').eq('user_id', user.id).maybeSingle();
+    if (request !== availabilityRequest.current) return;
+    if (error || !data) {
+      // A network/permissions error is "unknown", NOT a confirmed offline state.
+      setIsReceivingOffers(null);
+      setAvailabilityCheckError(true);
+      return;
+    }
+    setAvailabilityCheckError(false);
+    setIsReceivingOffers(tradeAvailabilityActive(data));
+  }, []);
 
   useEffect(() => {
-    let alive = true;
-    const checkAvailability = async () => {
+    void refreshAvailability();
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') void refreshAvailability();
+    });
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') void refreshAvailability();
+    }, 30000);
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const subscribe = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !alive) return;
-      const { data } = await supabase.from('trade_availability')
-        .select('is_available,available_until').eq('user_id', user.id).maybeSingle();
-      if (alive) setIsReceivingOffers(Boolean(data?.is_available &&
-        (!data.available_until || new Date(data.available_until).getTime() > Date.now())));
+      if (!active || !user) return;
+      channel = supabase.channel('trade-jobs-availability-' + user.id)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'trade_availability',
+          filter: 'user_id=eq.' + user.id,
+        }, () => { void refreshAvailability(); })
+        .subscribe();
     };
-    checkAvailability();
-    return () => { alive = false; };
-  }, []);
+    void subscribe();
+    return () => {
+      active = false;
+      availabilityRequest.current += 1;
+      foreground.remove();
+      clearInterval(interval);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [refreshAvailability]);
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
@@ -7481,8 +7557,9 @@ function TradeJobsScreen({
           </View>
           <MotionPressable style={styles.premiumHeaderRefresh} accessibilityRole="button"
             accessibilityLabel="Refresh job offers" onPress={() => {
-              loadJobs(currentUserId || undefined);
-              loadMarketJobs(currentUserId || undefined);
+              void refreshAvailability();
+              void loadJobs(currentUserId || undefined);
+              void loadMarketJobs(currentUserId || undefined);
             }}>
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </MotionPressable>
@@ -7529,6 +7606,18 @@ function TradeJobsScreen({
             <Text style={styles.premiumOverviewNoteText}>Offers refresh automatically while the app is open</Text>
           </View>
         </View>
+        {availabilityCheckError ? (
+          <MotionPressable style={styles.tradeOfflineBanner}
+            onPress={() => { void refreshAvailability(); }}
+            accessibilityRole="button" accessibilityLabel="Retry checking online availability">
+            <View style={styles.tradeOfflineDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tradeOfflineTitle}>Couldn't confirm your availability</Text>
+              <Text style={styles.tradeOfflineSub}>Tap to try again. Your online status has not been changed.</Text>
+            </View>
+            <RotateCw size={19} color={theme.colors.teal} />
+          </MotionPressable>
+        ) : null}
         {isReceivingOffers === false ? (
           <MotionPressable style={styles.tradeOfflineBanner} onPress={() => navigate('tradeHome')}
             accessibilityRole="button" accessibilityLabel="Go to Home to turn availability on">
