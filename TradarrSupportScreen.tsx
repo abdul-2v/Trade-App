@@ -2,6 +2,8 @@ import React,{useCallback,useEffect,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,RefreshControl,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,ChevronRight,Headphones,MessageSquare,Send,ShieldAlert} from 'lucide-react-native';
 import {supabase} from './lib/supabase';
+import {openSupportEvidence,uploadSupportEvidence} from './lib/supportEvidence';
+import type {SupportEvidence} from './lib/supportEvidence';
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
 
@@ -19,6 +21,8 @@ export default function TradarrSupportScreen({goBack,role}:{goBack:()=>void;role
  const [cases,setCases]=useState<Case[]>([]);
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const [responses,setResponses]=useState<Reply[]>([]);
+ const [evidence,setEvidence]=useState<SupportEvidence[]>([]);
+ const [uploading,setUploading]=useState(false);
  const [loading,setLoading]=useState(true);
  const [refreshing,setRefreshing]=useState(false);
  const [sending,setSending]=useState(false);
@@ -60,13 +64,34 @@ export default function TradarrSupportScreen({goBack,role}:{goBack:()=>void;role
     .eq('case_id',selectedId).order('created_at',{ascending:true}).limit(120);
    if(active){if(!e)setResponses((data||[]) as Reply[]);else setError(e.message);}
   };
-  void read();
+  const readEvidence=async()=>{
+   const {data,error:e}=await supabase.from('support_case_evidence')
+    .select('id,case_id,uploader_id,file_path,file_name,mime_type,created_at')
+    .eq('case_id',selectedId).order('created_at',{ascending:false}).limit(60);
+   if(active){if(!e)setEvidence((data||[]) as SupportEvidence[]);else setError(e.message);}
+  };
+  void read();void readEvidence();
   const channel=supabase.channel('tradarr-case-'+selectedId+'-'+Date.now())
    .on('postgres_changes',{event:'INSERT',schema:'public',table:'support_case_updates',
      filter:'case_id=eq.'+selectedId},()=>{if(active)void read()})
+   .on('postgres_changes',{event:'INSERT',schema:'public',table:'support_case_evidence',
+     filter:'case_id=eq.'+selectedId},()=>{if(active)void readEvidence()})
    .subscribe();
   return()=>{active=false;void supabase.removeChannel(channel)};
  },[selectedId]);
+ const attach=async()=>{
+  if(!selectedId||!uid||uploading)return;
+  setUploading(true);
+  try{
+   const uploaded=await uploadSupportEvidence(selectedId,uid);
+   if(uploaded)setEvidence(old=>[uploaded,...old.filter(x=>x.id!==uploaded.id)]);
+  }catch(e:any){Alert.alert('Evidence was not attached',e?.message||'Please try again.');}
+  finally{setUploading(false);}
+ };
+ const viewEvidence=async(item:SupportEvidence)=>{
+  try{await openSupportEvidence(item.file_path);}
+  catch(e:any){Alert.alert('Unable to open evidence',e?.message||'Please retry.');}
+ };
  const send=async()=>{
   if(sending||!uid)return;
   const cleanSubject=subject.trim(),cleanDetails=description.trim();
@@ -126,6 +151,23 @@ export default function TradarrSupportScreen({goBack,role}:{goBack:()=>void;role
       <Text style={s.text}>{selected.message}</Text>
       {selected.resolution_note?<View style={s.resolution}><Text style={s.title}>Case outcome</Text>
         <Text style={s.text}>{selected.resolution_note}</Text></View>:null}
+     </View>
+     <Text style={s.section}>Private evidence</Text>
+     <View style={s.card}>
+      <Text style={s.muted}>Photos and PDFs are private to you and authorised Tradarr support staff.</Text>
+      {evidence.map(item=><MotionPressable key={item.id}
+        onPress={()=>{void viewEvidence(item)}} accessibilityRole="button"
+        style={[s.primary,{backgroundColor:'#E9F4EF',justifyContent:'flex-start',minHeight:42}]}>
+        <Text style={[s.primaryText,{color:C.teal,flex:1}]} numberOfLines={2}>
+          {item.file_name}</Text>
+        <ChevronRight size={17} color={C.teal}/>
+       </MotionPressable>)}
+      {['open','in_progress'].includes(selected.status)?
+       <MotionPressable style={s.primary} disabled={uploading}
+         accessibilityRole="button" onPress={()=>{void attach()}}>
+         <Text style={s.primaryText}>{uploading?'Uploading securely…':'Attach photo or PDF · max 8 MB'}</Text>
+       </MotionPressable>:null}
+      {!evidence.length?<Text style={s.muted}>No evidence attached.</Text>:null}
      </View>
      <Text style={s.section}>Case conversation</Text>
      {responses.map(item=><View key={item.id} style={[s.card,{gap:6}]}>
