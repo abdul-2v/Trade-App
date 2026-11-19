@@ -10,6 +10,7 @@ import {MotionPressable} from './Motion';
 import TradarrStaffScreen from './TradarrStaffScreen';
 import TradarrAdminAnalyticsScreen from './TradarrAdminAnalyticsScreen';
 import TradarrAdminModerationScreen from './TradarrAdminModerationScreen';
+import {TradarrAdminMemberControls,TradarrAdminReviewControls} from './TradarrAdminAccountControls';
 import {theme} from './theme';
 
 type Section='overview'|'analytics'|'moderation'|'users'|'traders'|'jobs'|'finance'|'appointments'|'reviews'|'cases'|'audit'|'verification'|'support';
@@ -400,6 +401,9 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
       <ItemDetails label="Reason" value={selected.reason}/>
      </>:null}
     </View>
+    {section==='users'?<TradarrAdminMemberControls key={selected.id} userId={selected.id}/>:null}
+    {section==='reviews'?<TradarrAdminReviewControls key={selected.id}
+      reviewId={selected.id} reviewType={selected.review_type}/>:null}
     {section==='users'?<View style={s.record}>
      <View style={{flexDirection:'row',alignItems:'center',gap:9}}>
       <BellRing size={20} color={C.teal}/>
