@@ -1235,7 +1235,7 @@ export default function App() {
           setTradeScreen(accountType==='tradesperson'?'tradeHome':'tradeProfile');
         }}
         signOut={() => supabase.auth.signOut()}
-        accountType={accountType}
+        accountType={accountType==='crew'?'customer':accountType}
         staffAccess={session?.user.app_metadata?.tradarr_staff===true}
       />
     );
