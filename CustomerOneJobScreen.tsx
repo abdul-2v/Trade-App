@@ -96,7 +96,7 @@ export default function CustomerOneJobScreen({goBack,onFindTrade}:{goBack:()=>vo
   <View style={s.header}><MotionPressable onPress={back} style={s.back}><ArrowLeft color={C.ink} size={22}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>ONEJOB</Text><Text style={s.heading}>{selected?'Project plan':creating?'New project':'Organise the whole job'}</Text></View></View>
   {loading?<ActivityIndicator size="large" color={C.teal} style={{marginTop:60}}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
     {!selected&&!creating?<><View style={s.hero}><Users size={24} color="#D0E6E2"/>
       <Text style={s.heroTitle}>One project. Every trade in order.</Text>
       <Text style={s.heroSub}>Plan a renovation as one job, organise trade stages and find someone for each part without losing track of the bigger picture.</Text>
