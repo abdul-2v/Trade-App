@@ -8,14 +8,18 @@ import {
 import {supabase} from './lib/supabase';
 import {MotionPressable} from './Motion';
 import TradarrStaffScreen from './TradarrStaffScreen';
+import TradarrAdminAnalyticsScreen from './TradarrAdminAnalyticsScreen';
+import TradarrAdminModerationScreen from './TradarrAdminModerationScreen';
 import {theme} from './theme';
 
-type Section='overview'|'users'|'traders'|'jobs'|'finance'|'appointments'|'reviews'|'cases'|'audit'|'verification'|'support';
+type Section='overview'|'analytics'|'moderation'|'users'|'traders'|'jobs'|'finance'|'appointments'|'reviews'|'cases'|'audit'|'verification'|'support';
 type AdminRecord=Record<string,any>;
 type Summary=Record<string,number|string>;
 type SectionDef={id:Section;label:string;help:string};
 const sections:SectionDef[]=[
  {id:'overview',label:'Overview',help:'Platform snapshot'},
+ {id:'analytics',label:'Analytics',help:'Daily charts and conversion'},
+ {id:'moderation',label:'Safety & appeals',help:'Reports, appeals and deletion requests'},
  {id:'users',label:'Users',help:'Account directory'},
  {id:'traders',label:'Trades',help:'Businesses & listing controls'},
  {id:'jobs',label:'Jobs',help:'Standard and urgent requests'},
@@ -40,6 +44,8 @@ const count=(n:any)=>Number(n||0).toLocaleString('en-GB');
 const human=(s:any)=>String(s||'unknown').replace(/_/g,' ').replace(/\b\w/g,x=>x.toUpperCase());
 const iconFor=(s:Section)=>{
  switch(s){
+ case 'analytics':return BarChart3;
+ case 'moderation':return ShieldAlert;
  case 'users':return Users;
  case 'traders':return BriefcaseBusiness;
  case 'jobs':return ClipboardList;
@@ -120,6 +126,10 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
  const [overview,setOverview]=useState<Summary|null>(null);
  const [rows,setRows]=useState<AdminRecord[]>([]);
  const [paused,setPaused]=useState<Record<string,boolean>>({});
+ const [suspended,setSuspended]=useState<Record<string,boolean>>({});
+ const [hiddenReviews,setHiddenReviews]=useState<Record<string,boolean>>({});
+ const [activity,setActivity]=useState<Record<string,any>|null>(null);
+ const [activityBusy,setActivityBusy]=useState(false);
  const [search,setSearch]=useState('');
  const [debounced,setDebounced]=useState('');
  const [selected,setSelected]=useState<AdminRecord|null>(null);
@@ -138,7 +148,7 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
   return()=>clearTimeout(id);
  },[search]);
  const load=useCallback(async(refresh=false)=>{
-  if(section==='verification'||section==='support')return;
+  if(section==='verification'||section==='support'||section==='analytics'||section==='moderation')return;
   if(refresh)setRefreshing(true);else setLoading(true);
   try{
    if(section==='overview'){
