@@ -25,7 +25,9 @@ export default function TradeWorkingHoursScreen({goBack}:{goBack:()=>void}){
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [published,setPublished]=useState(false);
+ const [dirty,setDirty]=useState(false);
  const [error,setError]=useState('');
+ const [loadFailed,setLoadFailed]=useState(false);
 
  useEffect(()=>{let active=true;(async()=>{
   const {data:{user}}=await supabase.auth.getUser();
@@ -35,7 +37,9 @@ export default function TradeWorkingHoursScreen({goBack}:{goBack:()=>void}){
   const {data,error:loadError}=await supabase.from('trade_working_hours')
    .select('weekday,enabled,start_local,end_local').eq('tradesperson_id',user.id);
   if(!active)return;
-  if(loadError)setError(loadError.message);
+  if(loadError){setError('Your working hours could not be loaded: '+loadError.message);
+   setLoadFailed(true);setLoading(false);return;}
+  setLoadFailed(false);
   if(data?.length){
    const saved=new Map(data.map(v=>[Number(v.weekday),v]));
    setRows(defaults.map(day=>{
@@ -51,25 +55,36 @@ export default function TradeWorkingHoursScreen({goBack}:{goBack:()=>void}){
 
  const update=(weekday:number,patch:Partial<Day>)=>{
   setRows(old=>old.map(day=>day.weekday===weekday?{...day,...patch}:day));
+  setDirty(true);
   setError('');
  };
+ const weekdayPreset=()=>{
+   setRows(old=>old.map(d=>d.weekday>=1&&d.weekday<=5
+     ?{...d,enabled:true,start:'08:00',end:'18:00'}:d));
+   setDirty(true);setError('');
+ };
  const save=async()=>{
-  if(saving||!userId)return;
+  if(saving||!userId||loadFailed)return;
   for(const row of rows){
-   if(!validTime(row.start)||!validTime(row.end) || toMinute(row.end)<=toMinute(row.start)){
+   // Closed days have no bookable interval; their saved example times are irrelevant.
+   if(row.enabled&&(!validTime(row.start)||!validTime(row.end) || toMinute(row.end)<=toMinute(row.start))){
     Alert.alert('Check working hours',row.name+': enter HH:MM times and make sure closing time is after opening time.');return;
    }
   }
   setSaving(true);
-  const {error:saveError}=await supabase.from('trade_working_hours').upsert(
+  const {data:saved,error:saveError}=await supabase.from('trade_working_hours').upsert(
    rows.map(row=>({
     tradesperson_id:userId,weekday:row.weekday,enabled:row.enabled,
     start_local:row.start,end_local:row.end,updated_at:new Date().toISOString()
    })),{onConflict:'tradesperson_id,weekday'}
-  );
+  ).select('weekday,enabled,start_local,end_local');
   setSaving(false);
-  if(saveError){Alert.alert('Could not publish hours',saveError.message);return;}
-  setPublished(true);
+  if(saveError||!saved||saved.length!==rows.length){
+    Alert.alert('Could not confirm working hours',
+      saveError?.message||'The full weekly schedule was not confirmed. Please try again.');
+    return;
+  }
+  setPublished(true);setDirty(false);
   Alert.alert('Working hours saved','Customers can now see suggested openings around your existing confirmed bookings. Every appointment still needs your acceptance.');
  };
 
@@ -85,20 +100,33 @@ export default function TradeWorkingHoursScreen({goBack}:{goBack:()=>void}){
    {published?<CheckCircle2 size={22} color={C.teal}/>:null}
   </View>
   {loading?<ActivityIndicator style={{marginTop:55}} color={C.teal} size="large"/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
+   automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
    <View style={s.intro}>
     <CalendarClock size={26} color={C.teal}/>
     <View style={{flex:1,gap:5}}>
-     <Text style={s.introTitle}>{published?'Availability is published':'Publish a weekly schedule'}</Text>
+     <Text style={s.introTitle}>{dirty?'Unsaved schedule changes':published?'Availability is published':'Publish a weekly schedule'}</Text>
      <Text style={s.note}>Set the hours you normally accept appointments. Tradarr then suggests openings that do not overlap your confirmed diary bookings. These are requests, not automatic reservations.</Text>
     </View>
    </View>
    {error?<Text style={s.error}>{error}</Text>:null}
+   {loadFailed?<View style={s.errorCard}>
+     <Text style={s.error}>The editor is disabled until saved hours can be checked, so nothing existing is overwritten accidentally.</Text>
+     <MotionPressable onPress={goBack} style={s.smallAction} accessibilityRole="button">
+       <Text style={s.smallActionText}>Back to Tools</Text>
+     </MotionPressable>
+    </View>:<>
+   <View style={s.helpRow}>
+     <Text style={s.note}>Use the toggles to mark days open or closed. Edit the hours for any open day.</Text>
+     <MotionPressable onPress={weekdayPreset} style={s.smallAction} accessibilityRole="button"
+       accessibilityLabel="Set Monday to Friday 8 am to 6 pm">
+       <Text style={s.smallActionText}>Mon–Fri preset</Text>
+     </MotionPressable>
+   </View>
    <View style={s.card}>
     <View style={s.labels}>
-     <Text style={[s.heading,{flex:1}]}>Day</Text>
-     <Text style={s.heading}>Start</Text>
-     <Text style={s.heading}>Finish</Text>
+     <Text style={s.heading}>Your weekly opening times</Text>
+     <Text style={s.heading}>{rows.filter(x=>x.enabled).length} days on</Text>
     </View>
     {rows.map((day,index)=><View key={day.weekday}
       style={[s.day,index!==0&&{borderTopWidth:1,borderTopColor:C.line}]}>
@@ -135,6 +163,7 @@ export default function TradeWorkingHoursScreen({goBack}:{goBack:()=>void}){
     {saving?<ActivityIndicator color="#FFFFFF"/>:<><Save size={19} color="#FFFFFF"/>
       <Text style={s.primaryText}>Save working hours</Text></>}
    </MotionPressable>
+   </>}
   </ScrollView>}
  </View>;
 }
@@ -149,8 +178,9 @@ const s=StyleSheet.create({
  introTitle:{fontSize:15,color:C.ink,fontWeight:'900'},
  note:{fontSize:12,lineHeight:19,color:C.muted},error:{fontSize:12,fontWeight:'700',color:C.coralDark,marginBottom:10},
  card:{backgroundColor:'#FFFFFF',borderRadius:20,paddingHorizontal:13,...theme.shadow},
- labels:{flexDirection:'row',justifyContent:'space-between',paddingHorizontal:9,paddingTop:15,paddingBottom:7},
- heading:{fontSize:11,fontWeight:'800',color:C.muted,marginRight:25},
+ labels:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',
+   paddingHorizontal:9,paddingTop:15,paddingBottom:7},
+ heading:{fontSize:11,fontWeight:'800',color:C.muted},
  day:{paddingVertical:15,gap:10},
  dayHead:{flexDirection:'row',alignItems:'center',gap:9},
  dayText:{fontWeight:'800',fontSize:14,color:C.ink},daySub:{fontSize:11,color:C.muted,marginTop:3},
@@ -162,5 +192,11 @@ const s=StyleSheet.create({
    flexDirection:'row',gap:11},infoTitle:{fontWeight:'900',color:C.ink,fontSize:13,marginBottom:5},
  primary:{backgroundColor:C.darkTeal,marginTop:20,borderRadius:17,minHeight:52,
    justifyContent:'center',alignItems:'center',flexDirection:'row',gap:10},
- primaryText:{color:'#FFFFFF',fontWeight:'900',fontSize:14}
+ primaryText:{color:'#FFFFFF',fontWeight:'900',fontSize:14},
+ helpRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:14,
+   marginBottom:13},
+ smallAction:{borderRadius:14,backgroundColor:C.tealTint,paddingHorizontal:12,
+   paddingVertical:12,alignItems:'center',justifyContent:'center',minHeight:44},
+ smallActionText:{color:C.teal,fontWeight:'800',fontSize:12},
+ errorCard:{backgroundColor:'#FFFFFF',padding:18,borderRadius:18,gap:12}
 });
