@@ -6688,7 +6688,7 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeHomePage]} showsVerticalScrollIndicator={false}>
         <View style={styles.premiumTopRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
@@ -6751,29 +6751,28 @@ function TradeHomeScreen({
           <ArrowRight size={20} color={theme.colors.white} strokeWidth={2.4} />
         </MotionPressable>
         <View style={styles.tradeDiscoverChoices}>
-          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
-            accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
-            <View style={[styles.tradeDiscoverChoiceIcon, { backgroundColor: theme.colors.coralTint }]}>
-              <Zap size={22} color={theme.colors.coralDark} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.tradeDiscoverChoiceTitle}>Urgent call-outs</Text>
-            <Text style={styles.tradeDiscoverChoiceSub}>Jobs needing a quick response</Text>
-            <View style={styles.tradeDiscoverChoiceFoot}><Text style={styles.tradeDiscoverChoiceLink}>See urgent offers</Text>
-              <ArrowRight size={14} color={theme.colors.teal} /></View>
-          </MotionPressable>
-          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
-            accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
-            <View style={[styles.tradeDiscoverChoiceIcon, { backgroundColor: theme.colors.tealTint }]}>
-              <Route size={22} color={theme.colors.teal} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.tradeDiscoverChoiceTitle}>Flexible jobs</Text>
-            <Text style={styles.tradeDiscoverChoiceSub}>Bookings, On My Way and Street Run</Text>
-            <View style={styles.tradeDiscoverChoiceFoot}><Text style={styles.tradeDiscoverChoiceLink}>See flexible offers</Text>
-              <ArrowRight size={14} color={theme.colors.teal} /></View>
-          </MotionPressable>
-        </View>
-
-        <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
+           <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
+             accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
+             <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.coralTint}]}>
+               <Zap size={20} color={theme.colors.coralDark} strokeWidth={2.2}/>
+             </View>
+             <View style={{flex:1,minWidth:0}}>
+               <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Urgent call-outs</Text>
+               <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={1}>Quick response</Text>
+             </View>
+           </MotionPressable>
+           <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
+             accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
+             <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.tealTint}]}>
+               <Route size={20} color={theme.colors.teal} strokeWidth={2.2}/>
+             </View>
+             <View style={{flex:1,minWidth:0}}>
+               <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Flexible jobs</Text>
+               <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={1}>Plan ahead</Text>
+             </View>
+           </MotionPressable>
+         </View>
+         <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
           accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
           <View style={styles.tradeGridHomeIcon}><Route size={23} color={theme.colors.teal}/></View>
           <View style={{flex:1}}><Text style={styles.tradeGridHomeTitle}>A gap in your diary?</Text>
@@ -10860,13 +10859,14 @@ const styles = StyleSheet.create({
   premiumTabLabel: { marginTop: 3, color: theme.colors.muted, fontSize: 10.5, fontWeight: '500' },
   premiumTabLabelActive: { color: theme.colors.ink, fontWeight: '800' },
   premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
-  premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 21 },
+  tradeHomePage: { paddingHorizontal: 22, paddingTop: 20 },
+  premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   premiumEyebrow: { color: theme.colors.muted, fontSize: 16, fontWeight: '500' },
   premiumPageTitle: { color: theme.colors.ink, fontSize: 34, lineHeight: 40, letterSpacing: -1.3, fontWeight: '800' },
   premiumHeaderAvatar: { width: 54, height: 54, backgroundColor: theme.colors.darkTeal, borderRadius: 27, alignItems: 'center', justifyContent: 'center', shadowColor: theme.colors.ink, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
   premiumHeaderAvatarImage: { height: 54, width: 54, borderRadius: 27 },
   premiumHeaderAvatarText: { fontSize: 24, color: theme.colors.white, fontWeight: '800' },
-  premiumHomeMap: { height: 260, borderRadius: 30, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 15, ...theme.shadow },
+  premiumHomeMap: { height: 246, borderRadius: 28, overflow: 'hidden', position: 'relative', backgroundColor: theme.colors.darkTeal, marginBottom: 11, ...theme.shadow },
   premiumMapPreview: { ...StyleSheet.absoluteFill },
   premiumMapOpen: { ...StyleSheet.absoluteFill },
   premiumMapStatus: { position: 'absolute', top: 18, left: 18, right: 76, minHeight: 43, paddingHorizontal: 14, borderRadius: 23, backgroundColor: '#334A4E', alignItems: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: '#51696D' },
@@ -10900,23 +10900,24 @@ const styles = StyleSheet.create({
   premiumEmptyTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800' },
   premiumEmptyText: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 6 },
   tradeHomeSectionHint: { color: theme.colors.muted, fontSize: 12, lineHeight: 19, marginTop: -9, marginBottom: 15 },
-  tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 12, marginBottom: 14 },
+  tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, marginBottom: 10 },
   tradeDiscoverTitle: { color: theme.colors.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.7 },
   tradeDiscoverSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
-  tradeDiscoverMain: { minHeight: 88, borderRadius: 24, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
-    alignItems: 'center', gap: 13, paddingHorizontal: 17, paddingVertical: 15, marginBottom: 12, ...theme.shadow },
+  tradeDiscoverMain: { minHeight: 85, borderRadius: 23, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
+    alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13, marginBottom: 11, ...theme.shadow },
   tradeDiscoverMainIcon: { width: 47, height: 47, borderRadius: 16, backgroundColor: '#31595D',
     justifyContent: 'center', alignItems: 'center' },
   tradeDiscoverEyebrow: { color: '#ACD1CD', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
   tradeDiscoverMainTitle: { color: theme.colors.white, fontSize: 18, fontWeight: '800', marginTop: 3 },
   tradeDiscoverMainSub: { color: '#D3E3E1', fontSize: 12, marginTop: 4, lineHeight: 17 },
-  tradeDiscoverChoices: { flexDirection: 'row', gap: 12, marginBottom: 23 },
-  tradeDiscoverChoice: { flex: 1, minHeight: 177, backgroundColor: theme.colors.white, borderRadius: 24,
-    paddingHorizontal: 14, paddingVertical: 15, ...theme.shadow },
-  tradeDiscoverChoiceIcon: { width: 43, height: 43, borderRadius: 15,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 15, fontWeight: '800', lineHeight: 20 },
-  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5, flexGrow: 1 },
+  tradeDiscoverChoices: { flexDirection: 'row', gap: 10, marginBottom: 25 },
+  tradeDiscoverChoice: { flex: 1, minWidth: 0, minHeight: 78, backgroundColor: theme.colors.white,
+    borderRadius: 21, paddingHorizontal: 11, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 9, ...theme.shadow },
+  tradeDiscoverChoiceIcon: { width: 36, height: 36, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center' },
+  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 13, fontWeight: '800', lineHeight: 17, flexShrink: 1 },
+  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
   tradeDiscoverChoiceFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   tradeDiscoverChoiceLink: { color: theme.colors.teal, fontSize: 11, fontWeight: '800' },
   tradeDiscoverEmptyAction: { marginTop: 15, minHeight: 37, flexDirection: 'row', alignItems: 'center', gap: 5,
