@@ -1,5 +1,13 @@
 -- Tradarr Crew v1: adult-only work-finding introductions between users.
 -- No payment processing, no employment/verification claims, and no exact location disclosure.
+-- Honour both directions of user blocks despite the block table's owner-only RLS.
+create function trade_private.crew_blocked(p_a uuid,p_b uuid)
+returns boolean language sql stable security definer set search_path='' as $
+ select exists(select 1 from public.tradarr_user_blocks b where
+  (b.blocker_id=p_a and b.blocked_id=p_b) or (b.blocker_id=p_b and b.blocked_id=p_a));
+$;
+revoke all on function trade_private.crew_blocked(uuid,uuid) from public,anon;
+grant execute on function trade_private.crew_blocked(uuid,uuid) to authenticated;
 create table public.crew_profiles (
  user_id uuid primary key references auth.users(id) on delete cascade,
  display_name text not null check(length(btrim(display_name)) between 2 and 75),
@@ -21,8 +29,7 @@ create policy crew_profiles_read on public.crew_profiles for select to authentic
  and not trade_private.tradarr_account_suspended(user_id)
  and not trade_private.tradarr_account_suspended((select auth.uid()))
  and exists(select 1 from public.tradesperson_profiles t where t.user_id=(select auth.uid()))
- and not exists (select 1 from public.tradarr_user_blocks b where
-    b.blocker_id=(select auth.uid()) and b.blocked_id=crew_profiles.user_id))
+ and not trade_private.crew_blocked(user_id,(select auth.uid())))
 );
 create policy crew_profiles_insert on public.crew_profiles for insert to authenticated with check (
  user_id=(select auth.uid()) and adult_confirmed
@@ -65,7 +72,7 @@ create policy crew_requests_read on public.crew_requests for select to authentic
  and not trade_private.tradarr_account_suspended((select auth.uid()))
  and (exists(select 1 from public.tradesperson_profiles t where t.user_id=(select auth.uid()))
   or exists(select 1 from public.crew_profiles p where p.user_id=(select auth.uid())))
- and not exists(select 1 from public.tradarr_user_blocks b where b.blocker_id=(select auth.uid()) and b.blocked_id=crew_requests.owner_id))
+ and not trade_private.crew_blocked(owner_id,(select auth.uid())))
 );
 create policy crew_requests_insert on public.crew_requests for insert to authenticated with check(
  owner_id=(select auth.uid()) and status='open'
@@ -101,6 +108,8 @@ create policy crew_applications_apply on public.crew_applications for insert to 
  and not trade_private.tradarr_account_suspended((select auth.uid()))
  and exists(select 1 from public.crew_requests r
    where r.id=request_id and r.owner_id<>worker_id and r.status='open'
+    and not trade_private.crew_blocked(worker_id,r.owner_id)
+    and exists(select 1 from public.crew_profiles p where p.user_id=worker_id and p.is_visible)
     and r.expires_at>now() and not trade_private.tradarr_account_suspended(r.owner_id))
 );
 grant select,insert on public.crew_applications to authenticated;
@@ -123,7 +132,9 @@ begin
   null;
  elsif v_actor=v_request.owner_id and p_status in ('shortlisted','accepted','declined')
   and v_app.status in ('applied','shortlisted')
-  and not trade_private.tradarr_trade_paused(v_actor) then
+  and not trade_private.tradarr_trade_paused(v_actor)
+  and not trade_private.crew_blocked(v_request.owner_id,v_app.worker_id)
+  and not trade_private.tradarr_account_suspended(v_app.worker_id) then
   if p_status='accepted' and
    (select count(*) from public.crew_applications
      where request_id=v_request.id and status='accepted')>=v_request.positions then
@@ -172,9 +183,12 @@ create policy crew_messages_post on public.crew_messages for insert to authentic
  where a.id=application_id and a.status not in ('declined','withdrawn')
  and (a.worker_id=(select auth.uid()) or r.owner_id=(select auth.uid()))
  and not trade_private.tradarr_account_suspended(a.worker_id)
- and not trade_private.tradarr_account_suspended(r.owner_id))
+ and not trade_private.tradarr_account_suspended(r.owner_id)
+ and not trade_private.crew_blocked(a.worker_id,r.owner_id))
 );
 grant select,insert on public.crew_messages to authenticated;
+-- Publish only this participant-protected table for live in-app threads.
+alter publication supabase_realtime add table public.crew_messages;
 
 -- Crew alerts use the existing in-app/push delivery pipeline.
 alter table public.tradarr_notifications drop constraint tradarr_notifications_kind_check;
