@@ -881,7 +881,9 @@ export default function App() {
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
     if (tradeScreen === 'tradeProfile') return <TradeSettingsScreen {...tradeProps}
-      staffAccess={session?.user.app_metadata?.tradarr_staff===true} signOut={() => supabase.auth.signOut()} />;
+      staffAccess={session?.user.app_metadata?.tradarr_staff===true}
+      onTradeProfileActivated={()=>setAccountType('tradesperson')}
+      signOut={() => supabase.auth.signOut()} />;
     return <TradeHomeScreen {...tradeProps} />;
   }
 
@@ -7937,12 +7939,14 @@ function TradeSettingsScreen({
   switchToCustomer,
   signOut,
   staffAccess,
+  onTradeProfileActivated,
 }: {
   screen: TradeScreen;
   navigate: (screen: TradeScreen) => void;
   switchToCustomer: () => void;
   signOut: () => void;
   staffAccess:boolean;
+  onTradeProfileActivated:()=>void;
 }) {
   const [displayName, setDisplayName] = useState('Your trade profile');
   const [primaryTrade, setPrimaryTrade] = useState('Tradesperson');
@@ -8152,6 +8156,7 @@ function TradeSettingsScreen({
         roleError?.message||'Your customer account still needs the tradesperson role. Try saving again.');
       return;
     }
+    onTradeProfileActivated();
     Alert.alert('Tradesperson profile saved',
       'Your account now supports both tradesperson and customer views. Switch between them in Account.');
   };
