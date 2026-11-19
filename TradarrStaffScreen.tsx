@@ -2,6 +2,8 @@ import React,{useCallback,useEffect,useState} from 'react';
 import {ActivityIndicator,Alert,Linking,RefreshControl,ScrollView,StyleSheet,Switch,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,CheckCircle2,FileCheck2,MessageSquare,ShieldCheck} from 'lucide-react-native';
 import {supabase} from './lib/supabase';
+import {openSupportEvidence} from './lib/supportEvidence';
+import type {SupportEvidence} from './lib/supportEvidence';
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
 type Evidence={id:string;tradesperson_id:string;kind:string;evidence_path:string;applicant_note:string|null;
@@ -20,6 +22,7 @@ export default function TradarrStaffScreen({goBack}:{goBack:()=>void}){
  const [selectedCredential,setSelectedCredential]=useState<string|null>(null);
  const [selectedCase,setSelectedCase]=useState<string|null>(null);
  const [updates,setUpdates]=useState<Update[]>([]);
+ const [caseEvidence,setCaseEvidence]=useState<SupportEvidence[]>([]);
  const [note,setNote]=useState('');
  const [expiry,setExpiry]=useState('');
  const [caseStatus,setCaseStatus]=useState('open');
@@ -66,7 +69,13 @@ export default function TradarrStaffScreen({goBack}:{goBack:()=>void}){
      .eq('case_id',selectedCase).order('created_at',{ascending:true}).limit(120);
    if(active){if(e)setError(e.message);else setUpdates((data||[]) as Update[]);}
   };
-  void get();
+  const getEvidence=async()=>{
+   const {data,error:e}=await supabase.from('support_case_evidence')
+    .select('id,case_id,uploader_id,file_path,file_name,mime_type,created_at')
+    .eq('case_id',selectedCase).order('created_at',{ascending:false}).limit(100);
+   if(active){if(e)setError(e.message);else setCaseEvidence((data||[]) as SupportEvidence[]);}
+  };
+  void get();void getEvidence();
   return()=>{active=false};
  },[selectedCase,authorised]);
  const openCredential=(item:Evidence)=>{
@@ -120,6 +129,18 @@ export default function TradarrStaffScreen({goBack}:{goBack:()=>void}){
   setSaving(false);
   if(e){Alert.alert('Could not update case',e.message);return;}
   setSelectedCase(null);await load();
+ };
+ const refreshCaseEvidence=async()=>{
+  if(!selectedCase)return;
+  const {data,error:e}=await supabase.from('support_case_evidence')
+   .select('id,case_id,uploader_id,file_path,file_name,mime_type,created_at')
+   .eq('case_id',selectedCase).order('created_at',{ascending:false}).limit(100);
+  if(e)Alert.alert('Could not load evidence',e.message);
+  else setCaseEvidence((data||[]) as SupportEvidence[]);
+ };
+ const viewCaseEvidence=async(path:string)=>{
+  try{await openSupportEvidence(path);}
+  catch(e:any){Alert.alert('Unable to open private evidence',e?.message||'Try again.');}
  };
  const sendReply=async()=>{
   if(!support||!uid||!reply.trim()||saving)return;
@@ -192,6 +213,18 @@ export default function TradarrStaffScreen({goBack}:{goBack:()=>void}){
        multiline placeholder="Actions taken and resolution" placeholderTextColor={C.muted}/>
      <MotionPressable style={s.primary} disabled={saving} onPress={()=>{void saveCase()}}>
        <Text style={s.primaryText}>Save triage decision</Text></MotionPressable>
+     <View style={s.row}>
+       <Text style={[s.label,{flex:1}]}>Private case evidence</Text>
+       <MotionPressable onPress={()=>{void refreshCaseEvidence()}} accessibilityRole="button">
+         <Text style={s.link}>Refresh files</Text>
+       </MotionPressable>
+     </View>
+     {caseEvidence.map(item=><MotionPressable key={item.id} onPress={()=>{void viewCaseEvidence(item.file_path)}}
+       accessibilityRole="button" style={s.secondary}>
+        <FileCheck2 size={18} color={C.teal}/>
+        <Text style={[s.link,{flex:1}]} numberOfLines={2}>{item.file_name}</Text>
+       </MotionPressable>)}
+     {!caseEvidence.length?<Text style={s.muted}>No evidence files attached to this case.</Text>:null}
      <Text style={s.label}>Case updates</Text>
      {updates.map(item=><View key={item.id} style={s.replyCard}>
        <Text style={s.overline}>{item.internal_only?'STAFF-ONLY NOTE':item.author_id===uid?'STAFF REPLY':'CUSTOMER'}</Text>
