@@ -257,7 +257,7 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 .leaflet-control-attribution{font-size:8px!important;background:rgba(13,37,43,.87)!important;color:#A9C1C1!important;padding:2px 5px!important;border-top-left-radius:5px!important}
 .leaflet-control-attribution a{color:#B5CFCC!important;text-decoration:none!important}
 .you-label{border-radius:13px;background:rgba(15,42,48,.94);border:1px solid #5E8588;padding:4px 8px;color:#fff;font:700 10px sans-serif;white-space:nowrap;text-align:center;box-shadow:0 3px 10px #0b272844}
-.pin{width:32px;height:32px;border-radius:10px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 10px #0B262A70;color:#245758;display:flex;align-items:center;justify-content:center}
+.pin{position:relative;width:32px;height:32px;border-radius:10px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 10px #0B262A70;color:#245758;display:flex;align-items:center;justify-content:center}
 .pin.general{background:#E0704C}.pin:hover{transform:scale(1.12)}
 .cluster{width:38px;height:38px;border-radius:19px;background:#FFFDF7;border:2px solid #3B7377;box-shadow:0 3px 12px #0C202D66;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#0C1F24}
 .you-pin{width:24px;height:24px;border-radius:50%;background:#E0704C;border:5px solid #fff;box-shadow:0 0 0 6px #E0704C33,0 2px 14px #1B467A77;box-sizing:border-box}
@@ -373,7 +373,7 @@ function draw(){
     desired.add(identity);
     if(!activeShops.has(identity)){
       var shopSvg='<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 10 5 4h14l2 6v2a2 2 0 0 1-4 0 2 2 0 0 1-4 0 2 2 0 0 1-4 0v-2Z"/><path d="M5 14v6h14v-6M9 20v-5h6v5"/></svg>';
-      var html='<div class="pin'+(item.general?' general':'')+(selectedShopId===item.id?' is-selected':'')+'" data-id="'+
+      var html='<div class="pin'+(item.general?' general':'')+(selectedShopId===item.id?' is-selected':'')+'" style="animation-delay:'+Math.min(210,activeShops.size*28)+'ms" data-id="'+
         String(item.id).replace(/[^a-zA-Z0-9_/:.-]/g,'')+'">'+shopSvg+'</div>';
       var icon=L.divIcon({className:'',html:html,iconSize:[32,32],iconAnchor:[16,16]});
       var marker=L.marker([item.lat,item.lng],{icon:icon}).on('click',function(){
@@ -395,7 +395,11 @@ function draw(){
       var icon=L.divIcon({className:'',html:'<div class="cluster">'+group.length+'</div>',
         iconSize:[38,38],iconAnchor:[19,19]});
       var marker=L.marker([lat,lon],{icon:icon}).on('click',function(){
-        map.flyTo([lat,lon],Math.min(16,map.getZoom()+1.5),{duration:.58,easeLinearity:.24});
+        var el=marker.getElement();
+        if(el){var node=el.querySelector('.cluster');if(node)node.classList.add('is-opening');}
+        playShopSweep();
+        map.flyTo([lat,lon],Math.min(16,map.getZoom()+1.5),
+          {duration:reducedMotion.matches?0:.72,easeLinearity:.22});
       }).addTo(layer);
       activeShops.set(identity,marker);
     }
@@ -410,19 +414,47 @@ window.showSuppliers=function(list){
 };
 window.focusSupplier=function(lat,lng){
   window.clearShopLine();
+  if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
   var picked=shops.find(function(s){return Math.abs(s.lat-lat)+Math.abs(s.lng-lng)<.000002;});
   if(picked)selectedShopId=picked.id;
   document.querySelectorAll('.pin[data-id]').forEach(function(el){
     el.classList.toggle('is-selected',el.getAttribute('data-id')===selectedShopId);
   });
+  focusedHalo=L.marker([lat,lng],{
+    icon:L.divIcon({className:'',html:'<div class="focus-halo"></div>',iconSize:[54,54],iconAnchor:[27,27]}),
+    interactive:false,zIndexOffset:180
+  }).addTo(map);
+  playShopSweep();
   if(userPoint){
+    // Visual straight-line comparison only: this is NOT a road route or ETA.
     shopLink=L.polyline([[userPoint.lat,userPoint.lng],[lat,lng]],{
-      color:'#E0704C',weight:4,dashArray:'8,9',opacity:.95,interactive:false,className:'route-active'
+      color:'#E0704C',weight:3.5,dashArray:'7,10',opacity:.96,
+      interactive:false,className:'route-active'
     }).addTo(map);
     var bounds=L.latLngBounds([[userPoint.lat,userPoint.lng],[lat,lng]]);
-    map.flyToBounds(bounds.pad(.38),{padding:[45,45],maxZoom:14.5,duration:.72,easeLinearity:.23});
-  } else {
-    map.flyTo([lat,lng],Math.max(14,map.getZoom()),{duration:.63,easeLinearity:.23});
+    map.flyToBounds(bounds.pad(.33),{padding:[48,48],maxZoom:14.8,
+      duration:reducedMotion.matches?0:.95,easeLinearity:.2});
+    if(!reducedMotion.matches){
+      var animationStart=performance.now(),origin={lat:userPoint.lat,lng:userPoint.lng};
+      travelDot=L.marker([origin.lat,origin.lng],{
+        icon:L.divIcon({className:'',html:'<div class="travel-beacon"></div>',
+          iconSize:[13,13],iconAnchor:[6,6]}),
+        interactive:false,zIndexOffset:750
+      }).addTo(map);
+      // One short movement, never continuous/fake live tracking.
+      function travel(now){
+        if(!travelDot)return;
+        var progress=Math.min(1,(now-animationStart)/1650);
+        var eased=progress<.5?2*progress*progress:1-Math.pow(-2*progress+2,2)/2;
+        travelDot.setLatLng([origin.lat+(lat-origin.lat)*eased,origin.lng+(lng-origin.lng)*eased]);
+        if(progress<1)travelFrame=requestAnimationFrame(travel);
+        else{removeFeature(travelDot);travelDot=null;travelFrame=0;}
+      }
+      travelFrame=requestAnimationFrame(travel);
+    }
+  }else{
+    map.flyTo([lat,lng],Math.max(14,map.getZoom()),
+      {duration:reducedMotion.matches?0:.85,easeLinearity:.2});
   }
 };
 map.on('moveend zoomend resize',draw);
@@ -783,6 +815,7 @@ export default function TradeSuppliersMap() {
                 <MotionPressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></MotionPressable>
               </View>
               <Text style={S.address} numberOfLines={2}>{selected.address}</Text>
+                 <Text style={S.pinDisclaimer}>Straight-line animation only · Directions opens the road route.</Text>
               {selected.postcodeApproximate ? <Text style={S.pinDisclaimer}>Approximate map pin (postcode centre)</Text> : null}
               <View style={S.actions}>
                 <MotionPressable style={S.primaryButton} onPress={() => openDirections(selected)}>
