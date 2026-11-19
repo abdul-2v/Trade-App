@@ -78,7 +78,7 @@ export default function TradeGridScreen({goBack}:{goBack:()=>void}){
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text><Text style={s.heading}>Grid availability</Text></View>
    <MotionPressable onPress={()=>setCreating(v=>!v)} style={s.new}><Plus size={18} color="#FFFFFF"/><Text style={s.newText}>Publish</Text></MotionPressable></View>
   {busy?<ActivityIndicator color={C.teal} size="large" style={{marginTop:55}}/>:
-  <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
    <View style={s.hero}><Clock3 size={25} color="#CBE5DF"/><Text style={s.heroTitle}>Fill useful gaps in your diary.</Text>
     <Text style={s.heroSub}>Publish genuine spare windows in an approximate work area. Customers can ask to use one, and you decide whether to accept.</Text></View>
    {creating?<View style={s.card}>
