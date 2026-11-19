@@ -216,7 +216,7 @@ const s=StyleSheet.create({
  stagePrimary:{flex:1,minHeight:46,borderRadius:18,backgroundColor:C.darkTeal,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7},
  stageSecondary:{flex:1,minHeight:46,backgroundColor:C.tealTint,borderRadius:18,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5},
  delete:{flexDirection:'row',gap:7,alignSelf:'center',marginTop:12,padding:15},
- deleteText:{color:C.coralDark,fontSize:12,fontWeight:'800'}
+ deleteText:{color:C.coralDark,fontSize:12,fontWeight:'800'},
  errorCard:{margin:19,padding:22,backgroundColor:'#FFFFFF',borderRadius:24,
    alignItems:'center',gap:11,...theme.shadow},
 });
