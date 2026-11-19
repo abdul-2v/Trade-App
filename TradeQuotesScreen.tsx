@@ -6,6 +6,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {WebView} from 'react-native-webview';
 import {MotionPressable} from './Motion';
+import type {QuoteDraftFromSuite} from './TradeBusinessSuiteScreen';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
@@ -137,8 +138,9 @@ function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>
  return <MotionPressable onPress={onPress} style={[s.pill,selected&&s.pillOn]}>
  <Text style={[s.pillText,selected&&s.pillTextOn]}>{name}</Text></MotionPressable>;
 }
-export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated}:{
+export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated,initialDraft}:{
  goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void;onMaterialsCreated:(kitId:string)=>void;
+ initialDraft?:QuoteDraftFromSuite|null;
 }){
  const scrollRef=useRef<ScrollViewInstance>(null);
  const bringBottomIntoView=()=>{setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),360);};
@@ -266,6 +268,26 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   setLines([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);setVatRate(0);
   setSelectedId(null);setScreen('new');
  };
+ // A Business Suite scope opens a NEW editable quote, never overwriting an
+ // existing issued quote or silently sending a document to the customer.
+ useEffect(()=>{
+  if(loading||!initialDraft)return;
+  newQuote();
+  setTitle(initialDraft.title);
+  setDescription(initialDraft.scope);
+  setIncluded(initialDraft.scope);
+  const lineItems:DraftLine[]=[];
+  if(initialDraft.labour>0)lineItems.push({
+   kind:'labour',description:'Labour',quantity:'1',
+   unit_price:String(initialDraft.labour),unit:'job'
+  });
+  if(initialDraft.materials>0)lineItems.push({
+   kind:'material',description:'Materials incl. estimated markup',
+   quantity:'1',unit_price:String(Math.round(initialDraft.materials*(1+initialDraft.markup/100)*100)/100),
+   unit:'item'
+  });
+  if(lineItems.length)setLines(lineItems);
+ },[loading,initialDraft]);
  const reviseQuote=(doc:Quote)=>{
    // A customer-facing quotation is an issued snapshot. Create a new numbered proposal,
    // preserving the original for records rather than silently overwriting it.
