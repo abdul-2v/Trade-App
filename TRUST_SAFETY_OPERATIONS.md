@@ -34,6 +34,50 @@ Remove the claim through the trusted Auth Admin API to revoke access. The databa
 
 **Security:** The administrator password must be changed if it was shared in plaintext. Do not store credentials in the app, source code, GitHub, public comments, chat case notes or support attachments. Auth leaked-password protection remains to be enabled from Supabase Auth settings.
 
+## Admin Gateway control centre — 19 November 2026
+
+Open **Account → Admin Gateway · Secure access**, then verify your six-digit authenticator code. Customer and professional views remain separate and usable through the same account.
+
+The new **Admin Gateway overview** connects to live Supabase data through narrowly scoped, MFA-protected functions. Available sections:
+
+| Area | What administrators can do |
+| --- | --- |
+| Overview | View account counts, verified and insured trade profiles, active jobs, urgent requests, quotes, invoiced amounts and outstanding support/verification work |
+| Users | Search by name, email or account identifier; inspect account type, email confirmation and trade-profile status |
+| Trades | Search business profiles, ratings, service areas, availability and verification; **pause or restore public discovery** with a written reason |
+| Jobs | Browse standard and urgent jobs, owners and assignment status, without exposing exact home coordinates |
+| Finance | View job-linked quotes and invoices, totals and statuses; **these amounts are tradespeople's invoicing, not Tradarr revenue** |
+| Bookings | Inspect scheduled visit records and statuses, without displaying private customer addresses |
+| Reviews | Inspect feedback tied to completed standard or urgent jobs |
+| Cases | Find support cases and open the existing support desk to assign priorities and reply |
+| Verification | Approve, reject or revoke submitted evidence through the existing secure review queue |
+| Support desk | Work case statuses, staff-only comments, customer replies and private evidence |
+| Audit log | See time-stamped admin notes and listing moderation decisions |
+
+### Actions and safeguards
+
+- **Internal audit note:** write a 10–2000 character reason to an account, trader, job, invoice, quote, review or support case. The note remains staff-only.
+- **Pause public trade listing:** only for another tradesperson, and only with a 12–2000 character explanation and a separate confirmation. The transaction hides the business profile and map presence from public discovery, prevents it from re-enabling availability, sends an in-app notice and writes an audit record. It does **not** delete the trader's account or existing customer bookings/invoices.
+- **Restore public trade listing:** also reasoned, confirmed, audited and notified. The tradesperson must opt into availability again; restoration does not silently publish their live location.
+- **Direct in-app user notice:** available in the Users directory. Select one recipient, provide a 5–90 character title and 10–350 character message and confirm. The action is limited to 30 notices per administrator per day, recorded in the audit log, and delivered to Tradarr Inbox Activity. **It is not an email, SMS or remote iPhone push.**
+- **Staff authorisation:** all admin database functions check both the current trusted `auth.users.raw_app_meta_data.tradarr_staff` flag and a verified `aal2` MFA session. Broad access is *not* granted to all authenticated users. Neither passwords nor Supabase secret keys are returned to the app.
+
+### Verified developer tests
+
+- [x] A password-only (`aal1`) session is rejected from administrator queries
+- [x] Staff + MFA (`aal2`) can read real overview and all eight searchable database sections
+- [x] Pause action hides the selected trader from authenticated **and anonymous** discovery within a rolled-back SQL test
+- [x] Pause and targeted notice both record audit rows within a rolled-back SQL test
+- [x] The rollback leaves no real business paused and sends no persistent test notice
+- [x] Latest GitHub TypeScript, Expo compatibility, syntax and booking/route checks passed
+- [ ] Manually test every admin screen on an iPhone after restarting Expo Go
+- [ ] Test staff MFA enrollment, challenge, verification and sign-out on two separate devices
+- [ ] Test a real account receiving an in-app admin notice and notification interaction
+- [ ] Test pause/restore using deliberately created safe staging businesses; check job, map, discovery and availability flows
+- [ ] Establish a moderation retention and appeal process before using pause for a real dispute
+
+For release, the still-flagged Supabase security-definer functions must be reviewed individually. Each new public `tradarr_admin_*` function has an internal staff + MFA guard, has `EXECUTE` revoked from `PUBLIC` and `anon`, and is granted only to the `authenticated` role for its guarded call. Existing Auth leaked-password protection still needs enabling in Supabase configuration.
+
 ## Support operations
 
 1. Designate a human team member to check the triage queue regularly and establish a response policy. The app currently tells users the early-access queue is **not monitored continuously**.
