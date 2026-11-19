@@ -6751,28 +6751,29 @@ function TradeHomeScreen({
           <ArrowRight size={20} color={theme.colors.white} strokeWidth={2.4} />
         </MotionPressable>
         <View style={styles.tradeDiscoverChoices}>
-           <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
-             accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
-             <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.coralTint}]}>
-               <Zap size={20} color={theme.colors.coralDark} strokeWidth={2.2}/>
-             </View>
-             <View style={{flex:1,minWidth:0}}>
-               <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Urgent call-outs</Text>
-               <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={1}>Quick response</Text>
-             </View>
-           </MotionPressable>
-           <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
-             accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
-             <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.tealTint}]}>
-               <Route size={20} color={theme.colors.teal} strokeWidth={2.2}/>
-             </View>
-             <View style={{flex:1,minWidth:0}}>
-               <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Flexible jobs</Text>
-               <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={1}>Plan ahead</Text>
-             </View>
-           </MotionPressable>
-         </View>
-         <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
+          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
+            accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
+            <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.coralTint}]}>
+              <Zap size={23} color={theme.colors.coralDark} strokeWidth={2.2}/>
+            </View>
+            <View style={{minWidth:0,width:'100%'}}>
+              <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Urgent call-outs</Text>
+              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Jobs needing a quick response</Text>
+            </View>
+          </MotionPressable>
+          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
+            accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
+            <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.tealTint}]}>
+              <Route size={23} color={theme.colors.teal} strokeWidth={2.2}/>
+            </View>
+            <View style={{minWidth:0,width:'100%'}}>
+              <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Flexible jobs</Text>
+              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Scheduled, On My Way and Street Run</Text>
+            </View>
+          </MotionPressable>
+        </View>
+
+                 <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
           accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
           <View style={styles.tradeGridHomeIcon}><Route size={23} color={theme.colors.teal}/></View>
           <View style={{flex:1}}><Text style={styles.tradeGridHomeTitle}>A gap in your diary?</Text>
@@ -11066,21 +11067,23 @@ const styles = StyleSheet.create({
   tradeDiscoverIntro: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, marginBottom: 10 },
   tradeDiscoverTitle: { color: theme.colors.ink, fontSize: 23, fontWeight: '800', letterSpacing: -0.7 },
   tradeDiscoverSubtitle: { color: theme.colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
-  tradeDiscoverMain: { minHeight: 85, borderRadius: 23, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
-    alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13, marginBottom: 11, ...theme.shadow },
+  tradeDiscoverMain: { minHeight: 91, borderRadius: 23, backgroundColor: theme.colors.darkTeal, flexDirection: 'row',
+    alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, ...theme.shadow },
   tradeDiscoverMainIcon: { width: 47, height: 47, borderRadius: 16, backgroundColor: '#31595D',
     justifyContent: 'center', alignItems: 'center' },
   tradeDiscoverEyebrow: { color: '#ACD1CD', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
   tradeDiscoverMainTitle: { color: theme.colors.white, fontSize: 18, fontWeight: '800', marginTop: 3 },
   tradeDiscoverMainSub: { color: '#D3E3E1', fontSize: 12, marginTop: 4, lineHeight: 17 },
-  tradeDiscoverChoices: { flexDirection: 'row', gap: 10, marginBottom: 25 },
-  tradeDiscoverChoice: { flex: 1, minWidth: 0, minHeight: 78, backgroundColor: theme.colors.white,
-    borderRadius: 21, paddingHorizontal: 11, paddingVertical: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 9, ...theme.shadow },
-  tradeDiscoverChoiceIcon: { width: 36, height: 36, borderRadius: 12,
+  // Two full-height tiles make a complete first-screen action group, rather
+  // than a truncated next card peeking above the fixed bottom navigation.
+  tradeDiscoverChoices: { flexDirection: 'row', gap: 12, marginBottom: 29 },
+  tradeDiscoverChoice: { flex: 1, minWidth: 0, minHeight: 139, backgroundColor: theme.colors.white,
+    borderRadius: 23, paddingHorizontal: 14, paddingVertical: 15,
+    flexDirection: 'column', alignItems: 'flex-start', justifyContent:'space-between', gap: 10, ...theme.shadow },
+  tradeDiscoverChoiceIcon: { width: 43, height: 43, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center' },
-  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 13, fontWeight: '800', lineHeight: 17, flexShrink: 1 },
-  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 11, lineHeight: 15, marginTop: 2 },
+  tradeDiscoverChoiceTitle: { color: theme.colors.ink, fontSize: 15, fontWeight: '900', lineHeight: 20, flexShrink: 1 },
+  tradeDiscoverChoiceSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
   tradeDiscoverChoiceFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   tradeDiscoverChoiceLink: { color: theme.colors.teal, fontSize: 11, fontWeight: '800' },
   tradeDiscoverEmptyAction: { marginTop: 15, minHeight: 37, flexDirection: 'row', alignItems: 'center', gap: 5,
