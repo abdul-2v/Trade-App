@@ -2,10 +2,10 @@
 -- No payment processing, no employment/verification claims, and no exact location disclosure.
 -- Honour both directions of user blocks despite the block table's owner-only RLS.
 create function trade_private.crew_blocked(p_a uuid,p_b uuid)
-returns boolean language sql stable security definer set search_path='' as $
+returns boolean language sql stable security definer set search_path='' as $$
  select exists(select 1 from public.tradarr_user_blocks b where
   (b.blocker_id=p_a and b.blocked_id=p_b) or (b.blocker_id=p_b and b.blocked_id=p_a));
-$;
+$$;
 revoke all on function trade_private.crew_blocked(uuid,uuid) from public,anon;
 grant execute on function trade_private.crew_blocked(uuid,uuid) to authenticated;
 create table public.crew_profiles (
