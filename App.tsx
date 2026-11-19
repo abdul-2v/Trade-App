@@ -6227,6 +6227,38 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
      </View>
      <ChevronRight size={25} color="#E6F3F0"/>
    </MotionPressable>
+   <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
+   <View style={styles.tradeToolsGrid}>
+     {quick.map(({route,Icon,title,detail})=><MotionPressable key={route}
+       style={[styles.tradeToolsQuick,{minHeight:90,padding:14}]}
+       onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={title}>
+       <View style={{flexDirection:'row',alignItems:'center',gap:9,marginBottom:6}}>
+         <View style={[styles.tradeToolsQuickIcon,{width:36,height:36,borderRadius:12,marginBottom:0}]}>
+           <Icon size={20} color={theme.colors.teal}/>
+         </View>
+         <Text style={[styles.tradeToolsQuickName,{flex:1}]}>{title}</Text>
+       </View>
+       <Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
+     </MotionPressable>)}
+   </View>
+   <Text style={styles.tradeToolsSectionTitle}>Your business toolkit</Text>
+   <Text style={[styles.premiumScreenSub,{marginTop:-9,marginBottom:15}]}>
+     Twelve specialist tools, organised around how you work.
+   </Text>
+   {suiteGroups.map(group=><View key={group.title} style={{marginBottom:13}}>
+     <Text style={styles.tradeToolsSectionTitle}>{group.title}</Text>
+     <View style={styles.tradeToolsList}>
+       {group.tools.map(({id,title,detail,Icon},index)=><MotionPressable key={id}
+         onPress={()=>openBusinessSuite(id)} accessibilityRole="button"
+         accessibilityLabel={'Open '+title}
+         style={[styles.tradeToolsRow,index>0&&styles.tradeToolsRowDivider]}>
+         <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal} strokeWidth={2}/></View>
+         <View style={{flex:1}}><Text style={styles.tradeToolsRowTitle}>{title}</Text>
+           <Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
+         <ChevronRight size={20} color={theme.colors.teal}/>
+       </MotionPressable>)}
+     </View>
+   </View>)}
    <MotionPressable onPress={()=>navigate('tradeCrew')} accessibilityRole="button"
       accessibilityLabel="Open Tradarr Crew" style={[styles.tradeToolsPowerCard,{width:'100%',minHeight:112,marginBottom:17,
       backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:14}]}>
