@@ -5529,7 +5529,7 @@ function MessagesScreen({navigate,userId}:{
  navigate:(screen:CustomerScreen)=>void;userId:string;
 }){
  return <CustomerShell current="messages" navigate={navigate}>
-   <TradarrInboxScreen role="customer" onOpenOther={notice=>navigate(notice.kind==='quote_update'?'customerQuotes':'requests')}/>
+   <TradarrInboxScreen role="customer" onOpenOther={notice=>navigate(notice.kind==='invoice_update'?'customerInvoices':notice.kind==='quote_update'?'customerQuotes':'requests')}/>
  </CustomerShell>;
 }
 
