@@ -109,7 +109,7 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  {!editing?<MotionPressable onPress={startNew} style={s.new}><Plus size={20} color="#FFFFFF"/><Text style={s.newText}>Add</Text></MotionPressable>:null}
  </View>
  {loading?<ActivityIndicator style={{marginTop:50}} size="large" color={C.teal}/>:
- editing?<ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+ editing?<ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
  <Text style={s.explain}>Your diary uses UK time. Confirmed Tradarr appointments block overlapping bookings, even if two devices try to book simultaneously.</Text>
  <View style={s.card}>
  <Field label="Work / appointment title *" value={title} change={setTitle} placeholder="e.g. Replace radiator valves"/>
@@ -136,7 +136,7 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  </View><MotionPressable style={s.primary} onPress={save} disabled={saving}>
  {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Save appointment</Text>}
  </MotionPressable></ScrollView>:
- <ScrollView contentContainerStyle={s.page}>
+ <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page}>
  <Text style={s.explain}>Appointments from accepted Tradarr jobs and Grid slots appear alongside your private diary. Confirmed times cannot overlap.</Text>
  <View style={s.summary}><CalendarDays size={26} color={C.teal}/>
  <View style={{flex:1}}><Text style={s.summaryBig}>{items.filter(x=>x.status==='scheduled'&&new Date(x.ends_at).getTime()>=now).length} upcoming</Text>
