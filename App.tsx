@@ -28,7 +28,7 @@ import CustomerCollectiveScreen from './CustomerCollectiveScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
 import TradarrCrewScreen from './TradarrCrewScreen';
 import TradeBusinessSuiteScreen from './TradeBusinessSuiteScreen';
-import type {BusinessFeature} from './TradeBusinessSuiteScreen';
+import type {BusinessFeature,QuoteDraftFromSuite} from './TradeBusinessSuiteScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
@@ -578,6 +578,7 @@ export default function App() {
   const [homeBackScreen,setHomeBackScreen]=useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
   const [businessFeature,setBusinessFeature]=useState<BusinessFeature>('radar');
+  const [businessQuoteDraft,setBusinessQuoteDraft]=useState<QuoteDraftFromSuite|null>(null);
   const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
   const [materialKitPreviewId,setMaterialKitPreviewId]=useState<string|null>(null);
   const [tradeJobsEntry, setTradeJobsEntry] = useState<TradeJobsEntry>({ view: 'offers', filter: 'all' });
@@ -864,7 +865,8 @@ export default function App() {
     if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={navigateTrade}><TradeInvoicesScreen
       initialPreviewId={invoicePreviewId} goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
     if (tradeScreen === 'tradeQuotes') return <TradeShell current="tradeQuotes" navigate={navigateTrade}><TradeQuotesScreen
-      goBack={() => navigateTrade('tradeTools')}
+      goBack={() => {setBusinessQuoteDraft(null);navigateTrade('tradeTools');}}
+      initialDraft={businessQuoteDraft}
       onInvoiceCreated={id => { setInvoicePreviewId(id); setTradeScreen('tradeInvoices'); }}
       onMaterialsCreated={id => { setMaterialKitPreviewId(id); setTradeScreen('tradeMaterials'); }} /></TradeShell>;
     if (tradeScreen === 'tradeCustomers') return <TradeShell current="tradeCustomers" navigate={navigateTrade}><TradeCustomersScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
@@ -877,7 +879,8 @@ export default function App() {
         openProfit={() => navigateTrade('tradeProfit')}/></TradeShell>;
     if (tradeScreen === 'tradeBusinessSuite') return <TradeShell current="tradeTools" navigate={navigateTrade}>
       <TradeBusinessSuiteScreen feature={businessFeature} goBack={() => navigateTrade('tradeTools')}
-        openTool={screen => navigateTrade(screen as TradeScreen)} />
+        openTool={screen => navigateTrade(screen as TradeScreen)}
+        openQuoteDraft={draft=>{setBusinessQuoteDraft(draft);navigateTrade('tradeQuotes');}} />
     </TradeShell>;
     if (tradeScreen === 'tradeCrew') return <TradeShell current="tradeCrew" navigate={navigateTrade}>
       <TradarrCrewScreen viewerRole="tradesperson" goBack={() => navigateTrade('tradeTools')}/>
