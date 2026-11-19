@@ -33,7 +33,8 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   const {data,error:loadError}=await supabase.from('tradarr_notifications')
    .select('id,kind,title,body,data,created_at,read_at')
    .eq('recipient_id',user.id).order('created_at',{ascending:false}).limit(100);
-  if(loadError){setError(loadError.message);setLoading(false);return;}
+  if(loadError){setError('Your updates could not be loaded. '+loadError.message);
+   setLoading(false);return;}
   setItems((data||[]) as TradarrAlert[]);
   setError('');setLoading(false);
  },[]);
@@ -70,9 +71,11 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  const markRead=async(id:string)=>{
   if(!uid)return;
   const stamp=new Date().toISOString();
-  const {error:markError}=await supabase.from('tradarr_notifications')
-    .update({read_at:stamp}).eq('id',id).eq('recipient_id',uid).is('read_at',null);
+  const {data:saved,error:markError}=await supabase.from('tradarr_notifications')
+    .update({read_at:stamp}).eq('id',id).eq('recipient_id',uid)
+    .is('read_at',null).select('id');
   if(markError){setError(markError.message);return;}
+  if(!saved?.length){await refresh();return;}
   setItems(previous=>previous.map(item=>item.id===id?{...item,read_at:stamp}:item));
  };
  const open=async(item:TradarrAlert)=>{
@@ -83,11 +86,14 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   if(!uid||busy||!unread)return;
   setBusy(true);
   const stamp=new Date().toISOString();
-  const {error:saveError}=await supabase.from('tradarr_notifications')
-   .update({read_at:stamp}).eq('recipient_id',uid).is('read_at',null);
+  const {data:saved,error:saveError}=await supabase.from('tradarr_notifications')
+   .update({read_at:stamp}).eq('recipient_id',uid).is('read_at',null).select('id');
   setBusy(false);
   if(saveError){Alert.alert('Could not update notifications',saveError.message);return;}
-  setItems(old=>old.map(item=>({...item,read_at:item.read_at||stamp})));
+  if(!saved?.length){await refresh();return;}
+  const confirmed=new Set(saved.map(row=>row.id));
+  setItems(old=>old.map(item=>confirmed.has(item.id)
+    ?{...item,read_at:item.read_at||stamp}:item));
  };
  const iconFor=(kind:AlertKind)=>{
    if(kind==='message')return MessageCircle;
@@ -135,9 +141,17 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
       Mark all read</Text>
    </MotionPressable>
   </View>
-  {error?<Text style={s.error}>{error}</Text>:null}
+  {error?<View style={s.errorPanel}>
+    <BellRing size={26} color={theme.colors.coralDark}/>
+    <Text style={s.error}>{error}</Text>
+    <MotionPressable onPress={()=>void refresh()} style={s.retry}
+      accessibilityRole="button" accessibilityLabel="Retry loading notifications">
+      <RefreshCw size={17} color="#FFFFFF"/>
+      <Text style={{color:'#FFFFFF',fontWeight:'800'}}>Try again</Text>
+    </MotionPressable>
+   </View>:null}
   {loading?<ActivityIndicator style={{marginTop:45}} color={theme.colors.teal}/>:
-   <ScrollView contentContainerStyle={{paddingHorizontal:16,paddingBottom:35}}>
+   error?null:<ScrollView contentContainerStyle={{paddingHorizontal:16,paddingBottom:55}}>
     {shown.map(item=>{
       const Icon=iconFor(item.kind);
       return <MotionPressable key={item.id} onPress={()=>{void open(item)}}
@@ -190,7 +204,11 @@ const s=StyleSheet.create({
  notificationTitle:{flex:1,color:theme.colors.ink,fontWeight:'900',fontSize:14},
  notificationBody:{fontSize:12,color:theme.colors.muted,lineHeight:19},
  time:{color:theme.colors.muted,fontSize:10},
- error:{color:theme.colors.coralDark,fontSize:12,paddingHorizontal:20,marginBottom:12},
+ error:{color:theme.colors.coralDark,fontSize:12,lineHeight:19,textAlign:'center'},
+ errorPanel:{marginHorizontal:16,marginTop:14,padding:23,borderRadius:20,
+   backgroundColor:'#FFFFFF',alignItems:'center',gap:13},
+ retry:{minHeight:47,borderRadius:25,paddingHorizontal:23,backgroundColor:theme.colors.darkTeal,
+   flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
  empty:{paddingHorizontal:25,paddingVertical:75,gap:11,alignItems:'center'},
  emptyTitle:{fontSize:18,fontWeight:'900',color:theme.colors.ink}
 });
