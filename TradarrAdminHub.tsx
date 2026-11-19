@@ -124,6 +124,8 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
  const [debounced,setDebounced]=useState('');
  const [selected,setSelected]=useState<AdminRecord|null>(null);
  const [reason,setReason]=useState('');
+ const [noticeTitle,setNoticeTitle]=useState('');
+ const [noticeBody,setNoticeBody]=useState('');
  const [loading,setLoading]=useState(true);
  const [refreshing,setRefreshing]=useState(false);
  const [saving,setSaving]=useState(false);
@@ -172,9 +174,9 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
   return()=>subscription.remove();
  },[load]);
  const changeSection=(target:Section)=>{
-  setSection(target);setSelected(null);setSearch('');setDebounced('');setReason('');setError('');
+  setSection(target);setSelected(null);setSearch('');setDebounced('');setReason('');setNoticeTitle('');setNoticeBody('');setError('');
  };
- const openRecord=(record:AdminRecord)=>{setSelected(record);setReason('');};
+ const openRecord=(record:AdminRecord)=>{setSelected(record);setReason('');setNoticeTitle('');setNoticeBody('');};
  const note=async()=>{
   if(!selected||saving)return;
   const type=sectionToTarget(section,selected);
@@ -192,6 +194,28 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
    setReason('');Alert.alert('Note recorded','Your action is saved in the Admin Gateway audit history.');
   }catch(e:any){Alert.alert('Could not save note',e?.message||'Please try again.');}
   finally{setSaving(false);}
+ };
+ const notify=async()=>{
+  if(section!=='users'||!selected||saving)return;
+  const title=noticeTitle.trim(),body=noticeBody.trim();
+  if(title.length<5||title.length>90||body.length<10||body.length>350){
+   Alert.alert('Check notice','Use a title between 5 and 90 characters and a message between 10 and 350 characters.');return;
+  }
+  const send=async()=>{
+   setSaving(true);
+   try{
+    const {error:e}=await supabase.rpc('tradarr_admin_notify_user',{
+     p_user_id:selected.id,p_title:title,p_message:body
+    });
+    if(e)throw e;
+    setNoticeTitle('');setNoticeBody('');
+    Alert.alert('Notice sent','The user has an in-app Tradarr notification. This is not an email or Apple push notification.');
+   }catch(e:any){Alert.alert('Could not send notice',e?.message||'Please try again.');}
+   finally{setSaving(false);}
+  };
+  Alert.alert('Send a Tradarr notice?', 'Send this message to '+(selected.email||'the selected account')+
+   '. The action will be audited.',
+   [{text:'Cancel',style:'cancel'},{text:'Send notice',onPress:()=>{void send()}}]);
  };
  const moderate=async(action:'pause'|'restore')=>{
   if(!selected||section!=='traders'||saving)return;
@@ -364,6 +388,25 @@ export default function TradarrAdminHub({goBack}:{goBack:()=>void}){
       <ItemDetails label="Reason" value={selected.reason}/>
      </>:null}
     </View>
+    {section==='users'?<View style={s.record}>
+     <View style={{flexDirection:'row',alignItems:'center',gap:9}}>
+      <BellRing size={20} color={C.teal}/>
+      <Text style={s.sectionTitle}>Send direct in-app notice</Text>
+     </View>
+     <Text style={s.muted}>This delivers an Inbox Activity notification only. It does not send an email or remote push. Messages are audited and limited to 30 per administrator per day.</Text>
+     <TextInput value={noticeTitle} onChangeText={setNoticeTitle}
+      maxLength={90} placeholder="Notice title" placeholderTextColor={C.muted}
+      style={[s.notes,{minHeight:47}]}/>
+     <TextInput value={noticeBody} onChangeText={setNoticeBody}
+      maxLength={350} multiline placeholder="Write a short, helpful notice"
+      placeholderTextColor={C.muted} style={s.notes}/>
+     <MotionPressable disabled={saving||noticeTitle.trim().length<5||noticeBody.trim().length<10}
+      onPress={()=>{void notify()}} accessibilityRole="button"
+      style={[s.primary,(saving||noticeTitle.trim().length<5||noticeBody.trim().length<10)&&s.disabled]}>
+      <BellRing size={17} color="#FFFFFF"/>
+      <Text style={s.primaryText}>Send in-app notice</Text>
+     </MotionPressable>
+    </View>:null}
     {section!=='audit'&&sectionToTarget(section,selected)?<View style={s.record}>
      <Text style={s.sectionTitle}>Administrator action</Text>
      <Text style={s.muted}>Record a reason for investigating or changing this record. Only staff with verified MFA can write to the audit log.</Text>
