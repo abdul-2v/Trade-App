@@ -25,6 +25,9 @@ export default function TradarrAdminModerationScreen({goBack}:{goBack:()=>void})
  const [data,setData]=useState<Record<Kind,Row[]>>({report:[],appeal:[],deletion:[]});
  const [selected,setSelected]=useState<Row|null>(null);
  const [reason,setReason]=useState('');
+ const [deletionCheck,setDeletionCheck]=useState<{eligible:boolean;blockers:string[];user_id_prefix:string}|null>(null);
+ const [deletionPhrase,setDeletionPhrase]=useState('');
+ const [preflightBusy,setPreflightBusy]=useState(false);
  const [loading,setLoading]=useState(true);
  const [refreshing,setRefreshing]=useState(false);
  const [saving,setSaving]=useState(false);
@@ -71,7 +74,49 @@ export default function TradarrAdminModerationScreen({goBack}:{goBack:()=>void})
    'Your reason will be preserved in the administrative audit history.',
    [{text:'Cancel',style:'cancel'},{text:'Confirm',onPress:()=>{void go()}}]);
  };
- const back=()=>{if(selected){setSelected(null);setReason('');}else goBack();};
+ const reviewDeletion=async()=>{
+  if(!selected||kind!=='deletion'||selected.status!=='ready_for_deletion'||preflightBusy)return;
+  setPreflightBusy(true);setDeletionCheck(null);setDeletionPhrase('');
+  try{
+   const {data,error:e}=await supabase.functions.invoke('tradarr-account-delete',{
+    body:{request_id:selected.id,check_only:true}
+   });
+   if(e||!data)throw e||new Error('Preflight returned no result.');
+   setDeletionCheck(data as {eligible:boolean;blockers:string[];user_id_prefix:string});
+  }catch(e:any){
+   Alert.alert('Deletion eligibility unavailable',e?.message||'Try checking again.');
+  }finally{setPreflightBusy(false);}
+ };
+ const executeDeletion=()=>{
+  if(!selected||kind!=='deletion'||!deletionCheck?.eligible)return;
+  const required='DELETE '+deletionCheck.user_id_prefix;
+  if(deletionPhrase.trim()!==required){
+   Alert.alert('Confirmation does not match','Type '+required+' exactly.');return;
+  }
+  const requestId=selected.id;
+  Alert.alert('Permanently delete this account?',
+   'This is irreversible. The approved account will lose its login and associated non-retained data. A final server-side data check will be repeated.',
+   [{text:'Cancel',style:'cancel'},{text:'Permanently delete',style:'destructive',onPress:()=>{
+    void (async()=>{
+     setPreflightBusy(true);
+     try{
+      const {data,error:e}=await supabase.functions.invoke('tradarr-account-delete',{
+       body:{request_id:requestId,check_only:false,confirmation:required}
+      });
+      if(e||!data?.deleted)throw e||new Error('Deletion was not confirmed.');
+      setSelected(null);setDeletionCheck(null);setDeletionPhrase('');
+      await load(true);
+      Alert.alert('Account deletion confirmed',data.audit_recorded===false?
+       'The Auth account was deleted, but the final audit receipt needs an administrator review.':
+       'The Auth account was deleted and the administrator audit receipt was recorded.');
+     }catch(e:any){
+      Alert.alert('Deletion not completed',e?.message||'A safety check prevented deletion. Review the request and retry only after investigating.');
+      setDeletionCheck(null);setDeletionPhrase('');
+     }finally{setPreflightBusy(false);}
+    })();
+   }}]);
+ };
+ const back=()=>{if(selected){setSelected(null);setReason('');setDeletionCheck(null);setDeletionPhrase('');}else goBack();};
  const shown=data[kind];
  const countOpen=(key:Kind)=>data[key].filter(row=>(
   key==='deletion'?['requested','reviewing','ready_for_deletion']:
@@ -125,6 +170,30 @@ export default function TradarrAdminModerationScreen({goBack}:{goBack:()=>void})
      <TextInput value={reason} onChangeText={setReason} multiline maxLength={2000}
       placeholder="Evidence checked, findings and reason (minimum 12 characters)"
       placeholderTextColor={C.muted} style={s.input}/>
+     {kind==='deletion'&&selected.status==='ready_for_deletion'?<View style={s.deletionBox}>
+       <Text style={s.subtitle}>Final deletion security review</Text>
+       <Text style={s.muted}>Only use this for an approved request. The protected server checks for invoices, trading history, conversations, storage, disputes and administrator accounts. Most established accounts require manual privacy processing.</Text>
+       <MotionPressable disabled={preflightBusy} onPress={()=>{void reviewDeletion()}}
+        style={s.preflightAction} accessibilityRole="button">
+        <Text style={s.preflightText}>{preflightBusy?'Checking…':'Check final deletion eligibility'}</Text>
+       </MotionPressable>
+       {deletionCheck?<View style={{gap:9}}>
+        <Text style={s.muted}>{deletionCheck.eligible?'Eligible for final deletion':'Final deletion blocked — requires manual review'}</Text>
+        {(deletionCheck.blockers||[]).map((blocker,i)=>
+         <Text style={s.warning} key={i}>{blocker}</Text>)}
+        {deletionCheck.eligible?<View style={{gap:8}}>
+         <Text style={s.subtitle}>Type DELETE {deletionCheck.user_id_prefix} to confirm</Text>
+         <TextInput value={deletionPhrase} onChangeText={setDeletionPhrase}
+          autoCapitalize="characters" autoCorrect={false} style={[s.input,{minHeight:48}]}
+          placeholder={'DELETE '+deletionCheck.user_id_prefix} placeholderTextColor={C.muted}/>
+         <MotionPressable disabled={preflightBusy||deletionPhrase.trim()!=='DELETE '+deletionCheck.user_id_prefix}
+          style={[s.action,s.destructive,{alignItems:'center',opacity:preflightBusy||deletionPhrase.trim()!=='DELETE '+deletionCheck.user_id_prefix?.5:1}]}
+          onPress={executeDeletion} accessibilityRole="button">
+          <Text style={[s.actionText,{color:'#994331'}]}>Permanently delete approved account</Text>
+         </MotionPressable>
+        </View>:null}
+       </View>:null}
+      </View>:null}
      <View style={s.actions}>
       {choices(kind).filter(value=>value!==selected.status&&
        !(['resolved','dismissed','upheld','declined','completed'].includes(selected.status))).map(status=>
@@ -149,7 +218,7 @@ export default function TradarrAdminModerationScreen({goBack}:{goBack:()=>void})
      <Text style={s.section}>{layout.find(x=>x.kind===kind)?.name||'Cases'}</Text>
      {!shown.length?<View style={s.empty}><ClipboardCheck size={29} color={C.teal}/>
        <Text style={s.muted}>No submissions in this queue.</Text>
-      </View>:shown.map(row=><MotionPressable key={row.id} onPress={()=>{setSelected(row);setReason('')}}
+      </View>:shown.map(row=><MotionPressable key={row.id} onPress={()=>{setSelected(row);setReason('');setDeletionCheck(null);setDeletionPhrase('')}}
        style={s.case} accessibilityRole="button">
        <View style={{flex:1,gap:6}}>
         <Text style={s.overline}>{readable(row.status)} · {date(row.created_at)}</Text>
@@ -196,5 +265,8 @@ const s=StyleSheet.create({
  note:{backgroundColor:'#F0F5F2',borderRadius:12,padding:13,gap:7},
  warning:{color:'#8F542D',fontSize:12,lineHeight:20,backgroundColor:'#FFF4E9',borderRadius:12,padding:12},
  empty:{backgroundColor:'#FFFFFF',padding:35,borderRadius:18,alignItems:'center',gap:11},
- error:{padding:13,backgroundColor:'#FFF0E5',color:'#993C2C',borderRadius:12,fontSize:12}
+ error:{padding:13,backgroundColor:'#FFF0E5',color:'#993C2C',borderRadius:12,fontSize:12},
+ deletionBox:{padding:15,borderRadius:15,backgroundColor:'#FFF9F5',gap:12,borderWidth:1,borderColor:'#E5C8BD'},
+ preflightAction:{backgroundColor:theme.colors.darkTeal,borderRadius:12,paddingVertical:12,paddingHorizontal:14,alignItems:'center'},
+ preflightText:{color:'#FFFFFF',fontWeight:'900',fontSize:12}
 });
