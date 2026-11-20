@@ -272,8 +272,8 @@ function createMapHtml(centre: Coordinates) {
 /* Mid-tone slate-teal map: readable streets/labels without the black night-map effect.
    Filters apply to basemap imagery only; interactive markers retain full contrast. */
 html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E90}
-.maplibregl-canvas{filter:brightness(.76) contrast(.98) saturate(.85) sepia(.15) hue-rotate(125deg)}
-.leaflet-tile-pane img{filter:brightness(.76) contrast(.98) saturate(.85) sepia(.15) hue-rotate(125deg)}
+.maplibregl-canvas{filter:brightness(.91) contrast(.99) saturate(.84) sepia(.08) hue-rotate(125deg)}
+.leaflet-tile-pane img{filter:brightness(.91) contrast(.99) saturate(.84) sepia(.08) hue-rotate(125deg)}
 .leaflet-control-attribution{font-size:8px!important;background:rgba(13,37,43,.87)!important;color:#A9C1C1!important;padding:2px 5px!important;border-top-left-radius:5px!important}
 .leaflet-control-attribution a{color:#B5CFCC!important;text-decoration:none!important}
 .you-label{border-radius:13px;background:rgba(15,42,48,.94);border:1px solid #5E8588;padding:4px 8px;color:#fff;font:700 10px sans-serif;white-space:nowrap;text-align:center;box-shadow:0 3px 10px #0b272844}
