@@ -33,6 +33,7 @@ type Invoice = {
   vat_rate: number; subtotal: number; vat_amount: number; total: number;
   payment_details: string | null; notes: string | null;
   status: 'draft' | 'sent' | 'paid' | 'void'; created_at: string;
+  discount_amount?: number; deposit_requested?: number;
 };
 
 const money = (n: number) => '£' + Number(n || 0).toFixed(2);
@@ -133,8 +134,10 @@ function invoiceHtml(doc: Invoice) {
     '<thead><tr><th>Work / materials</th><th class="right">Quantity</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>' +
     groups + '</tbody></table>' +
     '<table class="totals"><tr><td>Subtotal</td><td>' + money(doc.subtotal) + '</td></tr>' +
+    (Number(doc.discount_amount || 0) > 0 ? '<tr><td>Discount</td><td>−' + money(Number(doc.discount_amount)) + '</td></tr>' : '') +
     (vat ? '<tr><td>VAT (' + safe(doc.vat_rate) + '%)</td><td>' + money(doc.vat_amount) + '</td></tr>' : '') +
     '<tr class="grand"><td>Total due</td><td>' + money(doc.total) + '</td></tr></table>' +
+    (Number(doc.deposit_requested || 0) > 0 ? '<div class="notes"><div class="label">Deposit requested</div>' + money(Number(doc.deposit_requested)) + ' within the total due above. Record any payment received.</div>' : '') +
     (doc.payment_details ? '<div class="notes"><div class="label">Payment instructions</div>' + htmlText(doc.payment_details) + '</div>' : '') +
     (doc.notes ? '<div class="notes"><div class="label">Additional notes</div>' + htmlText(doc.notes) + '</div>' : '') +
     '<div class="finePrint">Created with Tradarr. Please keep this invoice for your records.</div></main></body></html>';
@@ -185,6 +188,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [serviceDate, setServiceDate] = useState(dateToday());
   const [dueDate, setDueDate] = useState(datePlusDays(14));
   const [vatRate, setVatRate] = useState(0);
+  const [discountInput, setDiscountInput] = useState('0');
+  const [depositInput, setDepositInput] = useState('0');
+  const [paymentTotals, setPaymentTotals] = useState<Record<string,number>>({});
   const [paymentDetails, setPaymentDetails] = useState('');
   const [includePaymentDetails, setIncludePaymentDetails] = useState(false);
   const [notes, setNotes] = useState('');
@@ -196,8 +202,12 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     return { labour: pence.labour / 100, material: pence.material / 100, other: pence.other / 100 };
   }, [lines]);
   const subtotal = Math.round((breakdown.labour + breakdown.material + breakdown.other) * 100) / 100;
-  const vat = Math.round(subtotal * vatRate) / 100;
-  const total = Math.round((subtotal + vat) * 100) / 100;
+  const enteredDiscount = numericValue(discountInput);
+  const discount = Number.isFinite(enteredDiscount) && enteredDiscount >= 0
+    ? Math.round(Math.min(subtotal,enteredDiscount) * 100) / 100 : 0;
+  const net = Math.max(0,Math.round((subtotal - discount)*100)/100);
+  const vat = Math.round(net * vatRate) / 100;
+  const total = Math.round((net + vat) * 100) / 100;
 
   useEffect(() => {
     let alive = true;
@@ -207,7 +217,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         const user = auth.user;
         if (!user || !alive) return;
         setUserId(user.id);
-        const [saved, profile, business, regular, urgent, customerDetails, privateCustomers] = await Promise.all([
+        const [saved, profile, business, regular, urgent, customerDetails, privateCustomers, invoicePayments] = await Promise.all([
           supabase.from('trade_invoices').select('*').eq('tradesperson_id', user.id).order('created_at', { ascending: false }).limit(100),
           supabase.from('profiles').select('first_name, last_name, phone').eq('id', user.id).maybeSingle(),
           supabase.from('tradesperson_profiles').select('business_name, display_name, public_phone, primary_trade').eq('user_id', user.id).maybeSingle(),
@@ -215,10 +225,18 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           supabase.from('urgent_requests').select('id,customer_id,trade,issue,location_label,status').eq('accepted_tradesperson_id', user.id).order('created_at', { ascending: false }).limit(30),
           supabase.rpc('trade_invoice_customer_details'),
           supabase.from('trade_customers').select('id,name,email,address').eq('tradesperson_id', user.id).order('name'),
+          supabase.from('trade_invoice_payments').select('invoice_id,amount').eq('tradesperson_id',user.id).limit(500),
         ]);
         if (!alive) return;
         const docs = (saved.data || []) as Invoice[];
         setInvoices(docs);
+        if (!invoicePayments.error) {
+          const totals:Record<string,number>={};
+          (invoicePayments.data||[]).forEach(entry=>{
+            totals[entry.invoice_id]=(totals[entry.invoice_id]||0)+Number(entry.amount||0);
+          });
+          setPaymentTotals(totals);
+        }
         setSavedCustomers((privateCustomers.data || []) as SavedCustomer[]);
         if (initialPreviewId && docs.some(doc => doc.id === initialPreviewId)) {
           setSelectedInvoiceId(initialPreviewId);
@@ -275,6 +293,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setIncludePaymentDetails(false); setSelectedInvoiceId(null);
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
     setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
+    setDiscountInput('0');setDepositInput('0');
     setScreen('create');
   };
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
@@ -318,6 +337,13 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     if (![invoiceDate, serviceDate, dueDate].every(validDate)) {
       Alert.alert('Check dates', 'Use dates in YYYY-MM-DD format.'); return;
     }
+    if (!Number.isFinite(enteredDiscount) || enteredDiscount < 0 || enteredDiscount > subtotal) {
+      Alert.alert('Invalid discount','The discount must be between £0 and the subtotal.');return;
+    }
+    const requestedDeposit=numericValue(depositInput);
+    if (!Number.isFinite(requestedDeposit) || requestedDeposit<0 || requestedDeposit>total) {
+      Alert.alert('Invalid deposit','A deposit must be between £0 and the invoice total.');return;
+    }
     if (vatRate && !vatNumber.trim()) {
       Alert.alert('VAT registration needed', 'Only VAT-registered businesses should charge VAT. Enter your VAT number or select No VAT.'); return;
     }
@@ -345,7 +371,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         business_phone: businessPhone.trim() || null, vat_number: vatRate ? vatNumber.trim() : null,
         customer_name: customerName.trim(), customer_address: customerAddress.trim(), customer_email: customerEmail.trim() || null,
         description: description.trim() || null, items, invoice_date: invoiceDate, service_date: serviceDate, due_date: dueDate,
-        vat_rate: vatRate, subtotal, vat_amount: vat, total,
+        vat_rate: vatRate, subtotal, discount_amount: discount,
+         deposit_requested:Math.round(requestedDeposit*100)/100,vat_amount: vat, total,
         payment_details: includePaymentDetails ? paymentDetails.trim() || null : null,
         notes: notes.trim() || null, status: 'draft' as const,
       };
@@ -364,9 +391,29 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     if (error || !data) { Alert.alert('Could not update invoice', error?.message || 'Please try again.'); return; }
     setInvoices(old => old.map(item => item.id === doc.id ? data as Invoice : item));
   };
+  const recordRemainingPayment = (doc:Invoice) => {
+    if (doc.status !== 'sent') return;
+    const remaining = Math.round((Number(doc.total) - (paymentTotals[doc.id]||0))*100)/100;
+    if (remaining <= 0) {Alert.alert('No balance remaining','This invoice has no outstanding balance.');return;}
+    Alert.alert('Confirm payment received', 'Record that you received '+money(remaining)+
+      ' in full? This will not take a card or bank payment. Use the website to record partial payments.',
+      [{text:'Cancel',style:'cancel'},{text:'Record payment',onPress:async()=>{
+        const {error}=await supabase.from('trade_invoice_payments').insert({
+          invoice_id:doc.id,tradesperson_id:userId,amount:remaining,
+          paid_on:dateToday(),method:'other',reference:'Recorded on iPhone app'
+        });
+        if(error){Alert.alert('Payment not recorded',error.message);return;}
+        setPaymentTotals(old=>({...old,[doc.id]:(old[doc.id]||0)+remaining}));
+        const {data, error:loadError}=await supabase.from('trade_invoices')
+          .select('*').eq('id',doc.id).eq('tradesperson_id',userId).single();
+        if(!loadError&&data)setInvoices(old=>old.map(row=>row.id===doc.id?data as Invoice:row));
+      }}]
+    );
+  };
   const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId) || null;
   const paid = invoices.filter(i => i.status === 'paid').reduce((n, i) => n + Number(i.total), 0);
-  const outstanding = invoices.filter(i => i.status === 'sent').reduce((n, i) => n + Number(i.total), 0);
+  const outstanding = invoices.filter(i => i.status === 'sent').reduce((n, i) =>
+    n + Math.max(0,Number(i.total)-(paymentTotals[i.id]||0)),0);
   return <View style={s.root}>
     <View style={s.header}>
       <MotionPressable style={s.back} onPress={screen === 'create' || screen === 'preview' ? () => setScreen('list') : goBack}
@@ -397,7 +444,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             <View style={s.invoiceHeader}>
               <View style={{ flex: 1 }}><Text style={s.invoiceNo}>{invoiceNumber(doc.invoice_no)}</Text>
                 <Text style={s.invoiceCustomer} numberOfLines={2}>{doc.customer_name}</Text>
-                <Text style={s.invoiceMeta}>{doc.invoice_date} · Due {doc.due_date}</Text></View>
+                <Text style={s.invoiceMeta}>{doc.invoice_date} · Due {doc.due_date}</Text>
+                {doc.status==='sent' && (paymentTotals[doc.id]||0)>0 ?
+                  <Text style={s.invoiceMeta}>Received {money(paymentTotals[doc.id])} · Balance {money(Math.max(0,Number(doc.total)-(paymentTotals[doc.id]||0)))}</Text> : null}</View>
               <View style={{ alignItems: 'flex-end', gap: 7 }}><Text style={s.invoiceTotal}>{money(doc.total)}</Text>
                 <Text style={[s.status, doc.status === 'paid' && s.paidStatus]}>{invoiceStatusLabel(doc.status)}</Text></View>
             </View>
@@ -413,7 +462,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
               </MotionPressable>
               {doc.status === 'draft' ? <MotionPressable style={s.action} onPress={() => setStatus(doc, 'sent')}>
                 <Check size={17} color={theme.colors.teal} /><Text style={s.actionText}>Mark sent</Text></MotionPressable> : null}
-              {doc.status === 'sent' ? <MotionPressable style={s.action} onPress={() => setStatus(doc, 'paid')}>
+              {doc.status === 'sent' ? <MotionPressable style={s.action} onPress={() => recordRemainingPayment(doc)}>
                 <Check size={17} color={theme.colors.teal} /><Text style={s.actionText}>Mark paid</Text></MotionPressable> : null}
             </View>
           </View>)}
@@ -424,7 +473,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
               <Text style={s.previewInvoiceNo}>{invoiceNumber(selectedInvoice.invoice_no)} · {invoiceStatusLabel(selectedInvoice.status)}</Text>
               <Text style={s.previewCustomer}>{selectedInvoice.customer_name}</Text>
             </View>
-            <Text style={s.previewAmount}>{money(selectedInvoice.total)}</Text>
+            <View><Text style={s.previewAmount}>{money(selectedInvoice.total)}</Text>
+              {(paymentTotals[selectedInvoice.id]||0)>0?<Text style={s.invoiceMeta}>Balance {money(Math.max(0,Number(selectedInvoice.total)-(paymentTotals[selectedInvoice.id]||0)))}</Text>:null}
+            </View>
           </View>
           <View style={s.previewPaper}>
             <WebView
@@ -570,6 +621,13 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           {breakdown.other > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>Other charges</Text><Text style={s.totalLabel}>{money(breakdown.other)}</Text></View> : null}
         </View>
 
+        <Text style={s.section}>Discount & deposit</Text>
+        <View style={s.card}>
+          <Text style={s.helper}>A fixed discount reduces the amount charged and VAT is calculated after the discount.</Text>
+          <Field label="Discount (£)" numeric value={discountInput} onChange={setDiscountInput} placeholder="0.00" />
+          <Field label="Deposit requested (£)" numeric value={depositInput} onChange={setDepositInput} placeholder="0.00" />
+          <Text style={s.helper}>A deposit request is included in the total and is not collected automatically.</Text>
+        </View>
         <Text style={s.section}>VAT</Text>
         <View style={s.card}>
           <Text style={s.small}>Only add VAT if your business is VAT registered.</Text>
@@ -601,6 +659,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           </View>
         </View>
         <View style={s.totalCard}><View style={s.totalRow}><Text style={s.totalLabel}>Subtotal</Text><Text style={s.totalLabel}>{money(subtotal)}</Text></View>
+          {discount>0?<View style={s.totalRow}><Text style={s.totalLabel}>Discount</Text><Text style={s.totalLabel}>−{money(discount)}</Text></View>:null}
           {vatRate > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>VAT ({vatRate}%)</Text><Text style={s.totalLabel}>{money(vat)}</Text></View> : null}
           <View style={s.totalRow}><Text style={s.totalTitle}>Total due</Text><Text style={s.totalNumber}>{money(total)}</Text></View>
         </View>
