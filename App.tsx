@@ -43,7 +43,7 @@ import {rankPublishedRoutes} from './lib/routeMatching';
 import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -1525,6 +1525,7 @@ function MarketplaceHomeScreen({
   const [address, setAddress] = useState('');
   const [flowOpen, setFlowOpen] = useState(false);
   const [flowStep, setFlowStep] = useState<1 | 2 | 3>(1);
+  const [flowDirection,setFlowDirection]=useState<1|-1>(1);
   const [flowTrade, setFlowTrade] = useState<TradeCategory | null>(null);
   const [flowService, setFlowService] = useState('');
   const [flowTiming, setFlowTiming] = useState('');
@@ -1548,6 +1549,7 @@ function MarketplaceHomeScreen({
   }, []);
 
   const beginFlow = (trade?: TradeCategory, urgent = false) => {
+    setFlowDirection(1);
     setFlowTrade(trade || null);
     setFlowService('');
     setFlowTiming(urgent ? 'Now' : '');
@@ -1556,12 +1558,14 @@ function MarketplaceHomeScreen({
   };
 
   const chooseTrade = (trade: TradeCategory) => {
+    setFlowDirection(1);
     setFlowTrade(trade);
     setFlowService('');
     setFlowStep(2);
   };
 
   const chooseService = (service: string) => {
+    setFlowDirection(1);
     setFlowService(service);
     setFlowStep(3);
   };
@@ -1727,10 +1731,11 @@ function MarketplaceHomeScreen({
 
             <View style={styles.marketFlowProgress}>
               {[1, 2, 3].map(step => (
-                <View key={step} style={[styles.marketFlowProgressBar, step <= flowStep && styles.marketFlowProgressBarActive]} />
+                <FlowProgressSegment key={step} active={step <= flowStep}/>
               ))}
             </View>
 
+            <FlowStep key={flowStep} direction={flowDirection}>
             {flowStep === 1 ? (
               <ScrollView style={styles.marketFlowList} showsVerticalScrollIndicator={false}>
                 {customerCategoryOrder.map(category => {
@@ -1753,7 +1758,9 @@ function MarketplaceHomeScreen({
 
             {flowStep === 2 && flowTrade ? (
               <ScrollView style={styles.marketFlowList} showsVerticalScrollIndicator={false}>
-                <MotionPressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(1)}>
+                <MotionPressable style={styles.marketFlowBackLink} onPress={() => {
+                  setFlowDirection(-1);setFlowStep(1);
+                }}>
                   <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={15} color={C.blue} />
                   <Text style={styles.marketFlowBackText}>{flowTrade}</Text>
                 </MotionPressable>
@@ -1768,7 +1775,9 @@ function MarketplaceHomeScreen({
 
             {flowStep === 3 ? (
               <View>
-                <MotionPressable style={styles.marketFlowBackLink} onPress={() => setFlowStep(2)}>
+                <MotionPressable style={styles.marketFlowBackLink} onPress={() => {
+                  setFlowDirection(-1);setFlowStep(2);
+                }}>
                   <AppIcon icon={{ ios: 'chevron.left', android: 'chevron_left' }} size={15} color={C.blue} />
                   <Text style={styles.marketFlowBackText}>{flowService}</Text>
                 </MotionPressable>
@@ -1784,7 +1793,7 @@ function MarketplaceHomeScreen({
                     onPress={() => setFlowTiming(timing)}
                   >
                     <View style={[styles.marketRadio, flowTiming === timing && styles.marketRadioActive]}>
-                      {flowTiming === timing ? <View style={styles.marketRadioDot} /> : null}
+                      <ChoiceIndicator active={flowTiming === timing} color={C.blue}/>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.marketTimingTitle}>{timing}</Text>
@@ -1803,6 +1812,7 @@ function MarketplaceHomeScreen({
                 </MotionPressable>
               </View>
             ) : null}
+            </FlowStep>
           </View>
         </View>
       </Modal>
