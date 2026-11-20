@@ -16,6 +16,7 @@ import TradeTrustScreen from './TradeTrustScreen';
 import TradarrSupportScreen from './TradarrSupportScreen';
 import TradarrAdminGateway from './TradarrAdminGateway';
 import TradarrProScreen from './TradarrProScreen';
+import {splitPromotedNearby} from './lib/featuredVisibility';
 import TradarrAccountSafetyScreen from './TradarrAccountSafetyScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
@@ -2578,11 +2579,8 @@ function MapScreen({
   // Paid placement is separate from organic proximity/rating ordering.
   // Only two relevant, actually nearby, verified boosts can occupy this section.
   // Demo listings are never sponsored and boosted entries are not duplicated.
-  const featuredNearby = showDemoProfiles ? [] : filtered.filter(t=>t.promoted===true)
-    .sort((a,b)=>(a.coverageDistanceMiles??a.distance)-(b.coverageDistanceMiles??b.distance))
-    .slice(0,2);
-  const featuredIds = new Set(featuredNearby.map(t=>t.id));
-  const organicNearby = filtered.filter(t=>!featuredIds.has(t.id));
+  const {featured:featuredNearby,organic:organicNearby} =
+    splitPromotedNearby(filtered,showDemoProfiles,2);
 
   const activeFilterCount =
     (maxDistance !== 50 ? 1 : 0) +
