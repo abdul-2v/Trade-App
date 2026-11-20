@@ -107,6 +107,7 @@ type Trade = {
   emergencyOptIn?: boolean;
   serviceRadiusMiles?: number;
   coverageDistanceMiles?: number;
+  promoted?: boolean;
 };
 
 type CustomerScreen =
@@ -2537,6 +2538,7 @@ function MapScreen({
             emergencyOptIn: Boolean(status.emergency_opt_in),
             serviceRadiusMiles: serviceRadius,
             coverageDistanceMiles: Number(areaDistance.toFixed(1)),
+            promoted: profile.promoted === true,
           };
 
           return item;
@@ -2572,6 +2574,15 @@ function MapScreen({
     // Expiring a live pin must not depend on a database change event.
     // Refresh frequently enough to replace it with the saved work-area pin.
   }, [reloadMarketplace,manualArea?.latitude,manualArea?.longitude]);
+
+  // Paid placement is separate from organic proximity/rating ordering.
+  // Only two relevant, actually nearby, verified boosts can occupy this section.
+  // Demo listings are never sponsored and boosted entries are not duplicated.
+  const featuredNearby = showDemoProfiles ? [] : filtered.filter(t=>t.promoted===true)
+    .sort((a,b)=>(a.coverageDistanceMiles??a.distance)-(b.coverageDistanceMiles??b.distance))
+    .slice(0,2);
+  const featuredIds = new Set(featuredNearby.map(t=>t.id));
+  const organicNearby = filtered.filter(t=>!featuredIds.has(t.id));
 
   const activeFilterCount =
     (maxDistance !== 50 ? 1 : 0) +
@@ -2753,8 +2764,20 @@ function MapScreen({
             <Text style={styles.directoryTitle}>Nearby tradespeople</Text>
             <Text style={styles.directoryCount}>{filtered.length} found</Text>
           </View>
+          {featuredNearby.length ? (
+            <View style={{paddingTop:4,paddingBottom:10,gap:6}}>
+              <Text style={{fontSize:12,fontWeight:'900',color:theme.colors.teal,marginHorizontal:16}}>
+                Promoted nearby · paid placement
+              </Text>
+              <Text style={{fontSize:10,lineHeight:16,color:theme.colors.muted,marginHorizontal:16}}>
+                Sponsored visibility does not indicate a higher rating, verification or recommendation.
+              </Text>
+              {featuredNearby.map(trade=><DirectoryRow key={trade.id}
+                trade={trade} onPress={()=>openTrade(trade)}/>)}
+            </View>
+          ):null}
           {filtered.length ? (
-            filtered.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)
+            organicNearby.map(trade => <DirectoryRow key={trade.id} trade={trade} onPress={() => openTrade(trade)} />)
           ) : (
             <View style={styles.noResults}>
               <Text style={styles.noResultsTitle}>{marketIsLive || showDemoProfiles ? 'No tradespeople match those filters' : 'No real tradespeople found yet'}</Text>
@@ -2778,6 +2801,10 @@ function MapScreen({
                 <View style={{width:9,height:9,borderRadius:5,backgroundColor:'#6B9E9A'}}/>
                 <Text style={{fontSize:11,fontWeight:'800',color:theme.colors.ink}}>Work area / accepting</Text>
               </View>
+              {filtered.some(t=>t.promoted) ?
+                <Text style={{fontSize:9,fontWeight:'800',color:theme.colors.coralDark}}>
+                  Ad · Promoted pin is paid placement
+                </Text>:null}
               <Text style={{fontSize:9,color:theme.colors.muted}}>Pins show approximate areas</Text>
             </View>
           ) : null}
@@ -2805,6 +2832,10 @@ function MapScreen({
                     ) : null}
                   </View>
                   <Text style={styles.mapPreviewRole}>{selectedMapTrade.role}</Text>
+                  {selectedMapTrade.promoted ?
+                    <Text style={{fontSize:10,fontWeight:'900',color:theme.colors.coralDark}}>
+                      Promoted · paid placement
+                    </Text>:null}
                   <Text style={styles.mapPreviewMeta}>
                     {selectedMapTrade.reviews > 0 ? '★ ' + selectedMapTrade.rating.toFixed(1) + ' · ' : ''}
                     {selectedMapTrade.id.startsWith('live-')
@@ -3139,6 +3170,7 @@ function MapMock({
       available: trade.available,
       nearbyNow: Boolean(trade.nearbyNow),
       demo: !trade.id.startsWith('live-'),
+      promoted: Boolean(trade.promoted && trade.id.startsWith('live-')),
       lat: trade.mapLatitude ?? centre.latitude + offset.lat + Math.floor(index / offsets.length) * 0.0014,
       lng: trade.mapLongitude ?? centre.longitude + offset.lng - Math.floor(index / offsets.length) * 0.0011,
     };
@@ -3361,6 +3393,11 @@ function MapMock({
     transition:transform .26s ease,box-shadow .3s ease
   }
   .trade-pin.is-picked .trade-label{display:block;background:#123C3B;color:#FFFFFF;border:1px solid #D1F1E8}
+  .trade-ad-tag{position:absolute;top:-10px;right:-11px;font-size:8px;font-weight:900;
+    padding:2px 5px;border-radius:7px;background:#F9E5D5;color:#86401E;
+    border:1.5px solid #FFFFFF;letter-spacing:.15px;box-shadow:0 2px 5px rgba(12,39,45,.13)}
+  .trade-pin.is-promoted .trade-avatar-wrap{box-shadow:0 0 0 2px #E7A67D,0 5px 14px rgba(13,40,42,.17)}
+  .trade-pin.is-promoted.is-picked .trade-avatar-wrap{box-shadow:0 0 0 4px #E7A67D,0 7px 20px #162D4A44}
   #map-scan{position:absolute;inset:0;z-index:400;pointer-events:none;opacity:0;
     background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.04) 43%,rgba(45,166,149,.18) 50%,rgba(255,255,255,.06) 57%,transparent 73%);transform:translateX(-100%)}
   @keyframes mapScan{0%{transform:translateX(-100%);opacity:0}20%{opacity:1}80%{opacity:.8}100%{transform:translateX(110%);opacity:0}}
@@ -3483,10 +3520,12 @@ function MapMock({
       className: '',
       html: '<div class="trade-pin' + (marker.available ? ' is-available' : '') +
         (marker.nearbyNow ? ' is-nearby' : ' is-area') +
+        (marker.promoted&&!marker.demo?' is-promoted':'') +
         (selectedMarkerId===marker.id?' is-picked':'') + '" data-id="' + escapeMarkerText(marker.id) +
         '"><div class="trade-avatar-wrap">' + avatar + '<span class="' +
         (marker.available ? 'trade-online' : 'trade-offline') +
-        '"></span></div><div class="trade-label">' +
+        '"></span>'+(marker.promoted&&!marker.demo?'<span class="trade-ad-tag">Ad</span>':'')+
+        '</div><div class="trade-label">' +
         escapeMarkerText(marker.role + (marker.demo ? '' : marker.nearbyNow ? ' · Nearby now' : ' · Service area')) +
         '</div></div>',
       iconSize: [64,68],
@@ -3556,7 +3595,8 @@ function MapMock({
       const showIndividual=group.members.length===1;
       const key=showIndividual
         ? 't:'+group.members[0].id+':'+Number(group.members[0].lat).toFixed(4)+
-          ':'+Number(group.members[0].lng).toFixed(4)+':'+Boolean(group.members[0].available)
+          ':'+Number(group.members[0].lng).toFixed(4)+':'+Boolean(group.members[0].available)+
+          ':'+Boolean(group.members[0].promoted)
         : 'c:'+group.members.map(m=>m.id).sort().join('|');
       desired.add(key);
       if(!activeLayers.has(key)){
@@ -9394,6 +9434,9 @@ function DirectoryRow({ trade, onPress }: { trade: Trade; onPress: () => void })
         </View>}
       <View style={{ flex: 1 }}>
         <Text style={styles.directoryName}>{trade.name}</Text>
+        {trade.promoted?<Text style={{fontSize:10,fontWeight:'900',color:theme.colors.coralDark,marginTop:2}}>
+          Promoted · paid placement
+        </Text>:null}
         <Text style={styles.directoryRole}>{trade.role} · {trade.nearbyNow
           ? 'Nearby now · approx. '+trade.distance+' mi'
           : trade.id.startsWith('live-') ? 'Covers your area'
