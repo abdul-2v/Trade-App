@@ -60,10 +60,11 @@ Deno.serve(async req=>{
  const signingSecret=Deno.env.get('REVENUECAT_WEBHOOK_SIGNING_SECRET');
  const authToken=Deno.env.get('REVENUECAT_WEBHOOK_AUTHORIZATION');
  const apiKey=Deno.env.get('REVENUECAT_SECRET_API_KEY');
- const appId=Deno.env.get('REVENUECAT_APP_ID');
+ const allowedAppIds=(Deno.env.get('REVENUECAT_ALLOWED_APP_IDS')||'')
+  .split(',').map(x=>x.trim()).filter(Boolean);
  const url=Deno.env.get('SUPABASE_URL');
  const serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
- if(!signingSecret||!authToken||!apiKey||!appId||!url||!serviceKey)
+ if(!signingSecret||!authToken||!apiKey||!allowedAppIds.length||!url||!serviceKey)
    return respond(503,{error:'Store verification is not configured'});
  const auth=req.headers.get('Authorization')||'';
  if(!equalBytes(encode.encode(auth),encode.encode(authToken)))
@@ -83,7 +84,7 @@ Deno.serve(async req=>{
  // Never grant via revenuecat anonymous IDs, web billing, a different app,
  // an unknown store, unconfigured store product or a signed SANDBOX event
  // when the explicit test-only switch is off.
- if(string(event.app_id)!==appId)return respond(403,{error:'Unexpected store app'});
+ if(!allowedAppIds.includes(string(event.app_id)))return respond(403,{error:'Unexpected store app'});
  if(!uuid.test(appUser)||eventId.length<6||eventId.length>200||productId.length>160)
    return respond(422,{error:'Unrecognised subscriber or event'});
  if(source!=='PRODUCTION'&&!(source==='SANDBOX'&&Deno.env.get('REVENUECAT_ALLOW_SANDBOX')==='true'))
@@ -156,7 +157,8 @@ Deno.serve(async req=>{
    if(!purchaseMs)return respond(422,{error:'No verified boost purchase date'});
    purchasedAt=new Date(purchaseMs).toISOString();
    normalized='boost_purchased';
-  }else if(eventType==='CANCELLATION'&&string(event.cancel_reason)==='CUSTOMER_SUPPORT'){
+  }else if(eventType==='CANCELLATION'&&
+   ['CUSTOMER_SUPPORT','DEVELOPER_INITIATED','FRAUD'].includes(string(event.cancel_reason))){
    normalized='boost_refunded';
   }else return respond(200,{ok:true,ignored:'not_a_boost_purchase'});
  }else return respond(200,{ok:true,ignored:'unrecognised_kind'});
