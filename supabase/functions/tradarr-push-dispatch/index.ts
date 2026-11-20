@@ -131,5 +131,79 @@ Deno.serve(async (req:Request)=>{
       }
     }
   }
-  return json({claimed:rows.length,sent,skipped,retry,failed});
+  // Ticket acceptance is not delivery. Run the receipt poll after the send
+  // batch; the existing five-minute cron also invokes this on quiet periods.
+  let receiptsChecked=0,receiptsPending=0,receiptErrors=0;
+  try {
+    type ReceiptClaim={outbox_id:string;recipient_id:string;tickets:Array<{
+      ticketId?:string|null;token?:string;status?:string;error?:string|null
+    }>;check_attempts:number};
+    type Receipt={status:'ok'|'error';message?:string;details?:{error?:string}};
+    const {data:pending,error:receiptClaimError}=await admin.rpc('tradarr_claim_push_receipts',{p_limit:10});
+    if(receiptClaimError)throw receiptClaimError;
+    const receiptRows=(pending||[]) as ReceiptClaim[];
+    const ids=[...new Set(receiptRows.flatMap(row=>
+      (Array.isArray(row.tickets)?row.tickets:[])
+       .filter(t=>t.status==='ok'&&typeof t.ticketId==='string')
+       .map(t=>t.ticketId!)))];
+    let results:Record<string,Receipt>={};
+    if(ids.length){
+      const receiptHeaders:Record<string,string>={'Content-Type':'application/json','Accept':'application/json'};
+      if(accessToken)receiptHeaders.Authorization='Bearer '+accessToken;
+      const response=await fetch('https://exp.host/--/api/v2/push/getReceipts',{
+        method:'POST',headers:receiptHeaders,body:JSON.stringify({ids}),
+        signal:AbortSignal.timeout(12000)
+      });
+      if(!response.ok)throw new Error('Expo receipt service returned HTTP '+response.status);
+      const output=await response.json() as {data?:Record<string,Receipt>};
+      if(!output.data||typeof output.data!=='object'||Array.isArray(output.data))
+        throw new Error('Invalid Expo receipts response');
+      results=output.data;
+    }
+    for(const row of receiptRows){
+      const tickets=Array.isArray(row.tickets)?row.tickets:[];
+      const statuses=tickets.map(t=>{
+        if(t.status!=='ok'||!t.ticketId)return {
+          ticketId:t.ticketId||null,status:'rejected',
+          error:t.error||'Push ticket not accepted'
+        };
+        const receipt=results[t.ticketId];
+        if(!receipt)return {ticketId:t.ticketId,status:'pending'};
+        return {
+          ticketId:t.ticketId,status:receipt.status,
+          error:receipt.details?.error||receipt.message||null
+        };
+      });
+      // Expo's DeviceNotRegistered response invalidates that exact device.
+      for(let i=0;i<statuses.length;i++){
+        const result=statuses[i],ticket=tickets[i];
+        if(result.error==='DeviceNotRegistered'&&typeof ticket.token==='string'){
+          const {error:deviceError}=await admin.from('tradarr_push_devices')
+           .update({enabled:false}).eq('user_id',row.recipient_id).eq('expo_token',ticket.token);
+          if(deviceError)console.error('stale token cleanup failed',deviceError.code);
+        }
+      }
+      const unfinished=statuses.some(x=>x.status==='pending');
+      // Receipts are retained at most 24h by Expo. Stop after bounded checks;
+      // an unresolved status is explicitly NOT treated as delivered.
+      const completed=!unfinished||row.check_attempts>=4;
+      const hasErrors=statuses.some(x=>x.status==='error'||x.status==='rejected');
+      const {error:saveError}=await admin.from('tradarr_push_outbox').update({
+        receipt_details:{results:statuses,provider:'Expo',complete:completed,
+          checked_at:new Date().toISOString()},
+        receipt_complete_at:completed?new Date().toISOString():null,
+        ...(hasErrors?{last_error:'Expo push receipt reported delivery-service error'}:{})
+       }).eq('id',row.outbox_id).eq('status','sent');
+      if(saveError)throw saveError;
+      receiptsChecked++;
+      if(unfinished)receiptsPending++;
+      if(hasErrors)receiptErrors++;
+    }
+  }catch(err){
+    const message=err instanceof Error?err.message:String(err);
+    // A failed receipt lookup must not prevent new notifications from sending.
+    console.error('push receipts unavailable',message);
+  }
+  return json({claimed:rows.length,sent,skipped,retry,failed,
+    receiptsChecked,receiptsPending,receiptErrors});
 });
