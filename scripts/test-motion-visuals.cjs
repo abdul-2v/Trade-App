@@ -16,6 +16,8 @@ const home=inlineJS('WorkAreaMapPreview.tsx');
 const app=file('App.tsx');
 const supplier=file('TradeSuppliersMap.tsx');
 const motion=file('Motion.tsx');
+const messages=file('UnifiedMessagesScreen.tsx');
+const inboxMotion=file('InboxEmptyMotion.tsx');
 const preview=file('WorkAreaMapPreview.tsx');
 // Focus moves to a chosen pin; it must not widen to a faraway point or cover
 // the merchant with the details panel.
@@ -23,8 +25,14 @@ assert.ok(customer.includes('const safeY='));
 assert.ok(merchant.includes('var safeTop='));
 assert.ok(!customer.includes('map.fitBounds('),
  'The customer map must not zoom out to include every UK trader');
-assert.ok(!merchant.includes('shopLink=L.polyline'),
- 'A decorative straight-line journey must not be presented as road travel');
+assert.ok(merchant.includes('function refreshShopLine()'),
+ 'A selected merchant should show a visible distance guide from the user');
+assert.ok(merchant.includes("dashArray:'3 10'"),
+ 'The merchant distance guide should be clearly dotted');
+assert.ok(merchant.includes('removeFeature(shopLine);shopLine=null;'),
+ 'The merchant distance guide should clear when changing selections');
+assert.ok(merchant.includes('not a road route or travel-time claim'),
+ 'The merchant distance line must not be described as road navigation');
 assert.ok(supplier.includes('<Animated.View style={[S.bottomPanel,'),
  'Merchant detail card should have a bounded entrance animation');
 assert.ok(preview.includes('merchantGlow .8s ease-out 1 both'),
@@ -61,6 +69,14 @@ assert.ok(app.includes('<ContentSwap value={jobsView+'),
  'Jobs must animate when the selected view or offer filter changes');
 assert.ok(app.includes("<NavPill active={jobsView === 'offers'}"),
  'Jobs screen should animate the segmented selection');
+assert.ok(motion.includes("width:'100%',height:44,flexShrink:0"),
+ 'Animated pill height must be bounded rather than fill an unbounded ScrollView');
+assert.ok(app.includes('premiumSegment: { height: 54'),
+ 'Jobs selector must not stretch into the two giant panels reported on iPhone');
+assert.ok(messages.includes('<InboxEmptyMotion/>'),
+ 'Empty Inbox should show the animated message journey');
+assert.ok(inboxMotion.includes('reduceMotionChanged') && inboxMotion.includes("AppState.addEventListener('change'"),
+ 'Empty Inbox animation must respect Reduce Motion and pause in background');
 assert.ok(app.includes('<FadeSlideIn>\\n          <View style={styles.tradeHowPanel}>') ||
  app.includes('<FadeSlideIn>\n          <View style={styles.tradeHowPanel}>'),
  'Expanded job guidance needs an entrance');
