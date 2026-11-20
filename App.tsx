@@ -642,7 +642,7 @@ function TradarrApp() {
           shouldPlaySound:false,shouldSetBadge:false
         })
       });
-      const received=(response:{notification:{request:{content:{data:unknown}}}})=>{
+      const received=(response:{notification:{request:{content:{data?:Record<string,unknown>}}}})=>{
         if(!active)return;
         const noticeId=notificationIdFromResponse(response.notification.request.content.data);
         if(noticeId)setNativeNotificationId(noticeId);
