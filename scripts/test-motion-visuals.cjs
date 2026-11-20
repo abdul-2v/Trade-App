@@ -55,4 +55,15 @@ assert.ok(motion.includes('previous.current===value'),
  'Status should not animate on every re-render');
 assert.ok(motion.includes('if(reduced){motion.stopAnimation();motion.setValue(1)'),
  'Reduced motion must disable status swapping');
+assert.ok(motion.includes('export function ContentSwap('),
+ 'Job view filter change should have a stable content transition');
+assert.ok(app.includes('<ContentSwap value={jobsView+'),
+ 'Jobs must animate when the selected view or offer filter changes');
+assert.ok(app.includes("<NavPill active={jobsView === 'offers'}"),
+ 'Jobs screen should animate the segmented selection');
+assert.ok(app.includes('<FadeSlideIn>\\n          <View style={styles.tradeHowPanel}>') ||
+ app.includes('<FadeSlideIn>\n          <View style={styles.tradeHowPanel}>'),
+ 'Expanded job guidance needs an entrance');
+assert.ok(motion.includes('React.useLayoutEffect('),
+ 'Status and content transitions should set the animation starting state before paint');
 console.log('Motion regression passed: map scripts, job wizard steps, availability confirmation, low bounce and accessibility.');
