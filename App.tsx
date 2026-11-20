@@ -7943,13 +7943,25 @@ function TradeJobsScreen({
           </MotionPressable>
         ) : null}
         <View style={styles.premiumSegment}>
-          <MotionPressable onPress={() => setJobsView('offers')} style={[styles.premiumSegmentTab, jobsView === 'offers' && styles.premiumSegmentActive]}
-            accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'offers' }}>
-            <Text style={[styles.premiumSegmentText, jobsView === 'offers' && styles.premiumSegmentTextActive]}>Offers</Text>
+          <MotionPressable onPress={() => setJobsView('offers')} style={styles.premiumSegmentTab}
+            pressScale={0.991} disableFlash
+            accessibilityRole="tab" accessibilityLabel="Job offers"
+            accessibilityState={{ selected: jobsView === 'offers' }}>
+            <NavPill active={jobsView === 'offers'} background={theme.colors.white}>
+              <Text style={[styles.premiumSegmentText, jobsView === 'offers' && styles.premiumSegmentTextActive]}>
+                Offers
+              </Text>
+            </NavPill>
           </MotionPressable>
-          <MotionPressable onPress={() => setJobsView('active')} style={[styles.premiumSegmentTab, jobsView === 'active' && styles.premiumSegmentActive]}
-            accessibilityRole="tab" accessibilityState={{ selected: jobsView === 'active' }}>
-            <Text style={[styles.premiumSegmentText, jobsView === 'active' && styles.premiumSegmentTextActive]}>Active</Text>
+          <MotionPressable onPress={() => setJobsView('active')} style={styles.premiumSegmentTab}
+            pressScale={0.991} disableFlash
+            accessibilityRole="tab" accessibilityLabel="Active jobs"
+            accessibilityState={{ selected: jobsView === 'active' }}>
+            <NavPill active={jobsView === 'active'} background={theme.colors.white}>
+              <Text style={[styles.premiumSegmentText, jobsView === 'active' && styles.premiumSegmentTextActive]}>
+                Active
+              </Text>
+            </NavPill>
           </MotionPressable>
         </View>
         {jobsView === 'offers' ? (
