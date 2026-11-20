@@ -43,7 +43,7 @@ import {rankPublishedRoutes} from './lib/routeMatching';
 import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator, StatusSwap } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -6930,8 +6930,12 @@ function TradeHomeScreen({
           <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
           <View style={styles.premiumMapStatus}>
-            <LiveStatusDot online={available} style={styles.premiumOnlineDot} />
-            <Text style={styles.premiumMapStatusText}>{available ? 'Online · receiving nearby job offers' : 'Offline · go online for local work'}</Text>
+            <StatusSwap value={available}>
+              <LiveStatusDot online={available} style={styles.premiumOnlineDot} />
+              <Text style={styles.premiumMapStatusText}>
+                {available ? 'Online · receiving nearby job offers' : 'Offline · go online for local work'}
+              </Text>
+            </StatusSwap>
           </View>
           <MotionPressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Find your location on the map">
@@ -6942,10 +6946,10 @@ function TradeHomeScreen({
             disabled={savingAvailability}
             accessibilityRole="button" accessibilityLabel={available ? 'Go offline' : 'Go online'}>
             {savingAvailability ? <ActivityIndicator color={theme.colors.darkTeal} /> : (
-              <>
+              <StatusSwap value={available}>
                 <Power size={20} strokeWidth={2.2} color={theme.colors.darkTeal} />
                 <Text style={styles.premiumAvailabilityText}>{available ? 'Go offline' : 'Go online'}</Text>
-              </>
+              </StatusSwap>
             )}
           </MotionPressable>
         </View>
