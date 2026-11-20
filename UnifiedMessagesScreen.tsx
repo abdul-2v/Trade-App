@@ -12,6 +12,7 @@ import type {ChatPhotoMime} from './lib/chatPhoto';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {MotionPressable} from './Motion';
+import InboxEmptyMotion from './InboxEmptyMotion';
 
 type Role='customer'|'tradesperson';
 type Inbox={id:string;otherName:string;otherTrade:string;avatar:string|null;
@@ -527,9 +528,11 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
        {v.unread>0?<View style={s.unread}><Text style={s.unreadText}>{v.unread>99?'99+':v.unread}</Text></View>:null}
       </MotionPressable>)}
       {!visible.length?<View style={s.noMessages}>
-       <MessageCircle size={35} color={theme.colors.teal}/>
+       {query?<MessageCircle size={35} color={theme.colors.teal}/>:<InboxEmptyMotion/>}
        <Text style={s.emptyTitle}>{query?'No matching conversations':'No messages yet'}</Text>
-       <Text style={s.sub}>New conversations appear here when you connect with someone.</Text>
+       <Text style={s.emptySubtitle}>{query
+        ?'Try another name or clear the search to see all your conversations.'
+        :'When you connect with someone, your conversations will appear here.'}</Text>
       </View>:null}
      </ScrollView>}
   </>}
@@ -577,7 +580,8 @@ const s=StyleSheet.create({
  quickChip:{paddingHorizontal:12,paddingVertical:7,borderRadius:18,backgroundColor:'#FFFFFF',
   borderWidth:1,borderColor:'#DAE7E0',maxWidth:265},
  quickText:{fontSize:11,fontWeight:'700',color:theme.colors.teal},
- noMessages:{padding:38,marginTop:22,alignItems:'center',gap:10},
+ noMessages:{paddingHorizontal:24,paddingVertical:22,marginTop:12,alignItems:'center',gap:9},
+ emptySubtitle:{fontSize:13,lineHeight:20,color:theme.colors.muted,textAlign:'center',maxWidth:285},
  emptyChat:{alignItems:'center',gap:10,marginTop:70},
  emptyTitle:{fontSize:18,fontWeight:'900',color:theme.colors.ink},
  errorBar:{backgroundColor:'#FFF0EC',padding:10},
