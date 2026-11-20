@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,AppState,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {ArrowLeft,BadgeCheck,Check,ChevronRight,Crown,LockKeyhole,RefreshCw,Rocket,ShieldCheck,Sparkles} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
@@ -12,6 +12,12 @@ type ProStatus={
  pro_access:boolean;
  checkout_live:boolean;
  enforcement_live:boolean;
+ free_monthly_accepts:number;
+ accepts_used:number;
+ accepts_remaining:number;
+ boosts_live:boolean;
+ active_boosts:number;
+ next_boost_expires_at:string|null;
 };
 const C=theme.colors;
 const FREE_ITEMS=['Basic public business profile','Keep verified reviews and business details',
@@ -27,27 +33,32 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
  const [status,setStatus]=useState<ProStatus|null>(null);
  const [busy,setBusy]=useState(true);
  const [error,setError]=useState('');
+ const requestSerial=useRef(0);
  const refresh=useCallback(async()=>{
+  const request=++requestSerial.current;
   // A sign-out or account switch must never display the prior user's tier.
   setStatus(null);setBusy(true);
   try{
    const {data:{user},error:authError}=await supabase.auth.getUser();
    if(authError||!user)throw new Error('Sign in to check your account.');
-   const {data,error:queryError}=await supabase.rpc('tradarr_my_pro_status');
+   const {data,error:queryError}=await supabase.rpc('tradarr_my_pro_dashboard');
    if(queryError)throw queryError;
    const row=Array.isArray(data)?data[0] as ProStatus|undefined:undefined;
    if(!row)throw new Error('Your membership could not be checked. Try again.');
+   const {data:{user:stillSignedIn}}=await supabase.auth.getUser();
+   if(request!==requestSerial.current || stillSignedIn?.id!==user.id)return;
    setStatus(row);setError('');
-  }catch(e:any){setError(e?.message||'Unable to load your subscription status.');}
-  finally{setBusy(false);}
+  }catch(e:any){
+   if(request===requestSerial.current)setError(e?.message||'Unable to load your subscription status.');
+  }finally{if(request===requestSerial.current)setBusy(false);}
  },[]);
  useEffect(()=>{
   void refresh();
   const sub=AppState.addEventListener('change',v=>{if(v==='active')void refresh();});
-  return()=>sub.remove();
+  return()=>{sub.remove();requestSerial.current++;};
  },[refresh]);
  const active=Boolean(status?.pro_access);
- const current=status?.tier==='business'?'Tradarr Business':active?'Tradarr Pro':'Free account';
+ const current=active?(status?.tier==='business'?'Tradarr Business':'Tradarr Pro'):'Free account';
  return <View style={S.root}>
   <View style={S.header}>
    <MotionPressable style={S.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Back to trade profile">
@@ -86,7 +97,20 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
      <Text style={S.price}>£0</Text>
     </View>
     {FREE_ITEMS.map(item=><View key={item} style={S.item}><Check size={16} color={C.teal}/><Text style={S.itemText}>{item}</Text></View>)}
-    <Text style={S.foot}>When paid access launches, free accounts are intended to have a small allowance for responding to new jobs. Existing accepted bookings and safety/support access should not be interrupted.</Text>
+    <View style={S.allowanceBox}>
+      <Text style={S.allowanceHeading}>New job acceptance allowance</Text>
+      <Text style={S.allowanceText}>
+        {status?.enforcement_live
+          ? active?'Unlimited with your active membership':
+            `${status.accepts_remaining} of ${status.free_monthly_accepts} acceptances remaining this UTC month`
+          : `Proposed free tier: ${status?.free_monthly_accepts??3} new job acceptances per month. Not enforced during development.`}
+      </Text>
+      {status?.enforcement_live&&!active&&status.free_monthly_accepts>0?
+        <View style={S.progressTrack}><View style={[S.progressFill,{
+          width:`${Math.min(100,100*status.accepts_used/status.free_monthly_accepts)}%`
+        }]}/></View>:null}
+    </View>
+    <Text style={S.foot}>Accepting an urgent, normal or flexible offer uses the same monthly allowance once restrictions launch. Declining offers is free. Existing bookings, messages, reviews and account safety remain available.</Text>
    </View>
    <View style={S.pro}>
     <View style={S.cardHeading}><View style={S.proIcon}><Sparkles size={22} color="#FFFFFF"/></View>
@@ -105,8 +129,15 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
    <View style={S.extras}>
     <View style={S.extrasTitle}><Sparkles color={C.coral} size={20}/>
      <Text style={S.cardTitle}>Profile Boosts</Text></View>
-    <Text style={S.small}>Optional promoted visibility is planned as a separate purchase, never a fee on the money you earn from jobs.</Text>
-    <Text style={S.foot}>Boost pricing, prominence limits and purchase rules are still being finalised.</Text>
+    <Text style={S.small}>Optional, clearly labelled promoted visibility is planned as a separate purchase. Tradarr will never deduct commission from the money you earn on jobs.</Text>
+    <View style={S.allowanceBox}>
+      <Text style={S.allowanceHeading}>Your active boosts</Text>
+      <Text style={S.allowanceText}>{status?.boosts_live?
+        `${status.active_boosts} active`:'Not available to purchase yet · no boosts running'}</Text>
+      {status?.boosts_live&&status.next_boost_expires_at?
+        <Text style={S.foot}>Next boost expires {new Date(status.next_boost_expires_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</Text>:null}
+    </View>
+    <Text style={S.foot}>Boost pricing, durations and fair exposure limits still need approval. No profile receives paid positioning until purchases are verified and the launch switch is enabled.</Text>
    </View>
    <View style={S.disclaimer}>
     <ShieldCheck size={19} color={C.teal}/>
@@ -147,6 +178,11 @@ const S=StyleSheet.create({
  statusText:{fontSize:11,lineHeight:18,color:C.teal,flex:1},
  extras:{backgroundColor:'#FFFFFF',borderRadius:21,padding:18,gap:11},
  extrasTitle:{flexDirection:'row',alignItems:'center',gap:9},
+ allowanceBox:{borderRadius:13,padding:13,backgroundColor:'#F1F7F4',gap:7},
+ allowanceHeading:{fontWeight:'900',fontSize:12,color:C.ink},
+ allowanceText:{fontSize:11,lineHeight:18,color:C.teal},
+ progressTrack:{height:8,backgroundColor:'#D8E6E1',borderRadius:6,overflow:'hidden'},
+ progressFill:{backgroundColor:C.teal,height:8,borderRadius:6},
  disclaimer:{padding:12,flexDirection:'row',gap:9,alignItems:'flex-start'},
  disclaimerText:{fontSize:11,lineHeight:19,flex:1,color:C.muted},
  warning:{backgroundColor:'#FFF0E8',padding:14,borderRadius:15,gap:10},
