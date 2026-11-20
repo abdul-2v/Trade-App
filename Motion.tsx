@@ -11,14 +11,24 @@ import {
 import { theme } from './theme';
 
 // Use React Native's built-in Animated API; no extra native package or rebuild.
-let prefersReducedMotion = false;
+let prefersReducedMotion=false;
+const motionSubscribers=new Set<()=>void>();
+const updateMotionPreference=(enabled:boolean)=>{
+  if(prefersReducedMotion===enabled)return;
+  prefersReducedMotion=enabled;
+  motionSubscribers.forEach(notify=>notify());
+};
 AccessibilityInfo.isReduceMotionEnabled()
-  .then(value => { prefersReducedMotion = value; })
-  .catch(() => {});
-// Honour setting changes even when the app remains mounted.
-AccessibilityInfo.addEventListener('reduceMotionChanged',value=>{
-  prefersReducedMotion=value;
-});
+  .then(updateMotionPreference).catch(()=>{});
+AccessibilityInfo.addEventListener('reduceMotionChanged',updateMotionPreference);
+const subscribeMotion=(notify:()=>void)=>{
+ motionSubscribers.add(notify);return()=>{motionSubscribers.delete(notify);};
+};
+const reducedMotionSnapshot=()=>prefersReducedMotion;
+/** Active loops stop immediately when reduced motion is changed in Settings. */
+function useReducedMotion(){
+ return React.useSyncExternalStore(subscribeMotion,reducedMotionSnapshot,()=>false);
+}
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -28,8 +38,8 @@ type MotionPressableProps = PressableProps & {
 };
 
 /**
- * A small spring on press and release, without a wrapper View.
- * Preserves the existing onPress, disabled, layout and accessibility props.
+ * Premium tactile feedback: light press-in, smooth release, one teal highlight.
+ * No spring overshoot, wrapper, layout shift or intercepted accessibility tap.
  */
 export function MotionPressable({
   style,
@@ -115,17 +125,18 @@ export function MotionPressable({
 
 /** Polished feature entrance: visible, restrained fade with no overshoot. */
 export function FadeSlideIn({ children, delay = 0 }: React.PropsWithChildren<{ delay?: number }>) {
-  const progress = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
+  const reduced=useReducedMotion();
+  const progress = useRef(new Animated.Value(reduced ? 1 : 0)).current;
 
   useEffect(() => {
-    if (prefersReducedMotion) { progress.setValue(1); return; }
+    if (reduced) { progress.stopAnimation();progress.setValue(1); return; }
     const animation = Animated.timing(progress, {
       toValue: 1, delay, duration: 290,
       easing: Easing.out(Easing.cubic), useNativeDriver: true,
     });
     animation.start();
     return () => animation.stop();
-  }, [delay, progress]);
+  }, [delay, progress, reduced]);
 
   return (
     <Animated.View style={{
@@ -148,20 +159,21 @@ const tradeTabs:Record<string,number>={tradeHome:0,tradeJobs:1,tradeMap:2,tradeM
  tradeInvoices:4,tradeCustomers:4,tradeDiary:4,tradeProfit:4,tradeMaterials:4};
 export function ScreenReveal({children,scope='customer',route=''}:
  React.PropsWithChildren<{scope?:'customer'|'trade';route?:string}>){
+  const reduced=useReducedMotion();
   const tabs=scope==='customer'?customerTabs:tradeTabs;
   const index=tabs[route]??-1;
   const previous=lastTabIndex[scope];
   const direction=useRef(previous<0||index<0||previous===index?0:index>previous?1:-1).current;
-  const progress=useRef(new Animated.Value(prefersReducedMotion?1:0)).current;
+  const progress=useRef(new Animated.Value(reduced?1:0)).current;
   useEffect(()=>{
     if(index>=0)lastTabIndex[scope]=index;
-    if(prefersReducedMotion){progress.setValue(1);return;}
+    if(reduced){progress.stopAnimation();progress.setValue(1);return;}
     const animation=Animated.timing(progress,{
       toValue:1,duration:245,easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     animation.start();
     return ()=>animation.stop();
-  },[index,progress,scope]);
+  },[index,progress,scope,reduced]);
   return <Animated.View style={{flex:1,
    opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.65,1]}),
    transform:[
@@ -175,16 +187,17 @@ export function ScreenReveal({children,scope='customer',route=''}:
 /** The selection pill eases in instead of snapping on every tab switch. */
 export function NavPill({active,children,background}:
  React.PropsWithChildren<{active:boolean;background:string}>){
-  const selected=useRef(new Animated.Value(active?(prefersReducedMotion?1:.25):0)).current;
+  const reduced=useReducedMotion();
+  const selected=useRef(new Animated.Value(active?(reduced?1:.25):0)).current;
   useEffect(()=>{
-    if(prefersReducedMotion){selected.setValue(active?1:0);return;}
+    if(reduced){selected.stopAnimation();selected.setValue(active?1:0);return;}
     const movement=Animated.timing(selected,{
       toValue:active?1:0,duration:230,
       easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     movement.start();
     return ()=>movement.stop();
-  },[active,selected]);
+  },[active,selected,reduced]);
   return <Animated.View style={{alignItems:'center',justifyContent:'center',width:'100%',height:'100%'}}>
    <Animated.View pointerEvents="none" style={{
       position:'absolute',left:0,right:0,top:0,bottom:0,borderRadius:22,
@@ -200,10 +213,11 @@ export function NavPill({active,children,background}:
 
 /** Compact, illustrative match journey. Not a live job/availability claim. */
 export function JobMatchJourney(){
+  const reduced=useReducedMotion();
   const flight=useRef(new Animated.Value(0)).current;
   const [trackWidth,setTrackWidth]=React.useState(80);
   useEffect(()=>{
-    if(prefersReducedMotion)return;
+    if(reduced){flight.stopAnimation();flight.setValue(0);return;}
     // Travel only forwards. At 1 the indicator has faded fully out;
     // reset it instantly while invisible instead of racing visibly backwards.
     const loop=Animated.loop(Animated.sequence([
@@ -217,7 +231,7 @@ export function JobMatchJourney(){
     ]));
     loop.start();
     return ()=>loop.stop();
-  },[flight]);
+  },[flight,reduced]);
   return <Animated.View
      accessible accessibilityLabel="Illustration: your job request travels to a matched local tradesperson"
      style={{height:47,marginHorizontal:1,marginTop:11,
@@ -261,12 +275,13 @@ export function LiveStatusDot({
   online: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const reduced=useReducedMotion();
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     pulse.stopAnimation();
     pulse.setValue(0);
-    if (!online || prefersReducedMotion) return;
+    if (!online || reduced) return;
 
     const cycle = Animated.loop(
       Animated.sequence([
@@ -286,7 +301,7 @@ export function LiveStatusDot({
     );
     cycle.start();
     return () => cycle.stop();
-  }, [online, pulse]);
+  }, [online, pulse, reduced]);
 
   return (
     <Animated.View
@@ -307,9 +322,10 @@ export function LiveStatusDot({
 
 /** Visible animated CTA arrow: glides forward and returns while the hero is visible. */
 export function MovingArrow({ children }: React.PropsWithChildren) {
+  const reduced=useReducedMotion();
   const travel = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (prefersReducedMotion) return;
+    if (reduced){travel.stopAnimation();travel.setValue(0);return;}
     const loop = Animated.loop(Animated.sequence([
       Animated.delay(700),
       Animated.timing(travel, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -318,23 +334,24 @@ export function MovingArrow({ children }: React.PropsWithChildren) {
     ]));
     loop.start();
     return () => loop.stop();
-  }, [travel]);
+  }, [travel,reduced]);
   return <Animated.View style={{ transform: [{ translateX: travel.interpolate({ inputRange: [0, 1], outputRange: [0, 12] }) }] }}>{children}</Animated.View>;
 }
 
 /** Radar on the home map: an unmistakable double wave, not a decorative dot. */
 export function RadarBeacon({ active = true }: { active?: boolean }) {
+  const reduced=useReducedMotion();
   const wave = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     wave.stopAnimation();
     wave.setValue(0);
-    if (!active || prefersReducedMotion) return;
+    if (!active || reduced) return;
     const loop = Animated.loop(Animated.timing(wave, {
       toValue: 1, duration: 2300, easing: Easing.linear, useNativeDriver: true,
     }));
     loop.start();
     return () => loop.stop();
-  }, [active, wave]);
+  }, [active, wave,reduced]);
   return (
     <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={{ position: 'absolute', top: '42%', left: '45%', width: 46, height: 46, alignItems: 'center', justifyContent: 'center' }}>
