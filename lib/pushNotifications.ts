@@ -55,11 +55,18 @@ export async function readPhonePushState():Promise<PhonePushState>{
     if(!token)return 'not_enabled';
     const {data:{user}}=await supabase.auth.getUser();
     if(!user)return 'not_enabled';
-    const {data,error}=await supabase.from('tradarr_push_devices')
-      .select('id').eq('user_id',user.id).eq('expo_token',token)
-      .eq('enabled',true).maybeSingle();
-    if(error)throw error;
-    return data?'enabled':'not_enabled';
+    const [device,preference]=await Promise.all([
+      supabase.from('tradarr_push_devices').select('id')
+        .eq('user_id',user.id).eq('expo_token',token)
+        .eq('enabled',true).maybeSingle(),
+      supabase.from('profiles').select('notifications_enabled')
+        .eq('id',user.id).maybeSingle()
+    ]);
+    if(device.error||preference.error)throw device.error||preference.error;
+    // A phone token may exist while the user's account-wide push preference
+    // is off. Never claim push is enabled in that state.
+    return device.data&&preference.data?.notifications_enabled!==false?
+      'enabled':'not_enabled';
   }catch{
     return 'not_enabled';
   }
