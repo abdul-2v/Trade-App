@@ -39,7 +39,7 @@ export default function TradarrPushControl(){
     <View style={{flex:1,gap:4}}>
       <Text style={S.title}>Phone alerts</Text>
       <Text style={S.note}>{status==='enabled'?
-       'Enabled for this phone. New job and message alerts can reach you outside the app.':
+       'Registered on this phone. Delivery requires configured Apple/Google push credentials.':
        !supported?'Available in a Tradarr development or App Store build. Expo Go still supports Activity updates.':
        status==='permission_denied'?'Notifications are blocked in your phone settings.':
        'Choose to enable alerts for new messages, requests and appointments.'}</Text>
