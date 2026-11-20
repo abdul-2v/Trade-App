@@ -42,3 +42,6 @@ jobs:
 
       - name: Stress test clustered map geometry with 10,000 fictional markers
         run: node scripts/test-map-density.cjs
+
+      - name: Test native notification destinations and safe app role routing
+        run: node scripts/test-notification-destinations.cjs
