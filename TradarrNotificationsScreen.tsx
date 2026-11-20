@@ -22,6 +22,11 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [unreadOnly,setUnreadOnly]=useState(false);
+ const [totalUnread,setTotalUnread]=useState(0);
+ const [hasOlder,setHasOlder]=useState(false);
+ const [loadingOlder,setLoadingOlder]=useState(false);
+ const [olderError,setOlderError]=useState('');
+ const PAGE_SIZE=50;
 
  const refresh=useCallback(async()=>{
   const {data:{user},error:authError}=await supabase.auth.getUser();
@@ -30,12 +35,21 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
     setLoading(false);return;
   }
   setUid(user.id);
-  const {data,error:loadError}=await supabase.from('tradarr_notifications')
-   .select('id,kind,title,body,data,created_at,read_at')
-   .eq('recipient_id',user.id).order('created_at',{ascending:false}).limit(100);
-  if(loadError){setError('Your updates could not be loaded. '+loadError.message);
-   setLoading(false);return;}
-  setItems((data||[]) as TradarrAlert[]);
+  const [alerts,unreadCount]=await Promise.all([
+   supabase.from('tradarr_notifications')
+    .select('id,kind,title,body,data,created_at,read_at')
+    .eq('recipient_id',user.id).order('created_at',{ascending:false}).limit(PAGE_SIZE),
+   supabase.from('tradarr_notifications').select('id',{count:'exact',head:true})
+    .eq('recipient_id',user.id).is('read_at',null)
+  ]);
+  if(alerts.error||unreadCount.error){
+   setError('Your updates could not be loaded. '+(alerts.error?.message||unreadCount.error?.message));
+   setLoading(false);return;
+  }
+  setItems((alerts.data||[]) as TradarrAlert[]);
+  setHasOlder((alerts.data||[]).length===PAGE_SIZE);
+  setTotalUnread(unreadCount.count||0);
+  setOlderError('');
   setError('');setLoading(false);
  },[]);
 
@@ -63,8 +77,26 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   };
  },[refresh]);
 
- const unread=useMemo(()=>items.filter(x=>!x.read_at).length,[items]);
+ const unread=totalUnread;
  useEffect(()=>{onUnreadCountChange?.(unread);},[unread,onUnreadCountChange]);
+ const loadOlder=async()=>{
+  if(loadingOlder||!hasOlder||!uid)return;
+  setLoadingOlder(true);setOlderError('');
+  try{
+   const {data,error:pageError}=await supabase.from('tradarr_notifications')
+    .select('id,kind,title,body,data,created_at,read_at')
+    .eq('recipient_id',uid).order('created_at',{ascending:false})
+    .range(items.length,items.length+PAGE_SIZE-1);
+   if(pageError)throw pageError;
+   const next=(data||[]) as TradarrAlert[];
+   setItems(previous=>{
+    const known=new Set(previous.map(x=>x.id));
+    return [...previous,...next.filter(x=>!known.has(x.id))];
+   });
+   setHasOlder(next.length===PAGE_SIZE);
+  }catch(e:any){setOlderError(e?.message||'Older notifications could not be loaded.');}
+  finally{setLoadingOlder(false);}
+ };
  const shown=useMemo(()=>unreadOnly?items.filter(x=>!x.read_at):items,
   [unreadOnly,items]);
 
@@ -77,6 +109,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   if(markError){setError(markError.message);return;}
   if(!saved?.length){await refresh();return;}
   setItems(previous=>previous.map(item=>item.id===id?{...item,read_at:stamp}:item));
+  setTotalUnread(value=>Math.max(0,value-1));
  };
  const open=async(item:TradarrAlert)=>{
   if(!item.read_at)await markRead(item.id);
@@ -94,6 +127,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   const confirmed=new Set(saved.map(row=>row.id));
   setItems(old=>old.map(item=>confirmed.has(item.id)
     ?{...item,read_at:item.read_at||stamp}:item));
+  setTotalUnread(0);
  };
  const iconFor=(kind:AlertKind)=>{
    if(kind==='message')return MessageCircle;
@@ -141,7 +175,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
       Mark all read</Text>
    </MotionPressable>
   </View>
-  {error?<View style={s.errorPanel}>
+  {error&&!items.length?<View style={s.errorPanel}>
     <BellRing size={26} color={theme.colors.coralDark}/>
     <Text style={s.error}>{error}</Text>
     <MotionPressable onPress={()=>void refresh()} style={s.retry}
@@ -151,7 +185,10 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
     </MotionPressable>
    </View>:null}
   {loading?<ActivityIndicator style={{marginTop:45}} color={theme.colors.teal}/>:
-   error?null:<ScrollView contentContainerStyle={{paddingHorizontal:16,paddingBottom:55}}>
+   error&&!items.length?null:<ScrollView contentContainerStyle={{paddingHorizontal:16,paddingBottom:55}}>
+    {error?<MotionPressable style={s.inlineWarning} onPress={()=>void refresh()} accessibilityRole="button">
+       <Text style={s.error}>Connection issue. Showing your last loaded updates. Tap to retry.</Text>
+      </MotionPressable>:null}
     {shown.map(item=>{
       const Icon=iconFor(item.kind);
       return <MotionPressable key={item.id} onPress={()=>{void open(item)}}
@@ -172,7 +209,15 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
        <ChevronRight size={18} color={theme.colors.muted}/>
       </MotionPressable>
     })}
-    {!shown.length?<View style={s.empty}>
+    {olderError?<MotionPressable style={s.inlineWarning} onPress={()=>{void loadOlder()}} accessibilityRole="button">
+      <Text style={s.error}>{olderError} · Tap to retry older alerts</Text>
+     </MotionPressable>:null}
+    {hasOlder?<MotionPressable style={s.loadMore} onPress={()=>{void loadOlder()}}
+      disabled={loadingOlder} accessibilityRole="button" accessibilityLabel="Load older activity alerts">
+      {loadingOlder?<ActivityIndicator color={theme.colors.teal} size="small"/>:
+       <Text style={s.loadMoreText}>Load older activity</Text>}
+     </MotionPressable>:null}
+    {!shown.length&&!hasOlder?<View style={s.empty}>
       <BellRing size={38} color={theme.colors.teal}/>
       <Text style={s.emptyTitle}>{unreadOnly?'All caught up':'No notifications yet'}</Text>
       <Text style={s.sub}>{unreadOnly?'New unread alerts will appear here.':
@@ -205,6 +250,10 @@ const s=StyleSheet.create({
  notificationBody:{fontSize:12,color:theme.colors.muted,lineHeight:19},
  time:{color:theme.colors.muted,fontSize:10},
  error:{color:theme.colors.coralDark,fontSize:12,lineHeight:19,textAlign:'center'},
+ inlineWarning:{marginBottom:10,padding:13,borderRadius:13,backgroundColor:'#FFF2E9'},
+ loadMore:{minHeight:46,paddingHorizontal:20,backgroundColor:'#EAF2EF',borderRadius:15,
+   marginTop:8,marginBottom:14,justifyContent:'center',alignItems:'center'},
+ loadMoreText:{color:theme.colors.teal,fontSize:12,fontWeight:'900'},
  errorPanel:{marginHorizontal:16,marginTop:14,padding:23,borderRadius:20,
    backgroundColor:'#FFFFFF',alignItems:'center',gap:13},
  retry:{minHeight:47,borderRadius:25,paddingHorizontal:23,backgroundColor:theme.colors.darkTeal,
