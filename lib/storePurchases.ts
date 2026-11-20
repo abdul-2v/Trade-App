@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import {Platform} from 'react-native';
-import type {PurchasesPackage} from 'react-native-purchases';
+import type {PurchasesPackage,PurchasesStoreProduct} from 'react-native-purchases';
 import {supabase} from './supabase';
 
 export type StoreOffer={
@@ -10,6 +10,13 @@ export type StoreOffer={
  description:string;
  price:string;
  package:PurchasesPackage;
+};
+export type StoreBoost={
+ productId:string;
+ name:string;
+ price:string;
+ days:number;
+ product:PurchasesStoreProduct;
 };
 export type StoreBillingState={
  supported:boolean;
@@ -110,5 +117,52 @@ export async function restoreStorePurchases(userId:string):Promise<'submitted'>{
  await verifyCurrentUser(userId);
  // Do not infer success from RevenueCat's local CustomerInfo. The server's
  // verified subscription record remains the single source for Pro access.
+ return 'submitted';
+}
+
+export async function getStoreBoosts(userId:string):Promise<StoreBoost[]>{
+ await verifyCurrentUser(userId);
+ const {data:dashboard,error:dashboardError}=await supabase.rpc('tradarr_my_pro_dashboard');
+ const status=Array.isArray(dashboard)?dashboard[0]:null;
+ if(dashboardError||!status?.checkout_live||!status?.boosts_live)return [];
+ const {data:rows,error:catalogError}=await supabase.from('tradarr_store_product_catalog')
+  .select('provider,product_id,kind,boost_days')
+  .eq('provider',Platform.OS==='ios'?'apple':'google')
+  .eq('kind','boost');
+ if(catalogError)throw Error('Could not load approved boost products.');
+ const approved=(rows||[]).filter(row=>
+  typeof row.product_id==='string'&&Number.isInteger(row.boost_days)&&row.boost_days>0);
+ if(!approved.length)return [];
+ const Purchases=await ensureStoreIdentity(userId);
+ const products=await Purchases.getProducts(approved.map(row=>row.product_id),
+  Purchases.PURCHASE_TYPE.INAPP);
+ return products.flatMap(product=>{
+  const row=approved.find(p=>p.product_id===product.identifier);
+  if(!row)return [];
+  return [{productId:product.identifier,name:product.title||'Profile boost',
+   price:product.priceString,days:row.boost_days,product}];
+ });
+}
+export async function purchaseStoreBoost(userId:string,boost:StoreBoost):Promise<'submitted'|'cancelled'>{
+ if(!boost?.product||!boost.productId||boost.product.identifier!==boost.productId)
+  throw Error('Choose an approved boost product.');
+ await verifyCurrentUser(userId);
+ const [{data:dashboard,error:dashboardError},{data:catalog,error:catalogError}]=await Promise.all([
+  supabase.rpc('tradarr_my_pro_dashboard'),
+  supabase.from('tradarr_store_product_catalog')
+   .select('product_id').eq('provider',Platform.OS==='ios'?'apple':'google')
+   .eq('kind','boost').eq('product_id',boost.productId).maybeSingle()
+ ]);
+ const status=Array.isArray(dashboard)?dashboard[0]:null;
+ if(dashboardError||catalogError||!status?.checkout_live||!status?.boosts_live||!catalog)
+  throw Error('Verified profile boosts are not available yet.');
+ const Purchases=await ensureStoreIdentity(userId);
+ try{
+  await Purchases.purchaseStoreProduct(boost.product);
+ }catch(e:any){
+  if(e?.userCancelled===true)return 'cancelled';
+  throw Error(e?.message||'The boost purchase could not be completed.');
+ }
+ await verifyCurrentUser(userId);
  return 'submitted';
 }
