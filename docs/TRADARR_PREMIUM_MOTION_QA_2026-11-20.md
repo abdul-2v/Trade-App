@@ -21,6 +21,15 @@
 - Existing `npm run check:syntax`, `npm run check:ux`, `npm run typecheck`, booking logic and 10,000-marker cluster tests remain in CI.
 - `scripts/test-motion-visuals.cjs` parses JavaScript embedded in all three map HTML strings and checks reduced-motion support, non-deceptive route focus and the new animation assumptions. This proves syntax and intended hooks, *not* actual iPhone frame pacing.
 
+## Follow-up animation pass — 20 November 2026
+
+- The 3-step customer job-posting sheet now moves forward/backwards with a short directional reveal. Its progress strip fills smoothly and the selected timing radio dot settles into place. The modal, content width and scrollable options retain their original layout and actions.
+- The tradesperson Home **Go online / Go offline** status label and button now crossfade when the actual confirmed availability value changes, not when the user merely taps the control. Database errors still prevent a false green/online confirmation.
+- **Jobs → Offers / Active** now has a smoothly animated selection pill. Switching Urgent, Flexible, On My Way and Street Run options fades and lifts the new content without remounting the entire Jobs screen or replaying the animation for every backend refresh. The collapsible "How do I get jobs?" guide opens with a modest reveal.
+- Selecting a customer map pin now animates the profile preview card up into its **existing anchored position**, complementing the pin camera motion; it does not wrap the absolutely positioned card in a container that would break the map layout.
+- Animated tab/status content uses a layout-timed reset to avoid a one-frame flash during quick switching. A new app-state listener pauses repeated decorative motion when the app is backgrounded and restarts it on return.
+- `scripts/test-motion-visuals.cjs` now checks the new motion flows, selection behaviour and foreground/background guards in CI.
+
 ## Manual visual sign-off still required on a real iPhone
 
 1. From Customer: tap Home → Explore → Discover → Activity → Inbox quickly, then reverse the order. Confirm tab bar never jumps and the page content doesn't flicker or freeze.
