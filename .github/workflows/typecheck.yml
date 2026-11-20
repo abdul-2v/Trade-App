@@ -45,3 +45,6 @@ jobs:
 
       - name: Test native notification destinations and safe app role routing
         run: node scripts/test-notification-destinations.cjs
+
+      - name: Verify sponsored results, labels and organic ranking
+        run: node scripts/test-sponsored-visibility.cjs
