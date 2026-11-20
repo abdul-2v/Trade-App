@@ -15,6 +15,7 @@ import CustomerInvoicesScreen from './CustomerInvoicesScreen';
 import TradeTrustScreen from './TradeTrustScreen';
 import TradarrSupportScreen from './TradarrSupportScreen';
 import TradarrAdminGateway from './TradarrAdminGateway';
+import TradarrProScreen from './TradarrProScreen';
 import TradarrAccountSafetyScreen from './TradarrAccountSafetyScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
@@ -131,7 +132,7 @@ type CustomerScreen =
   | 'messages'
   | 'customerProfile';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro';
 type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -900,6 +901,9 @@ function TradarrApp() {
     </TradeShell>;
     if (tradeScreen === 'tradeTrust') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
       <TradeTrustScreen goBack={() => navigateTrade('tradeProfile')}/>
+    </TradeShell>;
+    if (tradeScreen === 'tradePro') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
+      <TradarrProScreen goBack={() => navigateTrade('tradeProfile')}/>
     </TradeShell>;
     if (tradeScreen === 'tradeSupport') return <TradeShell current="tradeProfile" navigate={navigateTrade}>
       <TradarrSupportScreen role="tradesperson" goBack={() => navigateTrade('tradeProfile')}/>
@@ -6160,7 +6164,7 @@ function TradeShell({
       <ScreenReveal route={current} scope="trade">{children}</ScreenReveal>
       <View style={styles.premiumTabBar}>
         {items.map(({ label, Icon, route }) => {
-          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective','tradeCrew'].includes(current));
+          const active = current === route || (route === 'tradeTools' && ['tradeInvoices','tradeQuotes','tradeCustomers','tradeDiary','tradeProfit','tradeMaterials','tradeGrid','tradeCollective','tradeCrew','tradePro'].includes(current));
           return (
             <MotionPressable
               key={route}
@@ -6220,6 +6224,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
   {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
   {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
   {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'},
+  {route:'tradePro' as TradeScreen,Icon:Sparkles,title:'Tradarr Pro',detail:'Membership options, boosts and current tier'},
   {route:'tradeRoutes' as TradeScreen,Icon:Route,title:'On My Way & Street Run',detail:'Publish diary-linked journeys and receive route-friendly requests'},
   {route:'tradeGrid' as TradeScreen,Icon:Route,title:'Publish Grid slots',detail:'Share available gaps and manage customer enquiries'},
   {route:'tradeCollective' as TradeScreen,Icon:Users,title:'Collective group offers',detail:'Offer genuine local per-home prices to interested households'}
@@ -6312,7 +6317,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
       <ChevronRight size={21} color={theme.colors.teal}/>
     </MotionPressable>)}
    </View>
-   <Text style={styles.tradeToolsFooter}>Your business records remain private to your account. All twelve toolkit sections are available without a subscription.</Text>
+   <Text style={styles.tradeToolsFooter}>Your business records remain private to your account. Membership restrictions are not active until secure billing is ready.</Text>
   </ScrollView>
  </TradeShell>;
 }
@@ -8621,6 +8626,21 @@ function TradeSettingsScreen({
               </View>
               <ArrowRight size={20} color={theme.colors.teal}/>
             </MotionPressable>
+            <MotionPressable onPress={()=>navigate('tradePro')}
+              accessibilityRole="button" accessibilityLabel="View Tradarr Pro plans and membership status"
+              style={{backgroundColor:theme.colors.darkTeal,borderRadius:18,
+                paddingVertical:16,paddingHorizontal:17,marginTop:14,marginBottom:12,
+                flexDirection:'row',gap:12,alignItems:'center'}}>
+              <View style={{width:43,height:43,borderRadius:14,backgroundColor:'#FFFFFF24',
+                alignItems:'center',justifyContent:'center'}}>
+                <Sparkles size={22} color="#F7CCAA"/>
+              </View>
+              <View style={{flex:1,gap:4}}>
+                <Text style={{color:'#FFFFFF',fontWeight:'900',fontSize:15}}>Tradarr Pro</Text>
+                <Text style={{fontSize:11,lineHeight:17,color:'#D3E8DF'}}>See membership options and planned benefits</Text>
+              </View>
+              <ChevronRight size={20} color="#FFFFFF"/>
+            </MotionPressable>
             <View style={styles.premiumProfileChecklist}>
               <MotionPressable style={styles.premiumProfileProgressRow}
                 onPress={()=>setProfilePage('setup')} accessibilityRole="button"
@@ -9125,6 +9145,15 @@ function TradeSettingsScreen({
                 <View style={{flex:1}}>
                   <Text style={styles.premiumChecklistTitle}>Credentials & verification</Text>
                   <Text style={styles.premiumChecklistSubtitle}>Submit private evidence for staff review</Text>
+                </View>
+                <ChevronRight size={21} color={theme.colors.muted}/>
+              </MotionPressable>
+              <MotionPressable style={styles.premiumAccountRow} onPress={() => navigate('tradePro')}
+                accessibilityRole="button" accessibilityLabel="View Tradarr Pro membership">
+                <View style={styles.premiumChecklistIcon}><Sparkles size={20} color={theme.colors.teal}/></View>
+                <View style={{flex:1}}>
+                  <Text style={styles.premiumChecklistTitle}>Tradarr Pro membership</Text>
+                  <Text style={styles.premiumChecklistSubtitle}>View your tier, membership access and benefits</Text>
                 </View>
                 <ChevronRight size={21} color={theme.colors.muted}/>
               </MotionPressable>
