@@ -296,6 +296,8 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 .cluster.is-opening{animation:clusterBloom .49s cubic-bezier(.2,.8,.3,1) both}
 .focus-halo{position:relative;width:54px;height:54px;border:2px solid #E0704C;border-radius:50%;box-shadow:0 0 0 6px #E0704C1C;animation:focusArrive .65s cubic-bezier(.2,.8,.3,1) both;pointer-events:none}
 .focus-halo:after{content:"";position:absolute;inset:7px;border:1.5px solid #E0704C66;border-radius:50%;pointer-events:none}
+.merchant-distance-line{animation:merchantDashes 1.35s linear infinite}
+@keyframes merchantDashes{to{stroke-dashoffset:-26}}
 
 @keyframes focusArrive{0%{transform:scale(.55);opacity:0}75%{transform:scale(1.035);opacity:1}100%{transform:scale(1);opacity:1}}
 
@@ -308,7 +310,7 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 .you-pin:before,.you-pin:after{content:"";position:absolute;inset:-5px;border:2px solid #E0704C;border-radius:50%;pointer-events:none;animation:sonar 2.6s ease-out infinite}
 .you-pin:after{animation-delay:1.3s}
 
-@media(prefers-reduced-motion:reduce){.pin,.cluster,.you-pin:before,.you-pin:after,#shop-sweep,.pin.is-selected:after,.focus-halo,.focus-halo:after{animation:none!important}.pin{transition:none!important}}
+@media(prefers-reduced-motion:reduce){.pin,.cluster,.you-pin:before,.you-pin:after,#shop-sweep,.pin.is-selected:after,.focus-halo,.focus-halo:after,.merchant-distance-line{animation:none!important}.pin{transition:none!important}}
 </style></head><body><div id="map"></div><div id="shop-sweep"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
@@ -333,12 +335,23 @@ function playShopSweep(){
  el.classList.remove('play');void el.offsetWidth;el.classList.add('play');
 }
 var userPoint=null, userMarker=null, userLabelMarker=null, workMarker=null, accuracyArea=null;
-var focusedHalo=null;
+var focusedHalo=null,shopLine=null;
 var reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
 function stopFocusAnimation(){
  removeFeature(focusedHalo);focusedHalo=null;
 }
 function removeFeature(feature){if(feature && map.hasLayer(feature))map.removeLayer(feature);}
+// A visual straight-line distance guide, not a road route or travel-time claim.
+function refreshShopLine(){
+ removeFeature(shopLine);shopLine=null;
+ if(!userPoint||!selectedShopId)return;
+ var shop=shops.find(function(s){return s.id===selectedShopId;});
+ if(!shop)return;
+ shopLine=L.polyline([[userPoint.lat,userPoint.lng],[shop.lat,shop.lng]],{
+  color:'#E0704C',weight:3,opacity:.94,dashArray:'3 10',
+  lineCap:'round',interactive:false,className:'merchant-distance-line'
+ }).addTo(map);
+}
 window.updateLocations=function(points){
   removeFeature(userMarker);removeFeature(userLabelMarker);removeFeature(workMarker);removeFeature(accuracyArea);
   userMarker=null;userLabelMarker=null;workMarker=null;accuracyArea=null;
@@ -360,6 +373,7 @@ window.updateLocations=function(points){
     var label=L.divIcon({className:'',html:'<div class="you-label">You are here</div>',iconSize:[94,24],iconAnchor:[47,-17]});
     userLabelMarker=L.marker([current.lat,current.lng],{icon:label,interactive:false,zIndexOffset:1100}).addTo(map);
   }
+  refreshShopLine();
 };
 window.centerOnMe=function(){
   if(userPoint)map.flyTo([userPoint.lat,userPoint.lng],Math.max(14,map.getZoom()),{duration:.67,easeLinearity:.22});
@@ -369,6 +383,7 @@ window.moveMapArea=function(lat,lng){
 };
 window.clearShopLine=function(){
   stopFocusAnimation();
+  removeFeature(shopLine);shopLine=null;
   selectedShopId=null;
   document.querySelectorAll('.pin.is-selected').forEach(function(el){el.classList.remove('is-selected');});
 };
@@ -428,13 +443,14 @@ function draw(){
  });
 }
 window.showSuppliers=function(list){
-  shops=Array.isArray(list)?list:[];draw();playShopSweep();
+  shops=Array.isArray(list)?list:[];draw();refreshShopLine();playShopSweep();
 };
 window.focusSupplier=function(lat,lng){
   window.clearShopLine();
   if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
   var picked=shops.find(function(s){return Math.abs(s.lat-lat)+Math.abs(s.lng-lng)<.000002;});
   if(picked)selectedShopId=picked.id;
+  refreshShopLine();
   document.querySelectorAll('.pin[data-id]').forEach(function(el){
     el.classList.toggle('is-selected',el.getAttribute('data-id')===selectedShopId);
   });
