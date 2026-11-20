@@ -80,8 +80,15 @@ export async function getStoreOfferings(userId:string):Promise<StoreOffer[]>{
  const {data,error}=await supabase.rpc('tradarr_my_pro_dashboard');
  const status=Array.isArray(data)?data[0]:null;
  if(error||!status?.checkout_live)return [];
+ const {data:catalog,error:catalogError}=await supabase.from('tradarr_store_product_catalog')
+   .select('product_id').eq('provider',Platform.OS==='ios'?'apple':'google')
+   .eq('kind','subscription');
+ if(catalogError)throw Error('Could not load the approved store products.');
+ const approvedIds=new Set((catalog||[]).map(row=>row.product_id));
+ if(!approvedIds.size)return [];
  const offerings=await Purchases.getOfferings();
- const packages=offerings.current?.availablePackages||[];
+ const packages=(offerings.current?.availablePackages||[])
+  .filter(pkg=>approvedIds.has(pkg.product.identifier));
  return packages.map(pkg=>({
   id:pkg.identifier,
   productId:pkg.product.identifier,
@@ -96,9 +103,16 @@ export async function purchaseStorePackage(userId:string,offer:StoreOffer):Promi
  await verifyCurrentUser(userId);
  // NEVER show a native checkout if Supabase says billing is closed, even if
  // old RevenueCat offerings remain cached.
- const {data,error}=await supabase.rpc('tradarr_my_pro_dashboard');
+ const [{data,error},{data:product,error:productError}]=await Promise.all([
+  supabase.rpc('tradarr_my_pro_dashboard'),
+  supabase.from('tradarr_store_product_catalog')
+   .select('product_id').eq('provider',Platform.OS==='ios'?'apple':'google')
+   .eq('kind','subscription').eq('product_id',offer.productId).maybeSingle()
+ ]);
  const status=Array.isArray(data)?data[0]:null;
- if(error||!status?.checkout_live)throw Error('Payments are not enabled for Tradarr yet.');
+ if(error||productError||!status?.checkout_live||!product||
+    offer.package.product.identifier!==offer.productId)
+  throw Error('This subscription is not currently approved for purchase.');
  const Purchases=await ensureStoreIdentity(userId);
  try{
   await Purchases.purchasePackage(offer.package);
