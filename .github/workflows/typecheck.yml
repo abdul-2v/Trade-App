@@ -48,3 +48,6 @@ jobs:
 
       - name: Verify sponsored results, labels and organic ranking
         run: node scripts/test-sponsored-visibility.cjs
+
+      - name: Verify store webhook signature and fail-closed payment gates
+        run: node scripts/test-store-webhook.cjs
