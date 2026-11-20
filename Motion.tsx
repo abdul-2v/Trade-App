@@ -194,6 +194,56 @@ export function ScreenReveal({children,scope='customer',route=''}:
   </Animated.View>;
 }
 
+/**
+ * Animated content for a short, accessible multi-step form. Each new step
+ * mounts once and settles towards the centre. The sheet itself stays put, so
+ * keyboard insets, scroll bounds and touch targets don't jump between steps.
+ */
+export function FlowStep({
+ children,direction=1
+}:React.PropsWithChildren<{direction?:-1|1}>){
+ const reduced=useReducedMotion();
+ const progress=useRef(new Animated.Value(reduced?1:0)).current;
+ useEffect(()=>{
+  if(reduced){progress.stopAnimation();progress.setValue(1);return;}
+  const animation=Animated.timing(progress,{
+   toValue:1,duration:255,easing:Easing.out(Easing.cubic),
+   useNativeDriver:true
+  });
+  animation.start();return()=>animation.stop();
+ },[progress,reduced]);
+ return <Animated.View style={{
+  opacity:progress.interpolate({inputRange:[0,1],outputRange:[.55,1]}),
+  transform:[
+   {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*22,0]})},
+   {translateY:progress.interpolate({inputRange:[0,1],outputRange:[7,0]})},
+  ],
+ }}>
+  {children}
+ </Animated.View>;
+}
+
+/** Smooth visual confirmation for a selected radio/timing option. */
+export function ChoiceIndicator({active,color=theme.colors.teal}:{
+ active:boolean;color?:string
+}){
+ const reduced=useReducedMotion();
+ const value=useRef(new Animated.Value(active?1:0)).current;
+ useEffect(()=>{
+  if(reduced){value.stopAnimation();value.setValue(active?1:0);return;}
+  const animation=Animated.timing(value,{
+   toValue:active?1:0,duration:190,
+   easing:Easing.out(Easing.cubic),useNativeDriver:true
+  });
+  animation.start();return()=>animation.stop();
+ },[active,value,reduced]);
+ return <Animated.View pointerEvents="none" style={{
+  width:12,height:12,borderRadius:6,backgroundColor:color,
+  opacity:value,
+  transform:[{scale:value.interpolate({inputRange:[0,1],outputRange:[.35,1]})}],
+ }}/>;
+}
+
 /** The selection pill eases in instead of snapping on every tab switch. */
 export function NavPill({active,children,background}:
  React.PropsWithChildren<{active:boolean;background:string}>){
