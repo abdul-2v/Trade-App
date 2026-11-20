@@ -35,6 +35,8 @@ import WorkAreaMapPreview from './WorkAreaMapPreview';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
 import TradarrInboxScreen from './TradarrInboxScreen';
+import {isNativePushBuild,notificationIdFromResponse,unregisterPhoneBeforeSignOut} from './lib/pushNotifications';
+import {resolveNotificationTarget} from './lib/notificationDestination';
 import {APPOINTMENT_TIMES,APPOINTMENT_LENGTHS,nextUKDays,ukSlotToISO,advanceISOByMinutes,formatUKDateTime} from './lib/scheduling';
 import {rankPublishedRoutes} from './lib/routeMatching';
 import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
@@ -527,6 +529,8 @@ function TradarrApp() {
         setAuthError('');
         setAuthLoading(false);
         setMode('customer');
+        setNativeConversationId(null);
+        setNativeActivity(false);
         return;
       }
 
@@ -588,6 +592,31 @@ function TradarrApp() {
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
   const [homeBackScreen,setHomeBackScreen]=useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
+  const [nativeNotificationId,setNativeNotificationId]=useState<string|null>(null);
+  const [nativeConversationId,setNativeConversationId]=useState<string|null>(null);
+  const [nativeActivity,setNativeActivity]=useState(false);
+  const consumeNativeInbox=()=>{
+    setNativeConversationId(null);
+    setNativeActivity(false);
+  };
+  const signOutFromTradarr=async()=>{
+    let cleanupFailed=false;
+    try{
+      await Promise.race([
+        unregisterPhoneBeforeSignOut(),
+        new Promise<never>((_,reject)=>setTimeout(
+          ()=>reject(new Error('Phone deregistration timed out')),4000))
+      ]);
+    }catch{
+      cleanupFailed=true;
+    }
+    const outcome=await supabase.auth.signOut();
+    if(cleanupFailed&&!outcome.error){
+      Alert.alert('Phone alert reminder',
+       'This phone could not confirm notification deregistration before sign-out. If alerts from the old account continue, sign back into it to disable phone alerts.');
+    }
+    return outcome;
+  };
   const [businessFeature,setBusinessFeature]=useState<BusinessFeature>('radar');
   const [businessQuoteDraft,setBusinessQuoteDraft]=useState<QuoteDraftFromSuite|null>(null);
   const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
@@ -599,6 +628,70 @@ function TradarrApp() {
     if (screen === 'tradeMaterials') setMaterialKitPreviewId(null);
     setTradeScreen(screen);
   };
+  // Listener only in native builds. Never import the native push module in
+  // Expo Go, which still supports the ordinary in-app Activity feed.
+  useEffect(()=>{
+    if(!isNativePushBuild())return;
+    let active=true;
+    let subscription:{remove:()=>void}|null=null;
+    void import('expo-notifications').then(Notifications=>{
+      if(!active)return;
+      Notifications.setNotificationHandler({
+        handleNotification:async()=>({
+          shouldShowBanner:true,shouldShowList:true,
+          shouldPlaySound:false,shouldSetBadge:false
+        })
+      });
+      const received=(response:{notification:{request:{content:{data:unknown}}}})=>{
+        if(!active)return;
+        const noticeId=notificationIdFromResponse(response.notification.request.content.data);
+        if(noticeId)setNativeNotificationId(noticeId);
+        Notifications.clearLastNotificationResponse();
+      };
+      subscription=Notifications.addNotificationResponseReceivedListener(received);
+      const last=Notifications.getLastNotificationResponse();
+      if(last)received(last);
+    }).catch(()=>{
+      // Missing native support must never prevent the main app from loading.
+    });
+    return()=>{active=false;subscription?.remove();};
+  },[]);
+  // Native push data carries only an opaque notification ID. The CURRENT JWT
+  // must fetch that alert from the own-user table before navigating anywhere.
+  useEffect(()=>{
+    if(!nativeNotificationId||authLoading||!session?.user.id||recoveringPassword)return;
+    let active=true;
+    const userId=session.user.id;
+    void (async()=>{
+      try{
+        const {data:notice,error}=await supabase.from('tradarr_notifications')
+          .select('id,kind,data,read_at').eq('id',nativeNotificationId)
+          .eq('recipient_id',userId).maybeSingle();
+        if(!active||signedInUserIdRef.current!==userId)return;
+        setNativeNotificationId(null);
+        if(error||!notice)return;
+        const currentMode=accountType==='crew'?'crew':mode;
+        const target=resolveNotificationTarget(currentMode,notice.kind,notice.data);
+        if(target.mode==='crew'){setMode('crew');return;}
+        setNativeConversationId(target.conversationId);
+        setNativeActivity(target.activity);
+        if(target.mode==='tradesperson'){
+          setMode('tradesperson');
+          setTradeScreen(target.screen as TradeScreen);
+        }else{
+          setMode('customer');
+          setCustomerScreen(target.screen as CustomerScreen);
+        }
+        if(!notice.read_at){
+          void supabase.from('tradarr_notifications').update({read_at:new Date().toISOString()})
+            .eq('id',notice.id).eq('recipient_id',userId).is('read_at',null);
+        }
+      }catch{
+        if(active)setNativeNotificationId(null);
+      }
+    })();
+    return()=>{active=false;};
+  },[nativeNotificationId,session?.user.id,authLoading,recoveringPassword,mode,accountType]);
   const openTradeJobs = (view: TradeJobsEntry['view'], filter: TradeJobsEntry['filter'] = 'all') => {
     setTradeJobsEntry({ view, filter });
     setTradeScreen('tradeJobs');
@@ -818,7 +911,7 @@ function TradarrApp() {
         paddingHorizontal:27,paddingVertical:14,marginTop:25}}>
         <Text style={{color:'#FFFFFF',fontWeight:'800'}}>Retry connection</Text>
       </MotionPressable>
-      {session?<MotionPressable accessibilityRole="button" onPress={()=>{void supabase.auth.signOut()}}
+      {session?<MotionPressable accessibilityRole="button" onPress={()=>{void signOutFromTradarr()}}
         style={{padding:15,marginTop:11}}>
         <Text style={{color:theme.colors.teal,fontWeight:'800'}}>Sign out</Text>
       </MotionPressable>:null}
@@ -833,7 +926,7 @@ function TradarrApp() {
           // A verified recovery token signs the user in temporarily.
           // Sign out if they leave without choosing a new password.
           if (session) {
-            const { error } = await supabase.auth.signOut();
+            const { error } = await signOutFromTradarr();
             if (error) return;
           }
           setRecoveringPassword(false);
@@ -857,7 +950,7 @@ function TradarrApp() {
   if (mode === 'crew') {
     return <SafeAreaView style={{flex:1,backgroundColor:theme.colors.customerBackground}}>
       <StatusBar barStyle="dark-content"/>
-      <TradarrCrewScreen viewerRole="crew" goBack={()=>{void supabase.auth.signOut()}}/>
+      <TradarrCrewScreen viewerRole="crew" goBack={()=>{void signOutFromTradarr()}}/>
     </SafeAreaView>;
   }
 
@@ -930,11 +1023,13 @@ function TradarrApp() {
       openBusinessSuite={feature=>{setBusinessFeature(feature);navigateTrade('tradeBusinessSuite');}} />;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
-    if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps} />;
+    if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps}
+      initialConversationId={nativeConversationId} openActivity={nativeActivity}
+      onNativeIntentConsumed={consumeNativeInbox}/>;
     if (tradeScreen === 'tradeProfile') return <TradeSettingsScreen {...tradeProps}
       staffAccess={session?.user.app_metadata?.tradarr_staff===true}
       onTradeProfileActivated={()=>setAccountType('tradesperson')}
-      signOut={() => supabase.auth.signOut()} />;
+      signOut={() => signOutFromTradarr()} />;
     return <TradeHomeScreen {...tradeProps} />;
   }
 
@@ -1190,7 +1285,9 @@ function TradarrApp() {
   }
 
   if (customerScreen === 'messages') {
-    return <MessagesScreen navigate={setCustomerScreen} userId={session?.user.id||''}/>;
+    return <MessagesScreen navigate={setCustomerScreen} userId={session?.user.id||''}
+      initialConversationId={nativeConversationId} openActivity={nativeActivity}
+      onNativeIntentConsumed={consumeNativeInbox}/>;
   }
   if (customerScreen === 'customerQuotes') {
     return <CustomerShell current="requests" navigate={setCustomerScreen}>
@@ -1271,7 +1368,7 @@ function TradarrApp() {
           // tradesperson is published before completing real trade details.
           setTradeScreen(accountType==='tradesperson'?'tradeHome':'tradeProfile');
         }}
-        signOut={() => supabase.auth.signOut()}
+        signOut={() => signOutFromTradarr()}
         accountType={accountType==='crew'?'customer':accountType}
         staffAccess={session?.user.app_metadata?.tradarr_staff===true}
       />
@@ -5625,11 +5722,17 @@ function RequestDetailScreen({
   );
 }
 
-function MessagesScreen({navigate,userId}:{
+function MessagesScreen({navigate,userId,initialConversationId,openActivity,onNativeIntentConsumed}:{
  navigate:(screen:CustomerScreen)=>void;userId:string;
+ initialConversationId?:string|null;openActivity?:boolean;
+ onNativeIntentConsumed?:()=>void;
 }){
  return <CustomerShell current="messages" navigate={navigate}>
-   <TradarrInboxScreen role="customer" onOpenOther={notice=>{
+   <TradarrInboxScreen role="customer"
+    initialConversationId={initialConversationId}
+    openActivity={openActivity}
+    onNativeIntentConsumed={onNativeIntentConsumed}
+    onOpenOther={notice=>{
       if(notice.kind==='admin_notice')return;
       if(notice.data?.screen==='accountSafety')return navigate('customerSafety');
       navigate(notice.kind==='support_update'?'customerSupport':notice.kind==='invoice_update'?'customerInvoices':notice.kind==='quote_update'?'customerQuotes':'requests');
@@ -8150,11 +8253,16 @@ function TradeMapScreen({ navigate }: { screen: TradeScreen; navigate: (screen: 
   );
 }
 
-function TradeMessagesScreen({navigate}:{
+function TradeMessagesScreen({navigate,initialConversationId,openActivity,onNativeIntentConsumed}:{
  screen:TradeScreen;navigate:(screen:TradeScreen)=>void;switchToCustomer:()=>void;
+ initialConversationId?:string|null;openActivity?:boolean;
+ onNativeIntentConsumed?:()=>void;
 }){
  return <TradeShell current="tradeMessages" navigate={navigate}>
    <TradarrInboxScreen role="tradesperson"
+     initialConversationId={initialConversationId}
+     openActivity={openActivity}
+     onNativeIntentConsumed={onNativeIntentConsumed}
      onOpenOther={notice=>{
        if(notice.kind==='admin_notice')return;
        if(notice.kind==='crew_update')return navigate('tradeCrew');
