@@ -28,7 +28,8 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
  const [busy,setBusy]=useState(true);
  const [error,setError]=useState('');
  const refresh=useCallback(async()=>{
-  setBusy(true);
+  // A sign-out or account switch must never display the prior user's tier.
+  setStatus(null);setBusy(true);
   try{
    const {data:{user},error:authError}=await supabase.auth.getUser();
    if(authError||!user)throw new Error('Sign in to check your account.');
