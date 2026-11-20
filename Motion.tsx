@@ -378,7 +378,7 @@ export function NavPill({active,children,background}:
     movement.start();
     return ()=>movement.stop();
   },[active,selected,reduced]);
-  return <Animated.View style={{alignItems:'center',justifyContent:'center',width:'100%',height:'100%'}}>
+  return <Animated.View style={{alignItems:'center',justifyContent:'center',width:'100%',height:44,flexShrink:0}}>
    <Animated.View pointerEvents="none" style={{
       position:'absolute',left:0,right:0,top:0,bottom:0,borderRadius:22,
       backgroundColor:background,opacity:selected,
