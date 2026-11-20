@@ -3324,9 +3324,9 @@ function MapMock({
     align-items:center;
     justify-content:center;
     gap:4px;
-    background:rgba(255,255,255,.98);
-    color:#0B2A49;
-    border:2px solid #1684F8;
+    background:rgba(255,253,248,.98);
+    color:#123C3B;
+    border:2px solid #277B73;
     box-shadow:0 5px 15px rgba(7,27,49,.18);
     transform:translateZ(0);
     box-sizing:border-box;
@@ -3340,27 +3340,28 @@ function MapMock({
     font-size:9px;
     line-height:10px;
     font-weight:800;
-    color:#607286;
+    color:#50716B;
     text-transform:lowercase;
     white-space:nowrap;
   }
   .cluster-bubble.large {
-    min-width:64px;
-    height:46px;
-    border-radius:23px;
-    border-width:2.5px;
+    min-width:64px;height:46px;border-radius:23px;
+    border-width:2.5px;border-color:#D8F0E7;
+    background:#1C5754;color:#FFFFFF;
+    box-shadow:0 5px 16px rgba(18,63,59,.21);
   }
+  .cluster-bubble.large .cluster-label{color:#D3EDE4;}
   .dot {
-    position:relative; width:16px; height:16px; border-radius:50%; background:#1684F8;
-    border:3px solid white; box-shadow:0 2px 8px rgba(22,132,248,.28);
+    position:relative; width:16px; height:16px; border-radius:50%; background:#257F77;
+    border:3px solid white; box-shadow:0 2px 8px rgba(37,127,119,.28);
   }
   @keyframes customerSonar {
     0% { transform:scale(.7); opacity:.85 }
     100% { transform:scale(4.5); opacity:0 }
   }
   @keyframes tradeMarkerIn {
-    0% { opacity:0; transform:translateY(-24px) scale(.6) }
-    65% { opacity:1; transform:translateY(4px) scale(1.08) }
+    0% { opacity:0; transform:translateY(12px) scale(.86) }
+    72% { opacity:1; transform:translateY(-1px) scale(1.018) }
     100% { opacity:1; transform:translateY(0) scale(1) }
   }
   @keyframes activeTradeRing {
@@ -3368,11 +3369,17 @@ function MapMock({
     55% { box-shadow:0 5px 14px rgba(13,40,42,.20),0 0 0 6px rgba(18,185,129,0) }
   }
   .dot:before,.dot:after {
-    content:"";position:absolute;inset:-3px;border:2px solid #1684F8;
+    content:"";position:absolute;inset:-3px;border:2px solid #257F77;
     border-radius:50%;animation:customerSonar 2.6s ease-out infinite;pointer-events:none;
   }
   .dot:after { animation-delay:1.3s }
-  .trade-pin, .cluster-bubble { animation:tradeMarkerIn .39s cubic-bezier(.18,.82,.25,1.08) both }
+  .trade-pin, .cluster-bubble {
+    animation:tradeMarkerIn .33s cubic-bezier(.2,.76,.3,1) both
+  }
+  body.dense-map .trade-pin,body.dense-map .cluster-bubble {animation:none!important}
+  body.dense-map .trade-pin.is-available.is-nearby .trade-avatar-wrap{
+    animation:none!important
+  }
   .trade-pin { animation-delay:var(--entrance-delay,0ms) }
   .trade-pin.is-available.is-nearby .trade-avatar-wrap {
     border-color:#CFF9E7;
@@ -3385,10 +3392,19 @@ function MapMock({
   .trade-pin.is-area .trade-label { border:1px solid #DAE6E3; }
   .trade-pin:active .trade-avatar-wrap,.cluster-bubble:active { transform:scale(.95) }
   .trade-pin.is-picked .trade-avatar-wrap{
-    animation:none;
-    box-shadow:0 0 0 4px #F4A67F66,0 7px 20px #162D4A44;
-    transform:scale(1.10);
-    transition:transform .26s ease,box-shadow .3s ease
+    animation:none;z-index:1;
+    box-shadow:0 0 0 3px #E7A67D77,0 8px 22px #162D4A38;
+    transform:scale(1.065);
+    transition:transform .25s cubic-bezier(.2,.8,.25,1),box-shadow .25s ease
+  }
+  @keyframes tradeFocusHalo{
+    0%{transform:scale(.72);opacity:.88}
+    100%{transform:scale(1.52);opacity:0}
+  }
+  .trade-pin.is-picked .trade-avatar-wrap:after{
+    content:"";position:absolute;inset:-5px;border:2px solid #E0704C;
+    border-radius:50%;pointer-events:none;
+    animation:tradeFocusHalo .72s cubic-bezier(.15,.75,.28,1) both
   }
   .trade-pin.is-picked .trade-label{display:block;background:#123C3B;color:#FFFFFF;border:1px solid #D1F1E8}
   .trade-ad-tag{position:absolute;top:-10px;right:-11px;font-size:8px;font-weight:900;
@@ -3400,9 +3416,13 @@ function MapMock({
     background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.04) 43%,rgba(45,166,149,.18) 50%,rgba(255,255,255,.06) 57%,transparent 73%);transform:translateX(-100%)}
   @keyframes mapScan{0%{transform:translateX(-100%);opacity:0}20%{opacity:1}80%{opacity:.8}100%{transform:translateX(110%);opacity:0}}
   #map-scan.play{animation:mapScan .78s cubic-bezier(.1,.72,.25,1) both}
-  .trade-avatar-wrap,.cluster-bubble { transition:transform .16s ease }
+  .trade-avatar-wrap,.cluster-bubble {
+    transition:transform .19s cubic-bezier(.2,.8,.25,1)
+  }
   @media(prefers-reduced-motion:reduce) {
-    .dot:before,.dot:after,.trade-pin,.cluster-bubble,.trade-pin.is-available .trade-avatar-wrap,#map-scan { animation:none!important }
+    .dot:before,.dot:after,.trade-pin,.cluster-bubble,.trade-pin.is-available .trade-avatar-wrap,
+    .trade-pin.is-picked .trade-avatar-wrap:after,#map-scan { animation:none!important }
+    .trade-avatar-wrap,.cluster-bubble{transition:none!important}
   }
 </style>
 </head>
@@ -3423,7 +3443,7 @@ function MapMock({
     zoomSnap: 0.25,
     zoomDelta: 0.5,
     preferCanvas: true
-  }).setView(centre, ${compact ? 13.5 : mapTrades.length > 20 ? 12.35 : 14.75});
+  }).setView(centre, ${compact ? 13.1 : mapTrades.length > 20 ? 12.65 : 13.75});
 
   L.maplibreGL({
     style: 'https://tiles.openfreemap.org/styles/liberty'
@@ -3538,8 +3558,18 @@ function MapMock({
       document.querySelectorAll('.trade-pin').forEach(function(node){
         node.classList.toggle('is-picked',node.getAttribute('data-id')===selectedMarkerId);
       });
-      map.flyTo([marker.lat,marker.lng],Math.max(16,map.getZoom()),{
-        duration:.57,easeLinearity:.23
+      // Pan the chosen profile ABOVE the bottom card, not behind it.
+      // Never fit all UK markers in the viewport when one profile is tapped.
+      const focusZoom=Math.max(15.4,map.getZoom());
+      const canvas=map.getSize();
+      const px=map.project([marker.lat,marker.lng],focusZoom);
+      const safeY=Math.max(92,Math.min(158,canvas.y*.34));
+      const camera=map.unproject(
+        L.point(px.x,px.y+(canvas.y/2-safeY)),focusZoom);
+      map.stop();
+      map.flyTo(camera,focusZoom,{
+        duration:window.matchMedia('(prefers-reduced-motion: reduce)').matches?0:.68,
+        easeLinearity:.23
       });
       window.ReactNativeWebView.postMessage(JSON.stringify({type:'trade',id:marker.id}));
     }).addTo(tradeLayer);
@@ -3588,6 +3618,7 @@ function MapMock({
 
     const visible = visibleMarkers();
     const groups = clusterMarkers(visible, zoom);
+    document.body.classList.toggle('dense-map',groups.length>65);
 
     groups.forEach((group) => {
       const showIndividual=group.members.length===1;
@@ -3644,15 +3675,9 @@ function MapMock({
     if(target)map.flyTo(target,Math.max(14.4,map.getZoom()),{duration:.66,easeLinearity:.23});
   };
   map.on('zoomend moveend resize', scheduleTradeRender);
-  if (markers.length > 0) {
-    const markerBounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
-    if (user.visible) markerBounds.extend([user.lat, user.lng]);
-    map.fitBounds(markerBounds.pad(0.08), {
-      padding: [24, 24],
-      maxZoom: markers.length > 20 ? 12.35 : 14.25,
-      animate: false
-    });
-  }
+  // Keep the initial camera on the user's selected SEARCH AREA. Fitting every
+  // trader across the country would unexpectedly zoom out to a random overview.
+  // Only the viewport's nearby profiles are drawn, with clustering on zoom.
 
   map.whenReady(function(){
     scheduleTradeRender();
