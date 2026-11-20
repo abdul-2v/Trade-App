@@ -2,6 +2,10 @@ import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,AppState,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {ArrowLeft,BadgeCheck,Check,ChevronRight,Crown,LockKeyhole,RefreshCw,Rocket,ShieldCheck,Sparkles} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
+import {
+ getStoreOfferings,nativeStoreAvailability,purchaseStorePackage,
+ restoreStorePurchases,type StoreOffer
+} from './lib/storePurchases';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
@@ -34,10 +38,16 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
  const [busy,setBusy]=useState(true);
  const [error,setError]=useState('');
  const requestSerial=useRef(0);
+ const [offers,setOffers]=useState<StoreOffer[]>([]);
+ const [offersBusy,setOffersBusy]=useState(false);
+ const [checkoutBusy,setCheckoutBusy]=useState(false);
+ const [storeError,setStoreError]=useState('');
+ const [storeMessage,setStoreMessage]=useState('');
+ const storeAvailability=nativeStoreAvailability();
  const refresh=useCallback(async()=>{
   const request=++requestSerial.current;
   // A sign-out or account switch must never display the prior user's tier.
-  setStatus(null);setBusy(true);
+  setStatus(null);setOffers([]);setBusy(true);
   try{
    const {data:{user},error:authError}=await supabase.auth.getUser();
    if(authError||!user)throw new Error('Sign in to check your account.');
@@ -57,6 +67,54 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
   const sub=AppState.addEventListener('change',v=>{if(v==='active')void refresh();});
   return()=>{sub.remove();requestSerial.current++;};
  },[refresh]);
+ useEffect(()=>{
+  if(!status?.checkout_live)return;
+  let mounted=true;
+  setOffersBusy(true);setOffers([]);setStoreError('');
+  void (async()=>{
+   try{
+    if(!storeAvailability.supported||!storeAvailability.configured)
+      throw Error(storeAvailability.message);
+    const {data:{user},error:userError}=await supabase.auth.getUser();
+    if(userError||!user)throw Error('Sign in to view purchase options.');
+    const results=await getStoreOfferings(user.id);
+    const {data:{user:stillCurrent}}=await supabase.auth.getUser();
+    if(!mounted||stillCurrent?.id!==user.id)return;
+    setOffers(results);
+    if(!results.length)setStoreError('No store products are currently available. Purchases have not been enabled for this device.');
+   }catch(e:any){
+    if(mounted)setStoreError(e?.message||'Could not load App Store products.');
+   }finally{if(mounted)setOffersBusy(false);}
+  })();
+  return()=>{mounted=false;};
+ },[status?.checkout_live,storeAvailability.supported,storeAvailability.configured]);
+ const processPurchase=async(offer:StoreOffer)=>{
+  if(checkoutBusy)return;
+  setCheckoutBusy(true);setStoreError('');setStoreMessage('');
+  try{
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!user)throw Error('Sign in to purchase.');
+   const result=await purchaseStorePackage(user.id,offer);
+   if(result==='cancelled')setStoreMessage('Purchase cancelled. No change to your membership.');
+   else{
+    setStoreMessage('Purchase submitted. Your Pro access will update once the secure store confirmation reaches Tradarr.');
+    void refresh();
+   }
+  }catch(e:any){setStoreError(e?.message||'Could not complete the purchase.');}
+  finally{setCheckoutBusy(false);}
+ };
+ const processRestore=async()=>{
+  if(checkoutBusy)return;
+  setCheckoutBusy(true);setStoreError('');setStoreMessage('');
+  try{
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!user)throw Error('Sign in to restore purchases.');
+   await restoreStorePurchases(user.id);
+   setStoreMessage('Store purchase history checked. Eligible access will appear after secure verification. Tap refresh to check again.');
+   void refresh();
+  }catch(e:any){setStoreError(e?.message||'Could not restore store purchases.');}
+  finally{setCheckoutBusy(false);}
+ };
  const active=Boolean(status?.pro_access);
  const current=active?(status?.tier==='business'?'Tradarr Business':'Tradarr Pro'):'Free account';
  return <View style={S.root}>
@@ -119,12 +177,43 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
      <Rocket size={22} color={C.coral}/>
     </View>
     {PRO_ITEMS.map(item=><View key={item} style={S.item}><Check size={16} color={C.teal}/><Text style={S.itemText}>{item}</Text></View>)}
-    <View style={S.status}>
-      <LockKeyhole size={18} color={C.teal}/>
-      <Text style={S.statusText}>{status?.checkout_live
-       ? 'Purchases are being configured. Do not upgrade until the official store checkout is available.'
-       : 'Subscriptions are not on sale yet. We will show confirmed prices and secure App Store / Play Store checkout here before charging anyone.'}</Text>
-    </View>
+    {status?.checkout_live ? (
+      <View style={{gap:10}}>
+       <Text style={S.small}>Subscription products and prices below are loaded directly from your app store. Your account will only be upgraded after Tradarr verifies payment on its server.</Text>
+       {offersBusy?<ActivityIndicator color={C.teal} size="small"/>:null}
+       {offers.map(offer=>(
+        <MotionPressable key={offer.id} onPress={()=>{void processPurchase(offer)}}
+         accessibilityRole="button" accessibilityLabel={'Purchase '+offer.name+' for '+offer.price}
+         disabled={checkoutBusy||offersBusy||busy}
+         style={S.storeOffer}>
+          <View style={{flex:1,gap:3}}>
+           <Text style={S.cardTitle}>{offer.name}</Text>
+           <Text style={S.small}>{offer.description||'Subscription product from your app store'}</Text>
+           <Text style={S.foot}>Auto-renewal and final billing terms appear in the store confirmation.</Text>
+          </View>
+          <Text style={S.offerPrice}>{offer.price}</Text>
+          <ChevronRight size={18} color="#FFFFFF"/>
+        </MotionPressable>
+       ))}
+      </View>
+     ):(
+      <View style={S.status}>
+       <LockKeyhole size={18} color={C.teal}/>
+       <Text style={S.statusText}>Subscriptions are not on sale yet. Confirmed prices and App Store / Google Play checkout will appear when secure purchasing is enabled.</Text>
+      </View>
+     )}
+    {(storeError||storeMessage)?<View style={S.warning}>
+      <Text style={S.warningText}>{storeError||storeMessage}</Text>
+    </View>:null}
+    <MotionPressable onPress={()=>{void processRestore()}} disabled={checkoutBusy||busy||
+     !storeAvailability.supported||!storeAvailability.configured}
+     accessibilityRole="button" accessibilityLabel="Restore purchases linked to your store account"
+     style={[S.restore,{opacity:storeAvailability.supported&&storeAvailability.configured?1:.55}]}>
+      {checkoutBusy?<ActivityIndicator size="small" color={C.teal}/>:<RefreshCw size={16} color={C.teal}/>}
+      <Text style={S.restoreText}>Restore purchases</Text>
+    </MotionPressable>
+    {!storeAvailability.supported||!storeAvailability.configured?
+      <Text style={S.foot}>{storeAvailability.message}</Text>:null}
    </View>
    <View style={S.extras}>
     <View style={S.extrasTitle}><Sparkles color={C.coral} size={20}/>
@@ -183,6 +272,12 @@ const S=StyleSheet.create({
  allowanceText:{fontSize:11,lineHeight:18,color:C.teal},
  progressTrack:{height:8,backgroundColor:'#D8E6E1',borderRadius:6,overflow:'hidden'},
  progressFill:{backgroundColor:C.teal,height:8,borderRadius:6},
+ storeOffer:{backgroundColor:C.darkTeal,borderRadius:15,padding:14,gap:9,
+  flexDirection:'row',alignItems:'center'},
+ offerPrice:{color:'#FFFFFF',fontWeight:'900',fontSize:16},
+ restore:{minHeight:43,borderRadius:13,borderWidth:1,borderColor:'#B7D4CC',
+   flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,padding:10},
+ restoreText:{fontSize:12,fontWeight:'900',color:C.teal},
  disclaimer:{padding:12,flexDirection:'row',gap:9,alignItems:'flex-start'},
  disclaimerText:{fontSize:11,lineHeight:19,flex:1,color:C.muted},
  warning:{backgroundColor:'#FFF0E8',padding:14,borderRadius:15,gap:10},
