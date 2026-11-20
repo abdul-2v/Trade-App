@@ -29,7 +29,18 @@ const sdk={
 const db={
  auth:{async getUser(){return {data:{user:{id:currentUser}},error:null};}},
  async rpc(name){assert.equal(name,'tradarr_my_pro_dashboard');
-  return {data:[{checkout_live:checkoutLive}],error:null};}
+  return {data:[{checkout_live:checkoutLive}],error:null};},
+ from(table){
+  assert.equal(table,'tradarr_store_product_catalog');
+  const q={
+   select(){return q;},
+   eq(){return q;},
+   async maybeSingle(){return {data:checkoutLive?{product_id:'tradarr.pro.monthly'}:null,error:null};},
+   then(done){return Promise.resolve({data:checkoutLive?
+     [{product_id:'tradarr.pro.monthly'}]:[],error:null}).then(done);}
+  };
+  return q;
+ }
 };
 const mod={exports:{}};
 const requireMock=name=>{
