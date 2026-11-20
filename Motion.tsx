@@ -15,6 +15,10 @@ let prefersReducedMotion = false;
 AccessibilityInfo.isReduceMotionEnabled()
   .then(value => { prefersReducedMotion = value; })
   .catch(() => {});
+// Honour setting changes even when the app remains mounted.
+AccessibilityInfo.addEventListener('reduceMotionChanged',value=>{
+  prefersReducedMotion=value;
+});
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -32,7 +36,7 @@ export function MotionPressable({
   onPressIn,
   onPressOut,
   disabled,
-  pressScale = 0.94,
+  pressScale = 0.977,
   disableFlash = false,
   children,
   onPress,
@@ -40,18 +44,28 @@ export function MotionPressable({
 }: MotionPressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const flash = useRef(new Animated.Value(0)).current;
+  const lift = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => () => { scale.stopAnimation(); flash.stopAnimation(); }, [scale, flash]);
+  useEffect(() => () => {
+    scale.stopAnimation(); flash.stopAnimation(); lift.stopAnimation();
+  }, [scale, flash, lift]);
 
-  const springTo = (value: number) => {
-    if (prefersReducedMotion) return;
-    scale.stopAnimation();
-    Animated.spring(scale, {
-      toValue: value,
-      useNativeDriver: true,
-      speed: value === 1 ? 23 : 28,
-      bounciness: value === 1 ? 4 : 0,
-    }).start();
+  const animatePress = (pressed:boolean) => {
+    if(prefersReducedMotion){
+      scale.setValue(1);lift.setValue(0);return;
+    }
+    scale.stopAnimation();lift.stopAnimation();
+    Animated.parallel([
+      Animated.timing(scale,{
+        toValue:pressed?pressScale:1,duration:pressed?98:205,
+        easing:pressed?Easing.out(Easing.quad):Easing.out(Easing.cubic),
+        useNativeDriver:true
+      }),
+      Animated.timing(lift,{
+        toValue:pressed?1.7:0,duration:pressed?98:205,
+        easing:Easing.out(Easing.cubic),useNativeDriver:true
+      }),
+    ]).start();
   };
 
   const activate = (event: Parameters<NonNullable<PressableProps['onPress']>>[0]) => {
@@ -59,8 +73,10 @@ export function MotionPressable({
       flash.stopAnimation();
       flash.setValue(0);
       Animated.sequence([
-        Animated.timing(flash, { toValue: 1, duration: 110, useNativeDriver: true }),
-        Animated.timing(flash, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(flash,{toValue:1,duration:105,
+          easing:Easing.out(Easing.quad),useNativeDriver:true}),
+        Animated.timing(flash,{toValue:0,duration:275,
+          easing:Easing.out(Easing.cubic),useNativeDriver:true}),
       ]).start();
     }
     onPress?.(event);
@@ -72,24 +88,24 @@ export function MotionPressable({
       onPress={activate}
       disabled={disabled}
       onPressIn={event => {
-        if (!disabled) springTo(pressScale);
+        if (!disabled) animatePress(true);
         onPressIn?.(event);
       }}
       onPressOut={event => {
-        springTo(1);
+        animatePress(false);
         onPressOut?.(event);
       }}
-      style={[style as StyleProp<ViewStyle>, { transform: [{ scale }] }]}
+      style={[style as StyleProp<ViewStyle>,{transform:[{translateY:lift},{scale}]}]}
     >
       {typeof children === 'function' ? children : (
         <>
           {children}
           <Animated.View pointerEvents="none" style={{
             position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-            borderRadius: 18, borderWidth: 2, borderColor: '#F07A51',
-            backgroundColor: '#F07A5126',
-            opacity: flash,
-            transform: [{ scale: flash.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.025] }) }],
+            borderRadius: 16, borderWidth: 1.5, borderColor: '#73C5B1',
+            backgroundColor: '#3F927D16',
+            opacity: flash.interpolate({inputRange:[0,1],outputRange:[0,.74]}),
+            transform: [{scale:flash.interpolate({inputRange:[0,1],outputRange:[.975,1.018]})}],
           }} />
         </>
       )}
@@ -97,14 +113,14 @@ export function MotionPressable({
   );
 }
 
-/** Fast, low-distance entrance. Keeps Home from replaying a slow spring after each tab tap. */
+/** Polished feature entrance: visible, restrained fade with no overshoot. */
 export function FadeSlideIn({ children, delay = 0 }: React.PropsWithChildren<{ delay?: number }>) {
   const progress = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
 
   useEffect(() => {
     if (prefersReducedMotion) { progress.setValue(1); return; }
     const animation = Animated.timing(progress, {
-      toValue: 1, delay, duration: 170,
+      toValue: 1, delay, duration: 290,
       easing: Easing.out(Easing.cubic), useNativeDriver: true,
     });
     animation.start();
@@ -114,7 +130,7 @@ export function FadeSlideIn({ children, delay = 0 }: React.PropsWithChildren<{ d
   return (
     <Animated.View style={{
       opacity: progress,
-      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+      transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [17, 0] }) }],
     }}>{children}</Animated.View>
   );
 }
@@ -141,16 +157,16 @@ export function ScreenReveal({children,scope='customer',route=''}:
     if(index>=0)lastTabIndex[scope]=index;
     if(prefersReducedMotion){progress.setValue(1);return;}
     const animation=Animated.timing(progress,{
-      toValue:1,duration:205,easing:Easing.out(Easing.cubic),useNativeDriver:true
+      toValue:1,duration:245,easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     animation.start();
     return ()=>animation.stop();
   },[index,progress,scope]);
   return <Animated.View style={{flex:1,
-   opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.84,1]}),
+   opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.65,1]}),
    transform:[
-    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*18,0]})},
-    {scale:progress.interpolate({inputRange:[0,1],outputRange:[0.995,1]})}
+    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*25,0]})},
+    {scale:progress.interpolate({inputRange:[0,1],outputRange:[0.986,1]})}
    ]}}>
    {children}
   </Animated.View>;
@@ -159,11 +175,11 @@ export function ScreenReveal({children,scope='customer',route=''}:
 /** The selection pill eases in instead of snapping on every tab switch. */
 export function NavPill({active,children,background}:
  React.PropsWithChildren<{active:boolean;background:string}>){
-  const selected=useRef(new Animated.Value(active?(prefersReducedMotion?1:0.67):0)).current;
+  const selected=useRef(new Animated.Value(active?(prefersReducedMotion?1:.25):0)).current;
   useEffect(()=>{
     if(prefersReducedMotion){selected.setValue(active?1:0);return;}
     const movement=Animated.timing(selected,{
-      toValue:active?1:0,duration:220,
+      toValue:active?1:0,duration:230,
       easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     movement.start();
@@ -173,9 +189,10 @@ export function NavPill({active,children,background}:
    <Animated.View pointerEvents="none" style={{
       position:'absolute',left:0,right:0,top:0,bottom:0,borderRadius:22,
       backgroundColor:background,opacity:selected,
-      transform:[{scale:selected.interpolate({inputRange:[0,1],outputRange:[0.80,1]})}]
+      transform:[{scale:selected.interpolate({inputRange:[0,1],outputRange:[0.72,1]})}]
    }}/>
-   <Animated.View style={{transform:[{translateY:selected.interpolate({inputRange:[0,1],outputRange:[1,-0.5]})}]}}>
+   <Animated.View style={{transform:[{translateY:selected.interpolate({inputRange:[0,1],outputRange:[1,-1.4]})},
+     {scale:selected.interpolate({inputRange:[0,1],outputRange:[1,1.06]})}]}}>
      {children}
    </Animated.View>
   </Animated.View>;
