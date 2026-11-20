@@ -356,8 +356,9 @@ window.updateLocations=function(points){
   removeFeature(userMarker);removeFeature(userLabelMarker);removeFeature(workMarker);removeFeature(accuracyArea);
   userMarker=null;userLabelMarker=null;workMarker=null;accuracyArea=null;
   var current=points&&points.current, work=points&&points.workArea;
-  // Work-area pin is an appropriate origin when live GPS is not shared.
-  userPoint=current||work||null;
+  var origin=points&&points.origin;
+  // Use the same origin as the distance displayed in the details sheet.
+  userPoint=origin||current||work||null;
   if(work && (!current || Math.abs(current.lat-work.lat)+Math.abs(current.lng-work.lng)>.001)){
     var wicon=L.divIcon({className:'',html:'<span class="work-pin">Work area</span>',iconSize:[75,24],iconAnchor:[37,12]});
     workMarker=L.marker([work.lat,work.lng],{icon:wicon,interactive:false,zIndexOffset:400}).addTo(map);
@@ -372,6 +373,11 @@ window.updateLocations=function(points){
     userMarker=L.marker([current.lat,current.lng],{icon:icon,interactive:false,zIndexOffset:1100}).addTo(map);
     var label=L.divIcon({className:'',html:'<div class="you-label">You are here</div>',iconSize:[94,24],iconAnchor:[47,-17]});
     userLabelMarker=L.marker([current.lat,current.lng],{icon:label,interactive:false,zIndexOffset:1100}).addTo(map);
+  } else if(origin && (!work || Math.abs(origin.lat-work.lat)+Math.abs(origin.lng-work.lng)>.001)){
+    var originLabel=points.originLabel==='Search area'?'Search area':'Area centre';
+    var originIcon=L.divIcon({className:'',html:'<span class="work-pin">'+originLabel+'</span>',
+      iconSize:[84,24],iconAnchor:[42,12]});
+    userMarker=L.marker([origin.lat,origin.lng],{icon:originIcon,interactive:false,zIndexOffset:500}).addTo(map);
   }
   refreshShopLine();
 };
@@ -657,8 +663,10 @@ export default function TradeSuppliersMap() {
     return () => { active = false; };
   }, [positionReady, centre.latitude, centre.longitude, radius, refreshIndex]);
 
-  const referencePosition = manualArea || gpsPosition || centre;
-  const usingGps = !manualArea && gpsState === 'ready' && !!gpsPosition;
+  // When location permission is granted, distances and the dashed line both
+  // start at the user's device, even when browsing merchants near a postcode.
+  const referencePosition = gpsPosition || manualArea || savedWorkArea || centre;
+  const usingGps = gpsState === 'ready' && !!gpsPosition;
   const visible = useMemo(() => shops
     .filter(shop => {
       if (filter === 'all') return true;
@@ -693,6 +701,8 @@ export default function TradeSuppliersMap() {
       workArea: savedWorkArea
         ? { lat: savedWorkArea.latitude, lng: savedWorkArea.longitude }
         : null,
+      origin: { lat: referencePosition.latitude, lng: referencePosition.longitude },
+      originLabel: manualArea ? 'Search area' : 'Area centre',
     };
     mapRef.current?.injectJavaScript(
       'if(window.updateLocations){window.updateLocations(' + JSON.stringify(payload) + ')};true;'
@@ -701,6 +711,7 @@ export default function TradeSuppliersMap() {
   useEffect(sendPositionToMap, [
     gpsPosition?.latitude, gpsPosition?.longitude, gpsAccuracy,
     savedWorkArea?.latitude, savedWorkArea?.longitude,
+    manualArea?.latitude, manualArea?.longitude, centre.latitude, centre.longitude,
   ]);
 
   // Keep the merchant canvas and camera mounted when GPS finds a better position.
@@ -893,13 +904,13 @@ export default function TradeSuppliersMap() {
                 <View style={{ flex: 1 }}>
                   <Text style={S.storeTitle} numberOfLines={2}>{selected.name}</Text>
                   <Text style={S.storeMeta}>
-                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {manualArea ? 'from searched postcode' : usingGps ? 'from you' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
+                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : manualArea ? 'from searched postcode' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
                   </Text>
                 </View>
                 <MotionPressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></MotionPressable>
               </View>
               <Text style={S.address} numberOfLines={2}>{selected.address}</Text>
-                 <Text style={S.pinDisclaimer}>Pin focused above the details · Directions opens the real road route.</Text>
+                 <Text style={S.pinDisclaimer}>Dotted line shows straight-line distance · Directions opens the road route.</Text>
               {selected.postcodeApproximate ? <Text style={S.pinDisclaimer}>Approximate map pin (postcode centre)</Text> : null}
               <View style={S.actions}>
                 <MotionPressable style={S.primaryButton} onPress={() => openDirections(selected)}>
