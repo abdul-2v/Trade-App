@@ -51,3 +51,6 @@ jobs:
 
       - name: Verify store webhook signature and fail-closed payment gates
         run: node scripts/test-store-webhook.cjs
+
+      - name: Verify native purchasing blocks disabled checkout and account switching
+        run: node scripts/test-store-client.cjs
