@@ -35,7 +35,7 @@ export default function WorkAreaMapPreview({ latitude, longitude, showPin, trade
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
 html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#738E90;}
-.maplibregl-canvas{filter:brightness(.76) contrast(.98) saturate(.85) sepia(.15) hue-rotate(125deg)}
+.maplibregl-canvas{filter:brightness(.94) contrast(.98) saturate(.80) sepia(.06) hue-rotate(125deg)}
 body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;}
 #fallback{position:absolute;inset:0;z-index:2;display:flex;justify-content:center;align-items:center;color:#B9D2CF;
 background:repeating-linear-gradient(35deg,#102B31 0px,#102B31 29px,#174047 31px,#174047 50px);font-size:12px;}
@@ -44,16 +44,16 @@ background:repeating-linear-gradient(35deg,#102B31 0px,#102B31 29px,#174047 31px
 box-shadow:0 0 0 6px rgba(206,112,82,.20),0 4px 14px #203E5555;box-sizing:border-box;}
 /* Visible animated location sonar plus a staggered reveal of nearby merchants. */
 @keyframes homeSonar{0%{transform:scale(.55);opacity:.75}100%{transform:scale(4);opacity:0}}
-@keyframes merchantPop{0%{transform:translateY(18px) scale(.35);opacity:0}60%{transform:translateY(-3px) scale(1.15);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
-@keyframes merchantGlow{0%,100%{box-shadow:0 0 0 3px #E0704C26}50%{box-shadow:0 0 0 8px #E0704C16}}
+@keyframes merchantPop{0%{transform:translateY(12px) scale(.72);opacity:0}75%{transform:translateY(-1px) scale(1.035);opacity:1}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes merchantGlow{0%{box-shadow:0 0 0 0 #E0704C44}100%{box-shadow:0 0 0 10px #E0704C00}}
 @keyframes previewSheen{0%{transform:translateX(-110%);opacity:0}15%{opacity:.7}82%{opacity:.5}100%{transform:translateX(110%);opacity:0}}
 .preview-sheen{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;
   background:linear-gradient(108deg,transparent 22%,rgba(184,238,228,.02) 40%,rgba(189,246,232,.22) 50%,transparent 69%);
-  animation:previewSheen 1.7s ease-out 1.1s both}
+  animation:previewSheen 1.25s ease-out .65s both}
 .pin{position:relative;isolation:isolate;overflow:visible}
 .pin:before,.pin:after{content:"";position:absolute;left:-5px;top:-5px;width:23px;height:23px;box-sizing:border-box;border:2.5px solid #F07850;border-radius:50%;pointer-events:none;animation:homeSonar 2.8s ease-out infinite}
 .pin:after{animation-delay:1.4s}
-.shop-pin{animation:merchantPop .65s cubic-bezier(.2,.8,.25,1.15) both,merchantGlow 3s ease-in-out 1s infinite;animation-delay:var(--delay,0ms),calc(var(--delay,0ms) + 750ms)}
+.shop-pin{animation:merchantPop .46s cubic-bezier(.2,.8,.26,1) both,merchantGlow .8s ease-out 1 both;animation-delay:var(--delay,0ms),calc(var(--delay,0ms) + 460ms)}
 @media(prefers-reduced-motion:reduce){.pin:before,.pin:after,.shop-pin,.preview-sheen{animation:none!important}}
 .maplibregl-control-container{display:none}
 #attribution{position:absolute;z-index:4;right:5px;bottom:3px;background:#ffffffc4;color:#637683;font-size:8px;padding:2px 4px;border-radius:4px}
@@ -70,7 +70,7 @@ try {
   map.on('load',function(){
     document.getElementById('fallback').style.display='none';
     if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-      map.easeTo({center:[${lon},${lat}],zoom:11.9,duration:950,
+      map.easeTo({center:[${lon},${lat}],zoom:11.9,duration:870,
         easing:function(t){return 1-Math.pow(1-t,3)}});
     }else{map.jumpTo({zoom:11.9});}
     var shops = ${JSON.stringify(nearby)};
