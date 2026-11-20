@@ -7564,6 +7564,13 @@ function TradeJobsScreen({
     // A conditional UPDATE affecting zero rows is not an error in PostgREST.
     // Detect expired/already-accepted offers rather than showing a false success.
     if (error || !updatedOffer) {
+      if (response==='accepted' && error?.message?.includes('Free job acceptance allowance reached')) {
+        Alert.alert('Free monthly allowance reached',
+          'You have used your free new-job acceptances for this month. Your existing jobs and messages are still available.',
+          [{text:'Not now',style:'cancel'},{text:'View Pro',onPress:()=>navigate('tradePro')}]);
+        await loadJobs(currentUserId || undefined);
+        return;
+      }
       Alert.alert(
         response === 'accepted' ? 'Job no longer available' : 'Could not decline',
         response === 'accepted'
@@ -7651,6 +7658,13 @@ function TradeJobsScreen({
     setBusyId(null);
 
     if (error || !updatedOffer) {
+      if (response==='accepted' && error?.message?.includes('Free job acceptance allowance reached')) {
+        Alert.alert('Free monthly allowance reached',
+          'Your free new-job acceptance allowance has been used. You can still complete existing bookings and access messages.',
+          [{text:'Not now',style:'cancel'},{text:'View Pro',onPress:()=>navigate('tradePro')}]);
+        await loadMarketJobs(user.id);
+        return;
+      }
       Alert.alert(
         response === 'accepted' ? 'Job no longer available' : 'Could not decline',
         response === 'accepted'
