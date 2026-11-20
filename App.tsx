@@ -43,7 +43,7 @@ import {rankPublishedRoutes} from './lib/routeMatching';
 import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator, StatusSwap, ContentSwap } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator, StatusSwap, ContentSwap, MapCardReveal } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -2823,7 +2823,7 @@ function MapScreen({
 
 
           {selectedMapTrade ? (
-            <View style={styles.mapPreviewCard}>
+            <MapCardReveal key={selectedMapTrade.id} style={styles.mapPreviewCard}>
               <MotionPressable style={styles.mapPreviewClose} onPress={() => setSelectedMapTrade(null)} accessibilityRole="button" accessibilityLabel="Close tradesperson preview">
                 <AppIcon icon={{ ios: 'xmark', android: 'close' }} size={14} color={C.muted} />
               </MotionPressable>
@@ -2904,7 +2904,7 @@ function MapScreen({
                   <AppIcon icon={{ ios: 'arrow.right', android: 'arrow_forward' }} size={16} color={C.white} />
                 </MotionPressable>
               </View>
-            </View>
+            </MapCardReveal>
           ) : !marketLoading && !marketError && filtered.length === 0 ? (
             <View style={styles.customerExploreEmpty}>
               <View style={styles.customerExploreEmptyHeading}>
