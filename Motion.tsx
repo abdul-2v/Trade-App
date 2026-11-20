@@ -223,6 +223,30 @@ export function FlowStep({
  </Animated.View>;
 }
 
+/** A progress segment fills with the same restrained easing as the form. */
+export function FlowProgressSegment({active}: {active:boolean}){
+ const reduced=useReducedMotion();
+ const value=useRef(new Animated.Value(active?1:0)).current;
+ useEffect(()=>{
+  if(reduced){value.stopAnimation();value.setValue(active?1:0);return;}
+  const animation=Animated.timing(value,{
+    toValue:active?1:0,duration:260,easing:Easing.out(Easing.cubic),
+    useNativeDriver:true
+  });
+  animation.start();return()=>animation.stop();
+ },[active,value,reduced]);
+ return <Animated.View style={{
+    flex:1,height:4,borderRadius:2,backgroundColor:'#DDD8CB',overflow:'hidden',
+ }}>
+   <Animated.View style={{
+     position:'absolute',left:0,right:0,top:0,bottom:0,
+     backgroundColor:theme.colors.teal,
+     opacity:value,
+     transform:[{scaleX:value.interpolate({inputRange:[0,1],outputRange:[.02,1]})}]
+   }}/>
+ </Animated.View>;
+}
+
 /** Smooth visual confirmation for a selected radio/timing option. */
 export function ChoiceIndicator({active,color=theme.colors.teal}:{
  active:boolean;color?:string
