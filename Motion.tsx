@@ -251,6 +251,34 @@ export function StatusSwap({value,children}:React.PropsWithChildren<{value:strin
  </Animated.View>;
 }
 
+/**
+ * Restrained content morph for changing filters/tabs inside an existing page.
+ * Only the content moves, never the scroll container or navigation header.
+ * It does not unmount cards or replay when data refreshes in the same filter.
+ */
+export function ContentSwap({value,children}:React.PropsWithChildren<{value:string}>){
+ const reduced=useReducedMotion();
+ const previous=useRef(value);
+ const motion=useRef(new Animated.Value(1)).current;
+ useEffect(()=>{
+   if(reduced){motion.stopAnimation();motion.setValue(1);previous.current=value;return;}
+   if(previous.current===value)return;
+   previous.current=value;
+   motion.stopAnimation();motion.setValue(0);
+   const animation=Animated.timing(motion,{
+     toValue:1,duration:220,easing:Easing.out(Easing.cubic),
+     useNativeDriver:true
+   });
+   animation.start();return()=>animation.stop();
+ },[value,reduced,motion]);
+ return <Animated.View style={{
+   opacity:motion.interpolate({inputRange:[0,1],outputRange:[.62,1]}),
+   transform:[{translateY:motion.interpolate({inputRange:[0,1],outputRange:[10,0]})}]
+ }}>
+  {children}
+ </Animated.View>;
+}
+
 /** A progress segment fills with the same restrained easing as the form. */
 export function FlowProgressSegment({active}: {active:boolean}){
  const reduced=useReducedMotion();
