@@ -1627,6 +1627,7 @@ function MarketplaceHomeScreen({
           <Text style={styles.customerUSPTitle}>Two ways to get the job done</Text>
           <Text style={styles.customerUSPSubtitle}>Urgent help or flexible timing — you choose.</Text>
         </View>
+        <FadeSlideIn delay={85}>
         <View style={styles.customerActionRow}>
           <MotionPressable style={[styles.customerActionCard, styles.customerUrgent]} onPress={() => beginFlow(undefined, true)}
             accessibilityRole="button" accessibilityLabel="Find urgent help">
@@ -1647,6 +1648,7 @@ function MarketplaceHomeScreen({
             <Text style={styles.customerActionBody}>Nearby pros may fit your job around other work.</Text>
           </MotionPressable>
         </View>
+        </FadeSlideIn>
 
         <View style={styles.customerSectionHeading}>
           <View style={{ flex: 1 }}>
@@ -1659,6 +1661,7 @@ function MarketplaceHomeScreen({
             <ChevronRight size={16} color={theme.colors.teal} strokeWidth={2} />
           </MotionPressable>
         </View>
+        <FadeSlideIn delay={130}>
         <View style={styles.customerTradeGrid}>
           {customerCategoryOrder.slice(0, 4).map((category, index) => {
             const meta = categories.find(item => item.label === category);
@@ -1678,6 +1681,7 @@ function MarketplaceHomeScreen({
             );
           })}
         </View>
+        </FadeSlideIn>
         <MotionPressable style={styles.customerMoreTrades} onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Browse more trades">
           <View style={styles.customerAddressIcon}><Wrench size={20} color={theme.colors.teal} strokeWidth={2} /></View>
           <Text style={[styles.customerTradeName, { flex: 1, marginTop: 0 }]}>More trades & services</Text>
@@ -6942,6 +6946,7 @@ function TradeHomeScreen({
             <Text style={styles.tradeDiscoverSubtitle}>Choose the kind of work you want to review.</Text>
           </View>
         </View>
+        <FadeSlideIn delay={80}>
         <MotionPressable style={styles.tradeDiscoverMain} onPress={() => openJobs('offers', 'all')}
           accessibilityRole="button" accessibilityLabel="View all matched job offers">
           <View style={styles.tradeDiscoverMainIcon}><Search size={23} color={theme.colors.white} strokeWidth={2.2} /></View>
@@ -6974,6 +6979,7 @@ function TradeHomeScreen({
             </View>
           </MotionPressable>
         </View>
+        </FadeSlideIn>
 
                  <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
           accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
