@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   AccessibilityInfo,
   Animated,
+  AppState,
   Easing,
   Pressable,
   StyleSheet,
@@ -29,6 +30,18 @@ const reducedMotionSnapshot=()=>prefersReducedMotion;
 /** Active loops stop immediately when reduced motion is changed in Settings. */
 function useReducedMotion(){
  return React.useSyncExternalStore(subscribeMotion,reducedMotionSnapshot,()=>false);
+}
+
+/** Do not keep decorative animations looping when the app is backgrounded. */
+function useAppForeground(){
+ const [foreground,setForeground]=React.useState(AppState.currentState!=='background');
+ useEffect(()=>{
+  const subscription=AppState.addEventListener('change',state=>{
+   setForeground(state==='active');
+  });
+  return()=>subscription.remove();
+ },[]);
+ return foreground;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -381,10 +394,11 @@ export function NavPill({active,children,background}:
 /** Compact, illustrative match journey. Not a live job/availability claim. */
 export function JobMatchJourney(){
   const reduced=useReducedMotion();
+  const foreground=useAppForeground();
   const flight=useRef(new Animated.Value(0)).current;
   const [trackWidth,setTrackWidth]=React.useState(80);
   useEffect(()=>{
-    if(reduced){flight.stopAnimation();flight.setValue(0);return;}
+    if(reduced||!foreground){flight.stopAnimation();flight.setValue(0);return;}
     // Travel only forwards. At 1 the indicator has faded fully out;
     // reset it instantly while invisible instead of racing visibly backwards.
     const loop=Animated.loop(Animated.sequence([
@@ -398,7 +412,7 @@ export function JobMatchJourney(){
     ]));
     loop.start();
     return ()=>loop.stop();
-  },[flight,reduced]);
+  },[flight,reduced,foreground]);
   return <Animated.View
      accessible accessibilityLabel="Illustration: your job request travels to a matched local tradesperson"
      style={{height:47,marginHorizontal:1,marginTop:11,
@@ -443,12 +457,13 @@ export function LiveStatusDot({
   style?: StyleProp<ViewStyle>;
 }) {
   const reduced=useReducedMotion();
+  const foreground=useAppForeground();
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     pulse.stopAnimation();
     pulse.setValue(0);
-    if (!online || reduced) return;
+    if (!online || reduced || !foreground) return;
 
     const cycle = Animated.loop(
       Animated.sequence([
@@ -468,7 +483,7 @@ export function LiveStatusDot({
     );
     cycle.start();
     return () => cycle.stop();
-  }, [online, pulse, reduced]);
+  }, [online, pulse, reduced, foreground]);
 
   return (
     <Animated.View
@@ -490,9 +505,10 @@ export function LiveStatusDot({
 /** Visible animated CTA arrow: glides forward and returns while the hero is visible. */
 export function MovingArrow({ children }: React.PropsWithChildren) {
   const reduced=useReducedMotion();
+  const foreground=useAppForeground();
   const travel = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (reduced){travel.stopAnimation();travel.setValue(0);return;}
+    if (reduced||!foreground){travel.stopAnimation();travel.setValue(0);return;}
     const loop = Animated.loop(Animated.sequence([
       Animated.delay(700),
       Animated.timing(travel, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
@@ -501,24 +517,25 @@ export function MovingArrow({ children }: React.PropsWithChildren) {
     ]));
     loop.start();
     return () => loop.stop();
-  }, [travel,reduced]);
+  }, [travel,reduced,foreground]);
   return <Animated.View style={{ transform: [{ translateX: travel.interpolate({ inputRange: [0, 1], outputRange: [0, 12] }) }] }}>{children}</Animated.View>;
 }
 
 /** Radar on the home map: an unmistakable double wave, not a decorative dot. */
 export function RadarBeacon({ active = true }: { active?: boolean }) {
   const reduced=useReducedMotion();
+  const foreground=useAppForeground();
   const wave = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     wave.stopAnimation();
     wave.setValue(0);
-    if (!active || reduced) return;
+    if (!active || reduced || !foreground) return;
     const loop = Animated.loop(Animated.timing(wave, {
       toValue: 1, duration: 2300, easing: Easing.linear, useNativeDriver: true,
     }));
     loop.start();
     return () => loop.stop();
-  }, [active, wave,reduced]);
+  }, [active, wave,reduced,foreground]);
   return (
     <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={{ position: 'absolute', top: '42%', left: '45%', width: 46, height: 46, alignItems: 'center', justifyContent: 'center' }}>
