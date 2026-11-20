@@ -168,6 +168,9 @@ export function ScreenReveal({children,scope='customer',route=''}:
   const reduced=useReducedMotion();
   const tabs=scope==='customer'?customerTabs:tradeTabs;
   const index=tabs[route]??-1;
+  // Maps render a native WebView: move its surface less than a text screen
+  // to avoid a large expensive compositing animation during map load.
+  const heavyMap=route==='map'||route==='tradeMap';
   const previous=lastTabIndex[scope];
   const direction=useRef(previous<0||index<0||previous===index?0:index>previous?1:-1).current;
   const progress=useRef(new Animated.Value(reduced?1:0)).current;
@@ -175,16 +178,17 @@ export function ScreenReveal({children,scope='customer',route=''}:
     if(index>=0)lastTabIndex[scope]=index;
     if(reduced){progress.stopAnimation();progress.setValue(1);return;}
     const animation=Animated.timing(progress,{
-      toValue:1,duration:245,easing:Easing.out(Easing.cubic),useNativeDriver:true
+      toValue:1,duration:heavyMap?200:245,
+      easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     animation.start();
     return ()=>animation.stop();
-  },[index,progress,scope,reduced]);
+  },[index,progress,scope,reduced,heavyMap]);
   return <Animated.View style={{flex:1,
-   opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.65,1]}),
+   opacity:progress.interpolate({inputRange:[0,1],outputRange:[heavyMap?.82:.65,1]}),
    transform:[
-    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*25,0]})},
-    {scale:progress.interpolate({inputRange:[0,1],outputRange:[0.986,1]})}
+    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*(heavyMap?12:25),0]})},
+    {scale:progress.interpolate({inputRange:[0,1],outputRange:[heavyMap?.995:.986,1]})}
    ]}}>
    {children}
   </Animated.View>;
