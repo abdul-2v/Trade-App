@@ -3858,6 +3858,17 @@ function TradeProfileScreen({
               }</Text>
             </View>
           </View>
+          {isLiveProfile&&trade.promoted ? (
+            <View style={{marginTop:12,alignSelf:'flex-start',backgroundColor:'#FFE9D9',
+              paddingHorizontal:11,paddingVertical:7,borderRadius:11}}>
+              <Text style={{fontSize:11,fontWeight:'900',color:'#86401E'}}>
+                Promoted · paid placement
+              </Text>
+              <Text style={{fontSize:10,lineHeight:15,color:'#86401E'}}>
+                Advertising does not mean a better rating, vetting status or endorsement.
+              </Text>
+            </View>
+          ):null}
           {(trade.verified || trade.insured || trade.gasSafe) ? (
             <View style={styles.customerPublicBadges}>
               {trade.verified ? <View style={styles.customerPublicBadge}><ShieldCheck size={15} color="#FFFFFF" /><Text style={styles.customerPublicBadgeText}>Profile verified</Text></View> : null}
