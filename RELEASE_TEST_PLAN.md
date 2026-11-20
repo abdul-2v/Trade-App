@@ -12,7 +12,7 @@
 - [ ] Forgot password email request works with a registered test account
 - [ ] Latest recovery link or six-digit code is accepted and new password works after sign-out
 - [ ] Old password is rejected after reset; expired/used links show clear errors
-- [ ] Account deletion and native deep links remain incomplete until implemented and tested
+- [ ] Account deletion service exists but its full device confirmation flow remains unverified; native deep links still need physical-device testing
 
 ## B. Customer discovers a real tradesperson
 - [ ] With no real map presence, customer sees honest empty state, not fictional available professionals
@@ -52,7 +52,7 @@
 - [ ] When no candidate exists, request remains honestly posted rather than pretending to be booked
 - [ ] No invented prices, guaranteed savings, detours, grouped homes or time slots appear
 - [ ] Tradesperson acceptance creates a valid real job; final price is agreed between parties
-- [ ] Actual route-based scheduling and grouping are not advertised as finished until data-backed
+- [ ] Road route previews remain labelled estimates until the private Google Routes key is configured and real route responses verified; no monetary savings are invented
 
 ## F. Merchant and location map
 - [ ] Tradesperson GPS location pin and work-area pin display separately
@@ -163,3 +163,13 @@ All above are separate from CI syntax, TypeScript and unit checks. See [architec
 - [ ] Confirm all production beta policies and legal/privacy notices before any actual launch
 
 **Caution:** Existing real accounts and their data were not modified by the SQL rollback tests. Account deletion has a gated finaliser but no real-account deletion has been tested.
+
+## I. Pro subscriptions and notifications (added 20 November 2026)
+- [ ] Confirm the planned Free job-response allowance, paid trader benefits, boosts, and public prices before activation.
+- [ ] Apple App Store / Google Play products exist, real receipts are verified server-side, and sandbox renewals/cancellations/refunds are tested.
+- [ ] `checkout_live` and `enforcement_live` remain false until all purchase flows, restore purchases, and server-side job-action restrictions are working.
+- [ ] A customer profile stays free, and a tradesperson cannot unlock Pro by modifying their own Supabase data.
+- [ ] Admin and tester accounts can switch Customer ↔ Tradesperson without being assigned a paid entitlement.
+- [ ] iPhone notification permission and native Expo push registration work in a native build.
+- [ ] Send test messages and job offers, examine both Expo tickets **and delayed receipts**, and confirm failed devices are deactivated.
+- [ ] Activity > Load older works; unread count remains accurate beyond 100 stored notifications.
