@@ -3,6 +3,7 @@ import {ActivityIndicator,Alert,AppState,ScrollView,StyleSheet,Text,View} from '
 import {ArrowLeft,Bell,BellRing,BriefcaseBusiness,CalendarClock,
  CheckCheck,ChevronRight,MessageCircle,RefreshCw,FileText,Users} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
+import TradarrPushControl from './TradarrPushControl';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
@@ -156,6 +157,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
     <RefreshCw size={19} color={theme.colors.teal}/>
    </MotionPressable>
   </View>:null}
+  <TradarrPushControl/>
   <View style={[s.tools,embedded&&{paddingTop:9}]}>
    <View style={s.tabs}>
     {([{key:'all',label:'All'},{key:'unread',label:'Unread'}] as const).map(tab=>{
