@@ -223,6 +223,34 @@ export function FlowStep({
  </Animated.View>;
 }
 
+/**
+ * A confirmed status change should feel deliberate, not snap. Initial content
+ * renders fully visible; only later changes receive a short native crossfade.
+ */
+export function StatusSwap({value,children}:React.PropsWithChildren<{value:string|boolean}>){
+ const reduced=useReducedMotion();
+ const previous=useRef(value);
+ const motion=useRef(new Animated.Value(1)).current;
+ useEffect(()=>{
+   if(reduced){motion.stopAnimation();motion.setValue(1);previous.current=value;return;}
+   if(previous.current===value)return;
+   previous.current=value;
+   motion.stopAnimation();motion.setValue(0);
+   const animation=Animated.timing(motion,{
+     toValue:1,duration:235,easing:Easing.out(Easing.cubic),
+     useNativeDriver:true
+   });
+   animation.start();return()=>animation.stop();
+ },[value,reduced,motion]);
+ return <Animated.View style={{
+   flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,
+   opacity:motion.interpolate({inputRange:[0,1],outputRange:[.55,1]}),
+   transform:[{translateY:motion.interpolate({inputRange:[0,1],outputRange:[6,0]})}],
+ }}>
+  {children}
+ </Animated.View>;
+}
+
 /** A progress segment fills with the same restrained easing as the form. */
 export function FlowProgressSegment({active}: {active:boolean}){
  const reduced=useReducedMotion();
