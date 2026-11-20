@@ -41,6 +41,10 @@ begin
  if current_user <> 'service_role' then
    raise exception 'Verified purchase finalisation is server-only' using errcode='42501';
  end if;
+ if not exists(select 1 from public.tradarr_billing_controls
+   where singleton and checkout_live and receipt_verifier_ready) then
+   raise exception 'Verified store purchases are not enabled yet' using errcode='42501';
+ end if;
  if p_user_id is null or p_provider not in ('apple','google')
     or p_product_id is null or length(p_product_id)>160
     or p_transaction_id is null or length(p_transaction_id) not between 8 and 200
