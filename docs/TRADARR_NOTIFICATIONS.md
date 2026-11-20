@@ -2,6 +2,7 @@
 
 ## Current status
 
+- **Receipt follow-up implemented (20 Nov):** the existing five-minute dispatcher now also checks provider receipts; received errors and unresolved entries are recorded. No Expo tokens were registered during this change.
 - **Supabase implemented:** In-app notification database, Expo device-token registry, event-to-notification triggers, private delivery outbox, retry-safe claim RPC, and a deployed Deno Edge Function named `tradarr-push-dispatch`.
 - **Automatic dispatch implemented:** `pg_net` trigger wakes the Edge Function on new queue rows; a `pg_cron` job named `tradarr-push-retry-5min` retries transient delivery failures and stalled claims.
 - **In-app inbox implemented:** Both Customer and Tradesperson now have a bottom-navigation **Inbox** section with two segmented tabs: **Messages** and **Activity**. Alerts refresh through Realtime, can be marked read and show unread counts; message alerts can open the relevant conversation.
@@ -44,7 +45,7 @@ Supabase Edge Function `tradarr-push-dispatch` is ACTIVE with gateway JWT verifi
 
 ## Still to refine before a public launch
 
-- Fetch Expo delivery receipts (the server stores tickets and handles immediate errors, but does not yet poll delayed receipts).
+- **Delayed Expo receipts now implemented (20 Nov):** the dispatch function polls Expo's receipts endpoint for accepted tickets after 15 minutes, records APNs/FCM provider acceptance or error, disables `DeviceNotRegistered` tokens, and uses a private retry-limited database claim to avoid competing workers. The first device send/receipt still cannot be verified until native tokens and credentials exist. Successful provider receipt does not prove an iPhone displayed an alert.
 - Stronger per-device management, cleanup, account-switching behaviour and push preference categories.
 - Monitoring and moderation for high-volume sends. The current service uses generic privacy-preserving push message bodies.
 - Real-device testing, Apple credentials and release/build configuration.
