@@ -231,7 +231,8 @@ export function StatusSwap({value,children}:React.PropsWithChildren<{value:strin
  const reduced=useReducedMotion();
  const previous=useRef(value);
  const motion=useRef(new Animated.Value(1)).current;
- useEffect(()=>{
+ // Set the starting opacity before the updated status is painted.
+ React.useLayoutEffect(()=>{
    if(reduced){motion.stopAnimation();motion.setValue(1);previous.current=value;return;}
    if(previous.current===value)return;
    previous.current=value;
@@ -260,7 +261,8 @@ export function ContentSwap({value,children}:React.PropsWithChildren<{value:stri
  const reduced=useReducedMotion();
  const previous=useRef(value);
  const motion=useRef(new Animated.Value(1)).current;
- useEffect(()=>{
+ // Prevent one-frame flashes of the next tab's unanimated content.
+ React.useLayoutEffect(()=>{
    if(reduced){motion.stopAnimation();motion.setValue(1);previous.current=value;return;}
    if(previous.current===value)return;
    previous.current=value;
