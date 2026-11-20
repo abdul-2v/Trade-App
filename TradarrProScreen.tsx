@@ -85,7 +85,7 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
     const {data:{user:stillCurrent}}=await supabase.auth.getUser();
     if(!mounted||stillCurrent?.id!==user.id)return;
     setOffers(results);setBoostOffers(boostResults);
-    if(!results.length)setStoreError('No store products are currently available. Purchases have not been enabled for this device.');
+    if(!results.length&&!boostResults.length)setStoreError('No approved store products are available yet. Purchases have not been enabled for this device.');
    }catch(e:any){
     if(mounted)setStoreError(e?.message||'Could not load App Store products.');
    }finally{if(mounted)setOffersBusy(false);}
