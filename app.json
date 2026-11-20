@@ -26,6 +26,15 @@
       "adaptiveIcon": {
         "backgroundColor": "#071B31"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "color": "#176F69"
+        }
+      ]
+    ]
   }
 }
