@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {AppState,StyleSheet,Text,View} from 'react-native';
+import {AccessibilityInfo,Animated,AppState,Easing,StyleSheet,Text,View} from 'react-native';
 import {Bell,MessageCircle} from 'lucide-react-native';
-import {MotionPressable} from './Motion';
+import {MotionPressable,NavPill} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
@@ -20,6 +20,20 @@ type Props={
 export default function TradarrInboxScreen({role,onOpenOther,
  initialConversationId=null,openActivity=false,onNativeIntentConsumed}:Props){
  const [tab,setTab]=useState<Tab>('messages');
+ const switchMotion=useRef(new Animated.Value(1)).current;
+ useEffect(()=>{
+  let active=true;
+  switchMotion.stopAnimation();switchMotion.setValue(0);
+  void AccessibilityInfo.isReduceMotionEnabled().then(reduced=>{
+   if(!active)return;
+   if(reduced){switchMotion.setValue(1);return;}
+   Animated.timing(switchMotion,{
+    toValue:1,duration:220,easing:Easing.out(Easing.cubic),
+    useNativeDriver:true
+   }).start();
+  }).catch(()=>{if(active)switchMotion.setValue(1);});
+  return()=>{active=false;switchMotion.stopAnimation();};
+ },[tab,switchMotion]);
  const [threadOpen,setThreadOpen]=useState(false);
  const threadWasOpenedRef=useRef(false);
  const [targetConversationId,setTargetConversationId]=useState<string|null>(null);
@@ -124,18 +138,27 @@ export default function TradarrInboxScreen({role,onOpenOther,
        return <MotionPressable key={key} onPress={()=>select(key)}
         accessibilityRole="tab" accessibilityLabel={label}
         accessibilityState={{selected}}
-        style={[s.segmentButton,selected&&s.selected]}>
-        <Icon size={18} color={selected?theme.colors.white:theme.colors.teal}/>
-        <Text style={[s.segmentLabel,selected&&s.selectedLabel]}>{label}</Text>
-        {count>0?<View style={[s.count,selected&&s.selectedCount]}>
-          <Text style={[s.countText,selected&&s.selectedCountText]}>
-           {count>99?'99+':count}
-          </Text>
-        </View>:null}
+        pressScale={0.987} disableFlash
+        style={s.segmentButton}>
+        <NavPill active={selected} background={theme.colors.darkTeal}>
+         <View style={{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7}}>
+          <Icon size={18} color={selected?theme.colors.white:theme.colors.teal}/>
+          <Text style={[s.segmentLabel,selected&&s.selectedLabel]}>{label}</Text>
+          {count>0?<View style={[s.count,selected&&s.selectedCount]}>
+            <Text style={[s.countText,selected&&s.selectedCountText]}>
+             {count>99?'99+':count}
+            </Text>
+          </View>:null}
+         </View>
+        </NavPill>
        </MotionPressable>;
       })}
     </View>
    </View>:null}
+   <Animated.View style={{flex:1,
+     opacity:switchMotion.interpolate({inputRange:[0,1],outputRange:[.74,1]}),
+     transform:[{translateY:switchMotion.interpolate({inputRange:[0,1],outputRange:[9,0]})}]
+   }}>
    {tab==='messages'?
       <UnifiedMessagesScreen role={role} embedded
        onThreadChange={handleThreadChange}
@@ -146,6 +169,7 @@ export default function TradarrInboxScreen({role,onOpenOther,
       <TradarrNotificationsScreen
         embedded onBack={()=>select('messages')}
         onOpen={openAlert} onUnreadCountChange={setUnreadNotifications}/>}
+   </Animated.View>
  </View>;
 }
 
@@ -156,7 +180,7 @@ const s=StyleSheet.create({
  subtitle:{fontSize:12,color:theme.colors.muted,marginTop:4,marginBottom:15},
  segment:{backgroundColor:'#E9F0EC',padding:5,borderRadius:17,
   flexDirection:'row',gap:5},
- segmentButton:{flex:1,minHeight:43,borderRadius:12,flexDirection:'row',
+ segmentButton:{flex:1,height:47,borderRadius:13,flexDirection:'row',
   alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:7},
  selected:{backgroundColor:theme.colors.darkTeal},
  segmentLabel:{fontSize:13,fontWeight:'800',color:theme.colors.teal},
