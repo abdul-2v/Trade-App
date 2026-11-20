@@ -63,7 +63,7 @@ function request(body,{auth=config.REVENUECAT_WEBHOOK_AUTHORIZATION,
  badSignature=false,old=false,signature=true}={}){
  const raw=JSON.stringify(body);
  const t=Math.floor(Date.now()/1000)-(old?601:0);
- const mac=nodeCrypto.createHmac('sha256',config.REVENUECAT_WEBHOOK_SIGNING_SECRET)
+ const mac=nodeCrypto.createHmac('sha256','test-private-hmac-phrase')
   .update(t+'.'+raw).digest('hex');
  return new Request('https://example.supabase.co/functions/v1/tradarr-store-webhook',{
   method:'POST',headers:{'Content-Type':'application/json','Authorization':auth,
