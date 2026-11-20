@@ -4,7 +4,7 @@ import {ArrowLeft,BadgeCheck,Check,ChevronRight,Crown,LockKeyhole,RefreshCw,Rock
 import {MotionPressable} from './Motion';
 import {
  getStoreOfferings,nativeStoreAvailability,purchaseStorePackage,
- restoreStorePurchases,type StoreOffer
+ restoreStorePurchases,getStoreBoosts,purchaseStoreBoost,type StoreOffer,type StoreBoost
 } from './lib/storePurchases';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
@@ -39,6 +39,7 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
  const [error,setError]=useState('');
  const requestSerial=useRef(0);
  const [offers,setOffers]=useState<StoreOffer[]>([]);
+ const [boostOffers,setBoostOffers]=useState<StoreBoost[]>([]);
  const [offersBusy,setOffersBusy]=useState(false);
  const [checkoutBusy,setCheckoutBusy]=useState(false);
  const [storeError,setStoreError]=useState('');
@@ -47,7 +48,7 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
  const refresh=useCallback(async()=>{
   const request=++requestSerial.current;
   // A sign-out or account switch must never display the prior user's tier.
-  setStatus(null);setOffers([]);setBusy(true);
+  setStatus(null);setOffers([]);setBoostOffers([]);setBusy(true);
   try{
    const {data:{user},error:authError}=await supabase.auth.getUser();
    if(authError||!user)throw new Error('Sign in to check your account.');
@@ -70,24 +71,27 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
  useEffect(()=>{
   if(!status?.checkout_live)return;
   let mounted=true;
-  setOffersBusy(true);setOffers([]);setStoreError('');
+  setOffersBusy(true);setOffers([]);setBoostOffers([]);setStoreError('');
   void (async()=>{
    try{
     if(!storeAvailability.supported||!storeAvailability.configured)
       throw Error(storeAvailability.message);
     const {data:{user},error:userError}=await supabase.auth.getUser();
     if(userError||!user)throw Error('Sign in to view purchase options.');
-    const results=await getStoreOfferings(user.id);
+    const [results,boostResults]=await Promise.all([
+      getStoreOfferings(user.id),
+      status.boosts_live?getStoreBoosts(user.id):Promise.resolve([])
+    ]);
     const {data:{user:stillCurrent}}=await supabase.auth.getUser();
     if(!mounted||stillCurrent?.id!==user.id)return;
-    setOffers(results);
+    setOffers(results);setBoostOffers(boostResults);
     if(!results.length)setStoreError('No store products are currently available. Purchases have not been enabled for this device.');
    }catch(e:any){
     if(mounted)setStoreError(e?.message||'Could not load App Store products.');
    }finally{if(mounted)setOffersBusy(false);}
   })();
   return()=>{mounted=false;};
- },[status?.checkout_live,storeAvailability.supported,storeAvailability.configured]);
+ },[status?.checkout_live,status?.boosts_live,storeAvailability.supported,storeAvailability.configured]);
  const processPurchase=async(offer:StoreOffer)=>{
   if(checkoutBusy)return;
   setCheckoutBusy(true);setStoreError('');setStoreMessage('');
@@ -101,6 +105,21 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
     void refresh();
    }
   }catch(e:any){setStoreError(e?.message||'Could not complete the purchase.');}
+  finally{setCheckoutBusy(false);}
+ };
+ const processBoost=async(boost:StoreBoost)=>{
+  if(checkoutBusy)return;
+  setCheckoutBusy(true);setStoreError('');setStoreMessage('');
+  try{
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!user)throw Error('Sign in before buying a boost.');
+   const result=await purchaseStoreBoost(user.id,boost);
+   if(result==='cancelled')setStoreMessage('Boost purchase cancelled.');
+   else{
+    setStoreMessage('Boost purchase submitted. Paid visibility only begins when the store verifies it on the Tradarr server.');
+    void refresh();
+   }
+  }catch(e:any){setStoreError(e?.message||'Could not purchase the profile boost.');}
   finally{setCheckoutBusy(false);}
  };
  const processRestore=async()=>{
@@ -226,7 +245,23 @@ export default function TradarrProScreen({goBack}:{goBack:()=>void}){
       {status?.boosts_live&&status.next_boost_expires_at?
         <Text style={S.foot}>Next boost expires {new Date(status.next_boost_expires_at).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</Text>:null}
     </View>
-    <Text style={S.foot}>Boost pricing, durations and fair exposure limits still need approval. No profile receives paid positioning until purchases are verified and the launch switch is enabled.</Text>
+    {status?.boosts_live&&boostOffers.length ? boostOffers.map(boost=>(
+      <MotionPressable key={boost.productId} onPress={()=>{void processBoost(boost)}}
+        disabled={checkoutBusy||busy||offersBusy}
+        accessibilityRole="button"
+        accessibilityLabel={'Purchase a '+boost.days+'-day profile boost for '+boost.price}
+        style={S.storeOffer}>
+        <View style={{flex:1,gap:4}}>
+         <Text style={{color:'#FFFFFF',fontSize:13,fontWeight:'900'}}>{boost.name}</Text>
+         <Text style={{color:'#D6E9E2',fontSize:11}}>{boost.days} days · Promoted label · no guaranteed job enquiries</Text>
+        </View>
+        <Text style={S.offerPrice}>{boost.price}</Text>
+        <ChevronRight size={18} color="#FFFFFF"/>
+      </MotionPressable>
+    )):null}
+    <Text style={S.foot}>{status?.boosts_live
+      ? 'Only approved verified boost products can be purchased. Store confirmation and server verification are required.'
+      : 'Boost prices and durations still need approval. No profile receives paid positioning until purchases are verified and the launch switch is enabled.'}</Text>
    </View>
    <View style={S.disclaimer}>
     <ShieldCheck size={19} color={C.teal}/>
