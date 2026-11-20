@@ -66,4 +66,13 @@ assert.ok(app.includes('<FadeSlideIn>\\n          <View style={styles.tradeHowPa
  'Expanded job guidance needs an entrance');
 assert.ok(motion.includes('React.useLayoutEffect('),
  'Status and content transitions should set the animation starting state before paint');
+assert.ok(motion.includes('export function MapCardReveal('));
+assert.ok(app.includes('<MapCardReveal key={selectedMapTrade.id} style={styles.mapPreviewCard}>'),
+ 'Customer map card should animate without detaching from its absolute map anchor');
+assert.ok(motion.includes('function useAppForeground()'),
+ 'Decorative animations must stop when app is backgrounded');
+assert.ok(motion.includes("AppState.addEventListener('change'"),
+ 'Background pause should respond to app state changes');
+assert.ok(motion.includes('if(reduced||!foreground)'),
+ 'Decorative loops should stop both for accessibility and background');
 console.log('Motion regression passed: map scripts, job wizard steps, availability confirmation, low bounce and accessibility.');
