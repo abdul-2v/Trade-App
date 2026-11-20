@@ -59,7 +59,7 @@ const {nativeStoreAvailability,getStoreOfferings,purchaseStorePackage,
  assert.deepEqual(disabled,[]);
  assert.equal(buyCalls,0);
  await assert.rejects(()=>purchaseStorePackage(currentUser,{productId:pkg.product.identifier,
- package:pkg}),/Payments are not enabled/);
+ package:pkg}),/not currently approved|Payments are not enabled/);
  assert.equal(buyCalls,0,'No native charge when server billing switch is off');
  checkoutLive=true;
  const offers=await getStoreOfferings(currentUser);
