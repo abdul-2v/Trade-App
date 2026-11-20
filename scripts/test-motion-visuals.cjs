@@ -38,4 +38,21 @@ assert.ok(app.includes('body.dense-map .trade-pin'),
 assert.ok(app.includes('@media(prefers-reduced-motion:reduce)'));
 assert.ok(supplier.includes('@media(prefers-reduced-motion:reduce)'));
 assert.ok(preview.includes('@media(prefers-reduced-motion:reduce)'));
-console.log('Motion regression passed: 3 map scripts parse, focus camera, bounded markers, button feel and reduced-motion checks.');
+// Form step transitions must keep the sheet mounted while maintaining a
+// continuous way back from stage three to two to one.
+assert.ok(motion.includes('export function FlowStep('));
+assert.ok(motion.includes('export function FlowProgressSegment('));
+assert.ok(motion.includes('export function ChoiceIndicator('));
+assert.ok(app.includes('<FlowStep key={flowStep} direction={flowDirection}>'));
+assert.ok(app.includes('<FlowProgressSegment key={step} active={step <= flowStep}/>'));
+assert.ok(app.includes('<ChoiceIndicator active={flowTiming === timing}'));
+assert.ok(app.includes('setFlowDirection(-1);setFlowStep(1)'));
+assert.ok(app.includes('setFlowDirection(-1);setFlowStep(2)'));
+assert.ok(app.includes('setFlowDirection(1);'));
+assert.ok(app.includes('<StatusSwap value={available}>'),
+ 'Availability status must animate only after persisted state updates');
+assert.ok(motion.includes('previous.current===value'),
+ 'Status should not animate on every re-render');
+assert.ok(motion.includes('if(reduced){motion.stopAnimation();motion.setValue(1)'),
+ 'Reduced motion must disable status swapping');
+console.log('Motion regression passed: map scripts, job wizard steps, availability confirmation, low bounce and accessibility.');
