@@ -5931,11 +5931,11 @@ function CustomerProfileScreen({
 
         {(accountType === 'tradesperson'||staffAccess) ? (
           <MotionPressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
-            accessibilityRole="button" accessibilityLabel="Switch to Tradarr Pro">
+            accessibilityRole="button" accessibilityLabel="Switch to tradesperson view">
             <BriefcaseBusiness size={21} strokeWidth={2} color={theme.colors.teal} />
             <View style={{ flex: 1 }}>
               <Text style={styles.customerAccountRowText}>
-                {accountType==='tradesperson'?'Open Tradarr Pro':'Test tradesperson view'}
+                {accountType==='tradesperson'?'Open tradesperson view':'Test tradesperson view'}
               </Text>
               <Text style={styles.customerAccountRowDetail}>
                 {accountType==='tradesperson'?'Manage jobs and availability':'Complete your business profile to activate trade features'}
@@ -6034,7 +6034,7 @@ function CustomerProfileScreen({
                     thumbColor="#FFFFFF"
                   />
                 </View>
-                <Text style={styles.customerAccountEditorNote}>Notification types share one setting for now. Individual preferences are not available yet.</Text>
+                <Text style={styles.customerAccountEditorNote}>This controls remote alerts, not your in-app Activity history. iPhone push notifications require a compatible native build and notification permission. Individual alert categories will be added later.</Text>
               </>
             ) : null}
 
@@ -6317,7 +6317,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
       <ChevronRight size={21} color={theme.colors.teal}/>
     </MotionPressable>)}
    </View>
-   <Text style={styles.tradeToolsFooter}>Your business records remain private to your account. Membership restrictions are not active until secure billing is ready.</Text>
+   <Text style={styles.tradeToolsFooter}>Your business records remain private to your account. Manage your membership under Tradarr Pro.</Text>
   </ScrollView>
  </TradeShell>;
 }
