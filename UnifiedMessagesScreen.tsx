@@ -352,6 +352,33 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
     setSelectedId(targetConversationId);
   }
  },[targetConversationId,inbox]);
+ // The normal list is limited to 100 recent threads. A valid notification
+ // may refer to an older one, so fetch only that exact conversation with the
+ // signed-in participant filter before attempting to open it.
+ useEffect(()=>{
+  if(!targetConversationId||!uid||loadingInbox||
+    inbox.some(item=>item.id===targetConversationId))return;
+  let alive=true;
+  void (async()=>{
+    const {data,error:lookupError}=await supabase.from('conversations')
+      .select('id,customer_id,tradesperson_id,customer_display_name,tradesperson_display_name,tradesperson_trade,tradesperson_avatar_url,updated_at')
+      .eq('id',targetConversationId)
+      .eq(role==='customer'?'customer_id':'tradesperson_id',uid).maybeSingle();
+    if(!alive)return;
+    if(lookupError||!data)return;
+    const extra:Inbox={
+      id:data.id,
+      otherName:role==='customer'?data.tradesperson_display_name||'Tradesperson':
+       data.customer_display_name||'Customer',
+      otherTrade:role==='customer'?data.tradesperson_trade||'Trade professional':'Customer conversation',
+      avatar:role==='customer'?data.tradesperson_avatar_url||null:null,
+      lastMessage:'Open conversation to view messages',
+      updatedAt:data.updated_at,unread:0
+    };
+    setInbox(old=>old.some(item=>item.id===extra.id)?old:[extra,...old]);
+  })();
+  return()=>{alive=false;};
+ },[targetConversationId,uid,loadingInbox,role,inbox]);
  return <KeyboardAvoidingView style={s.root} behavior={Platform.OS==='ios'?'padding':undefined}
    keyboardVerticalOffset={Platform.OS==='ios'?20:0}>
   {selected ? <>
