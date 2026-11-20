@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Pressable,
+  StyleSheet,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
@@ -55,6 +56,11 @@ export function MotionPressable({
   const scale = useRef(new Animated.Value(1)).current;
   const flash = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(0)).current;
+  // Match the existing button/card shape instead of drawing a square halo
+  // over circular avatar buttons or pill-shaped primary actions.
+  const flattenedStyle=StyleSheet.flatten(style as StyleProp<ViewStyle>);
+  const flashRadius=typeof flattenedStyle?.borderRadius==='number'
+    ?flattenedStyle.borderRadius:16;
 
   useEffect(() => () => {
     scale.stopAnimation(); flash.stopAnimation(); lift.stopAnimation();
@@ -112,7 +118,7 @@ export function MotionPressable({
           {children}
           <Animated.View pointerEvents="none" style={{
             position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-            borderRadius: 16, borderWidth: 1.5, borderColor: '#73C5B1',
+            borderRadius: flashRadius, borderWidth: 1.5, borderColor: '#73C5B1',
             backgroundColor: '#3F927D16',
             opacity: flash.interpolate({inputRange:[0,1],outputRange:[0,.74]}),
             transform: [{scale:flash.interpolate({inputRange:[0,1],outputRange:[.975,1.018]})}],
