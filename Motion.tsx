@@ -326,6 +326,31 @@ export function ChoiceIndicator({active,color=theme.colors.teal}:{
  }}/>;
 }
 
+/** Map pin selection reveals the floating details card without moving its anchor. */
+export function MapCardReveal({children,style}:React.PropsWithChildren<{
+ style?:StyleProp<ViewStyle>
+}>){
+ const reduced=useReducedMotion();
+ const progress=useRef(new Animated.Value(reduced?1:0)).current;
+ useEffect(()=>{
+  if(reduced){progress.stopAnimation();progress.setValue(1);return;}
+  const animation=Animated.timing(progress,{
+   toValue:1,duration:265,easing:Easing.out(Easing.cubic),
+   useNativeDriver:true
+  });
+  animation.start();return()=>animation.stop();
+ },[progress,reduced]);
+ return <Animated.View style={[style,{
+  opacity:progress.interpolate({inputRange:[0,1],outputRange:[.1,1]}),
+  transform:[
+   {translateY:progress.interpolate({inputRange:[0,1],outputRange:[24,0]})},
+   {scale:progress.interpolate({inputRange:[0,1],outputRange:[.976,1]})}
+  ]
+ }]}>
+  {children}
+ </Animated.View>;
+}
+
 /** The selection pill eases in instead of snapping on every tab switch. */
 export function NavPill({active,children,background}:
  React.PropsWithChildren<{active:boolean;background:string}>){
