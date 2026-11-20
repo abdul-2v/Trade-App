@@ -478,6 +478,21 @@ export default function TradeSuppliersMap() {
   const [radius, setRadius] = useState(10);
   const [shops, setShops] = useState<Supplier[]>([]);
   const [selected, setSelected] = useState<Supplier | null>(null);
+  const sheetMotion=useRef(new Animated.Value(1)).current;
+  useEffect(()=>{
+    let active=true;
+    sheetMotion.stopAnimation();
+    sheetMotion.setValue(0);
+    void AccessibilityInfo.isReduceMotionEnabled().then(reduced=>{
+      if(!active)return;
+      if(reduced){sheetMotion.setValue(1);return;}
+      Animated.timing(sheetMotion,{
+        toValue:1,duration:240,easing:Easing.out(Easing.cubic),
+        useNativeDriver:true
+      }).start();
+    }).catch(()=>{if(active)sheetMotion.setValue(1);});
+    return()=>{active=false;sheetMotion.stopAnimation();};
+  },[selected?.id,sheetMotion]);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const [sourceNote, setSourceNote] = useState('');
@@ -848,7 +863,13 @@ export default function TradeSuppliersMap() {
             <Text style={S.noticeText}>No matching merchants found in this area. Try All shops or increase the radius.</Text>
           </View>
         ) : null}
-        <View style={S.bottomPanel}>
+        <Animated.View style={[S.bottomPanel,{
+          opacity:sheetMotion.interpolate({inputRange:[0,1],outputRange:[.70,1]}),
+          transform:[
+            {translateY:sheetMotion.interpolate({inputRange:[0,1],outputRange:[15,0]})},
+            {scale:sheetMotion.interpolate({inputRange:[0,1],outputRange:[.985,1]})}
+          ]
+        }]}>
           {selected ? (
             <>
               <View style={S.storeHeader}>
@@ -902,7 +923,7 @@ export default function TradeSuppliersMap() {
             </>
           )}
           <View pointerEvents="none" style={S.sheetHandle} />
-        </View>
+        </Animated.View>
       </View>
     </View>
   );
