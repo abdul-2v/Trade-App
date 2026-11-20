@@ -12,15 +12,34 @@ type Tab='messages'|'notifications';
 type Props={
  role:'customer'|'tradesperson';
  onOpenOther:(notice:TradarrAlert)=>void;
+ initialConversationId?:string|null;
+ openActivity?:boolean;
+ onNativeIntentConsumed?:()=>void;
 };
 
-export default function TradarrInboxScreen({role,onOpenOther}:Props){
+export default function TradarrInboxScreen({role,onOpenOther,
+ initialConversationId=null,openActivity=false,onNativeIntentConsumed}:Props){
  const [tab,setTab]=useState<Tab>('messages');
  const [threadOpen,setThreadOpen]=useState(false);
  const threadWasOpenedRef=useRef(false);
  const [targetConversationId,setTargetConversationId]=useState<string|null>(null);
  const [unreadMessages,setUnreadMessages]=useState(0);
  const [unreadNotifications,setUnreadNotifications]=useState(0);
+ // A notification tap can arrive while the app was closed or while its Inbox
+ // is already mounted. Only the App-level authenticated lookup supplies this ID.
+ useEffect(()=>{
+  if(initialConversationId){
+   setTargetConversationId(initialConversationId);
+   setThreadOpen(false);
+   threadWasOpenedRef.current=false;
+   setTab('messages');
+   onNativeIntentConsumed?.();
+  }else if(openActivity){
+   setTab('notifications');
+   onNativeIntentConsumed?.();
+  }
+ // The intent clears itself once consumed, so callback identity is not an input.
+ },[initialConversationId,openActivity]);
 
  const refreshCounts=useCallback(async()=>{
   const {data:{user}}=await supabase.auth.getUser();
