@@ -43,7 +43,7 @@ import {rankPublishedRoutes} from './lib/routeMatching';
 import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
-import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator, StatusSwap } from './Motion';
+import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator, StatusSwap, ContentSwap } from './Motion';
 import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
@@ -7889,6 +7889,7 @@ function TradeJobsScreen({
             style={showJobGuide ? { transform: [{ rotate: '90deg' }] } : undefined} />
         </MotionPressable>
         {showJobGuide ? (
+          <FadeSlideIn>
           <View style={styles.tradeHowPanel}>
             {([
               ['1', 'Go online on Home', 'Set where you work and how far you can travel.'],
@@ -7903,6 +7904,7 @@ function TradeJobsScreen({
             ))}
             <Text style={styles.tradeHowExtra}>On My Way matches work to an existing journey. Street Run groups nearby jobs in the same area.</Text>
           </View>
+          </FadeSlideIn>
         ) : null}
         <View style={styles.premiumJobOverview}>
           <View style={styles.premiumJobMetric}>
@@ -7964,6 +7966,7 @@ function TradeJobsScreen({
             </NavPill>
           </MotionPressable>
         </View>
+        <ContentSwap value={jobsView+':'+(jobsView==='offers'?offerFilter+':'+flexibleMode:'active')}>
         {jobsView === 'offers' ? (
           <>
             <View style={styles.tradeOfferFilterRow}>
@@ -8359,6 +8362,7 @@ function TradeJobsScreen({
           ) : null}
           </>
         )}
+        </ContentSwap>
         <View style={{ height: 24 }} />
       </ScrollView>
     </TradeShell>
