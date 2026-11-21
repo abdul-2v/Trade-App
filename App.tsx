@@ -6402,131 +6402,105 @@ function TradeShell({
 function TradeToolsScreen({navigate,openBusinessSuite}:{
  navigate:(screen:TradeScreen)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
 }){
- const suiteGroups=[
-  {title:'Find & organise work',tools:[
-   {id:'radar' as BusinessFeature,title:'Opportunity Radar',detail:'Find live matched opportunities',Icon:Radar},
-   {id:'smartDiary' as BusinessFeature,title:'Smart Diary',detail:'Find gaps and plan more work',Icon:CalendarClock},
-   {id:'commandCentre' as BusinessFeature,title:'Job Command Centre',detail:'Checklists for accepted jobs',Icon:ClipboardCheck}
+ type ToolEntry={title:string;detail:string;Icon:typeof FileText;route?:TradeScreen;feature?:BusinessFeature};
+ const groups:Array<{title:string;caption:string;tools:ToolEntry[]}>= [
+  {title:'Jobs & scheduling',caption:'Find work, manage jobs and plan your time',tools:[
+   {feature:'radar',title:'Opportunity Radar',detail:'Relevant work requests for your trade and area',Icon:Radar},
+   {feature:'commandCentre',title:'Job Command Centre',detail:'Checklists and progress for active jobs',Icon:ClipboardCheck},
+   {feature:'smartDiary',title:'Smart Diary & Gap Filler',detail:'See diary gaps and potential openings',Icon:CalendarClock},
+   {route:'tradeHours',title:'Working hours & availability',detail:'Set your bookable hours and openings',Icon:Clock3},
+   {route:'tradeRoutes',title:'On My Way & Street Run',detail:'Plan journeys and route-friendly work',Icon:Route},
+   {route:'tradeGrid',title:'Publish Grid slots',detail:'Share available time with customers',Icon:CalendarDays}
   ]},
-  {title:'Quotes & money',tools:[
-   {id:'quoteStudio' as BusinessFeature,title:'Smart Quote Studio',detail:'Scope templates and estimates',Icon:FileText},
-   {id:'moneyHub' as BusinessFeature,title:'Money Hub',detail:'Payments, costs and invoices',Icon:HandCoins},
-   {id:'documentVault' as BusinessFeature,title:'Document Vault',detail:'Private business files',Icon:FolderLock}
+  {title:'Quotes, money & materials',caption:'Price jobs, manage cash flow and organise supplies',tools:[
+   {feature:'quoteStudio',title:'Smart Quote Studio',detail:'Create clear scopes and reusable estimates',Icon:FileText},
+   {feature:'moneyHub',title:'Money Hub',detail:'Review invoices, money due and costs',Icon:HandCoins},
+   {route:'tradeProfit',title:'Job profit & expenses',detail:'Track costs and understand your margins',Icon:TrendingUp},
+   {route:'tradeMaterials',title:'Materials planner',detail:'Parts lists, shopping checks and suppliers',Icon:Package},
+   {feature:'documentVault',title:'Document Vault',detail:'Keep important business files organised',Icon:FolderLock}
   ]},
-  {title:'Customers & growth',tools:[
-   {id:'repeatEngine' as BusinessFeature,title:'Repeat Customer Engine',detail:'Keep service reminders',Icon:Repeat},
-   {id:'bookingProfile' as BusinessFeature,title:'Business Booking Profile',detail:'Prepare your shareable contact card',Icon:Globe},
-   {id:'growthKit' as BusinessFeature,title:'Growth Toolkit',detail:'Reusable customer messages',Icon:Megaphone}
+  {title:'Customers & growth',caption:'Keep relationships and repeat work organised',tools:[
+   {route:'tradeCustomers',title:'Customer book',detail:'Contacts, notes and job history',Icon:Users},
+   {feature:'repeatEngine',title:'Repeat Customer Engine',detail:'Plan legitimate service follow-ups',Icon:Repeat},
+   {feature:'bookingProfile',title:'Business Booking Profile',detail:'Manage your shareable contact details',Icon:Globe},
+   {feature:'growthKit',title:'Growth Toolkit',detail:'Reusable customer updates and messages',Icon:Megaphone},
+   {route:'tradeCollective',title:'Collective group offers',detail:'Manage genuine local group enquiries',Icon:Users}
   ]},
-  {title:'People & smart tools',tools:[
-   {id:'crewOps' as BusinessFeature,title:'Crew Operations',detail:'Manage helper work hours',Icon:Users},
-   {id:'assistant' as BusinessFeature,title:'Business Assistant',detail:'Record-based suggestions',Icon:Bot},
-   {id:'insights' as BusinessFeature,title:'Business Insights',detail:'Real KPIs and opportunities',Icon:BarChart3}
+  {title:'Team & insights',caption:'People, business visibility and membership',tools:[
+   {route:'tradeCrew',title:'Tradarr Crew',detail:'Find extra pairs of hands and local helpers',Icon:Users},
+   {feature:'crewOps',title:'Crew Operations',detail:'Track agreed helper work and hours',Icon:BriefcaseBusiness},
+   {feature:'insights',title:'Business Insights',detail:'Understand records and performance',Icon:BarChart3},
+   {feature:'assistant',title:'Business Assistant',detail:'Suggestions based on your saved records',Icon:Bot},
+   {route:'tradePro',title:'Tradarr Pro',detail:'View membership features and options',Icon:Sparkles}
   ]}
  ];
  const quick=[
-  {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'Create a quote',detail:'Estimate a job'},
-  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add a booking',detail:'Plan an appointment'}
- ];
- const sections=[
-  {route:'tradeHours' as TradeScreen,Icon:Clock3,title:'Working hours & availability',detail:'Publish bookable openings and weekly hours'},
-  {route:'tradeCustomers' as TradeScreen,Icon:Users,title:'Customer book',detail:'Contact details, notes and job history'},
-  {route:'tradeProfit' as TradeScreen,Icon:TrendingUp,title:'Job profit & expenses',detail:'Record real costs, protect margins and see what you earn'},
-  {route:'tradeMaterials' as TradeScreen,Icon:Package,title:'Materials planner',detail:'Job shopping lists, supplier map and purchase checklists'},
-  {route:'tradePro' as TradeScreen,Icon:Sparkles,title:'Tradarr Pro',detail:'Membership options, boosts and current tier'},
-  {route:'tradeRoutes' as TradeScreen,Icon:Route,title:'On My Way & Street Run',detail:'Publish diary-linked journeys and receive route-friendly requests'},
-  {route:'tradeGrid' as TradeScreen,Icon:Route,title:'Publish Grid slots',detail:'Share available gaps and manage customer enquiries'},
-  {route:'tradeCollective' as TradeScreen,Icon:Users,title:'Collective group offers',detail:'Offer genuine local per-home prices to interested households'}
+  {route:'tradeQuotes' as TradeScreen,Icon:FileText,title:'New quote',detail:'Price a job'},
+  {route:'tradeDiary' as TradeScreen,Icon:CalendarDays,title:'Add booking',detail:'Plan a visit'}
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
-  <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
-   <View style={styles.premiumScreenHeading}><View style={{flex:1}}>
-    <Text style={styles.premiumEyebrow}>Run your business</Text>
-    <Text style={styles.premiumPageTitle}>Tools</Text>
-    <Text style={[styles.premiumScreenSub,{marginTop:6}]}>Invoices, jobs and everything you need to run your business.</Text>
-   </View></View>
-   <Text style={styles.tradeToolsSectionTitle}>Your essentials</Text>
+  <ScrollView contentContainerStyle={styles.tradeToolsPage} showsVerticalScrollIndicator={false}>
+   <View style={styles.tradeToolsHeading}>
+    <Text style={styles.tradeToolsEyebrow}>YOUR BUSINESS WORKSPACE</Text>
+    <Text style={styles.tradeToolsHeadingTitle}>Tools</Text>
+    <Text style={styles.tradeToolsHeadingCopy}>Everything you need, neatly organised around your work.</Text>
+   </View>
+   <Text style={styles.tradeToolsSectionKicker}>EVERYDAY ESSENTIALS</Text>
    <MotionPressable onPress={()=>navigate('tradeInvoices')} accessibilityRole="button"
-     accessibilityLabel="Open invoices and payments" style={styles.tradeInvoiceHero}>
-     <View style={styles.tradeInvoiceHeroIcon}>
-       <ClipboardList size={27} color="#FFFFFF" strokeWidth={2.1}/>
+     accessibilityLabel="Open invoices and payments" accessibilityHint="Create and track business invoices"
+     style={styles.tradeToolsFeatured}>
+     <View style={styles.tradeToolsFeaturedIcon}><ClipboardList size={25} color="#FFFFFF" strokeWidth={1.9}/></View>
+     <View style={{flex:1}}>
+      <Text style={styles.tradeToolsFeaturedTitle}>Invoices & payments</Text>
+      <Text style={styles.tradeToolsFeaturedDetail}>Create PDF invoices. Track sent, paid and outstanding.</Text>
      </View>
-     <View style={{flex:1,gap:5}}>
-       <Text style={styles.tradeInvoiceHeroEyebrow}>YOUR FIRST BUSINESS ESSENTIAL</Text>
-       <Text style={styles.tradeInvoiceHeroTitle}>Invoices & payments</Text>
-       <Text style={styles.tradeInvoiceHeroSub}>Create and share PDF invoices. Track what’s been sent, paid and outstanding.</Text>
-     </View>
-     <ChevronRight size={25} color="#E6F3F0"/>
+     <ChevronRight size={23} color="#E3EDEB"/>
    </MotionPressable>
-   <Text style={styles.tradeToolsSectionTitle}>Quick actions</Text>
-   <View style={styles.tradeToolsGrid}>
-     {quick.map(({route,Icon,title,detail})=><MotionPressable key={route}
-       style={[styles.tradeToolsQuick,{minHeight:90,padding:14}]}
-       onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={title}>
-       <View style={{flexDirection:'row',alignItems:'center',gap:9,marginBottom:6}}>
-         <View style={[styles.tradeToolsQuickIcon,{width:36,height:36,borderRadius:12,marginBottom:0}]}>
-           <Icon size={20} color={theme.colors.teal}/>
-         </View>
-         <Text style={[styles.tradeToolsQuickName,{flex:1}]}>{title}</Text>
-       </View>
-       <Text style={styles.tradeToolsQuickDesc}>{detail}</Text>
-     </MotionPressable>)}
-   </View>
-   <Text style={styles.tradeToolsSectionTitle}>Your business toolkit</Text>
-   <Text style={[styles.premiumScreenSub,{marginTop:-9,marginBottom:15}]}>
-     Twelve specialist tools, organised around how you work.
-   </Text>
-   {suiteGroups.map(group=><View key={group.title} style={{marginBottom:13}}>
-     <Text style={styles.tradeToolsSectionTitle}>{group.title}</Text>
-     <View style={styles.tradeToolsList}>
-       {group.tools.map(({id,title,detail,Icon},index)=><MotionPressable key={id}
-         onPress={()=>openBusinessSuite(id)} accessibilityRole="button"
-         accessibilityLabel={'Open '+title}
-         style={[styles.tradeToolsRow,index>0&&styles.tradeToolsRowDivider]}>
-         <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal} strokeWidth={2}/></View>
-         <View style={{flex:1}}><Text style={styles.tradeToolsRowTitle}>{title}</Text>
-           <Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
-         <ChevronRight size={20} color={theme.colors.teal}/>
-       </MotionPressable>)}
-     </View>
-   </View>)}
-   <MotionPressable onPress={()=>navigate('tradeCrew')} accessibilityRole="button"
-      accessibilityLabel="Open Tradarr Crew" style={[styles.tradeToolsPowerCard,{width:'100%',minHeight:112,marginBottom:17,
-      backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:14}]}>
-      <View style={{width:48,height:48,borderRadius:16,backgroundColor:'#214B4B',alignItems:'center',justifyContent:'center'}}>
-        <Users color="#DBEFE9" size={26}/>
-      </View>
-      <View style={{flex:1}}><Text style={[styles.tradeToolsPowerTitle,{fontSize:18,marginTop:0}]}>Tradarr Crew</Text>
-        <Text style={styles.tradeToolsPowerText}>Find an extra pair of hands, skilled mates or apprentices.</Text></View>
-      <ChevronRight size={21} color="#DBEFE9"/>
-    </MotionPressable>
-    <Text style={styles.tradeToolsSectionTitle}>Make every job count</Text>
-   <View style={styles.tradeToolsPowerRow}>
-     <MotionPressable onPress={()=>navigate('tradeProfit')} style={[styles.tradeToolsPowerCard,{backgroundColor:theme.colors.darkTeal}]}
-       accessibilityRole="button" accessibilityLabel="Open Job Profit calculator">
-       <TrendingUp size={24} color="#B8DAD5" strokeWidth={2}/>
-       <Text style={styles.tradeToolsPowerTitle}>Know your profit</Text>
-       <Text style={styles.tradeToolsPowerText}>Compare what you charge with materials, labour and travel costs.</Text>
-     </MotionPressable>
-     <MotionPressable onPress={()=>navigate('tradeMaterials')} style={[styles.tradeToolsPowerCard,{backgroundColor:'#245758'}]}
-       accessibilityRole="button" accessibilityLabel="Open materials checklist">
-       <Package size={24} color="#D8ECE8" strokeWidth={2}/>
-       <Text style={styles.tradeToolsPowerTitle}>Never forget parts</Text>
-       <Text style={styles.tradeToolsPowerText}>Plan what to buy, tick it off and find nearby merchants.</Text>
-     </MotionPressable>
-   </View>
-   <Text style={styles.tradeToolsSectionTitle}>More business essentials</Text>
-   <View style={styles.tradeToolsList}>
-    {sections.map(({route,Icon,title,detail},index)=><MotionPressable key={route}
-     onPress={()=>navigate(route)} accessibilityRole="button" accessibilityLabel={'Open '+title}
-     style={[styles.tradeToolsRow,index>0&&styles.tradeToolsRowDivider]}>
-      <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal} strokeWidth={2}/></View>
-      <View style={{flex:1}}><Text style={styles.tradeToolsRowTitle}>{title}</Text>
-       <Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
-      <ChevronRight size={21} color={theme.colors.teal}/>
+   <View style={styles.tradeToolsQuickRow}>
+    {quick.map(({route,Icon,title,detail})=><MotionPressable key={route}
+      accessibilityRole="button" accessibilityLabel={title} onPress={()=>navigate(route)}
+      style={styles.tradeToolsQuickCard}>
+      <View style={styles.tradeToolsQuickGlyph}><Icon size={20} color={theme.colors.teal} strokeWidth={2}/></View>
+      <View style={{flex:1}}><Text style={styles.tradeToolsQuickTitle}>{title}</Text>
+       <Text style={styles.tradeToolsQuickDetail}>{detail}</Text></View>
+      <ChevronRight size={16} color={theme.colors.teal}/>
     </MotionPressable>)}
    </View>
-   <Text style={styles.tradeToolsFooter}>Your business records remain private to your account. Manage your membership under Tradarr Pro.</Text>
+   <View style={styles.tradeToolsIndex}>
+    <View style={{flex:1}}>
+     <Text style={styles.tradeToolsIndexTitle}>Browse your toolkit</Text>
+     <Text style={styles.tradeToolsIndexCaption}>Four clear sections. Every tool has its own place.</Text>
+    </View>
+    <Text style={styles.tradeToolsIndexCount}>4 CATEGORIES</Text>
+   </View>
+   {groups.map((group,index)=><View key={group.title} style={styles.tradeToolsCategory}>
+    <View style={styles.tradeToolsCategoryHeading}>
+     <View style={styles.tradeToolsNumber}><Text style={styles.tradeToolsNumberText}>{String(index+1).padStart(2,'0')}</Text></View>
+     <View style={{flex:1}}>
+      <Text style={styles.tradeToolsCategoryTitle}>{group.title}</Text>
+      <Text style={styles.tradeToolsCategoryCaption}>{group.caption}</Text>
+     </View>
+     <Text style={styles.tradeToolsCategoryCount}>{group.tools.length}</Text>
+    </View>
+    <View style={styles.tradeToolsCategoryCard}>
+     {group.tools.map((item,rowIndex)=>{
+      const Icon=item.Icon;
+      return <MotionPressable key={item.title} accessibilityRole="button"
+        accessibilityLabel={'Open '+item.title}
+        accessibilityHint={item.detail}
+        onPress={()=>item.feature?openBusinessSuite(item.feature):item.route?navigate(item.route):undefined}
+        style={[styles.tradeToolsCategoryRow,rowIndex>0&&styles.tradeToolsCategoryDivider]}>
+        <View style={styles.tradeToolsCategoryIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={1.85}/></View>
+        <View style={{flex:1}}>
+         <Text style={styles.tradeToolsCategoryRowTitle}>{item.title}</Text>
+         <Text style={styles.tradeToolsCategoryRowDesc}>{item.detail}</Text>
+        </View>
+        <ChevronRight size={19} color="#718981"/>
+       </MotionPressable>;
+     })}
+    </View>
+   </View>)}
+   <Text style={styles.tradeToolsFooter}>Your work and business records stay in your account. Only publish the details you choose to share.</Text>
   </ScrollView>
  </TradeShell>;
 }
@@ -11314,6 +11288,43 @@ const styles = StyleSheet.create({
   tradeToolsPowerCard: {width:'48%',minHeight:172,borderRadius:23,padding:17,justifyContent:'space-between'},
   tradeToolsPowerTitle: {color:'#FFFFFF',fontSize:16,fontWeight:'800',marginTop:12,lineHeight:22},
   tradeToolsPowerText: {color:'#D5E6E2',fontSize:11,lineHeight:17,marginTop:7},
+  // Ordered business workspace — one destination per tool, no duplicated panels.
+  tradeToolsPage:{paddingHorizontal:20,paddingTop:20,paddingBottom:120,backgroundColor:theme.colors.proBackground},
+  tradeToolsHeading:{marginBottom:24},
+  tradeToolsEyebrow:{fontSize:10,color:theme.colors.teal,fontFamily:theme.font.heading,letterSpacing:1.6,marginBottom:4},
+  tradeToolsHeadingTitle:{fontFamily:theme.font.editorial,fontSize:39,lineHeight:46,fontWeight:'800',color:theme.colors.ink,letterSpacing:-1.1},
+  tradeToolsHeadingCopy:{fontSize:13,lineHeight:19,color:theme.colors.muted,marginTop:5},
+  tradeToolsSectionKicker:{fontFamily:theme.font.heading,letterSpacing:1.2,fontSize:10,color:'#617D73',marginBottom:10},
+  tradeToolsFeatured:{flexDirection:'row',alignItems:'center',minHeight:105,gap:13,padding:17,
+    backgroundColor:theme.colors.darkTeal,borderRadius:23,marginBottom:11},
+  tradeToolsFeaturedIcon:{width:47,height:47,borderRadius:15,backgroundColor:'#36595D',alignItems:'center',justifyContent:'center'},
+  tradeToolsFeaturedTitle:{color:'#FFFFFF',fontFamily:theme.font.heading,fontSize:17,letterSpacing:-0.3},
+  tradeToolsFeaturedDetail:{color:'#CCDCD8',fontSize:11,lineHeight:17,marginTop:5},
+  tradeToolsQuickRow:{flexDirection:'row',gap:10,marginBottom:29},
+  tradeToolsQuickCard:{flex:1,minWidth:0,backgroundColor:'#FFFFFF',borderColor:'#E4EAE6',borderWidth:1,
+    borderRadius:18,paddingHorizontal:11,paddingVertical:15,alignItems:'center',gap:9,
+    flexDirection:'row',minHeight:83},
+  tradeToolsQuickGlyph:{width:35,height:35,borderRadius:12,backgroundColor:'#EAF1EE',alignItems:'center',justifyContent:'center'},
+  tradeToolsQuickTitle:{fontFamily:theme.font.heading,color:theme.colors.ink,fontSize:12,lineHeight:17},
+  tradeToolsQuickDetail:{fontFamily:theme.font.body,color:theme.colors.muted,fontSize:10,marginTop:2},
+  tradeToolsIndex:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:20},
+  tradeToolsIndexTitle:{fontFamily:theme.font.heading,fontSize:22,color:theme.colors.ink,letterSpacing:-.5},
+  tradeToolsIndexCaption:{color:theme.colors.muted,fontSize:11,lineHeight:17,marginTop:3},
+  tradeToolsIndexCount:{fontFamily:theme.font.numeric,fontSize:9,color:'#5E8072',letterSpacing:.2},
+  tradeToolsCategory:{marginBottom:24},
+  tradeToolsCategoryHeading:{flexDirection:'row',alignItems:'center',gap:11,marginBottom:11},
+  tradeToolsNumber:{width:33,height:33,backgroundColor:'#E4EEE8',borderRadius:12,alignItems:'center',justifyContent:'center'},
+  tradeToolsNumberText:{fontFamily:theme.font.numeric,fontSize:12,color:theme.colors.teal},
+  tradeToolsCategoryTitle:{fontFamily:theme.font.heading,fontSize:16,color:theme.colors.ink,letterSpacing:-.3},
+  tradeToolsCategoryCaption:{fontFamily:theme.font.body,fontSize:10,color:theme.colors.muted,marginTop:3,lineHeight:15},
+  tradeToolsCategoryCount:{color:'#71877D',fontFamily:theme.font.numeric,fontSize:11},
+  tradeToolsCategoryCard:{backgroundColor:'#FFFFFF',borderWidth:1,borderColor:'#E0E8E3',borderRadius:21,
+    paddingHorizontal:14,overflow:'hidden'},
+  tradeToolsCategoryRow:{flexDirection:'row',alignItems:'center',gap:12,minHeight:77,paddingVertical:13},
+  tradeToolsCategoryDivider:{borderTopWidth:1,borderTopColor:'#EDF1ED'},
+  tradeToolsCategoryIcon:{width:41,height:41,borderRadius:13,backgroundColor:'#EBF2EF',alignItems:'center',justifyContent:'center'},
+  tradeToolsCategoryRowTitle:{fontFamily:theme.font.heading,fontSize:13,color:theme.colors.ink,letterSpacing:-.15},
+  tradeToolsCategoryRowDesc:{fontFamily:theme.font.body,fontSize:11,lineHeight:16,color:theme.colors.muted,marginTop:4},
   tradeToolsSectionTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.ink, marginTop: 11, marginBottom: 14 },
   tradeToolsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginBottom: 26 },
   tradeToolsQuick: { width: '48%', minHeight: 140, backgroundColor: theme.colors.white, borderRadius: 23, padding: 15, ...theme.shadow },
