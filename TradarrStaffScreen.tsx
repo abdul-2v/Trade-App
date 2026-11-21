@@ -94,15 +94,17 @@ export default function TradarrStaffScreen({goBack,initialTab='credentials'}:{go
      expiry<new Date().toISOString().slice(0,10))){
    Alert.alert('Insurance expiry needed','Check the policy and enter its current expiration date (YYYY-MM-DD).');return;
   }
-  if((status==='rejected'||status==='revoked')&&note.trim().length<5){
-   Alert.alert('Reason required','Provide a clear reason for the applicant.');return;
+  if(note.trim().length<12){
+   Alert.alert('Review reason required','Record at least 12 characters explaining the evidence checked or why the decision was made.');return;
   }
   const act=async()=>{
    setSaving(true);
-   const {error:e}=await supabase.from('trade_credential_submissions').update({
-     status,review_note:note.trim()||null,
-     valid_until:current.kind==='insurance'&&status==='approved'?expiry:current.valid_until
-   }).eq('id',current.id);
+   // Staff MFA, state transitions, badge refresh, notification and audit are
+   // enforced together by this existing database decision function.
+   const {error:e}=await supabase.rpc('tradarr_admin_review_credential',{
+    p_id:current.id,p_status:status,p_reason:note.trim(),
+    p_valid_until:current.kind==='insurance'&&status==='approved'?expiry:null
+   });
    setSaving(false);
    if(e){Alert.alert('Review not saved',e.message);return;}
    setSelectedCredential(null);await load();
@@ -119,16 +121,27 @@ export default function TradarrStaffScreen({goBack,initialTab='credentials'}:{go
  };
  const saveCase=async()=>{
   if(!support||saving||!authorised)return;
-  if(['resolved','closed'].includes(caseStatus)&&resolution.trim().length<5){
-   Alert.alert('Outcome needed','Record a meaningful case resolution before closing it.');return;
+  if(caseStatus===support.status&&priority===support.priority){
+   Alert.alert('No changes to save','Select a different status or priority first.');return;
   }
-  setSaving(true);
-  const {error:e}=await supabase.from('support_requests')
-   .update({status:caseStatus,priority,assigned_to:uid,resolution_note:resolution.trim()||null})
-   .eq('id',support.id);
-  setSaving(false);
-  if(e){Alert.alert('Could not update case',e.message);return;}
-  setSelectedCase(null);await load();
+  if(resolution.trim().length<12){
+   Alert.alert('Decision reason needed','Record at least 12 characters explaining the reason for this case update.');return;
+  }
+  const confirmed=()=>{void (async()=>{
+   setSaving(true);
+   try{
+    const {error:e}=await supabase.rpc('tradarr_admin_support_decision',{
+     p_id:support.id,p_status:caseStatus,p_priority:priority,p_reason:resolution.trim()
+    });
+    if(e)throw e;
+    setSelectedCase(null);await load();
+    Alert.alert('Case updated','Your decision was saved to the staff audit trail.');
+   }catch(e:any){Alert.alert('Could not update case',e?.message||'Please try again.');}
+   finally{setSaving(false)}
+  })()};
+  Alert.alert('Confirm support decision?',
+   'This change will be recorded in the administrator audit history and may notify the member.',
+   [{text:'Cancel',style:'cancel'},{text:'Confirm decision',onPress:confirmed}]);
  };
  const refreshCaseEvidence=async()=>{
   if(!selectedCase)return;
@@ -208,9 +221,9 @@ export default function TradarrStaffScreen({goBack,initialTab='credentials'}:{go
         style={[s.chip,caseStatus===x&&s.selected]} onPress={()=>setCaseStatus(x)}>
         <Text style={[s.chipText,caseStatus===x&&s.selectedText]}>{x.replace('_',' ')}</Text></MotionPressable>)}
      </View>
-     <Text style={s.label}>Case outcome (required to resolve)</Text>
+     <Text style={s.label}>Decision reason (required for every change · minimum 12 characters)</Text>
      <TextInput value={resolution} onChangeText={setResolution} style={[s.input,{minHeight:73}]}
-       multiline placeholder="Actions taken and resolution" placeholderTextColor={C.muted}/>
+       multiline placeholder="Explain the facts and actions behind this decision" placeholderTextColor={C.muted}/>
      <MotionPressable style={s.primary} disabled={saving} onPress={()=>{void saveCase()}}>
        <Text style={s.primaryText}>Save triage decision</Text></MotionPressable>
      <View style={s.row}>
