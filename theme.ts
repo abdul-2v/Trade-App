@@ -1,3 +1,4 @@
+import {Platform} from 'react-native';
 // Shared visual language for the pro and customer sides of Trade App.
 // Keep all colours and reusable shape tokens here.
 export const theme = {
@@ -19,6 +20,15 @@ export const theme = {
     white: '#FFFFFF',
     line: '#E4EAE8',
     soft: '#EEF2F1',
+  },
+  font: {
+    // A deliberate three-way hierarchy; no extra font downloads in Expo Go.
+    // Editorial Georgia distinguishes major titles, Avenir Next anchors navigation,
+    // and Menlo holds amounts and live counts steady.
+    editorial: Platform.OS==='ios'?'Georgia':'serif',
+    heading: Platform.OS==='ios'?'AvenirNext-DemiBold':'sans-serif-medium',
+    body: Platform.OS==='ios'?'AvenirNext-Regular':'sans-serif',
+    numeric: Platform.OS==='ios'?'Menlo':'monospace',
   },
   type: {
     titleSize: 34,

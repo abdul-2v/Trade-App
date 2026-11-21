@@ -60,7 +60,7 @@ export function MotionPressable({
   onPressIn,
   onPressOut,
   disabled,
-  pressScale = 0.977,
+  pressScale = 0.969,
   disableFlash = false,
   children,
   onPress,
@@ -86,12 +86,12 @@ export function MotionPressable({
     scale.stopAnimation();lift.stopAnimation();
     Animated.parallel([
       Animated.timing(scale,{
-        toValue:pressed?pressScale:1,duration:pressed?98:205,
+        toValue:pressed?pressScale:1,duration:pressed?105:192,
         easing:pressed?Easing.out(Easing.quad):Easing.out(Easing.cubic),
         useNativeDriver:true
       }),
       Animated.timing(lift,{
-        toValue:pressed?1.7:0,duration:pressed?98:205,
+        toValue:pressed?1.4:0,duration:pressed?98:205,
         easing:Easing.out(Easing.cubic),useNativeDriver:true
       }),
     ]).start();
@@ -132,8 +132,8 @@ export function MotionPressable({
           <Animated.View pointerEvents="none" style={{
             position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
             borderRadius: flashRadius, borderWidth: 1.5, borderColor: '#73C5B1',
-            backgroundColor: '#3F927D16',
-            opacity: flash.interpolate({inputRange:[0,1],outputRange:[0,.74]}),
+            backgroundColor: '#3F927D22',
+            opacity: flash.interpolate({inputRange:[0,1],outputRange:[0,.88]}),
             transform: [{scale:flash.interpolate({inputRange:[0,1],outputRange:[.975,1.018]})}],
           }} />
         </>
@@ -172,10 +172,10 @@ export function FadeSlideIn({ children, delay = 0 }: React.PropsWithChildren<{ d
 const lastTabIndex:{customer:number;trade:number}={customer:-1,trade:-1};
 const customerTabs:Record<string,number>={home:0,map:1,discover:2,requests:3,messages:4,
  customerProfile:5,grid:2,oneJob:2,firstFix:2,rescue:2,priceLens:2,collective:2,
- customerQuotes:3,myHome:5,requestDetail:3,profile:1};
+ customerQuotes:3,myHome:5,requestDetail:3,assurance:3,profile:1};
 const tradeTabs:Record<string,number>={tradeHome:0,tradeJobs:1,tradeMap:2,tradeMessages:3,
  tradeTools:4,tradeProfile:5,tradeGrid:4,tradeCollective:4,tradeQuotes:4,
- tradeInvoices:4,tradeCustomers:4,tradeDiary:4,tradeProfit:4,tradeMaterials:4};
+ tradeInvoices:4,tradeCustomers:4,tradeDiary:4,tradeProfit:4,tradeMaterials:4,tradeAssurance:1};
 export function ScreenReveal({children,scope='customer',route=''}:
  React.PropsWithChildren<{scope?:'customer'|'trade';route?:string}>){
   const reduced=useReducedMotion();
@@ -191,7 +191,7 @@ export function ScreenReveal({children,scope='customer',route=''}:
     if(index>=0)lastTabIndex[scope]=index;
     if(reduced){progress.stopAnimation();progress.setValue(1);return;}
     const animation=Animated.timing(progress,{
-      toValue:1,duration:heavyMap?200:245,
+      toValue:1,duration:heavyMap?210:285,
       easing:Easing.out(Easing.cubic),useNativeDriver:true
     });
     animation.start();
@@ -200,7 +200,7 @@ export function ScreenReveal({children,scope='customer',route=''}:
   return <Animated.View style={{flex:1,
    opacity:progress.interpolate({inputRange:[0,1],outputRange:[heavyMap?.82:.65,1]}),
    transform:[
-    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*(heavyMap?12:25),0]})},
+    {translateX:progress.interpolate({inputRange:[0,1],outputRange:[direction*(heavyMap?12:31),0]})},
     {scale:progress.interpolate({inputRange:[0,1],outputRange:[heavyMap?.995:.986,1]})}
    ]}}>
    {children}
@@ -281,7 +281,7 @@ export function ContentSwap({value,children}:React.PropsWithChildren<{value:stri
    previous.current=value;
    motion.stopAnimation();motion.setValue(0);
    const animation=Animated.timing(motion,{
-     toValue:1,duration:220,easing:Easing.out(Easing.cubic),
+     toValue:1,duration:250,easing:Easing.out(Easing.cubic),
      useNativeDriver:true
    });
    animation.start();return()=>animation.stop();
