@@ -65,9 +65,6 @@ export default function InboxEmptyMotion() {
   const receiveScale = flight.interpolate({
     inputRange: [0, 0.74, 0.94, 1], outputRange: [1, 1, 1.08, 1],
   });
-  const receiveGlow = flight.interpolate({
-    inputRange: [0, 0.7, 0.95, 1], outputRange: [0.12, 0.12, 0.42, 0.16],
-  });
 
   return (
     <View accessible accessibilityRole="image"
@@ -86,7 +83,6 @@ export default function InboxEmptyMotion() {
         </View>
         <View style={styles.senderShadow} />
       </View>
-      <Animated.View style={[styles.recipientAura, { opacity: receiveGlow, transform: [{ scale: receiveScale }] }]} />
       <Animated.View style={[styles.recipient, { transform: [{ scale: receiveScale }] }]}>
         <MessageCircle size={34} strokeWidth={1.8} color={theme.colors.teal} />
         <View style={styles.replyDots}>
@@ -139,11 +135,6 @@ const styles = StyleSheet.create({
   senderShadow: {
     width: 47, height: 5, borderRadius: 3, marginTop: 13,
     backgroundColor: '#BED3CB', opacity: 0.7,
-  },
-  recipientAura: {
-    position: 'absolute', right: 14, top: 37,
-    width: 91, height: 91, borderRadius: 46,
-    backgroundColor: '#E4A078',
   },
   recipient: {
     position: 'absolute', right: 22, top: 45,
