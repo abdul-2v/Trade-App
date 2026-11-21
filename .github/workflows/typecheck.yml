@@ -37,6 +37,9 @@ jobs:
       - name: Check TypeScript types
         run: npm run typecheck
 
+      - name: Test native account registration and mobile normalisation
+        run: node scripts/test-account-registration.cjs
+
       - name: Test booking and route matching logic
         run: npm run test:logic
 

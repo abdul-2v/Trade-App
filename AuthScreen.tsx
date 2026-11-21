@@ -21,12 +21,14 @@ type AccountType = 'customer' | 'tradesperson' | 'crew';
 const trades = ['Plumber', 'Electrician', 'Builder', 'Heating', 'Locksmith', 'Carpenter', 'Roofer'];
 
 const normaliseUkMobile = (value: string) => {
+  // Convert whole-number formats at submission, never invent digits on typing.
+  // In particular, "44..." must not be silently converted to "07..."
+  // before the user has finished entering their phone number.
   const digits = value.replace(/\D/g, '');
-  if (!digits) return '07';
-  if (digits.startsWith('44')) return '0' + digits.slice(2, 12);
-  if (digits.startsWith('7')) return '0' + digits.slice(0, 10);
-  if (digits.startsWith('0')) return digits.slice(0, 11);
-  return '07' + digits.slice(0, 9);
+  if (digits.startsWith('0044')) return '0' + digits.slice(4);
+  if (digits.startsWith('44')) return '0' + digits.slice(2);
+  if (/^7\d{9}$/.test(digits)) return '0' + digits;
+  return digits;
 };
 
 export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (email: string) => void }) {
@@ -40,7 +42,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false); // Pilot understanding, not a substitute for final legal policies
   const [loading, setLoading] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
@@ -110,7 +112,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
     }
 
     if (!acceptedTerms) {
-      Alert.alert('Terms required', 'Please accept the Terms of Service and Privacy Policy to continue.');
+      Alert.alert('Please confirm', 'A request does not guarantee an available trade or confirm a booking.');
       return;
     }
 
@@ -344,6 +346,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                     onChangeText={setFirstName}
                     style={styles.input}
                     autoCapitalize="words"
+                    maxLength={75}
                     textContentType="givenName"
                   />
                 </View>
@@ -354,6 +357,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                     onChangeText={setLastName}
                     style={styles.input}
                     autoCapitalize="words"
+                    maxLength={75}
                     textContentType="familyName"
                   />
                 </View>
@@ -362,11 +366,13 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
               <Text style={styles.label}>Mobile number</Text>
               <TextInput
                 value={phone}
-                onChangeText={value => setPhone(normaliseUkMobile(value))}
+                onChangeText={setPhone}
                 style={styles.input}
                 keyboardType="phone-pad"
                 textContentType="telephoneNumber"
-                maxLength={11}
+                maxLength={20}
+                placeholder="07... or +44 7..."
+                placeholderTextColor="#91A19A"
               />
               <Text style={styles.privatePhoneHint}>Your signup phone stays private. You can publish a separate business contact number from your trade profile later.</Text>
             </>
@@ -379,6 +385,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 value={email}
                 onChangeText={setEmail}
                 style={styles.input}
+                maxLength={250}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -393,6 +400,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                   style={styles.passwordInput}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  maxLength={128}
                   textContentType={mode === 'signup' ? 'newPassword' : 'password'}
                 />
                 <MotionPressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword(v => !v)}>
@@ -428,6 +436,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                       secureTextEntry={!showConfirm}
                       autoCapitalize="none"
                       textContentType="newPassword"
+                      maxLength={128}
                     />
                     <MotionPressable style={styles.eyeButton} accessibilityRole="button" accessibilityLabel={showConfirm ? 'Hide confirmation password' : 'Show confirmation password'} onPress={() => setShowConfirm(v => !v)}>
                       {showConfirm ? <EyeOff color={theme.colors.muted} size={21} strokeWidth={2} /> : <Eye color={theme.colors.muted} size={21} strokeWidth={2} />}
@@ -442,7 +451,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                       {acceptedTerms ? <Text style={styles.checkboxTick}>✓</Text> : null}
                     </View>
                     <Text style={styles.termsText}>
-                      I agree to the Terms of Service and Privacy Policy.
+                      I understand this is a developing marketplace. Trade availability varies, and sending a request is not a confirmed booking.
                     </Text>
                   </MotionPressable>
                 </>

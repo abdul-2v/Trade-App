@@ -275,7 +275,7 @@ const S=StyleSheet.create({
  header:{padding:16,flexDirection:'row',alignItems:'center',gap:12},
  back:{width:44,height:44,borderRadius:15,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
  eyebrow:{fontSize:10,letterSpacing:1.2,fontWeight:'900',color:C.teal},
- title:{fontSize:24,fontWeight:'900',color:C.ink},
+ title:{fontFamily:theme.font.editorial,fontSize:24,fontWeight:'900',color:C.ink},
  content:{paddingHorizontal:16,paddingBottom:80,gap:14},
  hero:{borderRadius:25,backgroundColor:C.darkTeal,padding:22,gap:14},
  heroTop:{flexDirection:'row',alignItems:'center',gap:9},

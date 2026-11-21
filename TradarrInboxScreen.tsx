@@ -176,7 +176,7 @@ export default function TradarrInboxScreen({role,onOpenOther,
 const s=StyleSheet.create({
  root:{flex:1,backgroundColor:theme.colors.customerBackground},
  top:{paddingHorizontal:17,paddingTop:17,paddingBottom:11},
- title:{fontSize:27,fontWeight:'900',color:theme.colors.ink},
+ title:{fontFamily:theme.font.editorial,fontSize:27,fontWeight:'900',color:theme.colors.ink},
  subtitle:{fontSize:12,color:theme.colors.muted,marginTop:4,marginBottom:15},
  segment:{backgroundColor:'#E9F0EC',padding:5,borderRadius:17,
   flexDirection:'row',gap:5},
