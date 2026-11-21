@@ -8530,6 +8530,9 @@ function TradeSettingsScreen({
   const chooseProfilePhoto=async()=>{
     if(uploadingAvatar)return;
     setUploadingAvatar(true);
+    // Keep track of an uploaded-but-unlinked image so failed DB writes don't
+    // leave orphaned public files. Never delete a file owned by another user.
+    let uploadedPath:string|null=null;
     try{
       const picker=await ImagePicker.launchImageLibraryAsync({
         mediaTypes:['images'],allowsEditing:true,aspect:[1,1],quality:0.7,base64:true
@@ -8548,15 +8551,35 @@ function TradeSettingsScreen({
       const {error:uploadError}=await supabase.storage.from('tradarr-avatars')
         .upload(path,bytes,{contentType:mime,cacheControl:'3600',upsert:false});
       if(uploadError)throw uploadError;
+      uploadedPath=path;
       const {data:publicAsset}=supabase.storage.from('tradarr-avatars').getPublicUrl(path);
       if(!publicAsset.publicUrl)throw new Error('The photo link could not be generated.');
       const {data:saved,error:profileError}=await supabase.from('tradesperson_profiles')
         .update({avatar_url:publicAsset.publicUrl,updated_at:new Date().toISOString()})
         .eq('user_id',user.id).select('user_id').maybeSingle();
       if(profileError||!saved)throw new Error(profileError?.message||'Your trade profile was not found.');
+
+      // Once the database points to the new image, old same-account uploads
+      // can be removed. A failed cleanup must not undo a saved profile photo.
+      uploadedPath=null;
+      const prefix='/storage/v1/object/public/tradarr-avatars/';
+      const oldPath=avatarUrl?.includes(prefix)
+        ?avatarUrl.split(prefix)[1]?.split(/[?#]/)[0]:null;
+      if(oldPath?.startsWith(user.id+'/')&&oldPath!==path){
+        try{
+          const {error:cleanupError}=await supabase.storage.from('tradarr-avatars').remove([oldPath]);
+          if(cleanupError)console.warn('Tradarr old avatar cleanup:',cleanupError.message);
+        }catch(cleanupError){console.warn('Tradarr old avatar cleanup delayed:',cleanupError);}
+      }
       setAvatarUrl(publicAsset.publicUrl);
       Alert.alert('Profile photo updated','Your new photo will appear publicly on your profile and map marker.');
     }catch(error:any){
+      if(uploadedPath){
+        try{
+          const {error:cleanupError}=await supabase.storage.from('tradarr-avatars').remove([uploadedPath]);
+          if(cleanupError)console.warn('Tradarr failed avatar cleanup:',cleanupError.message);
+        }catch(cleanupError){console.warn('Tradarr failed avatar cleanup delayed:',cleanupError);}
+      }
       Alert.alert('Could not update photo',error?.message||'Please check your connection and retry.');
     }finally{setUploadingAvatar(false);}
   };
