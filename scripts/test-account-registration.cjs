@@ -19,7 +19,7 @@ for(const invalid of ['0700','01234','5555555555','071234567890','447123abc']){
 assert.ok(src.includes('onChangeText={setPhone}'),'Do not coerce a partial mobile number while typing');
 assert.ok(src.includes('maxLength={20}'),'Accept international input until submission');
 assert.ok(src.includes('setLoading(false);'),'Auth loading states must be reset');
-assert.ok(src.includes('This is a developing marketplace'),'Honest pilot wording required');
+assert.ok(src.includes('this is a developing marketplace'),'Honest pilot wording required');
 assert.ok(!recovery.includes('TradeHub'),'Legacy branding still in recovery');
 assert.ok(recovery.includes('Trad<Text style={styles.brandAccent}>arr</Text>'),'Tradarr recovery branding missing');
 console.log('PASS UK mobile formats, invalid numbers, pilot wording and recovery brand');
