@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
-import { MotionPressable } from './Motion';
+import { MotionPressable, FadeSlideIn } from './Motion';
 import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 
 type Step = 'request' | 'verify' | 'new-password';
@@ -101,8 +101,8 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
   };
 
   const changePassword = async () => {
-    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-      Alert.alert('Choose a stronger password', 'Use at least 8 characters, including a letter and a number.');
+    if (password.length < 12 || password.length > 128 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      Alert.alert('Choose a stronger password', 'Use 12–128 characters, including a letter and a number.');
       return;
     }
     if (password !== confirmPassword) {
@@ -203,7 +203,7 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
               <Text style={styles.label}>New password</Text>
               <TextInput value={password} onChangeText={setPassword}
                 style={styles.input} secureTextEntry autoCapitalize="none"
-                textContentType="newPassword" placeholder="At least 8 characters"
+                textContentType="newPassword" placeholder="12+ characters, a letter and a number"
                 placeholderTextColor="#92A0AB" />
               <Text style={styles.label}>Confirm new password</Text>
               <TextInput value={confirmPassword} onChangeText={setConfirmPassword}
@@ -230,10 +230,10 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 35 },
   logo: { width: 47, height: 47, borderRadius: 15, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center' },
   logoText: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
-  brand: { marginLeft: 11, color: theme.colors.ink, fontSize: 28, fontWeight: '800', letterSpacing: -0.8 },
+  brand: { fontFamily:theme.font.heading, marginLeft: 11, color: theme.colors.ink, fontSize: 28, fontWeight: '800', letterSpacing: -0.8 },
   brandAccent: { color: theme.colors.coralDark },
-  eyebrow: { color: theme.colors.coralText, fontSize: 12, letterSpacing: 1.2, fontWeight: '800', marginBottom: 10 },
-  title: { color: theme.colors.ink, fontSize: 31, lineHeight: 39, fontWeight: '800', letterSpacing: -0.8 },
+  eyebrow: { fontFamily:theme.font.heading, color: theme.colors.coralText, fontSize: 12, letterSpacing: 1.2, fontWeight: '800', marginBottom: 10 },
+  title: { fontFamily:theme.font.editorial, color: theme.colors.ink, fontSize: 31, lineHeight: 39, fontWeight: '800', letterSpacing: -0.8 },
   sub: { color: theme.colors.muted, fontSize: 14, lineHeight: 22, marginTop: 11, marginBottom: 22 },
   label: { color: theme.colors.ink, fontSize: 13, fontWeight: '700', marginTop: 17, marginBottom: 9 },
   input: { minHeight: 56, borderRadius: 20, borderWidth: 1, borderColor: '#E4DED4', backgroundColor: '#FFFFFF', color: theme.colors.ink, paddingHorizontal: 16, fontSize: 15 },

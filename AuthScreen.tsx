@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
-import { MotionPressable } from './Motion';
+import { MotionPressable, FadeSlideIn } from './Motion';
 import { Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 
 type AccountType = 'customer' | 'tradesperson' | 'crew';
@@ -51,7 +51,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
 
   const passwordChecks = useMemo(
     () => ({
-      length: password.length >= 8,
+      length: password.length >= 12 && password.length <= 128,
       letter: /[A-Za-z]/.test(password),
       number: /\d/.test(password),
     }),
@@ -95,7 +95,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
     }
 
     if (!passwordChecks.length || !passwordChecks.letter || !passwordChecks.number) {
-      Alert.alert('Make your password stronger', 'Use at least 8 characters with a letter and a number.');
+      Alert.alert('Make your password stronger', 'Use 12–128 characters with a letter and a number.');
       return;
     }
 
@@ -115,55 +115,51 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
     }
 
     setLoading(true);
-
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: {
-        data: {
-          first_name: cleanFirst,
-          last_name: cleanLast,
-          phone: cleanPhone,
-          account_type: accountType,
-          primary_trade: accountType === 'tradesperson' ? primaryTrade : null,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            first_name: cleanFirst,
+            last_name: cleanLast,
+            phone: cleanPhone,
+            account_type: accountType,
+            primary_trade: accountType === 'tradesperson' ? primaryTrade : null,
+          },
         },
-      },
-    });
-
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Could not create account', error.message);
-      return;
+      });
+      if (error) throw error;
+      if (!data.session) {
+        setPendingEmail(cleanEmail);
+        setMode('verify');
+        startResendCooldown();
+      }
+    } catch (error: any) {
+      Alert.alert('Could not create account', error?.message || 'Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
-
-    if (data.session) {
-      return;
-    }
-
-    setPendingEmail(cleanEmail);
-    setMode('verify');
-    startResendCooldown();
   };
 
   const continueAfterVerification = async () => {
+    if (!pendingEmail) return;
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: pendingEmail,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      const notConfirmed = error.message.toLowerCase().includes('email not confirmed');
-      Alert.alert(
-        notConfirmed ? 'Email not verified yet' : 'Could not sign in',
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: pendingEmail,
+        password,
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      const message = String(error?.message || 'Check your connection and try again.');
+      const notConfirmed = message.toLowerCase().includes('email not confirmed');
+      Alert.alert(notConfirmed ? 'Email not verified yet' : 'Could not sign in',
         notConfirmed
-          ? 'Open the verification email, tap the confirmation link, then come back and try again.'
-          : error.message
-      );
+          ? 'Open the verification email, confirm your address, then come back and try again.'
+          : message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -171,21 +167,19 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
     if (!pendingEmail || loading || resendSeconds > 0) return;
 
     setLoading(true);
-
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: pendingEmail,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Could not resend code', error.message);
-      return;
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: pendingEmail,
+      });
+      if (error) throw error;
+      startResendCooldown();
+      Alert.alert('Verification email requested', 'A new confirmation link has been requested. Check your inbox and spam folder.');
+    } catch (error: any) {
+      Alert.alert('Could not resend verification', error?.message || 'Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
-
-    startResendCooldown();
-    Alert.alert('Code sent', 'A new verification email has been sent.');
   };
 
   const signIn = async () => {
@@ -197,19 +191,18 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
     }
 
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      const message = error.message.toLowerCase().includes('email not confirmed')
-        ? 'Verify your email before signing in.'
-        : error.message;
-      Alert.alert('Could not sign in', message);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      const message = String(error?.message || 'Check your connection and try again.');
+      Alert.alert('Could not sign in', message.toLowerCase().includes('email not confirmed')
+        ? 'Verify your email before signing in.' : message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -228,6 +221,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
             </View>
           </View>
 
+          <FadeSlideIn key={mode}>
           <Text style={styles.title}>
             {mode === 'signup'
               ? 'Create your account'
@@ -374,6 +368,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
                 textContentType="telephoneNumber"
                 maxLength={11}
               />
+              <Text style={styles.privatePhoneHint}>Your signup phone stays private. You can publish a separate business contact number from your trade profile later.</Text>
             </>
           ) : null}
 
@@ -419,7 +414,7 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
               {mode === 'signup' ? (
                 <>
                   <View style={styles.passwordRules}>
-                    <Text style={[styles.ruleText, passwordChecks.length && styles.ruleDone]}>• 8+ characters</Text>
+                    <Text style={[styles.ruleText, passwordChecks.length && styles.ruleDone]}>• 12–128 characters</Text>
                     <Text style={[styles.ruleText, passwordChecks.letter && styles.ruleDone]}>• Includes a letter</Text>
                     <Text style={[styles.ruleText, passwordChecks.number && styles.ruleDone]}>• Includes a number</Text>
                   </View>
@@ -478,13 +473,14 @@ export default function AuthScreen({ onForgotPassword }: { onForgotPassword?: (e
               </MotionPressable>
             </>
           ) : null}
+          </FadeSlideIn>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const DISPLAY_FONT = Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif';
+const DISPLAY_FONT = theme.font.heading;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.customerBackground },
@@ -492,10 +488,10 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 39, gap: 11 },
   logo: { width: 47, height: 47, borderRadius: 15, backgroundColor: theme.colors.coral, alignItems: 'center', justifyContent: 'center' },
   logoText: { color: '#FFFFFF', fontSize: 23, fontWeight: '800' },
-  brand: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 29, fontWeight: '800', letterSpacing: -1.15 },
+  brand: { color: theme.colors.ink, fontFamily: theme.font.heading, fontSize: 29, fontWeight: '800', letterSpacing: -1.15 },
   brandBlue: { color: theme.colors.coralDark },
-  brandCaption: { marginTop: 1, color: theme.colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.6 },
-  title: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 34, lineHeight: 42, fontWeight: '800', letterSpacing: -1.15 },
+  brandCaption: { fontFamily: theme.font.heading, marginTop: 1, color: theme.colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.6 },
+  title: { color: theme.colors.ink, fontFamily: theme.font.editorial, fontSize: 34, lineHeight: 42, fontWeight: '800', letterSpacing: -1.15 },
   sub: { color: theme.colors.muted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 26 },
   label: { color: theme.colors.ink, fontSize: 13, fontWeight: '700', marginTop: 15, marginBottom: 8 },
   segmentLabel: { color: theme.colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1.1, marginTop: 7, marginBottom: 10 },
@@ -517,7 +513,7 @@ const styles = StyleSheet.create({
   twoCol: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
   primaryButton: { minHeight: 56, borderRadius: 28, backgroundColor: theme.colors.darkTeal, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 13, marginTop: 27, ...theme.shadow },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  primaryButtonText: { fontFamily: theme.font.heading, color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   disabled: { opacity: 0.5 },
   switchButton: { minHeight: 44, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
   switchText: { color: theme.colors.teal, fontWeight: '800', fontSize: 14 },
@@ -525,7 +521,7 @@ const styles = StyleSheet.create({
   forgotPasswordButton: { alignSelf: 'flex-end', minHeight: 44, paddingVertical: 12, paddingLeft: 12 },
   forgotPasswordText: { color: theme.colors.teal, fontSize: 13, fontWeight: '700' },
   verifyCard: { backgroundColor: '#FFFFFF', borderRadius: 25, padding: 20, marginBottom: 10, ...theme.shadow },
-  verifyCardTitle: { color: theme.colors.ink, fontFamily: DISPLAY_FONT, fontSize: 19, fontWeight: '800' },
+  verifyCardTitle: { color: theme.colors.ink, fontFamily: theme.font.heading, fontSize: 19, fontWeight: '800' },
   verifyCardText: { color: theme.colors.muted, fontSize: 14, lineHeight: 22, marginTop: 7 },
   passwordRules: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 9, gap: 10 },
   ruleText: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
@@ -535,4 +531,5 @@ const styles = StyleSheet.create({
   checkboxActive: { backgroundColor: theme.colors.teal, borderColor: theme.colors.teal },
   checkboxTick: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
   termsText: { flex: 1, color: theme.colors.muted, fontSize: 13, lineHeight: 18 },
+  privatePhoneHint: {fontFamily:theme.font.body,color:theme.colors.muted,fontSize:11,lineHeight:17,marginTop:8,marginBottom:5},
 });
