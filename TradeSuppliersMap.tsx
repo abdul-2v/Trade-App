@@ -6,7 +6,7 @@ import { supabase } from './lib/supabase';
 import { LEICESTER_SUPPLIER_SEEDS } from './TradeSuppliersLeicester';
 import { theme } from './theme';
 import { MotionPressable } from './Motion';
-import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight } from 'lucide-react-native';
+import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight, ChevronUp, ChevronDown, Search } from 'lucide-react-native';
 
 type TradeName = 'Plumber' | 'Electrician' | 'Builder' | 'Heating' | 'Locksmith' | 'Carpenter' | 'Roofer';
 type Coordinates = { latitude: number; longitude: number };
@@ -500,6 +500,8 @@ export default function TradeSuppliersMap() {
   const [radius, setRadius] = useState(10);
   const [shops, setShops] = useState<Supplier[]>([]);
   const [selected, setSelected] = useState<Supplier | null>(null);
+  const [searchExpanded,setSearchExpanded]=useState(false);
+  const [nearbyExpanded,setNearbyExpanded]=useState(false);
   const sheetMotion=useRef(new Animated.Value(1)).current;
   useEffect(()=>{
     let active=true;
@@ -514,7 +516,7 @@ export default function TradeSuppliersMap() {
       }).start();
     }).catch(()=>{if(active)sheetMotion.setValue(1);});
     return()=>{active=false;sheetMotion.stopAnimation();};
-  },[selected?.id,sheetMotion]);
+  },[selected?.id,nearbyExpanded,sheetMotion]);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const [sourceNote, setSourceNote] = useState('');
@@ -534,6 +536,7 @@ export default function TradeSuppliersMap() {
       setCentre(result.point);
       setSelected(null);
       setPositionName('Searching near ' + result.label + ' · postcode area');
+      setSearchExpanded(false);setNearbyExpanded(false);
     } catch (error: any) {
       setPostcodeError(error?.message || 'Could not search that postcode.');
     } finally {setPostcodeBusy(false);}
@@ -791,50 +794,51 @@ export default function TradeSuppliersMap() {
     <View style={S.root}>
       <View style={S.header}>
         <View style={S.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={S.eyebrow}>TRADE SUPPLY FINDER</Text>
-            <Text style={S.title}>Merchants nearby</Text>
-            <Text style={S.subtitle} numberOfLines={2}>{positionName} · {primaryTrade || 'All trades'}</Text>
+          <View style={{flex:1,minWidth:0}}>
+            <Text style={S.eyebrow}>LOCAL TRADE SUPPLIES</Text>
+            <Text style={S.title}>Supplier map</Text>
+            <Text style={S.subtitle} numberOfLines={1}>{positionName} · {primaryTrade||'All trades'}</Text>
           </View>
-          <MotionPressable style={S.radiusButton} onPress={() => setRadius(r => r === 5 ? 10 : r === 10 ? 20 : 5)}>
-            <Text style={S.radiusNumber}>{radius} mi</Text>
-            <View style={S.radiusCaptionRow}><Text style={S.radiusCaption}>radius</Text><RotateCw size={12} color={'#C7D6D5'} strokeWidth={2} /></View>
+          <MotionPressable style={[S.searchToggle,searchExpanded&&S.searchToggleActive]}
+            onPress={()=>setSearchExpanded(v=>!v)} accessibilityRole="button"
+            accessibilityLabel={searchExpanded?'Close postcode search':'Search suppliers by postcode'}
+            accessibilityState={{expanded:searchExpanded}}>
+            {searchExpanded?<X size={20} color={INK}/>:<Search size={20} color={INK}/>}
+          </MotionPressable>
+          <MotionPressable style={S.radiusButton} onPress={()=>setRadius(r=>r===5?10:r===10?20:5)}
+            accessibilityRole="button" accessibilityLabel={'Change radius. Currently '+radius+' miles'}>
+            <Text style={S.radiusNumber}>{radius}</Text><Text style={S.radiusCaption}>miles</Text>
           </MotionPressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.filters}>
           {([
-            ['mine', primaryTrade ? 'My trade · ' + primaryTrade : 'For my trade'],
-            ['general', 'General supplies'],
-            ['specialist', 'Specialist merchants'],
-            ['all', 'All shops'],
-          ] as [Filter, string][]).map(([value, label]) => (
-            <MotionPressable key={value} style={[S.chip, filter === value && S.chipActive]} onPress={() => setFilter(value)}>
-              <Text style={[S.chipText, filter === value && S.chipTextActive]}>{label}</Text>
-            </MotionPressable>
-          ))}
+            ['mine',primaryTrade||'My trade'],
+            ['general','General'],
+            ['specialist','Specialist'],
+            ['all','All shops'],
+          ] as [Filter,string][]).map(([value,label])=><MotionPressable key={value}
+            style={[S.chip,filter===value&&S.chipActive]} onPress={()=>setFilter(value)}
+            accessibilityRole="button" accessibilityLabel={'Show '+label+' suppliers'}
+            accessibilityState={{selected:filter===value}}>
+            <Text style={[S.chipText,filter===value&&S.chipTextActive]}>{label}</Text>
+          </MotionPressable>)}
         </ScrollView>
-        <View style={S.areaSearch}>
-          <TextInput
-            value={postcodeInput}
-            onChangeText={setPostcodeInput}
-            onSubmitEditing={() => { void searchPostcode(); }}
-            placeholder="Find merchants by UK postcode, e.g. B1 1AA"
-            placeholderTextColor="#B1C6C6"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            returnKeyType="search"
-            style={S.areaInput}
-            accessibilityLabel="Search trade merchants by UK postcode"
-          />
-          <MotionPressable
-            onPress={() => { void searchPostcode(); }}
-            disabled={postcodeBusy || !postcodeInput.trim()}
-            style={S.areaButton} accessibilityRole="button"
-            accessibilityLabel="Search postcode">
-            {postcodeBusy ? <ActivityIndicator size="small" color={LIGHT}/> : <Text style={S.areaButtonText}>Search</Text>}
-          </MotionPressable>
-        </View>
-        {postcodeError ? <Text style={S.areaError}>{postcodeError}</Text> : null}
+        {searchExpanded?<View style={S.searchExpandedArea}>
+          <View style={S.areaSearch}>
+            <TextInput value={postcodeInput} onChangeText={setPostcodeInput}
+              onSubmitEditing={()=>{void searchPostcode();}} autoCapitalize="characters"
+              autoCorrect={false} returnKeyType="search"
+              placeholder="UK postcode, e.g. LE1 or B1 1AA"
+              placeholderTextColor="#7B8F89" style={S.areaInput}
+              accessibilityLabel="Search trade merchants by UK postcode"/>
+            <MotionPressable onPress={()=>{void searchPostcode();}}
+              disabled={postcodeBusy||!postcodeInput.trim()} accessibilityRole="button"
+              accessibilityLabel="Search postcode" style={S.areaButton}>
+              {postcodeBusy?<ActivityIndicator size="small" color={LIGHT}/>:<Search size={20} color={LIGHT}/>}
+            </MotionPressable>
+          </View>
+          {postcodeError?<Text style={S.areaError}>{postcodeError}</Text>:null}
+        </View>:null}
       </View>
       <View style={S.mapArea}>
         <MapWebView
@@ -925,28 +929,33 @@ export default function TradeSuppliersMap() {
             </>
           ) : (
             <>
-              <View style={S.panelHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={S.panelTitle}>Closest {primaryTrade ? primaryTrade.toLowerCase() + ' suppliers' : 'trade suppliers'}</Text>
-                  <Text style={S.panelHint}>{usingGps ? 'Nearest to your location' : 'Nearest to ' + (manualArea ? 'searched postcode' : savedWorkArea ? 'your work area' : 'Leicester')} · straight-line miles</Text>
+              <MotionPressable style={S.collapsedSheetHeader} onPress={()=>setNearbyExpanded(v=>!v)}
+                accessibilityRole="button" accessibilityLabel={nearbyExpanded?'Hide supplier list':'View closest suppliers'}
+                accessibilityState={{expanded:nearbyExpanded}}>
+                <View style={{flex:1,minWidth:0}}>
+                  <Text style={S.panelTitle}>{visible.length} nearby {visible.length===1?'supplier':'suppliers'}</Text>
+                  <Text style={S.panelHint} numberOfLines={1}>
+                    {usingGps?'Nearest to you':manualArea?'Near searched postcode':savedWorkArea?'Near your work area':'Around Leicester'} · straight-line miles
+                  </Text>
                 </View>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.nearbyRow} style={S.nearbyScroll}>
-                {visible.slice(0, 8).map((shop, index) => (
-                  <MotionPressable
-                    key={shop.id}
-                    style={S.nearbyShop}
-                    onPress={() => {
-                      setSelected(shop);
-                      mapRef.current?.injectJavaScript('window.focusSupplier(' + shop.latitude + ',' + shop.longitude + ');true;');
-                    }}
-                  >
-                    <Text style={S.nearbyRank}>#{index + 1} CLOSEST</Text>
-                    <Text style={S.nearbyTitle} numberOfLines={2}>{shop.name}</Text>
-                    <View style={S.nearbyLink}><Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi {usingGps ? 'from you' : 'away'}</Text><ChevronRight size={16} strokeWidth={2} color={theme.colors.teal} /></View>
-                  </MotionPressable>
-                ))}
-              </ScrollView>
+                <View style={S.sheetExpandIcon}>
+                  {nearbyExpanded?<ChevronDown size={20} color={INK}/>:<ChevronUp size={20} color={INK}/>}
+                </View>
+              </MotionPressable>
+              {nearbyExpanded?<ScrollView horizontal showsHorizontalScrollIndicator={false}
+                contentContainerStyle={S.nearbyRow} style={S.nearbyScroll}>
+                {visible.slice(0,8).map((shop,index)=><MotionPressable key={shop.id}
+                  style={S.nearbyShop} accessibilityRole="button" accessibilityLabel={'Show '+shop.name+' on map'}
+                  onPress={()=>{
+                    setSelected(shop);setNearbyExpanded(false);
+                    mapRef.current?.injectJavaScript('window.focusSupplier('+shop.latitude+','+shop.longitude+');true;');
+                  }}>
+                  <Text style={S.nearbyRank}>#{index+1} NEAREST</Text>
+                  <Text style={S.nearbyTitle} numberOfLines={2}>{shop.name}</Text>
+                  <View style={S.nearbyLink}><Text style={S.nearbyDistance}>{shop.distance.toFixed(1)} mi</Text>
+                    <ChevronRight size={16} strokeWidth={2} color={theme.colors.teal}/></View>
+                </MotionPressable>)}
+              </ScrollView>:null}
             </>
           )}
           <View pointerEvents="none" style={S.sheetHandle} />
