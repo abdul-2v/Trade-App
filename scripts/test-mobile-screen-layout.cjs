@@ -12,6 +12,8 @@ const groups=['Jobs & scheduling','Quotes, money & materials','Customers & growt
 for(const group of groups)assert.ok(tools.includes("title:'"+group+"'"),'Missing Tools category: '+group);
 assert.ok(tools.includes('groups.map((group,index)'), 'Grouped tools must render consistently');
 assert.ok(tools.includes('Browse your toolkit'),'Tool categories need a visible hierarchy');
+assert.ok(tools.includes('activeCategory===index?<View'),'Only one group should be open, to keep the Tools page scannable');
+assert.ok(tools.includes('accessibilityState={{expanded:activeCategory===index}}'),'Category expansion needs screen-reader state');
 assert.ok(tools.includes("onPress={()=>navigate('tradeInvoices')}"),'Invoice action must work');
 for(const route of ['tradeHours','tradeProfit','tradeCrew','tradeMaterials','tradeGrid',
  'tradeRoutes','tradePro','tradeCollective','tradeCustomers']){

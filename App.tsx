@@ -6403,6 +6403,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
  navigate:(screen:TradeScreen)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
 }){
  type ToolEntry={title:string;detail:string;Icon:typeof FileText;route?:TradeScreen;feature?:BusinessFeature};
+ const [activeCategory,setActiveCategory]=useState<number|null>(0);
  const groups:Array<{title:string;caption:string;tools:ToolEntry[]}>= [
   {title:'Jobs & scheduling',caption:'Find work, manage jobs and plan your time',tools:[
    {feature:'radar',title:'Opportunity Radar',detail:'Relevant work requests for your trade and area',Icon:Radar},
@@ -6474,15 +6475,22 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
     <Text style={styles.tradeToolsIndexCount}>4 CATEGORIES</Text>
    </View>
    {groups.map((group,index)=><View key={group.title} style={styles.tradeToolsCategory}>
-    <View style={styles.tradeToolsCategoryHeading}>
+    <MotionPressable style={styles.tradeToolsCategoryHeading}
+      onPress={()=>setActiveCategory(current=>current===index?null:index)}
+      accessibilityRole="button"
+      accessibilityLabel={group.title+' category'}
+      accessibilityHint={activeCategory===index?'Collapse these tools':'Show tools in this category'}
+      accessibilityState={{expanded:activeCategory===index}}>
      <View style={styles.tradeToolsNumber}><Text style={styles.tradeToolsNumberText}>{String(index+1).padStart(2,'0')}</Text></View>
      <View style={{flex:1}}>
       <Text style={styles.tradeToolsCategoryTitle}>{group.title}</Text>
       <Text style={styles.tradeToolsCategoryCaption}>{group.caption}</Text>
      </View>
      <Text style={styles.tradeToolsCategoryCount}>{group.tools.length}</Text>
-    </View>
-    <View style={styles.tradeToolsCategoryCard}>
+     <ChevronRight size={19} color={theme.colors.teal}
+       style={{transform:[{rotate:activeCategory===index?'90deg':'0deg'}]}} />
+    </MotionPressable>
+    {activeCategory===index?<View style={styles.tradeToolsCategoryCard}>
      {group.tools.map((item,rowIndex)=>{
       const Icon=item.Icon;
       return <MotionPressable key={item.title} accessibilityRole="button"
@@ -6498,7 +6506,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
         <ChevronRight size={19} color="#718981"/>
        </MotionPressable>;
      })}
-    </View>
+    </View>:null}
    </View>)}
    <Text style={styles.tradeToolsFooter}>Your work and business records stay in your account. Only publish the details you choose to share.</Text>
   </ScrollView>
