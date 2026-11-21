@@ -31,6 +31,22 @@ function pence(value:string):number{
  return neg?-amount:amount;
 }
 const B='tradarr-finishproof';
+type InputProps={value:string;onChange:(v:string)=>void;placeholder:string;
+ multiline?:boolean;height?:number;maxLength?:number};
+function Input({value,onChange,placeholder,multiline=false,height=52,maxLength=1600}:InputProps){
+ return <TextInput value={value} onChangeText={onChange} placeholder={placeholder}
+   multiline={multiline} maxLength={maxLength} textAlignVertical={multiline?'top':'center'}
+   placeholderTextColor={C.muted} style={[s.input,{minHeight:height}]}/>;
+}
+type ActionProps={label:string;onPress:()=>void;disabled?:boolean;secondary?:boolean;busy?:boolean};
+function Action({label,onPress,disabled=false,secondary=false,busy=false}:ActionProps){
+ return <MotionPressable onPress={onPress} disabled={disabled||busy}
+  style={[s.action,secondary&&s.secondary,(disabled||busy)&&{opacity:.5}]}
+  accessibilityRole="button" accessibilityLabel={label}>
+  <Text style={[s.actionText,secondary&&s.secondaryText]}>{label}</Text>
+  <ArrowRight size={16} color={secondary?C.teal:'#FFFFFF'}/>
+ </MotionPressable>;
+}
 export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBack:()=>void}){
  const isTrade=role==='tradesperson';
  const [uid,setUid]=useState('');
@@ -216,18 +232,6 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
    await Linking.openURL(data.signedUrl);
   }catch(e:any){Alert.alert('Photo unavailable',e?.message||'Check your connection and try again.');}
  };
- const Input=({value,onChange,placeholder,multiline=false,height=52,maxLength=1600}:{
-  value:string;onChange:(v:string)=>void;placeholder:string;multiline?:boolean;height?:number;maxLength?:number;
- })=><TextInput value={value} onChangeText={onChange} placeholder={placeholder}
-   multiline={multiline} maxLength={maxLength} textAlignVertical={multiline?'top':'center'}
-   placeholderTextColor={C.muted} style={[s.input,{minHeight:height}]}/>;
- const Action=({label,onPress,disabled=false,secondary=false}:{
-  label:string;onPress:()=>void;disabled?:boolean;secondary?:boolean;
- })=><MotionPressable onPress={onPress} disabled={disabled||busy}
-  style={[s.action,secondary&&s.secondary,(disabled||busy)&&{opacity:.5}]}
-  accessibilityRole="button" accessibilityLabel={label}>
-  <Text style={[s.actionText,secondary&&s.secondaryText]}>{label}</Text><ArrowRight size={16} color={secondary?C.teal:'#FFFFFF'}/>
- </MotionPressable>;
  return <View style={s.root}>
   <View style={s.top}>
    <MotionPressable onPress={onBack} style={s.back} accessibilityRole="button" accessibilityLabel="Back to jobs">
@@ -252,7 +256,7 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
      </MotionPressable>)}
    </View>
    {error?<View style={s.error}><Text style={s.errorText}>{error}</Text>
-    <Action label="Try refreshing" secondary onPress={()=>{void load()}}/></View>:null}
+    <Action busy={busy} label="Try refreshing" secondary onPress={()=>{void load()}}/></View>:null}
    {loading?<ActivityIndicator style={{marginTop:36}} size="large" color={C.teal}/>:
     jobs.length===0?<View style={s.empty}><BriefcaseBusiness size={33} color={C.teal}/>
       <Text style={s.cardTitle}>No assigned jobs yet</Text>
@@ -289,7 +293,7 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
        <Input value={amount} onChange={setAmount} placeholder="0.00" maxLength={16}/>
        <Text style={s.label}>ADDITIONAL MINUTES</Text>
        <Input value={extraMinutes} onChange={setExtraMinutes} placeholder="0" maxLength={5}/>
-       <Action label="Send for customer approval" onPress={submitScope}/>
+       <Action busy={busy} label="Send for customer approval" onPress={submitScope}/>
       </View>:null}
      {isTrade&&!!pending?<View style={s.notice}><Clock3 color={C.teal} size={19}/>
       <Text style={s.muted}>One change is awaiting customer approval. Wait for a decision or withdraw that proposal before creating another.</Text></View>:null}
@@ -303,11 +307,11 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
       {item.status==='pending'&&!isTrade&&item.customer_id===uid?<>
        <Text style={s.label}>OPTIONAL MESSAGE TO THE TRADER</Text>
        <Input value={decisionNote} onChange={setDecisionNote} placeholder="Your response (optional)" maxLength={800}/>
-       <View style={s.twoActions}><Action label="Decline" secondary onPress={()=>decideScope(item,'declined')}/>
-        <Action label="Approve" onPress={()=>decideScope(item,'approved')}/></View>
+       <View style={s.twoActions}><Action busy={busy} label="Decline" secondary onPress={()=>decideScope(item,'declined')}/>
+        <Action busy={busy} label="Approve" onPress={()=>decideScope(item,'approved')}/></View>
       </>:null}
       {item.status==='pending'&&isTrade&&item.tradesperson_id===uid?
-       <Action label="Withdraw proposal" secondary onPress={()=>decideScope(item,'withdrawn')}/>:null}
+       <Action busy={busy} label="Withdraw proposal" secondary onPress={()=>decideScope(item,'withdrawn')}/>:null}
      </View>):<View style={s.empty}><ShieldCheck size={29} color={C.teal}/>
       <Text style={s.cardTitle}>No scope changes yet</Text><Text style={s.muted}>If the work needs to change, a written proposal will be saved here.</Text></View>}
     </>:<>
@@ -342,7 +346,7 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
        photos.length+' private photo(s) selected':'Attach up to 3 private photos (4 MB each)'}</Text>
       </MotionPressable>
       <Text style={s.muted}>Photos are private to the job participants, not published on your profile.</Text>
-      <Action label="Send handover to customer" onPress={sendHandover}/>
+      <Action busy={busy} label="Send handover to customer" onPress={sendHandover}/>
      </View>:null}
      {!handover&&current?.status==='completed'&&!isTrade?<View style={s.empty}>
       <ClipboardCheck size={29} color={C.teal}/><Text style={s.cardTitle}>Waiting for a handover</Text>
@@ -359,15 +363,15 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
       </View>
       <Text style={s.label}>OUTSTANDING ITEMS</Text><Text style={s.body}>{handover.outstanding_items||'None specified by the tradesperson.'}</Text>
       <Text style={s.label}>AFTERCARE</Text><Text style={s.body}>{handover.aftercare_notes||'No additional guidance recorded.'}</Text>
-      {(handover.photo_paths||[]).map((path,i)=><Action key={path} label={'Open private photo '+(i+1)}
+      {(handover.photo_paths||[]).map((path,i)=><Action busy={busy} key={path} label={'Open private photo '+(i+1)}
        secondary onPress={()=>{void openPhoto(path)}}/>)}
       {!isTrade&&handover.customer_id===uid&&handover.status!=='acknowledged'?<>
        <Text style={s.label}>NOTE FOR THE TRADESPERSON (REQUIRED FOR FOLLOW-UP)</Text>
        <Input value={handoverNote} onChange={setHandoverNote} multiline height={84}
         placeholder="Describe an issue or anything you want to clarify…"/>
        {handover.status==='awaiting_customer'?
-        <Action label="Request follow-up" secondary onPress={()=>respondHandover('followup_requested')}/>:null}
-       <Action label="Acknowledge receipt (rights unaffected)" onPress={()=>respondHandover('acknowledged')}/>
+        <Action busy={busy} label="Request follow-up" secondary onPress={()=>respondHandover('followup_requested')}/>:null}
+       <Action busy={busy} label="Acknowledge receipt (rights unaffected)" onPress={()=>respondHandover('acknowledged')}/>
       </>:null}
       <View style={s.divider}/>
       <Text style={s.cardTitle}>Aftercare conversation</Text>
@@ -377,7 +381,7 @@ export default function TradarrJobAssuranceScreen({role,onBack}:{role:Role;onBac
       <Text style={s.label}>WRITE AN AFTERCARE MESSAGE</Text>
       <Input value={reply} onChange={setReply} multiline height={85}
        placeholder="Ask or answer a question about the completed work…"/>
-      <Action label="Send aftercare message" onPress={sendReply} disabled={reply.trim().length<2}/>
+      <Action busy={busy} label="Send aftercare message" onPress={sendReply} disabled={reply.trim().length<2}/>
       <Text style={s.disclaimer}>This record is supplied by the tradesperson, not an independent inspection or statutory certificate. It does not replace consumer rights.</Text>
      </View>:null}
     </>}
