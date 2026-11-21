@@ -49,6 +49,9 @@ jobs:
       - name: Parse embedded map scripts and check premium motion regressions
         run: node scripts/test-motion-visuals.cjs
 
+      - name: Check native Tools, supplier map and Inbox layout safeguards
+        run: node scripts/test-mobile-screen-layout.cjs
+
       - name: Test native notification destinations and safe app role routing
         run: node scripts/test-notification-destinations.cjs
 
