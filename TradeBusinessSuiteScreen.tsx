@@ -693,7 +693,7 @@ const sx=StyleSheet.create({
  header:{paddingTop:14,paddingBottom:17,paddingHorizontal:16,flexDirection:'row',alignItems:'center',gap:10},
  back:{width:42,height:42,borderRadius:15,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
  eyebrow:{fontSize:10,fontWeight:'900',color:C.teal,letterSpacing:1.3},
- title:{fontSize:24,fontWeight:'900',color:C.ink,letterSpacing:-.6,marginTop:3,marginBottom:4},
+ title:{fontFamily:theme.font.editorial,fontSize:24,fontWeight:'900',color:C.ink,letterSpacing:-.6,marginTop:3,marginBottom:4},
  page:{paddingHorizontal:16,paddingBottom:120,gap:13},
  card:{backgroundColor:'#FFFFFF',borderRadius:23,padding:16,borderWidth:1,borderColor:'#E5EBE8',gap:11},
  heading:{fontSize:18,fontWeight:'900',color:C.ink},

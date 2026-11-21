@@ -136,7 +136,7 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
           </MotionPressable>
           <View style={styles.brandRow}>
             <View style={styles.logo}><Text style={styles.logoText}>T</Text></View>
-            <Text style={styles.brand}>Trade<Text style={styles.brandAccent}>Hub</Text></Text>
+            <Text style={styles.brand}>Trad<Text style={styles.brandAccent}>arr</Text></Text>
           </View>
           <Text style={styles.eyebrow}>ACCOUNT SECURITY</Text>
           <Text style={styles.title}>
@@ -203,12 +203,12 @@ export default function PasswordRecoveryScreen({ initialEmail = '', onCancel, on
               <Text style={styles.label}>New password</Text>
               <TextInput value={password} onChangeText={setPassword}
                 style={styles.input} secureTextEntry autoCapitalize="none"
-                textContentType="newPassword" placeholder="12+ characters, a letter and a number"
+                textContentType="newPassword" maxLength={128} placeholder="12+ characters, a letter and a number"
                 placeholderTextColor="#92A0AB" />
               <Text style={styles.label}>Confirm new password</Text>
               <TextInput value={confirmPassword} onChangeText={setConfirmPassword}
                 style={styles.input} secureTextEntry autoCapitalize="none"
-                textContentType="newPassword" placeholder="Repeat your new password"
+                textContentType="newPassword" maxLength={128} placeholder="Repeat your new password"
                 placeholderTextColor="#92A0AB" />
               <MotionPressable disabled={busy} style={[styles.primary, busy && styles.disabled]}
                 onPress={changePassword} accessibilityRole="button">

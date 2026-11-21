@@ -33,7 +33,7 @@ export default class AppErrorBoundary extends React.Component<Props,State>{
        <Text style={s.heading}>This screen couldn't load</Text>
        <Text style={s.body}>
          We've hit an unexpected display error. Your saved jobs, messages and
-         documents haven't been deleted. Restart the app view to continue.
+         documents stored in your account remain on the server. Restart the view to continue.
        </Text>
        <MotionPressable onPress={this.retry} accessibilityRole="button"
          accessibilityLabel="Restart Tradarr view" style={s.button}>
@@ -55,10 +55,10 @@ const s=StyleSheet.create({
   borderColor:'#E3EBE8',borderWidth:1,alignItems:'center',...theme.shadow},
  icon:{width:68,height:68,borderRadius:23,backgroundColor:C.coralTint,
    justifyContent:'center',alignItems:'center',marginBottom:18},
- heading:{fontSize:23,fontWeight:'900',color:C.ink,textAlign:'center'},
+ heading:{fontFamily:theme.font.editorial,fontSize:25,fontWeight:'700',color:C.ink,textAlign:'center'},
  body:{fontSize:14,lineHeight:23,color:C.muted,textAlign:'center',marginTop:11},
  button:{minHeight:54,borderRadius:26,backgroundColor:C.darkTeal,marginTop:24,
    width:'100%',alignItems:'center',justifyContent:'center',gap:9,flexDirection:'row'},
- buttonText:{color:'#FFFFFF',fontWeight:'900',fontSize:14},
+ buttonText:{fontFamily:theme.font.heading,color:'#FFFFFF',fontWeight:'900',fontSize:14},
  footnote:{fontSize:11,lineHeight:18,color:C.muted,textAlign:'center',marginTop:16}
 });

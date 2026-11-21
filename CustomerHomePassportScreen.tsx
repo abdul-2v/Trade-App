@@ -155,7 +155,7 @@ const s=StyleSheet.create({
  header:{flexDirection:'row',alignItems:'center',gap:13,paddingHorizontal:20,paddingTop:17,paddingBottom:14},
  back:{width:44,height:44,backgroundColor:'#FFFFFF',borderRadius:23,alignItems:'center',justifyContent:'center'},
  overline:{fontSize:10,fontWeight:'800',color:C.teal,letterSpacing:1.3},
- heading:{fontSize:25,fontWeight:'800',color:C.ink,marginTop:3},
+ heading: {fontFamily:theme.font.editorial,fontSize:25,fontWeight:'800',color:C.ink,marginTop:3},
  page:{padding:19,paddingBottom:44},
  hero:{backgroundColor:C.darkTeal,padding:23,borderRadius:25,gap:10},
  heroTitle:{fontSize:22,fontWeight:'800',color:'#FFFFFF'},

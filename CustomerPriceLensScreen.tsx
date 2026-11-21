@@ -204,7 +204,7 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
 const s=StyleSheet.create({
  root:{flex:1,backgroundColor:C.customerBackground},head:{padding:18,flexDirection:'row',alignItems:'center',gap:12},
  back:{width:43,height:43,borderRadius:23,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
- eyebrow:{fontSize:10,fontWeight:'800',color:C.teal,letterSpacing:1.4},heading:{fontSize:25,fontWeight:'800',color:C.ink,marginTop:3},
+ eyebrow: {fontFamily:theme.font.editorial,fontSize:10,fontWeight:'800',color:C.teal,letterSpacing:1.4},heading:{fontSize:25,fontWeight:'800',color:C.ink,marginTop:3},
  new:{backgroundColor:C.darkTeal,borderRadius:22,paddingHorizontal:13,minHeight:43,alignItems:'center',flexDirection:'row',gap:6},
  newText:{color:'#FFFFFF',fontSize:13,fontWeight:'800'},page:{padding:19,paddingBottom:50},
  hero:{padding:23,borderRadius:25,backgroundColor:C.darkTeal,gap:10},

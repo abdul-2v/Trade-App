@@ -113,6 +113,7 @@ export function MotionPressable({
 
   return (
     <AnimatedPressable
+      accessibilityRole="button"
       {...rest}
       onPress={activate}
       disabled={disabled}

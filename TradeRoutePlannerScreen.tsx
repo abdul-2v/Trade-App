@@ -497,7 +497,7 @@ const s=StyleSheet.create({
   paddingHorizontal:18,paddingVertical:16},back:{width:44,height:44,borderRadius:22,backgroundColor:'#FFFFFF',
   alignItems:'center',justifyContent:'center'},
  eyebrow:{color:C.teal,fontSize:10,fontWeight:'800',letterSpacing:1},
- title:{color:C.ink,fontSize:25,fontWeight:'900'},
+ title:{fontFamily:theme.font.editorial,color:C.ink,fontSize:25,fontWeight:'900'},
  page:{padding:18,paddingBottom:50},intro:{backgroundColor:C.tealTint,borderRadius:20,padding:16,
   flexDirection:'row',gap:12,marginBottom:18},
  card:{borderRadius:21,padding:17,backgroundColor:'#FFFFFF',marginBottom:15,gap:12,...theme.shadow},

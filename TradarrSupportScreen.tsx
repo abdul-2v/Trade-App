@@ -240,7 +240,7 @@ const s=StyleSheet.create({
  heroTitle:{fontSize:20,color:'#FFFFFF',fontWeight:'900'},
  heroSub:{fontSize:12,lineHeight:20,color:'#E1F0EB'},
  card:{backgroundColor:'#FFFFFF',borderRadius:19,padding:17,gap:12},
- title:{color:theme.colors.ink,fontSize:15,fontWeight:'900'},
+ title:{fontFamily:theme.font.heading,color:theme.colors.ink,fontSize:15,fontWeight:'900'},
  text:{color:theme.colors.ink,fontSize:13,lineHeight:21},
  muted:{color:theme.colors.muted,fontSize:12,lineHeight:18},
  label:{fontSize:12,color:theme.colors.ink,fontWeight:'900'},
