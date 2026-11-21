@@ -10977,7 +10977,7 @@ const styles = StyleSheet.create({
   proReferenceHeader: { minHeight: 160, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 15, marginBottom: 21 },
   proReferenceGreetingArea: { flex: 1, minWidth: 0, paddingTop: 2 },
   proReferenceEyebrow: { fontSize: 10, letterSpacing: 1.7, fontWeight: '900', color: '#28313B', marginBottom: 13 },
-  proReferenceGreeting: { color: '#101010', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 37, lineHeight: 40, letterSpacing: -1.6, includeFontPadding: false },
+  proReferenceGreeting: { color: '#101010', fontFamily: theme.font.heading, fontSize: 37, lineHeight: 40, letterSpacing: -1.6, includeFontPadding: false },
   proReferenceProfileCard: { width: 156, minHeight: 159, borderRadius: 14, backgroundColor: '#FAFCFB', borderWidth: 1, borderColor: '#AFC8C9', alignItems: 'center', paddingTop: 13, paddingHorizontal: 9, paddingBottom: 10, overflow: 'hidden', elevation: 3, shadowColor: '#142E38', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.12, shadowRadius: 9 },
   proReferenceProfileTopLine: { position: 'absolute', left: 0, right: 0, top: 0, height: 4, backgroundColor: '#6B9A9B' },
   proReferenceAvatarWrap: { marginBottom: 8, position: 'relative' },

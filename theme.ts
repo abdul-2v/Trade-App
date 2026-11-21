@@ -22,13 +22,13 @@ export const theme = {
     soft: '#EEF2F1',
   },
   font: {
-    // A deliberate three-way hierarchy; no extra font downloads in Expo Go.
-    // Editorial Georgia distinguishes major titles, Avenir Next anchors navigation,
-    // and Menlo holds amounts and live counts steady.
-    editorial: Platform.OS==='ios'?'Georgia':'serif',
-    heading: Platform.OS==='ios'?'AvenirNext-DemiBold':'sans-serif-medium',
-    body: Platform.OS==='ios'?'AvenirNext-Regular':'sans-serif',
-    numeric: Platform.OS==='ios'?'Menlo':'monospace',
+    // Restore the original native system typography that preceded the
+    // 21 November editorial/monospaced overhaul. Preserve existing sizes,
+    // weights, spacing and accessibility scaling; no custom font assets.
+    editorial: Platform.OS==='ios'?'System':'sans-serif',
+    heading: Platform.OS==='ios'?'System':'sans-serif',
+    body: Platform.OS==='ios'?'System':'sans-serif',
+    numeric: Platform.OS==='ios'?'System':'sans-serif',
   },
   type: {
     titleSize: 34,
