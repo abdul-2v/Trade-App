@@ -5,9 +5,11 @@ cd "$(dirname "$0")/.."
 
 echo "Tradarr auto-dev is starting..."
 echo "Keep this Terminal window open while testing in Expo Go."
-echo "Using Expo Tunnel mode so the iPhone does not depend on LAN/router access."
+echo "Using Expo Go on the local Wi-Fi by default for a simple direct QR and fast refresh."
+echo "Both Mac and iPhone must be on the same Wi-Fi for the default mode."
+echo "If your network blocks LAN traffic, use npm run dev:auto:tunnel."
 echo "GitHub main will be checked every 8 seconds."
-echo "For iPhone Expo Go, this script forces Expo Go mode (not a custom development build)."
+echo "A physical iPhone must have Expo Go logged in to the same Expo account as this Mac."
 
 git fetch origin main >/dev/null 2>&1 || true
 git pull --ff-only origin main || true
@@ -46,4 +48,13 @@ npm install
 PULL_PID=$!
 trap 'kill "$PULL_PID" 2>/dev/null || true' EXIT INT TERM
 
-npx expo start --tunnel --go
+# A local exp:// address is usually more reliable for phone camera scans than
+# the hosted /_expo/loading chooser page seen with SDK 58+ and tunnel.
+# Keep a named tunnel fallback for guest Wi-Fi or restrictive routers.
+if [ "${TRADARR_EXPO_CONNECTION:-lan}" = "tunnel" ]; then
+  echo "[auto-dev] Starting fallback Expo Go tunnel."
+  npx expo start --tunnel --go
+else
+  echo "[auto-dev] Starting direct Wi-Fi Expo Go."
+  npx expo start --lan --go
+fi
