@@ -269,13 +269,12 @@ function createMapHtml(centre: Coordinates) {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 <style>
-/* Mid-tone slate-teal map: readable streets/labels without the black night-map effect.
-   Filters apply to basemap imagery only; interactive markers retain full contrast. */
-html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E90}
-.maplibregl-canvas{filter:brightness(.91) contrast(.99) saturate(.84) sepia(.08) hue-rotate(125deg)}
-.leaflet-tile-pane img{filter:brightness(.91) contrast(.99) saturate(.84) sepia(.08) hue-rotate(125deg)}
-.leaflet-control-attribution{font-size:8px!important;background:rgba(13,37,43,.87)!important;color:#A9C1C1!important;padding:2px 5px!important;border-top-left-radius:5px!important}
-.leaflet-control-attribution a{color:#B5CFCC!important;text-decoration:none!important}
+/* Untinted, light neutral basemap for readable streets and place labels. */
+html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#F3F5F3}
+.maplibregl-canvas{filter:none}
+.leaflet-tile-pane img{filter:none}
+.leaflet-control-attribution{font-size:8px!important;background:rgba(255,255,255,.92)!important;color:#5C6E68!important;padding:2px 5px!important;border-top-left-radius:5px!important}
+.leaflet-control-attribution a{color:#4B7567!important;text-decoration:none!important}
 .you-label{border-radius:13px;background:rgba(15,42,48,.94);border:1px solid #5E8588;padding:4px 8px;color:#fff;font:700 10px sans-serif;white-space:nowrap;text-align:center;box-shadow:0 3px 10px #0b272844}
 .pin{position:relative;width:32px;height:32px;border-radius:10px;background:#F1F7F4;border:2px solid white;box-shadow:0 3px 10px #0B262A70;color:#245758;display:flex;align-items:center;justify-content:center}
 .pin.general{background:#E0704C}.pin:hover{transform:scale(1.12)}
@@ -318,7 +317,7 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#738E9
 <script>
 var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:0.25}).setView([${centre.latitude},${centre.longitude}],12.6);
 if(L.maplibreGL){
-  try { L.maplibreGL({style:'https://tiles.openfreemap.org/styles/liberty'}).addTo(map); }
+  try { L.maplibreGL({style:'https://tiles.openfreemap.org/styles/positron'}).addTo(map); }
   catch(e) { L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map); }
 } else {
   // Low-volume fallback for development when the vector plugin does not load.
@@ -473,7 +472,7 @@ window.focusSupplier=function(lat,lng){
   var focusZoom=Math.max(15.4,map.getZoom());
   var screen=map.getSize();
   var targetPoint=map.project([lat,lng],focusZoom);
-  var safeTop=Math.max(82,Math.min(screen.y*.34,screen.y-230));
+  var safeTop=Math.max(118,Math.min(screen.y*.36,screen.y-198));
   var cameraCentre=map.unproject(L.point(targetPoint.x,
     targetPoint.y+(screen.y/2-safeTop)),focusZoom);
   // Keep the merchant itself visible and let Directions launch an actual road
@@ -966,46 +965,70 @@ export default function TradeSuppliersMap() {
 }
 
 const S = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.darkTeal, paddingBottom: 0 },
-  header: { paddingTop: 14, paddingHorizontal: 22, paddingBottom: 8, backgroundColor: theme.colors.darkTeal },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.45, color: '#F4A184', marginBottom: 5 },
-  title: { fontSize: 26, fontWeight: '800', color: theme.colors.white, letterSpacing: -0.8 },
-  subtitle: { marginTop: 5, color: '#BDCFD0', fontSize: 12, lineHeight: 17 },
-  radiusButton: { backgroundColor: '#324A50', borderWidth: 1, borderColor: '#546A6F', borderRadius: 17, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 7, marginLeft: 4, minWidth: 69, minHeight: 52, justifyContent: 'center' },
-  radiusNumber: { color: theme.colors.white, fontSize: 18, fontWeight: '800' },
-  radiusCaptionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  radiusCaption: { color: '#CED9D9', fontSize: 12, fontWeight: '500' },
-  filters: { paddingTop: 12, paddingRight: 18, paddingBottom: 3 },
-  chip: { backgroundColor: '#344B50', borderWidth: 1, borderColor: '#586D71', borderRadius: 24, minHeight: 41, paddingHorizontal: 15, paddingVertical: 10, marginRight: 8 },
-  chipActive: { backgroundColor: theme.colors.white, borderColor: theme.colors.white },
-  chipText: { color: '#ECF4F2', fontSize: 12, fontWeight: '700' },
-  chipTextActive: { color: theme.colors.ink },
-  areaSearch:{flexDirection:'row',alignItems:'center',marginTop:11,gap:7},
-  areaInput:{flex:1,minHeight:43,borderRadius:13,borderWidth:1,borderColor:'#627B7F',
-    backgroundColor:'#324A50',paddingHorizontal:12,color:'#FFFFFF',fontSize:12},
-  areaButton:{backgroundColor:theme.colors.coral,borderRadius:13,minWidth:69,minHeight:43,
+  root:{flex:1,backgroundColor:'#F6F8F6',paddingBottom:0},
+  header:{backgroundColor:'#FAFCFA',paddingTop:9,paddingHorizontal:14,paddingBottom:8,
+    borderBottomColor:'#DEE7E0',borderBottomWidth:1},
+  headerRow:{flexDirection:'row',alignItems:'center',gap:8},
+  eyebrow:{fontFamily:theme.font.heading,fontSize:9,letterSpacing:1.3,color:'#617D71',marginBottom:3},
+  title:{fontFamily:theme.font.heading,fontSize:23,color:INK,letterSpacing:-.6},
+  subtitle:{marginTop:2,color:'#667A70',fontSize:11},
+  searchToggle:{width:45,height:45,borderRadius:16,backgroundColor:'#E9EFEB',
+    borderWidth:1,borderColor:'#DCE7E0',alignItems:'center',justifyContent:'center'},
+  searchToggleActive:{backgroundColor:'#D8E8DC'},
+  radiusButton:{width:50,height:45,backgroundColor:'#EEF2EE',borderWidth:1,
+    borderColor:'#DCE7E0',borderRadius:16,alignItems:'center',justifyContent:'center'},
+  radiusNumber:{color:INK,fontFamily:theme.font.numeric,fontSize:17,lineHeight:20},
+  radiusCaption:{color:'#658075',fontFamily:theme.font.heading,fontSize:9},
+  radiusCaptionRow:{flexDirection:'row',alignItems:'center',gap:4},
+  filters:{paddingTop:9,paddingRight:14,paddingBottom:2},
+  chip:{backgroundColor:'#F0F4F0',borderWidth:1,borderColor:'#DDE8DF',borderRadius:20,
+    minHeight:35,paddingHorizontal:13,paddingVertical:8,marginRight:7,justifyContent:'center'},
+  chipActive:{backgroundColor:INK,borderColor:INK},
+  chipText:{color:'#5F756B',fontFamily:theme.font.heading,fontSize:11},
+  chipTextActive:{color:'#FFFFFF'},
+  searchExpandedArea:{paddingTop:4,paddingBottom:6},
+  areaSearch:{flexDirection:'row',alignItems:'center',marginTop:8,gap:7},
+  areaInput:{flex:1,minHeight:45,borderRadius:14,borderWidth:1,borderColor:'#DCE7E0',
+    backgroundColor:'#F3F6F3',paddingHorizontal:12,color:INK,fontSize:12},
+  areaButton:{backgroundColor:INK,borderRadius:14,minWidth:47,minHeight:45,
     justifyContent:'center',alignItems:'center',paddingHorizontal:10},
-  areaButtonText:{color:'#FFFFFF',fontSize:12,fontWeight:'900'},
-  areaError:{marginTop:5,color:'#FFE6D5',fontSize:11},
-  mapArea: { flex: 1, backgroundColor: '#738E90', overflow: 'hidden' },
-  webView: { flex: 1, backgroundColor: '#738E90' },
-  counter: { position: 'absolute', top: 13, left: 14, borderRadius: 18, minHeight: 39, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687' },
-  locationLegend: { position: 'absolute', top: 13, left: 142, borderRadius: 18, minHeight: 39, backgroundColor: '#354F53E8', borderWidth: 1, borderColor: '#6F8687', flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, maxWidth: 120 },
-  youDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: theme.colors.coral, borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
-  workDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#9BB8B6', borderColor: theme.colors.white, borderWidth: 2, marginRight: 6 },
-  legendText: { fontSize: 11, fontWeight: '700', color: theme.colors.white, flexShrink: 1 },
-  recenterButton: { position: 'absolute', top: 11, right: 14, width: 44, height: 44, backgroundColor: theme.colors.white, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...theme.shadow },
-  recenterText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
-  counterText: { fontSize: 11, color: theme.colors.white, fontWeight: '700' },
-  loading: { position: 'absolute', left: 16, right: 16, top: 74, padding: 15, borderRadius: 18, backgroundColor: theme.colors.white, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  loadingText: { color: theme.colors.ink, fontSize: 13, fontWeight: '700' },
-  notice: { position: 'absolute', left: 16, right: 16, top: 76, padding: 15, borderRadius: 18, backgroundColor: theme.colors.white, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.line },
-  noticeText: { color: theme.colors.ink, fontSize: 13, textAlign: 'center' },
-  noticeButton: { backgroundColor: theme.colors.darkTeal, borderRadius: 22, paddingHorizontal: 17, paddingVertical: 12, marginTop: 11, minHeight: 44 },
-  noticeActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  noticeButtonText: { color: LIGHT, fontSize: 13, fontWeight: '800' },
-  bottomPanel: { position: 'absolute', bottom: 12, left: 12, right: 12, borderRadius: 26, paddingHorizontal: 14, paddingTop: 19, paddingBottom: 11, backgroundColor: theme.colors.white, ...theme.shadow },
+  areaButtonText:{color:'#FFFFFF',fontSize:12,fontWeight:'800'},
+  areaError:{marginTop:6,color:'#A94332',fontSize:11},
+  mapArea:{flex:1,backgroundColor:'#F3F5F3',overflow:'hidden'},
+  webView:{flex:1,backgroundColor:'#F3F5F3'},
+  counter:{position:'absolute',top:14,left:13,borderRadius:16,minHeight:37,
+    paddingHorizontal:12,justifyContent:'center',backgroundColor:'#FFFFFFEE',
+    borderWidth:1,borderColor:'#E1E9E1',...theme.shadow},
+  counterText:{fontSize:11,color:INK,fontFamily:theme.font.heading},
+  locationLegend:{position:'absolute',top:58,left:13,borderRadius:15,minHeight:33,
+    backgroundColor:'#FFFFFFEC',borderWidth:1,borderColor:'#E1E9E1',flexDirection:'row',
+    alignItems:'center',paddingVertical:8,paddingHorizontal:10,maxWidth:172},
+  youDot:{width:10,height:10,borderRadius:5,backgroundColor:'#34786C',
+    borderColor:'#FFFFFF',borderWidth:1.5,marginRight:7},
+  workDot:{width:10,height:10,borderRadius:5,backgroundColor:'#96A7A2',
+    borderColor:'#FFFFFF',borderWidth:1.5,marginRight:7},
+  legendText:{fontSize:10,fontFamily:theme.font.heading,color:INK,flexShrink:1},
+  recenterButton:{position:'absolute',top:14,right:13,width:46,height:46,
+    backgroundColor:'#FFFFFF',borderRadius:23,alignItems:'center',
+    justifyContent:'center',...theme.shadow},
+  recenterText:{color:INK,fontSize:13,fontWeight:'800'},
+  loading:{position:'absolute',left:14,right:14,top:102,padding:14,borderRadius:17,
+    backgroundColor:'#FFFFFFF5',flexDirection:'row',alignItems:'center',gap:10},
+  loadingText:{color:INK,fontSize:12,fontFamily:theme.font.heading},
+  notice:{position:'absolute',left:14,right:14,top:102,padding:15,borderRadius:18,
+    backgroundColor:'#FFFFFFF5',alignItems:'center',borderWidth:1,borderColor:'#E1E9E1'},
+  noticeText:{color:INK,fontSize:12,textAlign:'center',lineHeight:18},
+  noticeButton:{backgroundColor:INK,borderRadius:20,paddingHorizontal:15,paddingVertical:11,
+    marginTop:11,minHeight:44},
+  noticeActions:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+  noticeButtonText:{color:'#FFFFFF',fontSize:12,fontWeight:'800'},
+  bottomPanel:{position:'absolute',bottom:11,left:12,right:12,borderRadius:21,
+    paddingHorizontal:15,paddingTop:17,paddingBottom:11,backgroundColor:'#FFFFFF',
+    shadowColor:'#1A3229',shadowOpacity:.10,shadowRadius:17,
+    shadowOffset:{width:0,height:5},elevation:4},
+  collapsedSheetHeader:{minHeight:47,flexDirection:'row',alignItems:'center',gap:11},
+  sheetExpandIcon:{width:36,height:36,borderRadius:18,backgroundColor:'#EDF2EE',
+    alignItems:'center',justifyContent:'center'},
   storeHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   storeGlyph: { width: 44, height: 44, borderRadius: 15, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   storeTitle: { color: theme.colors.ink, fontSize: 17, fontWeight: '800', lineHeight: 21, letterSpacing: -0.4 },
@@ -1018,12 +1041,12 @@ const S = StyleSheet.create({
   secondaryButton: { minHeight: 48, backgroundColor: theme.colors.soft, paddingHorizontal: 14, borderRadius: 24, justifyContent: 'center' },
   secondaryText: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
   panelHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  panelTitle: { color: theme.colors.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.35 },
-  panelHint: { color: theme.colors.muted, marginTop: 3, fontSize: 12, lineHeight: 17 },
+  panelTitle: { color: INK, fontSize: 16, fontFamily: theme.font.heading, letterSpacing: -0.3 },
+  panelHint: { color: theme.colors.muted, marginTop: 4, fontSize: 10, lineHeight: 15 },
   sheetHandle: { position: 'absolute', top: 6, width: 32, height: 4, borderRadius: 2, backgroundColor: '#D5DEDB', alignSelf: 'center' },
   nearbyScroll: { flexGrow: 0 },
   nearbyRow: { paddingTop: 10, paddingBottom: 1 },
-  nearbyShop: { width: 155, minHeight: 86, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 18, backgroundColor: theme.colors.proBackground, marginRight: 9, justifyContent: 'space-between' },
+  nearbyShop: { width: 156, minHeight: 82, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#F4F7F4', marginRight: 8, justifyContent: 'space-between', borderWidth:1,borderColor:'#E7EEE8' },
   nearbyRank: { color: theme.colors.coralText, fontWeight: '800', letterSpacing: 0.35, fontSize: 11, marginBottom: 5 },
   nearbyTitle: { color: theme.colors.ink, fontSize: 13, lineHeight: 16, fontWeight: '800' },
   nearbyLink: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
