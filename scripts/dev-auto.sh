@@ -3,10 +3,11 @@ set -u
 
 cd "$(dirname "$0")/.."
 
-echo "TradeHub auto-dev is starting..."
+echo "Tradarr auto-dev is starting..."
 echo "Keep this Terminal window open while testing in Expo Go."
 echo "Using Expo Tunnel mode so the iPhone does not depend on LAN/router access."
 echo "GitHub main will be checked every 8 seconds."
+echo "For iPhone Expo Go, this script forces Expo Go mode (not a custom development build)."
 
 git fetch origin main >/dev/null 2>&1 || true
 git pull --ff-only origin main || true
@@ -27,7 +28,7 @@ npm install
     REMOTE="$(git rev-parse origin/main)"
 
     if [ "$LOCAL" != "$REMOTE" ]; then
-      echo "[auto-sync] New TradeHub update found on GitHub..."
+      echo "[auto-sync] New Tradarr update found on GitHub..."
       BEFORE_PKG="$(git rev-parse HEAD:package.json 2>/dev/null || true)"
 
       if git pull --ff-only origin main; then
@@ -45,4 +46,4 @@ npm install
 PULL_PID=$!
 trap 'kill "$PULL_PID" 2>/dev/null || true' EXIT INT TERM
 
-npx expo start --tunnel
+npx expo start --tunnel --go
