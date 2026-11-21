@@ -1,8 +1,7 @@
-name: TradeHub automatic preview delivery
+name: Tradarr controlled preview delivery
 
 on:
-  push:
-    branches: ['main']
+  workflow_dispatch: {}
 
 jobs:
   fingerprint:
@@ -36,4 +35,4 @@ jobs:
     params:
       channel: preview
       platform: ios
-      message: "Automatic TradeHub update from GitHub main"
+      message: "Approved Tradarr preview release"

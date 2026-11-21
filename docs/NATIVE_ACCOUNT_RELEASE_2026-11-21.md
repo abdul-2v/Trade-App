@@ -20,3 +20,8 @@
 - [ ] Run account switch, blocked user, safety case and deletion request on two independent devices.
 - [ ] Visually check revised fonts, keyboard visibility, labels and timing on a real iPhone.
 - [ ] Do not change com.tradehub.app bundle identifiers without store ownership/registration plan.
+
+
+## Cloud preview delivery status
+
+The EAS preview workflow was changed to manual to stop automatic main-push executions consuming Expo's free monthly CI/CD minutes. Existing GitHub code/test CI remains automatic. See docs/IOS_PREVIEW_RELEASE_RUNBOOK_2026-11-21.md for commands and current quota gate. No new native build or OTA update is claimed.
