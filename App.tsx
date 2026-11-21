@@ -15,6 +15,7 @@ import CustomerInvoicesScreen from './CustomerInvoicesScreen';
 import TradeTrustScreen from './TradeTrustScreen';
 import TradarrSupportScreen from './TradarrSupportScreen';
 import TradarrAdminGateway from './TradarrAdminGateway';
+import TradarrJobAssuranceScreen from './TradarrJobAssuranceScreen';
 import TradarrProScreen from './TradarrProScreen';
 import {splitPromotedNearby} from './lib/featuredVisibility';
 import TradarrAccountSafetyScreen from './TradarrAccountSafetyScreen';
@@ -134,9 +135,10 @@ type CustomerScreen =
   | 'collective'
   | 'discover'
   | 'messages'
-  | 'customerProfile';
+  | 'customerProfile'
+  | 'assurance';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro' | 'tradeAssurance';
 type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -1023,6 +1025,9 @@ function TradarrApp() {
       <TradeGridScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeTools') return <TradeToolsScreen navigate={navigateTrade}
       openBusinessSuite={feature=>{setBusinessFeature(feature);navigateTrade('tradeBusinessSuite');}} />;
+    if (tradeScreen === 'tradeAssurance') return <TradeShell current="tradeJobs" navigate={navigateTrade}>
+      <TradarrJobAssuranceScreen role="tradesperson" onBack={()=>navigateTrade('tradeJobs')}/>
+    </TradeShell>;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps}
@@ -1270,6 +1275,10 @@ function TradarrApp() {
       />
     );
   }
+
+  if (customerScreen === 'assurance') return <CustomerShell current="requests" navigate={setCustomerScreen}>
+    <TradarrJobAssuranceScreen role="customer" onBack={()=>setCustomerScreen('requests')}/>
+  </CustomerShell>;
 
   if (customerScreen === 'requests') {
     return (
@@ -5129,6 +5138,15 @@ function RequestsScreen({
       <ScrollView style={styles.customerActivityScreen} contentContainerStyle={styles.customerActivityContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.customerActivityTitle}>Activity</Text>
         <Text style={styles.customerActivitySub}>{active.length ? active.length + ' open request' + (active.length === 1 ? '' : 's') : 'Your requests and bookings'}</Text>
+        <MotionPressable style={{flexDirection:'row',alignItems:'center',gap:12,
+          backgroundColor:'#EAF4ED',borderWidth:1,borderColor:'#B8DAC8',borderRadius:16,
+          paddingHorizontal:15,paddingVertical:13,marginTop:14,marginBottom:10}}
+          onPress={()=>navigate('assurance')} accessibilityRole="button" accessibilityLabel="Open ScopeGuard and FinishProof">
+          <ShieldCheck size={24} color={theme.colors.teal}/>
+          <View style={{flex:1,gap:4}}><Text style={{color:theme.colors.teal,fontWeight:'900',fontSize:14}}>ScopeGuard & FinishProof</Text>
+            <Text style={{fontSize:11,color:theme.colors.muted,lineHeight:17}}>Review extras, finished-work records and aftercare</Text></View>
+          <ChevronRight size={18} color={theme.colors.teal}/>
+        </MotionPressable>
         {syncError?<View style={{padding:12,borderRadius:14,backgroundColor:'#FFF1DE',marginBottom:12}}>
           <Text style={{fontSize:12,fontWeight:'800',color:'#705124'}}>Connection unavailable</Text>
           <Text style={{fontSize:11,color:'#705124',lineHeight:17,marginTop:3}}>
@@ -7877,6 +7895,15 @@ function TradeJobsScreen({
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </MotionPressable>
         </View>
+        <MotionPressable onPress={()=>navigate('tradeAssurance')} accessibilityRole="button"
+         accessibilityLabel="Open job assurance tools"
+         style={{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:'#EAF4ED',
+           borderWidth:1,borderColor:'#B8DAC8',borderRadius:16,paddingHorizontal:15,paddingVertical:14,marginBottom:12}}>
+          <ShieldCheck size={24} color={theme.colors.teal}/>
+          <View style={{flex:1,gap:4}}><Text style={{color:theme.colors.teal,fontWeight:'900',fontSize:14}}>ScopeGuard & FinishProof</Text>
+            <Text style={{color:theme.colors.muted,fontSize:11,lineHeight:17}}>Get extras approved and share completed-work handovers</Text></View>
+          <ChevronRight size={18} color={theme.colors.teal}/>
+        </MotionPressable>
         <MotionPressable style={styles.tradeHowToggle} onPress={() => setShowJobGuide(value => !value)}
           accessibilityRole="button" accessibilityState={{ expanded: showJobGuide }}
           accessibilityLabel="How getting jobs on Tradarr works">
