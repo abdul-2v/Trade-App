@@ -449,19 +449,37 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           <Text style={s.note}>{stop.appointmentId&&stop.requestedStart
             ? 'Confirmed · '+formatUKDateTime(stop.requestedStart)
             : 'Time not yet confirmed — propose and approve a visit below'}</Text>
-          <Text style={s.note}>{stop.latitude!=null&&stop.longitude!=null
-            ? 'Customer location available after matching'
-            : 'Customer address not yet confirmed'}</Text>
+          <Text style={s.note}>{hasFullVisitAddress(stop.address)
+            ? 'Visit destination saved. Always reconfirm access details with the customer.'
+            : 'Job matching used an approximate postcode area — NOT the exact property address.'}</Text>
           <View style={s.row}>
             <MotionPressable style={s.secondary} onPress={openMessages}>
               <Text style={s.secondaryText}>Messages</Text>
             </MotionPressable>
-            {stop.appointmentId&&stop.requestedStart?<MotionPressable style={s.secondary}
-                onPress={()=>openStopDirections(stop)}>
+            {stop.appointmentId&&stop.requestedStart&&hasFullVisitAddress(stop.address)?
+              <MotionPressable style={s.secondary} onPress={()=>openStopDirections(stop)}>
                 <Navigation size={15} color={C.teal}/>
-                <Text style={s.secondaryText}>Directions</Text>
+                <Text style={s.secondaryText}>Exact-address directions</Text>
               </MotionPressable>:null}
           </View>
+          {stop.appointmentId?<View style={{gap:7,marginTop:3}}>
+            <Text style={s.note}>Private job address · confirm the full building, street and postcode with the customer</Text>
+            <TextInput
+              value={addressDrafts[stop.jobId]??stop.address??''}
+              onChangeText={value=>setAddressDrafts(previous=>({...previous,[stop.jobId]:value}))}
+              style={[s.input,{fontSize:13,minHeight:48}]}
+              placeholder="10 Example Road, Leicester LE1 5AA"
+              placeholderTextColor="#98A2A0"
+              autoCapitalize="words"
+              accessibilityLabel="Customer-confirmed property address"
+              maxLength={300}/>
+            <MotionPressable style={s.secondary} disabled={addressBusy!==null}
+              accessibilityRole="button" onPress={()=>saveStopAddress(stop)}>
+              {addressBusy===stop.jobId?<ActivityIndicator color={C.teal} size="small"/>:
+                <Check size={15} color={C.teal}/>}
+              <Text style={s.secondaryText}>Save customer-confirmed address</Text>
+            </MotionPressable>
+          </View>:null}
           {['accepted','en_route'].includes(stop.status)&&<>
            <MotionPressable style={s.secondary} accessibilityRole="button"
             onPress={()=>setEditingStop(current=>current===stop.jobId?null:stop.jobId)}>
@@ -499,26 +517,26 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           </>:null}
         </View>)}
         {assigned.length>0&&assigned.every(v=>v.appointmentId&&v.requestedStart&&
-          v.latitude!=null&&v.longitude!=null)?<>
+          hasFullVisitAddress(v.address)&&v.latitude!=null&&v.longitude!=null)?<>
          <MotionPressable style={s.secondary}
           disabled={roadBusy!==null}
           accessibilityRole="button"
-          accessibilityLabel="Calculate traffic aware road route"
+          accessibilityLabel="Calculate approximate traffic-aware route between postcode areas"
           onPress={()=>{void calculateRoadRoute(j)}}>
           {roadBusy===j.id?<ActivityIndicator size="small" color={C.teal}/>:<Route size={16} color={C.teal}/>}
-          <Text style={s.secondaryText}>Calculate real road route</Text>
+          <Text style={s.secondaryText}>Postcode-area road estimate</Text>
          </MotionPressable>
          {roadPreviews[j.id]?<View style={s.hint}>
-          <Text style={s.cardTitle}>Traffic-aware driving estimate</Text>
+          <Text style={s.cardTitle}>Traffic-aware estimate between postcode areas</Text>
           <Text style={s.note}>{roadPreviews[j.id].roadDistanceMiles.toFixed(1)} road miles · approximately {roadPreviews[j.id].drivingMinutes} minutes driving</Text>
           {roadPreviews[j.id].extraDrivingMinutes!=null?
             <Text style={s.note}>Additional road travel versus a direct journey: about {roadPreviews[j.id].extraDrivingMinutes} minutes</Text>:null}
           <Text style={s.note}>{roadPreviews[j.id].scheduleFeasibleOptimization?
-           'Road-based stop order checked against your confirmed appointment windows.':
-           'Confirmed appointment order preserved.'}</Text>
+           'An alternative area-based order was considered; keep the agreed visit order for exact-address directions.':
+           'Confirmed appointment order remains chronological.'}</Text>
           <Text style={s.note}>Starting from {roadPreviews[j.id].originType==='current_device'?
            'your current device position':'the approximate published postcode area'}.
-           Road traffic changes. Savings in pounds cannot be verified without agreed prices.</Text>
+           Stops are based on approximate postcode coordinates, not verified property points. Traffic changes; savings cannot be guaranteed.</Text>
          </View>:null}
          {roadErrors[j.id]?<Text style={[s.note,{color:'#AD4A31'}]}>{roadErrors[j.id]}</Text>:null}
         </>:null}
@@ -527,7 +545,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           onPress={()=>openJourneyDirections(j)} accessibilityRole="button">
           <Text style={s.primaryText}>Open scheduled stops in Maps</Text>
         </MotionPressable>:null}
-        <Text style={s.note}>Stops follow confirmed appointment times unless a road-checked order is feasible. Live road estimates need the privately configured Google Routes service. On My Way includes the original diary destination. No guaranteed arrival time or discount is promised.</Text>
+        <Text style={s.note}>Google Maps directions use only full addresses saved after customer confirmation, not approximate postcode matching points. Stops follow agreed times. Traffic-aware route estimates still use approximate postcode areas and need the private Google Routes service. No guaranteed arrival or discount is promised.</Text>
        </View>;
      })()}
 
