@@ -13,13 +13,15 @@ function londonParts(date:Date) {
 
 export function ukDayOf(date:Date) { return londonParts(date).day; }
 
-export function nextUKDays(count=7) {
-  // Midday prevents a DST clock change from duplicating a date.
-  const base=Date.now();
+export function nextUKDays(count=7, now=new Date()) {
+  // Iterate civil calendar days, not 24-hour elapsed periods. During spring
+  // forward, adding 86,400,000ms near midnight can skip the next UK day.
+  const today=ukDayOf(now);
   const days:string[]=[];
-  for(let i=0;i<count+3&&days.length<count;i++){
-    const date=ukDayOf(new Date(base+i*86400000));
-    if(!days.includes(date))days.push(date);
+  for(let i=0;i<Math.max(0,count);i++){
+    const day=new Date(today+'T12:00:00Z');
+    day.setUTCDate(day.getUTCDate()+i);
+    days.push(day.toISOString().slice(0,10));
   }
   return days;
 }

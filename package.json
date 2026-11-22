@@ -12,10 +12,11 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "check:syntax": "node scripts/check-syntax.cjs",
-    "test:logic": "node scripts/test-marketplace-logic.cjs",
+    "test:logic": "node scripts/test-marketplace-logic.cjs && npm run test:scheduling",
     "check:ux": "node scripts/check-ux.cjs",
     "test:account": "node scripts/test-account-registration.cjs",
-    "dev:auto:tunnel": "TRADARR_EXPO_CONNECTION=tunnel bash scripts/dev-auto.sh"
+    "dev:auto:tunnel": "TRADARR_EXPO_CONNECTION=tunnel bash scripts/dev-auto.sh",
+    "test:scheduling": "node scripts/test-scheduling-journeys.cjs"
   },
   "dependencies": {
     "expo": "~58.0.0",
