@@ -76,3 +76,26 @@ A production-grade optimiser would require a **server-side** road routing provid
 - Google Routes API real waypoint optimisation: https://developers.google.com/maps/documentation/routes/opt-way
 
 The public release is intentionally deferred until the manual tests and remaining account/security/notification requirements are finished.
+
+## 22 November 2026 — confirmed-address navigation and accepted-route access
+
+- Journey discovery continues to use **approximate postcode-area coordinates** only. These are NOT precise property destinations.
+- A tradesperson may save the full customer-confirmed destination on their **private linked appointment**. This appointment is restricted by existing ownership/participant RLS and the link guard; other users must not see private job addresses.
+- On My Way cannot be published without a complete original diary destination. Google Maps links for stops use saved full addresses, not the approximate `job_locations` latitude/longitude.
+- Confirmed route destinations are retained even after the booking's start time: the planner loads accepted linked appointments separately from future anchor appointments.
+- Traffic-aware route previews still estimate travel **between approximate postcode areas**. They must not automatically reorder exact booked visits or make door-to-door travel-time / monetary saving promises.
+- Migration `20261122160601` grants an accepted job customer read access to their own **paused or closed route plan** to validate mutually agreed time changes, without opening other customers' route records.
+- Route and booking screens re-check when the app returns to foreground. New proposals are blocked if an accepted flexible journey's window is temporarily unreadable.
+
+### Two-account launch acceptance test
+
+1. As trader, create a future private diary visit with full confirmed property address, then publish On My Way. Verify a missing anchor address blocks publishing.
+2. As customer, submit a flexible route request. As trader, accept the offer. Verify the route job remains **unbooked** until the other party approves a proposed appointment time.
+3. As trader, save the full customer-confirmed address on the accepted linked appointment. As customer, verify only this job's visit appears in customer bookings.
+4. Attempt to navigate before saving a full address; the app must refuse. After saving, ensure Google Maps contains the full address, **not postcode-centroid coordinates**.
+5. Pause/close the published route and verify the customer can still review its accepted booking window. Verify unrelated accounts cannot read the route or address.
+6. Move past the appointment start, refresh the app and verify the address stays available for the active stop.
+7. Test conflicting appointment approval on both devices, expired sessions, slow postcode lookup, foreground refresh and old traffic-preview responses.
+8. Confirm service-key setup before claiming real traffic-aware estimates. Without Google Routes credentials, basic verified-address directions must still work.
+
+Automated tests do not replace this physical-device acceptance test. 
