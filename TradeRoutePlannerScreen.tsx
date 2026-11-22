@@ -117,9 +117,19 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     Alert.alert('Stops not fully available',
      booked.error?.message||where.error?.message||'Refresh to try again.');
    }
+   // The anchor picker shows future diary slots, but an accepted visit can be
+   // under way after its scheduled start. Do not lose its address on refresh.
+   const linkedIds=[...new Set((booked.data||[]).map(x=>x.appointment_id)
+    .filter((id):id is string=>Boolean(id)))];
+   const linked=linkedIds.length?await supabase.from('trade_appointments')
+    .select('id,address').eq('tradesperson_id',user.id).in('id',linkedIds)
+    :{data:[],error:null};
+   if(linked.error)Alert.alert('Visit addresses unavailable',linked.error.message);
    const byId=new Map((booked.data||[]).map(x=>[x.id,x]));
    const position=new Map((where.data||[]).map(x=>[x.job_id,x]));
-   const confirmedAddresses=new Map((diary.data||[]).map(x=>[x.id,x.address||null]));
+   const confirmedAddresses=new Map<string,string|null>();
+   for(const appointment of diary.data||[])confirmedAddresses.set(appointment.id,appointment.address||null);
+   for(const appointment of linked.data||[])confirmedAddresses.set(appointment.id,appointment.address||null);
    const next:Stop[]=accepted.flatMap(a=>{
     const job=byId.get(a.job_id);
     if(!job||['cancelled','completed'].includes(job.status))return [];
