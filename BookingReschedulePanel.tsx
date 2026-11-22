@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,StyleSheet,Text,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,StyleSheet,Text,View} from 'react-native';
 import {CalendarClock,Check,Clock3,X} from 'lucide-react-native';
 import {supabase} from './lib/supabase';
 import {MotionPressable} from './Motion';
@@ -22,11 +22,13 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
  const [duration,setDuration]=useState(60);
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
+ const [loadError,setLoadError]=useState('');
  const [routeWindow,setRouteWindow]=useState<{start:string;end:string;mode:string}|null>(null);
  const [routeMode,setRouteMode]=useState(false);
  useEffect(()=>{
   let active=true;
-  const loadWindow=async()=>{
+  setRouteWindow(null);setRouteMode(false);
+ const loadWindow=async()=>{
    const {data:job}=await supabase.from('jobs').select('job_mode,accepted_tradesperson_id').eq('id',jobId).maybeSingle();
    if(!active||!job)return;
    if(!['route','street_run'].includes(job.job_mode)){setRouteMode(false);return;}
@@ -50,7 +52,12 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
      .eq('job_id',jobId).eq('status','pending').order('created_at',{ascending:false}).limit(1)
   ]);
   setUserId(user?.id||'');
-  if(!error)setChange((data?.[0]||null) as Change|null);
+  if(error){
+   setLoadError('Could not refresh appointment requests. Please try again.');
+  }else{
+   setChange((data?.[0]||null) as Change|null);
+   setLoadError('');
+  }
   setLoading(false);
  },[jobId]);
 
@@ -60,7 +67,10 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
     .on('postgres_changes',{event:'*',schema:'public',table:'trade_appointment_changes',
      filter:'job_id=eq.'+jobId},()=>{void load();onUpdatedRef.current?.()})
     .subscribe();
-  return()=>{void supabase.removeChannel(channel)};
+  const foreground=AppState.addEventListener('change',state=>{
+   if(state==='active'){void load();onUpdatedRef.current?.()}
+  });
+  return()=>{foreground.remove();void supabase.removeChannel(channel)};
  },[jobId,load]);
 
  const propose=async()=>{
@@ -77,17 +87,26 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
      'Choose a visit that starts and finishes inside the published journey window.');
    return;
   }
+  if(routeMode&&!routeWindow){
+   Alert.alert('Journey window unavailable',
+    'Refresh the appointment. You cannot propose a flexible route visit until its published time window can be checked.');
+   return;
+  }
   if(start===currentStart&&end===currentEnd){
    Alert.alert('Already booked','That is already the agreed appointment time.');return;
   }
   setBusy(true);
-  const {error}=await supabase.from('trade_appointment_changes').insert({
-   job_id:jobId,proposer_id:userId,proposed_start:start,proposed_end:end,
-   note:'Time change proposed in Tradarr'
-  });
-  setBusy(false);
-  if(error){Alert.alert('Could not propose a new time',error.message);return;}
-  setExpanded(false);void load();
+  try{
+   const {error}=await supabase.from('trade_appointment_changes').insert({
+    job_id:jobId,proposer_id:userId,proposed_start:start,proposed_end:end,
+    note:'Time change proposed in Tradarr'
+   });
+   if(error)throw error;
+   setExpanded(false);
+   void load();
+  }catch(error:any){
+   Alert.alert('Could not propose a new time',error?.message||'Check your connection and retry.');
+  }finally{setBusy(false);}
  };
 
  const decide=async(next:'accepted'|'declined'|'withdrawn')=>{
@@ -120,7 +139,7 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
       <Text style={s.detail}>The job is accepted, but neither party has confirmed the time. Propose a visit time for approval.</Text>}
    </View>
   </View>
-  {routeMode&&routeWindow&&!confirmed?(
+  {routeMode&&routeWindow?(
     <View style={{backgroundColor:'#EAF3F1',borderRadius:12,padding:11,gap:5}}>
       <Text style={{color:theme.colors.teal,fontWeight:'800',fontSize:12}}>
         {routeWindow.mode==='street_run'?'Street Run':'On My Way'} journey window
@@ -131,7 +150,13 @@ export default function BookingReschedulePanel({jobId,currentStart,currentEnd,on
       }. Please leave time to travel between jobs.</Text>
     </View>
   ):null}
-  {loading?<ActivityIndicator color={theme.colors.teal} />:pending&&change?(
+  {loadError?<View style={s.request}>
+   <Text style={s.note}>{loadError}</Text>
+   <MotionPressable style={s.secondary} onPress={()=>{setLoading(true);void load()}}>
+    <Text style={s.secondaryText}>Retry loading requests</Text>
+   </MotionPressable>
+  </View>:null}
+  {loading?<ActivityIndicator color={theme.colors.teal} />:loadError?null:pending&&change?(
    <View style={s.request}>
     <Text style={s.status}>{change.proposer_id===userId?'Waiting for the other person':'New time requested'}</Text>
     <Text style={s.detail}>{formatUKDateTime(change.proposed_start)} to {new Date(change.proposed_end).toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'})}</Text>

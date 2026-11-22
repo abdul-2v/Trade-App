@@ -9,13 +9,14 @@ import {theme} from './theme';
 import {formatUKDateTime} from './lib/scheduling';
 import type {RouteMode} from './lib/routeMatching';
 import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/jobJourney';
+import {hasFullVisitAddress,visitAddressDirectionsUrl} from './lib/visitAddress';
 
 type Appointment={id:string;title:string;starts_at:string;ends_at:string;address:string|null};
 type Journey={id:string;anchor_appointment_id:string;mode:RouteMode;trade:string;start_area:string;end_area:string;
  starts_at:string;ends_at:string;status:string;max_deviation_miles:number;max_extra_visits:number};
 type Stop={jobId:string;routePlanId:string;issue:string;status:string;
  requestedStart:string|null;requestedEnd:string|null;appointmentId:string|null;
- estimatedArrivalMinutes:number|null;etaUpdatedAt:string|null;latitude:number|null;longitude:number|null};
+ address:string|null;estimatedArrivalMinutes:number|null;etaUpdatedAt:string|null;latitude:number|null;longitude:number|null};
 type Props={goBack:()=>void;openDiary:()=>void;openMessages:()=>void};
 type RoadPreview={
  roadDistanceMiles:number;drivingMinutes:number;extraDrivingMinutes:number|null;
@@ -73,6 +74,8 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
  const [roadErrors,setRoadErrors]=useState<Record<string,string>>({});
  const [roadBusy,setRoadBusy]=useState<string|null>(null);
  const [editingStop,setEditingStop]=useState<string|null>(null);
+ const [addressDrafts,setAddressDrafts]=useState<Record<string,string>>({});
+ const [addressBusy,setAddressBusy]=useState<string|null>(null);
  const roadVersion=useRef(0);
 
  const load=useCallback(async()=>{
@@ -114,8 +117,19 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     Alert.alert('Stops not fully available',
      booked.error?.message||where.error?.message||'Refresh to try again.');
    }
+   // The anchor picker shows future diary slots, but an accepted visit can be
+   // under way after its scheduled start. Do not lose its address on refresh.
+   const linkedIds=[...new Set((booked.data||[]).map(x=>x.appointment_id)
+    .filter((id):id is string=>Boolean(id)))];
+   const linked=linkedIds.length?await supabase.from('trade_appointments')
+    .select('id,address').eq('tradesperson_id',user.id).in('id',linkedIds)
+    :{data:[],error:null};
+   if(linked.error)Alert.alert('Visit addresses unavailable',linked.error.message);
    const byId=new Map((booked.data||[]).map(x=>[x.id,x]));
    const position=new Map((where.data||[]).map(x=>[x.job_id,x]));
+   const confirmedAddresses=new Map<string,string|null>();
+   for(const appointment of diary.data||[])confirmedAddresses.set(appointment.id,appointment.address||null);
+   for(const appointment of linked.data||[])confirmedAddresses.set(appointment.id,appointment.address||null);
    const next:Stop[]=accepted.flatMap(a=>{
     const job=byId.get(a.job_id);
     if(!job||['cancelled','completed'].includes(job.status))return [];
@@ -123,7 +137,9 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
     return [{jobId:a.job_id,routePlanId:a.route_plan_id as string,
      issue:job.issue,status:job.status,
      requestedStart:job.requested_start,requestedEnd:job.requested_end,
-     appointmentId:job.appointment_id,estimatedArrivalMinutes:job.estimated_arrival_minutes,
+     appointmentId:job.appointment_id,
+     address:job.appointment_id?confirmedAddresses.get(job.appointment_id)||null:null,
+     estimatedArrivalMinutes:job.estimated_arrival_minutes,
      etaUpdatedAt:job.eta_updated_at,
      latitude:location?.latitude==null?null:Number(location.latitude),
      longitude:location?.longitude==null?null:Number(location.longitude)}];
@@ -167,17 +183,49 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
   }catch(e:any){Alert.alert('Arrival estimate not saved',e?.message||'Refresh and try again.');}
   finally{setEtaBusyJobId(null);}
  };
- const openStopDirections=(stop:Stop)=>{
-  if(!stop.appointmentId){Alert.alert('Time not confirmed','Agree the appointment before travelling.');return;}
-  if(!Number.isFinite(stop.latitude)||!Number.isFinite(stop.longitude)||
-    stop.latitude==null||stop.longitude==null){
-   Alert.alert('Address needs confirming',
-    'Ask the customer to confirm the exact address in Messages before travelling.');
+ const saveStopAddress=(stop:Stop)=>{
+  if(addressBusy||!uid||!stop.appointmentId)return;
+  const address=(addressDrafts[stop.jobId]??stop.address??'').trim();
+  if(!hasFullVisitAddress(address)){
+   Alert.alert('Full property address needed',
+    'Enter the building or house, street and full UK postcode. A postcode area alone is not a destination.');
    return;
   }
-  const destination=encodeURIComponent(stop.latitude+','+stop.longitude);
-  void Linking.openURL('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+destination+'&dir_action=navigate')
-    .catch(()=>Alert.alert('Could not open maps','Please check that a map app is available.'));
+  Alert.alert('Confirm with the customer',
+   'Only save this location after the customer has confirmed the exact property address. Your customer can see it on their booking.',[
+    {text:'Keep editing',style:'cancel'},
+    {text:'Save visit address',onPress:()=>{
+     const persist=async()=>{
+      setAddressBusy(stop.jobId);
+      try{
+       const {data,error}=await supabase.from('trade_appointments')
+        .update({address,updated_at:new Date().toISOString()})
+        .eq('id',stop.appointmentId).eq('job_id',stop.jobId)
+        .eq('tradesperson_id',uid).eq('status','scheduled')
+        .select('id').maybeSingle();
+       if(error||!data)throw new Error(error?.message||
+        'The appointment changed. Refresh and try again.');
+       setAddressDrafts(previous=>({...previous,[stop.jobId]:address}));
+       await load();
+      }catch(e:any){Alert.alert('Address not saved',e?.message||'Try again.');}
+      finally{setAddressBusy(null);}
+     };
+     void persist();
+    }}
+   ]);
+ };
+ const openStopDirections=(stop:Stop)=>{
+  if(!stop.appointmentId){
+   Alert.alert('Time not confirmed','Both parties must agree the visit time before directions can open.');return;
+  }
+  const url=visitAddressDirectionsUrl(stop.address);
+  if(!url){
+   Alert.alert('Full address needed',
+    'The current job location is only an approximate postcode area. Confirm the full property address with the customer and save it below before navigating.');
+   return;
+  }
+  void Linking.openURL(url).catch(()=>Alert.alert('Could not open maps',
+   'Please check that a map app is available.'));
  };
 
  const calculateRoadRoute=async(plan:Journey)=>{
@@ -212,63 +260,56 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
  const openJourneyDirections=(plan:Journey)=>{
   const assigned=stops.filter(x=>x.routePlanId===plan.id);
   const scheduled=assigned.filter(x=>x.appointmentId&&x.requestedStart&&
-   x.latitude!=null&&x.longitude!=null&&
-   Number.isFinite(x.latitude)&&Number.isFinite(x.longitude))
+   hasFullVisitAddress(x.address))
    .sort((a,b)=>Date.parse(a.requestedStart!)-Date.parse(b.requestedStart!));
-  if(!scheduled.length){
-   Alert.alert('No scheduled stops yet',
-    'Agree appointment times with customers and confirm their addresses before opening directions.');return;
+  if(!scheduled.length||scheduled.length!==assigned.length){
+   Alert.alert('All visits need confirmed destinations',
+    'Agree each visit time and save the full customer-confirmed address for every accepted stop. Approximate postcode points are not safe for navigation.');
+   return;
   }
-  const max=4;
-  const preview=roadPreviews[plan.id];
-  const currentIds=scheduled.map(stop=>stop.jobId);
-  // The server only recommends a new stop order when it remains compatible
-  // with all confirmed appointments. Otherwise keep chronological order.
-  const safeOrder=preview?.scheduleFeasibleOptimization &&
-   Date.now()-Date.parse(preview.calculatedAt)<10*60000 &&
-   preview.stopOrder.length===currentIds.length &&
-   preview.stopOrder.every(id=>currentIds.includes(id));
-  const ordered=safeOrder
-   ? preview.stopOrder.map(id=>scheduled.find(stop=>stop.jobId===id)!).filter(Boolean)
-   : scheduled;
-  const selected=ordered.slice(0,plan.mode==='on_my_way'?1:max);
-  const points=selected.map(x=>x.latitude+','+x.longitude);
+  // Traffic estimates use approximate postcode-area coordinates. Until exact
+  // routing coordinates are verified, never reorder agreed appointments.
+  const selected=scheduled.slice(0,plan.mode==='on_my_way'?1:4);
+  const points=selected.map(x=>x.address!.trim());
   const anchor=appointments.find(x=>x.id===plan.anchor_appointment_id);
-  const originalDestination=anchor?.address?.trim();
-  // For On My Way, the extra stop is a waypoint before the original diary job.
-  // Never navigate silently to a coarse area instead of a precise appointment address.
-  if(plan.mode==='on_my_way'&&!originalDestination){
+  const originalDestination=anchor?.address?.trim()||'';
+  if(plan.mode==='on_my_way'&&!hasFullVisitAddress(originalDestination)){
    Alert.alert('Original appointment address needed',
-     'Add the exact destination to your diary appointment first. For now, directions will only show the accepted extra stop.',[
-      {text:'Cancel',style:'cancel'},
-      {text:'Navigate to extra stop',onPress:()=>openStopDirections(selected[0])}
-     ]);
+    'Add the confirmed full destination to the original diary appointment before navigating via the extra stop.',[
+     {text:'Cancel',style:'cancel'},
+     {text:'Open extra stop only',onPress:()=>openStopDirections(selected[0])}
+    ]);
    return;
   }
   const destination=encodeURIComponent(plan.mode==='on_my_way'
-    ? originalDestination! : points[points.length-1]);
+    ? originalDestination : points[points.length-1]);
   const routeWaypoints=plan.mode==='on_my_way'?points:points.slice(0,-1);
   const waypoints=routeWaypoints.length?
     '&waypoints='+encodeURIComponent(routeWaypoints.join('|')):'';
   const url='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+
-    destination+waypoints;
-  if(scheduled.length>max){
-   Alert.alert('Route shown in sections',
-    'Mobile maps can display up to four stops in this link. The first four confirmed stops open now; use the individual Directions buttons for remaining visits. This is time order, not optimised road routing.',[
-      {text:'Cancel',style:'cancel'},{text:'Open first stops',onPress:()=>{
-        void Linking.openURL(url).catch(()=>Alert.alert('Maps unavailable','Try again from an individual stop.'));
-      }}
+    destination+waypoints+'&dir_action=navigate';
+  if(scheduled.length>4){
+   Alert.alert('Directions shown in sections',
+    'This link opens the first four confirmed visits in chronological order. Use individual Directions buttons for remaining booked stops.',[
+     {text:'Cancel',style:'cancel'},
+     {text:'Open first stops',onPress:()=>{
+      void Linking.openURL(url).catch(()=>Alert.alert('Maps unavailable','Try again from a single stop.'));
+     }}
     ]);
   }else{
-   void Linking.openURL(url).catch(()=>Alert.alert('Maps unavailable','Try again from an individual stop.'));
+   void Linking.openURL(url).catch(()=>Alert.alert('Maps unavailable','Try again from a single stop.'));
   }
  };
-
 
  const create=async()=>{
   if(saving||!uid)return;
   const anchor=appointments.find(x=>x.id===anchorId);
   if(!anchor){Alert.alert('Choose an appointment','Select a confirmed diary booking to anchor your journey.');return;}
+  if(mode==='on_my_way'&&!hasFullVisitAddress(anchor.address)){
+   Alert.alert('Original destination needed',
+    'Add the full customer-confirmed destination to the diary appointment before publishing an On My Way journey. This prevents navigation to an approximate postcode.');
+   return;
+  }
   if(!trade){Alert.alert('Choose your trade','Complete your tradesperson profile first.');return;}
   setSaving(true);
   try{
@@ -423,19 +464,37 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           <Text style={s.note}>{stop.appointmentId&&stop.requestedStart
             ? 'Confirmed · '+formatUKDateTime(stop.requestedStart)
             : 'Time not yet confirmed — propose and approve a visit below'}</Text>
-          <Text style={s.note}>{stop.latitude!=null&&stop.longitude!=null
-            ? 'Customer location available after matching'
-            : 'Customer address not yet confirmed'}</Text>
+          <Text style={s.note}>{hasFullVisitAddress(stop.address)
+            ? 'Visit destination saved. Always reconfirm access details with the customer.'
+            : 'Job matching used an approximate postcode area — NOT the exact property address.'}</Text>
           <View style={s.row}>
             <MotionPressable style={s.secondary} onPress={openMessages}>
               <Text style={s.secondaryText}>Messages</Text>
             </MotionPressable>
-            {stop.appointmentId&&stop.requestedStart?<MotionPressable style={s.secondary}
-                onPress={()=>openStopDirections(stop)}>
+            {stop.appointmentId&&stop.requestedStart&&hasFullVisitAddress(stop.address)?
+              <MotionPressable style={s.secondary} onPress={()=>openStopDirections(stop)}>
                 <Navigation size={15} color={C.teal}/>
-                <Text style={s.secondaryText}>Directions</Text>
+                <Text style={s.secondaryText}>Exact-address directions</Text>
               </MotionPressable>:null}
           </View>
+          {stop.appointmentId?<View style={{gap:7,marginTop:3}}>
+            <Text style={s.note}>Private job address · confirm the full building, street and postcode with the customer</Text>
+            <TextInput
+              value={addressDrafts[stop.jobId]??stop.address??''}
+              onChangeText={value=>setAddressDrafts(previous=>({...previous,[stop.jobId]:value}))}
+              style={[s.input,{fontSize:13,minHeight:48}]}
+              placeholder="10 Example Road, Leicester LE1 5AA"
+              placeholderTextColor="#98A2A0"
+              autoCapitalize="words"
+              accessibilityLabel="Customer-confirmed property address"
+              maxLength={300}/>
+            <MotionPressable style={s.secondary} disabled={addressBusy!==null}
+              accessibilityRole="button" onPress={()=>saveStopAddress(stop)}>
+              {addressBusy===stop.jobId?<ActivityIndicator color={C.teal} size="small"/>:
+                <Check size={15} color={C.teal}/>}
+              <Text style={s.secondaryText}>Save customer-confirmed address</Text>
+            </MotionPressable>
+          </View>:null}
           {['accepted','en_route'].includes(stop.status)&&<>
            <MotionPressable style={s.secondary} accessibilityRole="button"
             onPress={()=>setEditingStop(current=>current===stop.jobId?null:stop.jobId)}>
@@ -473,26 +532,26 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           </>:null}
         </View>)}
         {assigned.length>0&&assigned.every(v=>v.appointmentId&&v.requestedStart&&
-          v.latitude!=null&&v.longitude!=null)?<>
+          hasFullVisitAddress(v.address)&&v.latitude!=null&&v.longitude!=null)?<>
          <MotionPressable style={s.secondary}
           disabled={roadBusy!==null}
           accessibilityRole="button"
-          accessibilityLabel="Calculate traffic aware road route"
+          accessibilityLabel="Calculate approximate traffic-aware route between postcode areas"
           onPress={()=>{void calculateRoadRoute(j)}}>
           {roadBusy===j.id?<ActivityIndicator size="small" color={C.teal}/>:<Route size={16} color={C.teal}/>}
-          <Text style={s.secondaryText}>Calculate real road route</Text>
+          <Text style={s.secondaryText}>Postcode-area road estimate</Text>
          </MotionPressable>
          {roadPreviews[j.id]?<View style={s.hint}>
-          <Text style={s.cardTitle}>Traffic-aware driving estimate</Text>
+          <Text style={s.cardTitle}>Traffic-aware estimate between postcode areas</Text>
           <Text style={s.note}>{roadPreviews[j.id].roadDistanceMiles.toFixed(1)} road miles · approximately {roadPreviews[j.id].drivingMinutes} minutes driving</Text>
           {roadPreviews[j.id].extraDrivingMinutes!=null?
             <Text style={s.note}>Additional road travel versus a direct journey: about {roadPreviews[j.id].extraDrivingMinutes} minutes</Text>:null}
           <Text style={s.note}>{roadPreviews[j.id].scheduleFeasibleOptimization?
-           'Road-based stop order checked against your confirmed appointment windows.':
-           'Confirmed appointment order preserved.'}</Text>
+           'An alternative area-based order was considered; keep the agreed visit order for exact-address directions.':
+           'Confirmed appointment order remains chronological.'}</Text>
           <Text style={s.note}>Starting from {roadPreviews[j.id].originType==='current_device'?
            'your current device position':'the approximate published postcode area'}.
-           Road traffic changes. Savings in pounds cannot be verified without agreed prices.</Text>
+           Stops are based on approximate postcode coordinates, not verified property points. Traffic changes; savings cannot be guaranteed.</Text>
          </View>:null}
          {roadErrors[j.id]?<Text style={[s.note,{color:'#AD4A31'}]}>{roadErrors[j.id]}</Text>:null}
         </>:null}
@@ -501,7 +560,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
           onPress={()=>openJourneyDirections(j)} accessibilityRole="button">
           <Text style={s.primaryText}>Open scheduled stops in Maps</Text>
         </MotionPressable>:null}
-        <Text style={s.note}>Stops follow confirmed appointment times unless a road-checked order is feasible. Live road estimates need the privately configured Google Routes service. On My Way includes the original diary destination. No guaranteed arrival time or discount is promised.</Text>
+        <Text style={s.note}>Google Maps directions use only full addresses saved after customer confirmation, not approximate postcode matching points. Stops follow agreed times. Traffic-aware route estimates still use approximate postcode areas and need the private Google Routes service. No guaranteed arrival or discount is promised.</Text>
        </View>;
      })()}
 
