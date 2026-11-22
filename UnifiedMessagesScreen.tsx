@@ -154,6 +154,7 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
      .in('conversation_id',ids).order('created_at',{ascending:false}).limit(500),
    supabase.rpc('tradarr_unread_conversation_counts')
   ]);
+  if(version!==inboxLoadVersion.current)return;
   if(lastErr){setError(lastErr.message);}
   const last=new Map<string,{body:string;created_at:string}>();
   (latest||[]).forEach(m=>{if(!last.has(m.conversation_id))last.set(m.conversation_id,m);});
@@ -233,6 +234,12 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
  };
 
  useEffect(()=>{
+  // Customer/tradesperson role changes must not retain the previous role's
+  // selected conversation, even while earlier network responses are pending.
+  setSelectedId(null);setThread([]);setInbox([]);
+  threadLoadVersion.current++;inboxLoadVersion.current++;
+ },[role]);
+ useEffect(()=>{
   let active=true;
   const start=async()=>{
    await loadInbox();
@@ -264,6 +271,11 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
  useEffect(()=>{
   threadLoadVersion.current++;
   setThread([]);setHasOlder(false);setLoadingOlder(false);setChatError('');
+  // Notification deep-links can switch directly between conversations.
+  // A message draft, attachment and retry token must never follow to a peer.
+  setDraft('');setPhoto(null);setDocument(null);
+  tokenRef.current=null;uploadedAttachmentRef.current=null;
+  stickToBottomRef.current=true;
   if(!selectedId){setLoadingThread(false);return;}
   let active=true;
   setLoadingThread(true);
