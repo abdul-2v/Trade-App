@@ -44,6 +44,30 @@ test('no unauthorised GPS or false road-route promises in planner',()=>{
  assert(route.includes("roadVersion.current"));
  assert(route.includes('abort.abort()'));
  assert(route.includes('tradarr-road-route'));
- assert(route.includes('No guaranteed arrival time or discount'));
+ assert(route.includes('No guaranteed arrival or discount'));
+});
+const addressCode=fs.readFileSync('lib/visitAddress.ts','utf8');
+const addressJS=ts.transpileModule(addressCode,{compilerOptions:{
+ module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const addressModule={exports:{}};
+new Function('module','exports','require',addressJS)(addressModule,addressModule.exports,require);
+const {hasFullVisitAddress,visitAddressDirectionsUrl}=addressModule.exports;
+test('never navigate to postcode centroid or district',()=>{
+ for(const address of ['LE1','LE1 5AA','Leicester LE1 5AA',
+  'Postcode approximation, Leicester LE1 5AA','Confirm property address']){
+  assert.equal(hasFullVisitAddress(address),false,address);
+  assert.equal(visitAddressDirectionsUrl(address),null,address);
+ }
+ assert.equal(hasFullVisitAddress('10 Example Street, Leicester LE1 5AA'),true);
+ assert(visitAddressDirectionsUrl('10 Example Street, Leicester LE1 5AA').includes(
+  '10%20Example%20Street'));
+});
+test('native itinerary uses only private confirmed addresses',()=>{
+ assert(route.includes('visitAddressDirectionsUrl(stop.address)'));
+ assert(route.includes('address:job.appointment_id?confirmedAddresses.get('));
+ assert(route.includes('.eq(\'job_id\',stop.jobId)'));
+ assert(route.includes('scheduled.length!==assigned.length'));
+ assert(!route.includes("const points=selected.map(x=>x.latitude+','+x.longitude)"));
+ assert(route.includes('Postcode-area road estimate'));
 });
 console.log('Native scheduling checks passed:',tests);
