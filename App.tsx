@@ -18,6 +18,7 @@ import TradarrAdminGateway from './TradarrAdminGateway';
 import TradarrJobAssuranceScreen from './TradarrJobAssuranceScreen';
 import TradarrProScreen from './TradarrProScreen';
 import {splitPromotedNearby} from './lib/featuredVisibility';
+import {lookupUkPostcode} from './lib/postcodeLookup';
 import TradarrAccountSafetyScreen from './TradarrAccountSafetyScreen';
 import CustomerHomePassportScreen from './CustomerHomePassportScreen';
 import CustomerGridScreen from './CustomerGridScreen';
@@ -1176,12 +1177,7 @@ function TradarrApp() {
             const isFull=/^[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}$/.test(code);
             const outcode=/^[A-Z]{1,2}\d[A-Z\d]?$/.test(code);
             if(!isFull&&!outcode)throw new Error('Enter a valid UK postcode or district.');
-            const endpoint='https://api.postcodes.io/'+(isFull?'postcodes':'outcodes')+'/'+encodeURIComponent(code);
-            const response=await fetch(endpoint);
-            const result=(await response.json())?.result;
-            if(!response.ok||!result||!Number.isFinite(Number(result.latitude))||
-              !Number.isFinite(Number(result.longitude)))
-              throw new Error('That postcode could not be located. Check it and try again.');
+            const result=await lookupUkPostcode(code);
             coords={latitude:Number(result.latitude),longitude:Number(result.longitude)};
             locationLabel='Customer postcode area '+(isFull?String(result.outcode||code.slice(0,-3)).toUpperCase():code);
             exactLocationLabel='Approximate postcode area; confirm exact property address after acceptance';
@@ -1871,9 +1867,7 @@ function RouteSaverScreen({
       const full=/^[A-Z]{1,2}\\d[A-Z\\d]?\\d[A-Z]{2}$/.test(code);
       const outcode=/^[A-Z]{1,2}\\d[A-Z\\d]?$/.test(code);
       if(!full&&!outcode)throw new Error('Enter a UK postcode or district such as LE1 or LE1 7RH.');
-      const response=await fetch('https://api.postcodes.io/'+(full?'postcodes':'outcodes')+'/'+encodeURIComponent(code));
-      const found=(await response.json())?.result;
-      if(!response.ok||!found)throw new Error('That postcode could not be located.');
+      const found=await lookupUkPostcode(code);
       return {latitude:Number(found.latitude),longitude:Number(found.longitude),source:'postcode' as const};
     }
     const permission=await Location.requestForegroundPermissionsAsync();
@@ -2375,11 +2369,7 @@ function MapScreen({
     setFindingArea(true);
     setAreaSearchError('');
     try {
-      const api = fullPostcode ? 'postcodes' : 'outcodes';
-      const response = await fetch('https://api.postcodes.io/' + api + '/' + encodeURIComponent(code));
-      const result = (await response.json())?.result;
-      if (!response.ok || !result || !Number.isFinite(result.latitude) || !Number.isFinite(result.longitude))
-        throw new Error('We couldn’t find that postcode. Please check it and try again.');
+      const result = await lookupUkPostcode(code);
       const label = fullPostcode
         ? String(result.outcode || code.slice(0,-3)).toUpperCase()
         : code;
@@ -8665,13 +8655,7 @@ function TradeSettingsScreen({
     }
     setSavingLocation(true);
     try {
-      const response = await fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(cleaned));
-      const payload = await response.json();
-      const result = payload?.result;
-      if (!response.ok || !result || !Number.isFinite(Number(result.latitude)) ||
-        !Number.isFinite(Number(result.longitude))) {
-        throw new Error('That postcode was not found. Check it and try again.');
-      }
+      const result = await lookupUkPostcode(cleaned);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Please sign in again.');
       // Only outward postcode and coarse coordinates reach the customer map.
