@@ -1,7 +1,8 @@
-import React,{useCallback,useEffect,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,Linking,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,CalendarDays,Check,ChevronRight,MapPin,Navigation,Pause,Play,Plus,RefreshCw,Route,Users} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
+import BookingReschedulePanel from './BookingReschedulePanel';
 import * as Location from 'expo-location';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
@@ -29,8 +30,19 @@ async function postcodeArea(value:string){
   throw new Error('Enter a UK postcode or district such as LE1 or LE1 7RH.');
  const full=/\d[A-Z]{2}$/.test(code);
  const api=full?'postcodes':'outcodes';
- const response=await fetch('https://api.postcodes.io/'+api+'/'+encodeURIComponent(code));
- const result=(await response.json())?.result;
+ const abort=new AbortController();
+ const timeout=setTimeout(()=>abort.abort(),8500);
+ let response:Response,result:any;
+ try{
+  response=await fetch('https://api.postcodes.io/'+api+'/'+encodeURIComponent(code),
+   {signal:abort.signal});
+  result=(await response.json())?.result;
+ }catch(error:any){
+  throw new Error(error?.name==='AbortError'?
+   'Postcode search timed out. Check your connection and try again.':
+   'Could not look up that postcode. Check your connection and retry.');
+ }finally{clearTimeout(timeout);}
+
  if(!response.ok||!result||!Number.isFinite(Number(result.latitude))||
     !Number.isFinite(Number(result.longitude)))
   throw new Error('That postcode could not be located.');
@@ -60,9 +72,12 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
  const [roadPreviews,setRoadPreviews]=useState<Record<string,RoadPreview>>({});
  const [roadErrors,setRoadErrors]=useState<Record<string,string>>({});
  const [roadBusy,setRoadBusy]=useState<string|null>(null);
+ const [editingStop,setEditingStop]=useState<string|null>(null);
+ const roadVersion=useRef(0);
 
  const load=useCallback(async()=>{
   // Discard road calculations after any diary, acceptance or job-status change.
+  roadVersion.current+=1;
   setRoadPreviews({});
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setLoading(false);return;}
@@ -168,6 +183,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
  const calculateRoadRoute=async(plan:Journey)=>{
   if(roadBusy)return;
   setRoadBusy(plan.id);
+  const version=roadVersion.current;
   setRoadErrors(prev=>({...prev,[plan.id]:''}));
   try{
    let origin:{latitude:number;longitude:number}|undefined;
@@ -186,9 +202,10 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
    });
    if(error||!data||data.error||data.trafficAware!==true)
     throw new Error(data?.error||'Live road routing is not available. Check the Google Routes service setup.');
-   setRoadPreviews(prev=>({...prev,[plan.id]:data as RoadPreview}));
+   if(version===roadVersion.current)
+    setRoadPreviews(prev=>({...prev,[plan.id]:data as RoadPreview}));
   }catch(e:any){
-   setRoadErrors(prev=>({...prev,[plan.id]:
+   if(version===roadVersion.current)setRoadErrors(prev=>({...prev,[plan.id]:
     e?.message||'Could not check road travel. Google Maps directions are still available.'}));
   }finally{setRoadBusy(null);}
  };
@@ -405,7 +422,7 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
             {index+1}. {stop.issue}</Text>
           <Text style={s.note}>{stop.appointmentId&&stop.requestedStart
             ? 'Confirmed · '+formatUKDateTime(stop.requestedStart)
-            : 'Time not yet confirmed — arrange in Messages'}</Text>
+            : 'Time not yet confirmed — propose and approve a visit below'}</Text>
           <Text style={s.note}>{stop.latitude!=null&&stop.longitude!=null
             ? 'Customer location available after matching'
             : 'Customer address not yet confirmed'}</Text>
@@ -419,6 +436,19 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
                 <Text style={s.secondaryText}>Directions</Text>
               </MotionPressable>:null}
           </View>
+          {['accepted','en_route'].includes(stop.status)&&<>
+           <MotionPressable style={s.secondary} accessibilityRole="button"
+            onPress={()=>setEditingStop(current=>current===stop.jobId?null:stop.jobId)}>
+             <CalendarDays size={15} color={C.teal}/>
+             <Text style={s.secondaryText}>{editingStop===stop.jobId?'Close time options':
+              stop.appointmentId?'Request another visit time':'Agree the visit time'}</Text>
+           </MotionPressable>
+           {editingStop===stop.jobId?<BookingReschedulePanel
+            jobId={stop.jobId}
+            currentStart={stop.appointmentId?stop.requestedStart:null}
+            currentEnd={stop.appointmentId?stop.requestedEnd:null}
+            onUpdated={()=>{void load()}}/>:null}
+          </>}
           {stop.status==='en_route'&&stop.estimatedArrivalMinutes?
            <Text style={s.note}>Shared ETA: approximately {stop.estimatedArrivalMinutes} minutes · {etaAgeLabel(stop.etaUpdatedAt)}</Text>:null}
           {stop.appointmentId&&['accepted','en_route'].includes(stop.status)?<>
