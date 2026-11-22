@@ -36,7 +36,8 @@ const reschedule=fs.readFileSync('BookingReschedulePanel.tsx','utf8');
 test('accepted route stops have mutual booking controls',()=>{
  assert(route.includes('<BookingReschedulePanel'));
  assert(route.includes('currentStart={stop.appointmentId?stop.requestedStart:null}'));
- assert(reschedule.includes('The other participant must approve'));
+ assert(reschedule.includes('change.proposer_id===userId'));
+ assert(reschedule.includes("decide('accepted')"));
 });
 test('no unauthorised GPS or false road-route promises in planner',()=>{
  assert(route.includes("setRoadPreviews(prev=>"));
