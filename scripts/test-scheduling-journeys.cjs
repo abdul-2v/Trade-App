@@ -67,6 +67,11 @@ test('native itinerary uses only private confirmed addresses',()=>{
  assert(route.includes('address:job.appointment_id?confirmedAddresses.get('));
  assert(route.includes('.eq(\'job_id\',stop.jobId)'));
  assert(route.includes('scheduled.length!==assigned.length'));
+ assert(route.includes("const linkedIds=[...new Set("));
+ assert(route.includes('hasFullVisitAddress(anchor.address)'));
+ assert(route.includes('confirmedAddresses.set(appointment.id'));
+ assert(reschedule.includes("AppState.addEventListener('change'"));
+ assert(reschedule.includes('if(routeMode&&!routeWindow)'));
  assert(!route.includes("const points=selected.map(x=>x.latitude+','+x.longitude)"));
  assert(route.includes('Postcode-area road estimate'));
 });
