@@ -6,8 +6,16 @@ import {AppState,Platform} from 'react-native';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error('Missing Supabase environment variables.');
+// A single Supabase Auth project owns identities for Tradarr on iPhone and web.
+// Refuse to register a separate account in a mistakenly configured project.
+const TRADARR_AUTH_HOST='sjwedfdwqxfrnpruiqnq.supabase.co';
+let sharedAccountProject=false;
+try {
+  const address=new URL(supabaseUrl||'');
+  sharedAccountProject=address.protocol==='https:'&&address.hostname===TRADARR_AUTH_HOST;
+} catch { /* Missing or malformed environment setting. */ }
+if (!supabaseUrl || !supabasePublishableKey || !sharedAccountProject) {
+  throw new Error('Tradarr account service is not configured for the shared website/iPhone Supabase project.');
 }
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
