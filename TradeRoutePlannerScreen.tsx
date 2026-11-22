@@ -305,6 +305,11 @@ export default function TradeRoutePlannerScreen({goBack,openDiary,openMessages}:
   if(saving||!uid)return;
   const anchor=appointments.find(x=>x.id===anchorId);
   if(!anchor){Alert.alert('Choose an appointment','Select a confirmed diary booking to anchor your journey.');return;}
+  if(mode==='on_my_way'&&!hasFullVisitAddress(anchor.address)){
+   Alert.alert('Original destination needed',
+    'Add the full customer-confirmed destination to the diary appointment before publishing an On My Way journey. This prevents navigation to an approximate postcode.');
+   return;
+  }
   if(!trade){Alert.alert('Choose your trade','Complete your tradesperson profile first.');return;}
   setSaving(true);
   try{
