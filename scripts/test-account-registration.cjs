@@ -23,3 +23,19 @@ assert.ok(src.includes('this is a developing marketplace'),'Honest pilot wording
 assert.ok(!recovery.includes('TradeHub'),'Legacy branding still in recovery');
 assert.ok(recovery.includes('Trad<Text style={styles.brandAccent}>arr</Text>'),'Tradarr recovery branding missing');
 console.log('PASS UK mobile formats, invalid numbers, pilot wording and recovery brand');
+
+
+const supabase=fs.readFileSync('lib/supabase.ts','utf8');
+assert(supabase.includes("TRADARR_AUTH_HOST='sjwedfdwqxfrnpruiqnq.supabase.co'"),
+ 'The native app must point at the shared Supabase Auth project');
+assert(supabase.includes("supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL"),
+ 'The native client must use its configured project URL');
+assert(supabase.includes("supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+ 'The native app must use a publishable, not privileged key');
+assert(supabase.includes('!sharedAccountProject'),
+ 'Reject an unrelated backend rather than registering a separate website account');
+assert(src.includes('supabase.auth.signInWithPassword'),
+ 'The iPhone app must use shared Supabase password sign-in');
+assert(src.includes('supabase.auth.signUp'),
+ 'The iPhone app must use shared Supabase signup');
+console.log('PASS iPhone and website share one identity project');
