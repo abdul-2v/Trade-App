@@ -63,6 +63,8 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
  const scrollRef=useRef<any>(null);
  const stickToBottomRef=useRef(true);
  const selectedRef=useRef<string|null>(null);
+ const threadLoadVersion=useRef(0);
+ const inboxLoadVersion=useRef(0);
  const tokenRef=useRef<string|null>(null);
  selectedRef.current=selectedId;
 
@@ -134,13 +136,16 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
   },{onConflict:'conversation_id,user_id'});
  };
  const loadInbox=useCallback(async()=>{
+  const version=++inboxLoadVersion.current;
   const {data:{user}}=await supabase.auth.getUser();
+  if(version!==inboxLoadVersion.current)return;
   if(!user){setLoadingInbox(false);setError('Please sign in to view messages.');return;}
   setUid(user.id);
   const {data:rows,error:readError}=await supabase.from('conversations')
    .select('id,customer_id,tradesperson_id,customer_display_name,tradesperson_display_name,tradesperson_trade,tradesperson_avatar_url,updated_at')
    .eq(role==='customer'?'customer_id':'tradesperson_id',user.id)
    .order('updated_at',{ascending:false}).limit(100);
+  if(version!==inboxLoadVersion.current)return;
   if(readError){setError(readError.message);setLoadingInbox(false);return;}
   const ids=(rows||[]).map(x=>x.id);
   if(!ids.length){setInbox([]);setError('');setLoadingInbox(false);return;}
@@ -152,6 +157,7 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
   if(lastErr){setError(lastErr.message);}
   const last=new Map<string,{body:string;created_at:string}>();
   (latest||[]).forEach(m=>{if(!last.has(m.conversation_id))last.set(m.conversation_id,m);});
+  if(version!==inboxLoadVersion.current)return;
   const unread=new Map<string,number>();
   if(!countErr)(counts||[]).forEach((v:any)=>unread.set(v.conversation_id,Number(v.unread_count)||0));
   const next:Inbox[]=(rows||[]).map(row=>{
@@ -184,14 +190,25 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
  },[]);
 
  const loadThread=useCallback(async(id:string,showSpinner=false)=>{
+  const version=++threadLoadVersion.current;
   if(showSpinner)setLoadingThread(true);
   const {data, error:readError}=await supabase.from('messages')
    .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
    .eq('conversation_id',id).order('created_at',{ascending:false}).limit(50);
-  if(selectedRef.current!==id)return;
+  if(selectedRef.current!==id||version!==threadLoadVersion.current)return;
   if(readError){setChatError(readError.message);setLoadingThread(false);return;}
   const next=((data||[]) as Message[]).reverse();
-  setThread(next);setHasOlder((data||[]).length===50);setLoadingThread(false);setChatError('');
+  // Preserve realtime inserts that arrived while the latest page was loading.
+  setThread(previous=>{
+   const saved=new Map<number,Message>(next.map(m=>[m.id,m]));
+   const cutoff=next.length?Date.parse(next[0].created_at):0;
+   for(const m of previous){
+    if(m.conversation_id===id&&!saved.has(m.id)&&Date.parse(m.created_at)>=cutoff)
+     saved.set(m.id,m);
+   }
+   return [...saved.values()].sort((a,b)=>Date.parse(a.created_at)-Date.parse(b.created_at)||a.id-b.id);
+  });
+  setHasOlder((data||[]).length===50);setLoadingThread(false);setChatError('');
   void signPhotos(next);
   const {data:{user}}=await supabase.auth.getUser();
   if(user)void markRead(id,user.id);
@@ -201,15 +218,17 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
   if(!selectedId||!hasOlder||loadingOlder||!thread.length)return;
   stickToBottomRef.current=false;
   setLoadingOlder(true);
-  const first=thread[0];
+  const first=thread[0],requestId=selectedId,version=threadLoadVersion.current;
   const {data,error:loadError}=await supabase.from('messages')
    .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
    .eq('conversation_id',selectedId).lt('created_at',first.created_at)
    .order('created_at',{ascending:false}).limit(50);
+  if(selectedRef.current!==requestId||version!==threadLoadVersion.current)return;
   setLoadingOlder(false);
   if(loadError){setChatError(loadError.message);return;}
   const older=((data||[]) as Message[]).reverse();
-  setThread(old=>[...older.filter(a=>!old.some(b=>a.id===b.id)),...old]);
+  setThread(old=>[...older.filter(a=>a.conversation_id===requestId&&!old.some(b=>a.id===b.id)),
+   ...old.filter(a=>a.conversation_id===requestId)]);
   setHasOlder(older.length===50);void signPhotos(older);
  };
 
@@ -243,7 +262,9 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
  },[role,loadInbox,loadThread]);
 
  useEffect(()=>{
-  if(!selectedId){setThread([]);setChatError('');return;}
+  threadLoadVersion.current++;
+  setThread([]);setHasOlder(false);setLoadingOlder(false);setChatError('');
+  if(!selectedId){setLoadingThread(false);return;}
   let active=true;
   setLoadingThread(true);
   void loadThread(selectedId,true);
@@ -324,7 +345,12 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
      const prior=await supabase.from('messages')
        .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
        .eq('sender_id',uid).eq('client_token',token).maybeSingle();
-     data=prior.data;sendError=prior.error;
+     if(prior.error)throw prior.error;
+     if(!prior.data||prior.data.conversation_id!==targetConversationId||
+      prior.data.sender_id!==uid||prior.data.body!==body||
+      (prior.data.attachment_path||null)!==(attachmentPath||null))
+       throw new Error('A previous send used this retry token for different content. Edit and send again.');
+     data=prior.data;sendError=null;
    }
    if(sendError||!data)throw sendError||new Error('Could not confirm delivery. Tap Send to retry.');
    if(selectedRef.current===targetConversationId){
