@@ -47,6 +47,7 @@ const makeSummary=(v:Brief)=>[
 export default function CustomerFirstFixScreen({goBack,onUseBrief}:{goBack:()=>void;onUseBrief:(trade:string,summary:string)=>void}){
  const [uid,setUid]=useState(''),[rows,setRows]=useState<Brief[]>([]),[busy,setBusy]=useState(true),[saving,setSaving]=useState(false);
  const [creating,setCreating]=useState(false),[selectedId,setSelectedId]=useState<string|null>(null);
+ const [showMoreDetails,setShowMoreDetails]=useState(false);
  const [trade,setTrade]=useState('Plumber'),[title,setTitle]=useState(''),[symptoms,setSymptoms]=useState('');
  const [model,setModel]=useState(''),[access,setAccess]=useState(''),[photoUrls,setPhotoUrls]=useState<Record<string,string>>({});
  const selected=rows.find(r=>r.id===selectedId)||null;
@@ -143,8 +144,16 @@ export default function CustomerFirstFixScreen({goBack,onUseBrief}:{goBack:()=>v
        <Text style={[s.chipText,trade===v&&s.chipTextOn]}>{v}</Text></MotionPressable>)}</ScrollView>
       <View style={s.card}><Field label="Repair title *" value={title} onChange={setTitle} placeholder="e.g. Leaking radiator valve"/>
        <Field label="What's happening? *" value={symptoms} onChange={setSymptoms} multi placeholder={prompts[trade]||'What happened, where is it, and when did it start?'}/>
-       <Field label="Appliance make / model (optional)" value={model} onChange={setModel} placeholder="e.g. Ideal Logic 30, error code F1"/>
-       <Field label="Access or site details (optional)" value={access} onChange={setAccess} multi placeholder="e.g. Stopcock location, parking, photos available"/>
+       <MotionPressable style={s.extraToggle} onPress={()=>setShowMoreDetails(v=>!v)} accessibilityRole="button"
+         accessibilityLabel="Add helpful optional details" accessibilityState={{expanded:showMoreDetails}}>
+        <View style={{flex:1}}><Text style={s.extraToggleTitle}>Add useful details</Text>
+        <Text style={s.extraToggleSub}>Appliance model, access and site information</Text></View>
+        <ChevronRight size={18} color={C.teal} style={showMoreDetails?{transform:[{rotate:'90deg'}]}:undefined}/>
+       </MotionPressable>
+       {showMoreDetails?<View>
+        <Field label="Appliance make / model (optional)" value={model} onChange={setModel} placeholder="e.g. Ideal Logic 30, error code F1"/>
+        <Field label="Access or site details (optional)" value={access} onChange={setAccess} multi placeholder="e.g. Stopcock location, parking, photos available"/>
+       </View>:null}
       </View><View style={s.warning}><ShieldAlert size={21} color={C.teal}/><Text style={s.warningText}>This is not a diagnosis. Suspected gas leaks or dangerous electrical faults require urgent professional safety advice, not app troubleshooting.</Text></View>
       <MotionPressable disabled={saving} style={s.primary} onPress={()=>{void save()}}>
        {saving?<ActivityIndicator color="#FFFFFF"/>:<><FileText size={19} color="#FFFFFF"/><Text style={s.primaryText}>Save repair brief</Text></>}</MotionPressable>
@@ -174,7 +183,10 @@ export default function CustomerFirstFixScreen({goBack,onUseBrief}:{goBack:()=>v
  </View>;
 }
 const s=StyleSheet.create({
- root:{flex:1,backgroundColor:C.customerBackground},head:{flexDirection:'row',alignItems:'center',gap:12,padding:18},
+ root:{flex:1,backgroundColor:C.customerBackground},
+ extraToggle:{flexDirection:'row',alignItems:'center',padding:13,gap:10,backgroundColor:C.tealTint,borderRadius:15,marginBottom:14},
+ extraToggleTitle:{fontSize:13,fontWeight:'800',color:C.teal},
+ extraToggleSub:{fontSize:11,lineHeight:17,color:C.muted,marginTop:4},head:{flexDirection:'row',alignItems:'center',gap:12,padding:18},
  back:{height:43,width:43,borderRadius:23,alignItems:'center',justifyContent:'center',backgroundColor:'#FFFFFF'},
  eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.4,color:C.teal},heading:{fontSize:25,color:C.ink,fontWeight:'800',marginTop:4},
  page:{padding:19,paddingBottom:45},hero:{backgroundColor:C.darkTeal,padding:22,borderRadius:25,gap:10},

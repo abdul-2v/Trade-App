@@ -36,6 +36,7 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
   const [appointments, setAppointments] = useState<Doc[]>([]);
   const [search, setSearch] = useState('');
   const [screen, setScreen] = useState<'list' | 'edit' | 'detail'>('list');
+  const [showContactExtras,setShowContactExtras]=useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -82,12 +83,12 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
 
   const newCustomer = () => {
     setSelectedId(null); setName(''); setPhone(''); setEmail(''); setAddress(''); setNotes('');
-    setScreen('edit');
+    setShowContactExtras(false);setScreen('edit');
   };
   const editCustomer = (customer: Customer) => {
     setSelectedId(customer.id); setName(customer.name); setPhone(customer.phone || '');
     setEmail(customer.email || ''); setAddress(customer.address || ''); setNotes(customer.notes || '');
-    setScreen('edit');
+    setShowContactExtras(true);setScreen('edit');
   };
   const save = async () => {
     if (saving) return;
@@ -186,10 +187,18 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
         <Text style={s.intro}>Save a contact once, then select them when preparing a quote or appointment.</Text>
         <View style={s.panel}>
           <Field label="Customer or company name *" value={name} change={setName} placeholder="e.g. Sarah Williams"/>
-          <Field label="Phone (optional)" value={phone} change={setPhone} placeholder="e.g. 07..."/>
-          <Field label="Email (optional)" value={email} change={setEmail} placeholder="e.g. customer@email.co.uk"/>
-          <Field label="Address (optional)" value={address} change={setAddress} multiline placeholder="Street, town, postcode"/>
-          <Field label="Private notes (optional)" value={notes} change={setNotes} multiline placeholder="Access instructions, property details, preferences"/>
+          <MotionPressable style={s.extraToggle} onPress={()=>setShowContactExtras(v=>!v)}
+            accessibilityRole="button" accessibilityLabel="Additional customer information" accessibilityState={{expanded:showContactExtras}}>
+           <View style={{flex:1}}><Text style={s.extraToggleTitle}>Contact & property details</Text>
+            <Text style={s.extraToggleNote}>Phone, email, address and private notes · optional</Text></View>
+           <ChevronRight size={19} color={C.teal} style={showContactExtras?{transform:[{rotate:'90deg'}]}:undefined}/>
+          </MotionPressable>
+          {showContactExtras?<View>
+           <Field label="Phone (optional)" value={phone} change={setPhone} placeholder="e.g. 07..."/>
+           <Field label="Email (optional)" value={email} change={setEmail} placeholder="e.g. customer@email.co.uk"/>
+           <Field label="Address (optional)" value={address} change={setAddress} multiline placeholder="Street, town, postcode"/>
+           <Field label="Private notes (optional)" value={notes} change={setNotes} multiline placeholder="Access instructions, property details, preferences"/>
+          </View>:null}
         </View>
         <MotionPressable onPress={save} disabled={saving} style={s.action}>
           {saving ? <ActivityIndicator color="#FFFFFF"/> : <Text style={s.actionText}>Save customer</Text>}
@@ -230,6 +239,9 @@ export default function TradeCustomersScreen({ goBack }: { goBack: () => void })
 }
 const s=StyleSheet.create({
   root:{ flex:1,backgroundColor:theme.colors.proBackground },
+  extraToggle:{flexDirection:'row',alignItems:'center',gap:10,minHeight:65,padding:14,backgroundColor:theme.colors.tealTint,borderRadius:16,marginBottom:14},
+  extraToggleTitle:{fontSize:13,fontWeight:'800',color:theme.colors.teal},
+  extraToggleNote:{fontSize:11,color:theme.colors.muted,lineHeight:17,marginTop:4},
   header:{paddingHorizontal:20,paddingTop:17,paddingBottom:14,flexDirection:'row',gap:13,alignItems:'center'},
   back:{width:45,height:45,borderRadius:25,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
   eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.5,color:theme.colors.teal},

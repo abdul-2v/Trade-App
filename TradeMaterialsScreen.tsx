@@ -19,6 +19,8 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
  const [uid,setUid]=useState(''),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
  const [kits,setKits]=useState<Kit[]>([]),[selectedId,setSelectedId]=useState<string|null>(initialKitId||null);
  const [creating,setCreating]=useState(false),[adding,setAdding]=useState(false);
+ const [showJobAddress,setShowJobAddress]=useState(false);
+ const [showPartExtras,setShowPartExtras]=useState(false);
  const [project,setProject]=useState(''),[address,setAddress]=useState('');
  const [part,setPart]=useState(''),[qty,setQty]=useState('1'),[unit,setUnit]=useState('each'),[cost,setCost]=useState(''),[merchant,setMerchant]=useState('');
  const [busyId,setBusyId]=useState<string|null>(null);
@@ -85,7 +87,10 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
     <View style={s.stat}><Text style={s.statNumber}>{topSummary.items}</Text><Text style={s.statLabel}>Items still to buy</Text></View></View>
    {creating?<View style={s.card}><Text style={s.cardTitle}>New job materials list</Text>
    <Field label="Job / project name *" value={project} set={setProject} placeholder="e.g. Kitchen radiator installation"/>
-   <Field label="Job address (optional)" value={address} set={setAddress} placeholder="Street or postcode"/>
+   <MotionPressable style={s.extraToggle} onPress={()=>setShowJobAddress(v=>!v)} accessibilityRole="button"
+      accessibilityLabel="Job address optional" accessibilityState={{expanded:showJobAddress}}>
+      <Text style={s.extraToggleText}>+ Add job address (optional)</Text></MotionPressable>
+   {showJobAddress?<Field label="Job address (optional)" value={address} set={setAddress} placeholder="Street or postcode"/>:null}
    <MotionPressable onPress={create} disabled={saving} style={s.primary}>
     {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Create materials list</Text>}</MotionPressable></View>:null}
    <Text style={s.section}>Your job lists</Text>
@@ -108,12 +113,15 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
     <MotionPressable onPress={()=>share(selected)} style={s.altAction}><Share2 size={18} color={C.teal}/><Text style={s.altActionText}>Share</Text></MotionPressable></View>
    {adding?<View style={s.card}><Text style={s.cardTitle}>What do you need?</Text>
     <Field label="Part or material *" value={part} set={setPart} placeholder="e.g. 15mm copper pipe"/>
-    <View style={s.two}><View style={{flex:1}}><Field label="Quantity" value={qty} set={setQty}/></View>
-    <View style={{flex:1}}><Field label="Est. unit price (£)" value={cost} set={setCost} placeholder="Optional"/></View></View>
+    <Field label="Quantity" value={qty} set={setQty}/>
+    <MotionPressable style={s.extraToggle} onPress={()=>setShowPartExtras(v=>!v)} accessibilityRole="button"
+      accessibilityLabel="Optional material price and supplier" accessibilityState={{expanded:showPartExtras}}>
+      <Text style={s.extraToggleText}>+ Add price & supplier (optional)</Text></MotionPressable>
+    {showPartExtras?<Field label="Est. unit price (£)" value={cost} set={setCost} placeholder="Optional"/>:null}
     <Text style={s.label}>Unit</Text><View style={s.units}>{['each','metre','box','pack','roll'].map(x=>
      <MotionPressable key={x} onPress={()=>setUnit(x)} style={[s.unit,unit===x&&s.unitOn]}>
       <Text style={[s.unitText,unit===x&&s.unitTextOn]}>{x}</Text></MotionPressable>)}</View>
-    <Field label="Preferred supplier (optional)" value={merchant} set={setMerchant} placeholder="e.g. Screwfix"/>
+    {showPartExtras?<Field label="Preferred supplier (optional)" value={merchant} set={setMerchant} placeholder="e.g. Screwfix"/>:null}
     <MotionPressable onPress={addPart} disabled={busyId!==null} style={s.primary}>
       {busyId?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Add to checklist</Text>}</MotionPressable></View>:null}
    <Text style={s.section}>Your checklist</Text>
@@ -140,7 +148,9 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
  </View>;
 }
 const s=StyleSheet.create({
- root:{flex:1,backgroundColor:C.proBackground},header:{flexDirection:'row',gap:12,alignItems:'center',paddingHorizontal:20,paddingVertical:15},
+ root:{flex:1,backgroundColor:C.proBackground},
+ extraToggle:{paddingVertical:12,paddingHorizontal:14,borderRadius:13,backgroundColor:C.tealTint,alignSelf:'flex-start',marginBottom:12},
+ extraToggleText:{fontSize:12,color:C.teal,fontWeight:'800'},header:{flexDirection:'row',gap:12,alignItems:'center',paddingHorizontal:20,paddingVertical:15},
  back:{width:44,height:44,borderRadius:24,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
  eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.5,color:C.teal},title:{fontSize:27,fontWeight:'800',color:C.ink,marginTop:3},
  new:{backgroundColor:C.darkTeal,borderRadius:24,flexDirection:'row',alignItems:'center',gap:6,minHeight:44,paddingHorizontal:15},
