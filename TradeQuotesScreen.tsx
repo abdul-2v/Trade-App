@@ -46,8 +46,8 @@ function makeQuoteHtml(q:Quote){
  const groups=(['labour','material','other'] as const).map(kind=>{
   const list=(q.items||[]).filter(i=>i.kind===kind);
   if(!list.length)return '';
-  return '<tr class="group"><td colspan="4">'+label(kind)+'</td></tr>'+
-   list.map(i=>'<tr><td>'+html(i.description)+'</td><td class="right">'+safe(formatTradeQuantity(i.quantity,i.unit))+'</td>'+
+  return '<tr class="group"><td colspan="5">'+label(kind)+'</td></tr>'+
+   list.map(i=>'<tr><td>'+html(i.description)+'</td><td class="right">'+safe(i.quantity)+'</td><td>'+safe(i.unit||'item')+'</td>'+
     '<td class="right">'+money(i.unit_price)+'</td><td class="right amount">'+money(pennies(i)/100)+'</td></tr>').join('');
  }).join('');
  const css=[
@@ -58,9 +58,9 @@ function makeQuoteHtml(q:Quote){
  '.head td,.info td{vertical-align:top;padding:0}',
  '.business{font-size:24px;font-weight:800;line-height:1.25;color:#0E3038;margin-bottom:12px;overflow-wrap:anywhere}',
  '.meta{color:#567075;font-size:11px;line-height:1.8;overflow-wrap:anywhere}',
- '.quoteTitle{font-size:28px;font-weight:800;text-align:right;color:#245758;letter-spacing:1px}',
+ '.quoteTitle{font-size:29px;font-weight:800;text-align:right;color:#1a3539;letter-spacing:.7px}',
  '.quoteNo{text-align:right;font-size:12px;margin-top:10px;font-weight:800}',
- '.line{height:3px;background:#245758;margin:27px 0 28px}',
+ '.line{height:1px;background:#91aaa2;margin:24px 0 23px}',
  '.info td{width:50%;padding:0 23px 0 0;overflow-wrap:anywhere}',
  '.info td+td{padding-left:20px;padding-right:0}',
  '.label{font-size:10px;font-weight:800;letter-spacing:1.1px;color:#245758;margin-bottom:10px;text-transform:uppercase}',
@@ -78,16 +78,16 @@ function makeQuoteHtml(q:Quote){
  '.extraRow{margin-top:9px;font-size:11px;border-bottom:1px solid #DFE7E5;padding-bottom:8px}',
  '.deposit{margin:15px 0 0;font-size:11px;color:#245758;font-weight:800}',
  '.items{margin-top:18px}',
- '.items th{padding:12px 10px;background:#143940;color:white;text-align:left;font-size:10px}',
+ '.items th{padding:11px 7px;background:#e7efeb;color:#354c4c;text-align:left;font-size:10px}',
  '.items th.right{text-align:right}',
- '.items td{padding:12px 10px;vertical-align:top;border-bottom:1px solid #DFE8E6;font-size:11px;overflow-wrap:anywhere}',
- '.items .group td{background:#E8F2EF;color:#245758;font-weight:800;padding:8px 10px}',
+ '.items td{padding:12px 7px;vertical-align:top;border-bottom:1px solid #DFE8E6;font-size:11px;overflow-wrap:anywhere}',
+ '.items .group td{background:#f5f8f6;color:#245758;font-weight:800;padding:8px 7px}',
  '.items tr{break-inside:avoid;page-break-inside:avoid}',
  '.right{text-align:right}.amount{font-weight:800;white-space:nowrap}',
  '.totals{width:48%;margin:22px 0 0 auto}',
  '.totals td{padding:8px 0;color:#456068}',
  '.totals td:last-child{text-align:right;font-weight:700}',
- '.totals .grand td{font-size:17px;color:#0E3038;font-weight:800;border-top:2px solid #245758;padding-top:13px}',
+ '.totals .grand td{font-size:17px;color:#fff;background:#1d3537;font-weight:800;border-top:0;padding:14px 12px}',
  '.note{padding:17px 19px;margin-top:27px;border-radius:8px;background:#F4F8F7;overflow-wrap:anywhere}',
  '.foot{font-size:9px;color:#87969B;border-top:1px solid #E3EBE9;padding-top:15px;margin-top:35px}',
  '@media screen and (max-width:650px){.sheet{width:100%;margin:0;padding:25px 17px;min-height:0}.business{font-size:21px}.quoteTitle{font-size:23px}.info td{padding-right:8px}.info td+td{padding-left:9px}.items th,.items td{padding-left:7px;padding-right:7px}.items td{font-size:10px}.totals{width:62%}}'
@@ -99,7 +99,7 @@ function makeQuoteHtml(q:Quote){
  (q.business_email?'<div>'+html(q.business_email)+'</div>':'')+
  (q.business_phone?'<div>'+html(q.business_phone)+'</div>':'')+
  (q.vat_rate&&q.vat_number?'<div>VAT: '+html(q.vat_number)+'</div>':'')+'</div></td>'+
- '<td><div class="quoteTitle">PROPOSAL</div><div class="quoteNo">QUOTE '+quoteNo(q.quote_no)+'</div></td></tr></table>'+
+ '<td><div class="quoteTitle">QUOTATION</div><div class="quoteNo">'+(q.quote_no>0?quoteNo(q.quote_no):'DRAFT · NUMBER ON SAVE')+'</div></td></tr></table>'+
  '<div class="line"></div><table class="info"><tr><td><div class="label">Prepared for</div>'+
  '<div class="name">'+html(q.customer_name)+'</div><div class="row">'+html(q.customer_address)+
  (q.customer_email?'<div>'+html(q.customer_email)+'</div>':'')+'</div></td>'+
@@ -112,8 +112,8 @@ function makeQuoteHtml(q:Quote){
  (q.scope_excluded?'<div class="scopeBox"><div class="scopeTitle">What is not included</div><div class="scopeText">'+html(q.scope_excluded)+'</div></div>':'')+
  (q.estimated_duration?'<div class="scopeBox"><div class="scopeTitle">Estimated time on site</div><div class="scopeText">'+html(q.estimated_duration)+'</div></div>':'')+
  '</div>'+
- '<table class="items"><colgroup><col style="width:47%"/><col style="width:16%"/><col style="width:19%"/><col style="width:18%"/></colgroup>'+
- '<thead><tr><th>Task or material</th><th class="right">Quantity</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
+ '<table class="items"><colgroup><col style="width:39%"/><col style="width:12%"/><col style="width:13%"/><col style="width:17%"/><col style="width:19%"/></colgroup>'+
+ '<thead><tr><th>Work / material</th><th class="right">Qty</th><th>Unit</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>'+groups+'</tbody></table>'+
  '<table class="totals"><tr><td>Subtotal</td><td>'+money(q.subtotal)+'</td></tr>'+
  (q.vat_rate?'<tr><td>VAT ('+q.vat_rate+'%)</td><td>'+money(q.vat_amount)+'</td></tr>':'')+
  '<tr class="grand"><td>Price for proposed work</td><td>'+money(q.total)+'</td></tr></table>'+
@@ -154,7 +154,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [appJobs,setAppJobs]=useState<AppJobRecipient[]>([]);
  const [deliveries,setDeliveries]=useState<QuoteDelivery[]>([]);
  const [listFilter,setListFilter]=useState<'all'|'awaiting'|'won'>('all');
- const [screen,setScreen]=useState<'list'|'new'|'preview'|'send'>('list');
+ const [screen,setScreen]=useState<'list'|'new'|'draftPreview'|'preview'|'send'>('list');
  const [quotes,setQuotes]=useState<Quote[]>([]);
  const [customers,setCustomers]=useState<Customer[]>([]);
  const [selectedId,setSelectedId]=useState<string|null>(null);
@@ -185,7 +185,21 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [validUntil,setValidUntil]=useState(addDays(30));
  const [vatRate,setVatRate]=useState(0);
  const [lines,setLines]=useState<DraftLine[]>([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
- const selected=quotes.find(q=>q.id===selectedId)||null;
+ const draftQuote:Quote={
+ id:'unsaved-draft',tradesperson_id:uid,quote_no:0,customer_id:customerId,
+ business_name:businessName||'Business name',business_address:businessAddress||'Business address',
+ business_email:businessEmail||null,business_phone:businessPhone||null,vat_number:vatRate?vatNumber||null:null,
+ customer_name:customerName||'Customer name',customer_address:customerAddress||'Job address',
+ customer_email:customerEmail||null,customer_phone:customerPhone||null,title:title||'Project title',
+ description:description||null,items:lines.map(line=>({kind:line.kind,description:line.description||'Description',
+  quantity:Math.max(0,val(line.quantity)||0),unit_price:Math.max(0,val(line.unit_price)||0),unit:line.unit})),
+ quote_date:quoteDate,valid_until:validUntil,vat_rate:vatRate,subtotal,vat_amount:vat,total,
+ notes:notes||null,scope_included:included||null,scope_excluded:excluded||null,
+ estimated_duration:duration||null,deposit_percent:Math.max(0,val(deposit)||0),
+ optional_extras:extras.filter(x=>x.name.trim()).map(x=>({name:x.name,price:Math.max(0,val(x.price)||0)})),
+ status:'draft',invoice_id:null,created_at:new Date().toISOString()
+};
+const selected=quotes.find(q=>q.id===selectedId)||null;
  const selectedDelivery=deliveries.find(d=>d.quote_id===selectedId);
  const awaitingQuotes=quotes.filter(q=>q.status==='sent');
  const wonQuotes=quotes.filter(q=>['accepted','converted'].includes(q.status));
@@ -457,11 +471,11 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       Alert.alert('Delivered','The customer can review the quotation in their Quote Centre and respond inside Tradarr.');
     }}]);
  };
- const back=()=>screen==='list'?goBack():screen==='send'?setScreen('preview'):screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
+ const back=()=>screen==='list'?goBack():screen==='draftPreview'?setScreen('new'):screen==='send'?setScreen('preview'):screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
  return <View style={s.root}>
   <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan a job':'Build your price'):screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
+    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan a job':'Build your price'):screen==='draftPreview'?'Preview quotation':screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
    {screen==='list'?<MotionPressable style={s.add} onPress={newQuote}><Plus size={19} color="#FFFFFF"/><Text style={s.addText}>New</Text></MotionPressable>:null}
   </View>
   {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
@@ -496,7 +510,24 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
     </View>):<View style={s.empty}><FileText size={35} color={C.teal}/><Text style={s.emptyTitle}>No quotes yet</Text>
      <Text style={s.intro}>{listFilter==='all'?'Start with your next repair or installation proposal.':'No proposals in this category yet.'}</Text></View>}
    </ScrollView>:
-   screen==='send'&&selected?<ScrollView contentContainerStyle={s.page}>
+   screen==='draftPreview'?<View style={s.previewRoot}>
+  <View style={s.previewInfo}><View style={{flex:1}}><Text style={s.quoteNo}>DRAFT · NOT SAVED</Text>
+    <Text style={s.quoteName}>{customerName||'Customer name'}</Text></View><Text style={s.amount}>{money(total)}</Text>
+  </View>
+  <View style={s.previewPaper}><WebView source={{html:makeQuoteHtml(draftQuote)}} originWhitelist={['*']}
+   javaScriptEnabled={false} style={{flex:1,backgroundColor:'#FFFFFF'}}/></View>
+  <View style={s.previewBottom}>
+   <MotionPressable style={s.primary} onPress={()=>{void saveQuote()}} disabled={saving} accessibilityRole="button" accessibilityLabel="Save quotation draft">
+    {saving?<ActivityIndicator color="#FFFFFF"/>:<Check size={19} color="#FFFFFF"/>}
+    <Text style={s.primaryText}>{saving?'Saving…':'Save quotation draft'}</Text>
+   </MotionPressable>
+   <MotionPressable style={s.partsAction} onPress={()=>setScreen('new')} accessibilityRole="button">
+    <ArrowLeft size={18} color={C.teal}/><Text style={s.partsActionText}>Back to editing</Text>
+   </MotionPressable>
+   <Text style={s.previewHint}>Preview only. Nothing has been saved or sent. Private cost estimates and margins are not shown in the PDF.</Text>
+  </View>
+ </View>:
+ screen==='send'&&selected?<ScrollView contentContainerStyle={s.page}>
     <View style={s.stepBanner}><Text style={s.stepSmall}>SHARE INSIDE TRADARR</Text>
       <Text style={s.stepTitle}>Choose the correct job</Text>
       <Text style={s.stepDesc}>A quote can be sent directly to a customer only for an app job you have accepted. This protects private quote information.</Text>
@@ -700,6 +731,10 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <View style={s.summaryDivider}/>
         <Text style={s.proposalSummaryDetail}>Validity: until {validUntil} · Deposit requested: {val(deposit)||0}%</Text>
       </View>
+      <MotionPressable style={[s.primary,{backgroundColor:C.tealTint,marginBottom:11}]} onPress={()=>setScreen('draftPreview')}
+       accessibilityRole="button" accessibilityLabel="Preview quotation before saving">
+       <FileText size={19} color={C.teal}/><Text style={[s.primaryText,{color:C.teal}]}>Preview quotation</Text>
+      </MotionPressable>
       <MotionPressable style={s.primary} disabled={saving} onPress={()=>{
         if(!businessName.trim()||!businessAddress.trim()){setShowBusiness(true);
           Alert.alert('Finish business details','Please check your business name and full address before creating the proposal.');return;}
