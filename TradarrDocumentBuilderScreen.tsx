@@ -6,6 +6,7 @@ import {WebView} from 'react-native-webview';
 import {ArrowLeft,ArrowRight,ClipboardCheck,Eye,FileText,Printer,ShieldCheck} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
+import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
 
 type Role='tradesperson'|'customer';
 type DocField={key:string;label:string;multi?:boolean;required?:boolean;date?:boolean;hint?:string};
@@ -135,6 +136,7 @@ export function tradarrDocumentHtml(template:DocTemplate,values:Record<string,st
 }
 export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;goBack:()=>void}){
  const [selectedId,setSelectedId]=useState('');
+ const [fieldStep,setFieldStep]=useState(0);
  const [values,setValues]=useState<Record<string,string>>({date:localDate()});
  const [preview,setPreview]=useState(false);
  const [working,setWorking]=useState(false);
@@ -142,7 +144,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
  const available=templates[role];
  const selected=available.find(template=>template.id===selectedId);
  const html=useMemo(()=>selected?tradarrDocumentHtml(selected,values):'', [selected,values]);
- const open=(id:string)=>{setSelectedId(id);setValues({date:localDate()});setError('');setPreview(false)};
+ const open=(id:string)=>{setSelectedId(id);setValues({date:localDate()});setError('');setPreview(false);setFieldStep(0)};
  const update=(key:string,value:string)=>{setValues(v=>({...v,[key]:value}));setError('')};
  const validate=()=>{
   if(!selected)return false;
@@ -169,7 +171,16 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
   }catch(e:any){Alert.alert('Unable to export PDF',e?.message||'Please try again.');}
   finally{setWorking(false);}
  };
- const goBackOne=()=>{if(preview)setPreview(false);else if(selectedId)setSelectedId('');else goBack();};
+ const advance=()=>{
+  if(!selected)return;
+  const group=selected.groups[fieldStep];
+  const missing=group.fields.filter(f=>f.required&&!String(values[f.key]||'').trim());
+  if(missing.length){setError('Please add: '+missing.map(f=>f.label).join(', '));return;}
+  setError('');
+  if(fieldStep<selected.groups.length-1)setFieldStep(v=>v+1);
+  else setPreview(true);
+ };
+ const goBackOne=()=>{if(preview)setPreview(false);else if(selectedId&&fieldStep>0)setFieldStep(v=>v-1);else if(selectedId)setSelectedId('');else goBack();};
  if(preview&&selected)return <View style={sx.root}>
   <View style={sx.top}><MotionPressable onPress={goBackOne} style={sx.back} accessibilityRole="button" accessibilityLabel="Back to editing"><ArrowLeft size={19} color={theme.colors.teal}/></MotionPressable>
    <View style={{flex:1}}><Text style={sx.eyebrow}>FULL DOCUMENT PREVIEW</Text><Text style={sx.topTitle}>{selected.title}</Text></View>
@@ -185,7 +196,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
    <Text style={sx.fine}>Preview only — nothing is sent or saved to your account.</Text>
   </View>
  </View>;
- return <ScrollView style={sx.root} contentContainerStyle={sx.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
+ return <View style={sx.root}><ScrollView style={{flex:1}} contentContainerStyle={[sx.content,{paddingBottom:120}]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
   <MotionPressable onPress={goBackOne} style={sx.backLabel} accessibilityRole="button" accessibilityLabel={selected?'Back to documents':'Back to tools'}>
    <ArrowLeft color={theme.colors.teal} size={19}/><Text style={sx.backText}>{selected?'Documents':'Tools'}</Text>
   </MotionPressable>
@@ -199,8 +210,10 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
    <ArrowRight size={18} color={theme.colors.teal}/>
   </MotionPressable>)}</View>:
   <View style={{gap:13}}>
-   {selected.groups.map((group,i)=><View style={sx.group} key={group.title}>
-    <View style={sx.groupHead}><Text style={sx.groupIndex}>{String(i+1).padStart(2,'0')}</Text><Text style={sx.groupTitle}>{group.title}</Text></View>
+   <FormFlowSteps labels={selected.groups.map(g=>g.title.length>20?g.title.split(' ')[0]:g.title)}
+     active={fieldStep} onSelect={setFieldStep} subtitle="Focus on one group of details at a time. You can return to any previous step."/>
+   {selected.groups.filter((_,i)=>i===fieldStep).map((group,i)=><View style={sx.group} key={group.title}>
+    <View style={sx.groupHead}><Text style={sx.groupIndex}>{String(fieldStep+1).padStart(2,'0')}</Text><Text style={sx.groupTitle}>{group.title}</Text></View>
     {group.fields.map(field=><View style={sx.field} key={field.key}>
      <Text style={sx.fieldLabel}>{field.label}{field.required?' *':''}</Text>
      <TextInput style={[sx.input,field.multi&&sx.multi]} value={values[field.key]||''}
@@ -210,21 +223,24 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
     </View>)}
    </View>)}
    {!!error&&<Text style={sx.error}>{error}</Text>}
-   <MotionPressable style={sx.primary} onPress={()=>{if(validate())setPreview(true)}} accessibilityRole="button" accessibilityLabel="Preview document before exporting">
-    <Eye color="#FFFFFF" size={19}/><Text style={sx.primaryText}>Preview document</Text>
-   </MotionPressable>
-   <MotionPressable style={sx.secondary} onPress={()=>void exportPdf()} disabled={working} accessibilityRole="button" accessibilityLabel="Create and share PDF">
-    <Printer color={theme.colors.teal} size={18}/><Text style={sx.secondaryText}>{working?'Preparing PDF…':'Save or share PDF'}</Text>
-   </MotionPressable>
+   <Text style={sx.progressHelper}>Only the completed details appear in the final PDF. You can preview the document at any time.</Text>
   </View>}
   <View style={sx.notice}><ShieldCheck color={theme.colors.teal} size={18}/><Text style={sx.noticeText}>
    {selected?note(selected.id)+' ':''}These documents are general records and do not replace official certificates. No electronic signature is implied, and drafts are not automatically saved to your account.
   </Text></View>
- </ScrollView>;
+ </ScrollView>
+ {selected?<><FormFlowFooter active={fieldStep} total={selected.groups.length}
+    onPrevious={()=>setFieldStep(v=>Math.max(0,v-1))}
+    onNext={advance} primaryLabel={fieldStep===selected.groups.length-1?'Preview document':'Continue'}
+    preview={()=>setPreview(true)}/>
+   <FormFlowFloatingPreview onPress={()=>setPreview(true)} label="A4 preview"/>
+  </>:null}
+ </View>;
 }
 const sx=StyleSheet.create({
  root:{flex:1,backgroundColor:theme.colors.proBackground},
  content:{paddingHorizontal:20,paddingTop:18,paddingBottom:110},
+ progressHelper:{fontSize:11,lineHeight:17,color:theme.colors.muted,paddingHorizontal:4,marginVertical:8},
  top:{flexDirection:'row',alignItems:'center',gap:13,padding:17,backgroundColor:theme.colors.proBackground},
  back:{width:42,height:42,borderRadius:22,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
  backLabel:{flexDirection:'row',gap:8,alignItems:'center',alignSelf:'flex-start',paddingVertical:9,marginBottom:16},
