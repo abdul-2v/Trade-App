@@ -50,6 +50,11 @@ const datePlusDays = (days: number) => {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
 };
 const invoiceNumber = (n: number) => 'INV-' + String(n).padStart(5, '0');
+const dateFromInvoice=(value:string,days:number)=>{
+ const source=/^\d{4}-\d{2}-\d{2}$/.test(value)?value:dateToday();
+ const d=new Date(source+'T12:00:00');d.setDate(d.getDate()+days);
+ return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+};
 const safe = (v: unknown) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
 const htmlText = (v: unknown) => safe(v).replace(/\n/g, '<br/>');
 const validDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v + 'T12:00:00').getTime());
@@ -82,6 +87,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [sharing, setSharing] = useState<string | null>(null);
   const [screen, setScreen] = useState<'list' | 'create' | 'draftPreview' | 'preview'>('list');
   const [formStep,setFormStep]=useState(0);
+  const [expandedUnitLine,setExpandedUnitLine]=useState<number|null>(null);
   const [showBusinessDetails,setShowBusinessDetails]=useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -231,7 +237,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
     setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
     setDiscountInput('0');setDepositInput('0');
-    setFormStep(0);setShowBusinessDetails(!businessName.trim()||!businessAddress.trim());
+    setFormStep(0);setExpandedUnitLine(null);setShowBusinessDetails(!businessName.trim()||!businessAddress.trim());
     setScreen('create');
   };
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
@@ -583,6 +589,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Field label="Work start date (optional, YYYY-MM-DD)" value={workStartDate} onChange={setWorkStartDate}/>
           <Field label="Date work was completed (YYYY-MM-DD)" value={serviceDate} onChange={setServiceDate} required />
           <Field label="Payment due (YYYY-MM-DD)" value={dueDate} onChange={setDueDate} required />
+          <Text style={[s.unitsLabel,{marginTop:6,marginBottom:10}]}>Quick payment terms</Text>
+          <View style={s.pillRow}>{[0,7,14,30].map(days=><Pill key={days} label={days===0?'On receipt':days+' days'}
+           active={dueDate===dateFromInvoice(invoiceDate,days)} onPress={()=>setDueDate(dateFromInvoice(invoiceDate,days))}/>)}</View>
         </View>
 
         <Text style={s.section}>Work breakdown</Text>
@@ -612,13 +621,18 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Field label={item.kind === 'labour' ? 'Work carried out' : item.kind === 'material' ? 'Material / part' : 'Charge description'}
             value={item.description} onChange={v => changeLine(i, { description: v })}
             placeholder={item.kind === 'labour' ? 'e.g. Fit new radiator / replace valve' : 'e.g. TRV valve, 15mm copper pipe'} required />
-          <View style={s.unitsRow}>
-            <Text style={s.unitsLabel}>Charge by</Text>
+          <MotionPressable style={s.compactUnitsHeader} onPress={()=>setExpandedUnitLine(v=>v===i?null:i)} accessibilityRole="button">
+             <Text style={s.compactUnitsLabel}>CHARGE BY</Text>
+             <Text style={s.compactUnitsValue}>Per {item.unit==='each'?'item':item.unit}</Text>
+             <ChevronRight size={17} color={theme.colors.teal} style={expandedUnitLine===i?{transform:[{rotate:'90deg'}]}:undefined}/>
+          </MotionPressable>
+          {expandedUnitLine===i&&<View style={s.unitsRow}>
+            <Text style={s.unitsLabel}>Select a unit</Text>
             {(item.kind === 'labour' ? ['job','hour','day','radiator','valve','item'] : item.kind === 'material'
                 ? ['item','metre','radiator','valve','box','pack'] : ['job','item','hour']).map(unit =>
               <Pill key={unit} label={unitOptionLabel(unit)}
-                active={item.unit === unit || (item.unit === 'each' && unit === 'item')} onPress={() => changeLine(i, { unit, quantity: unit==='job'?'1':item.quantity })} />)}
-          </View>
+                active={item.unit === unit || (item.unit === 'each' && unit === 'item')} onPress={() => {changeLine(i, { unit, quantity: unit==='job'?'1':item.quantity });setExpandedUnitLine(null);}} />)}
+          </View>}
           <View style={s.twoCols}><View style={{ flex: 1 }}>
             <Field label={item.unit === 'hour' ? 'Hours' : item.unit === 'metre' ? 'Metres' : 'Quantity'} numeric
               value={item.quantity} onChange={v => changeLine(i, { quantity: v })} required />
@@ -713,7 +727,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
        <FormFlowFooter active={formStep} total={4} onPrevious={()=>changeFormStep(formStep-1)}
         onNext={formStep===3?()=>setScreen('draftPreview'):goForward}
         primaryLabel={formStep===3?'Review full invoice':'Continue'}
-        amount={money(total)} preview={()=>setScreen('draftPreview')}/>
+        amount={money(total)}/>
        <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
       </View>}
   </View>;
@@ -732,6 +746,9 @@ const s = StyleSheet.create({
   businessCompact:{flexDirection:'row',alignItems:'center',gap:12,padding:16,borderRadius:19,backgroundColor:'#FFFFFF',
     borderWidth:1,borderColor:theme.colors.line,marginTop:20,marginBottom:12},
   compactOverline:{fontSize:9,fontWeight:'800',letterSpacing:1.1,color:theme.colors.teal},
+  compactUnitsHeader:{flexDirection:'row',alignItems:'center',gap:8,minHeight:43,paddingHorizontal:12,borderRadius:12,backgroundColor:theme.colors.tealTint,marginBottom:10},
+  compactUnitsLabel:{fontSize:9,fontWeight:'800',letterSpacing:.6,color:theme.colors.muted},
+  compactUnitsValue:{flex:1,fontSize:12,fontWeight:'800',color:theme.colors.teal,textAlign:'right'},
   compactTitle:{fontSize:17,fontWeight:'800',color:theme.colors.ink,marginTop:5},
   compactCaption:{fontSize:11,color:theme.colors.muted,marginTop:4},
   compactAction:{color:theme.colors.teal,fontWeight:'800',fontSize:13},

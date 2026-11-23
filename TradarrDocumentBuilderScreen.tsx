@@ -232,7 +232,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
  {selected?<><FormFlowFooter active={fieldStep} total={selected.groups.length}
     onPrevious={()=>setFieldStep(v=>Math.max(0,v-1))}
     onNext={advance} primaryLabel={fieldStep===selected.groups.length-1?'Preview document':'Continue'}
-    preview={()=>setPreview(true)}/>
+    />
    <FormFlowFloatingPreview onPress={()=>setPreview(true)} label="A4 preview"/>
   </>:null}
  </View>;

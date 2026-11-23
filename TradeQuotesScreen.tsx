@@ -32,6 +32,10 @@ type Quote={
 };
 const C=theme.colors,day=(d:Date)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const addDays=(days:number)=>{const d=new Date();d.setDate(d.getDate()+days);return day(d)};
+const offsetQuoteDate=(iso:string,days:number)=>{
+ const d=/^\d{4}-\d{2}-\d{2}$/.test(iso)?new Date(iso+'T12:00:00'):new Date();
+ d.setDate(d.getDate()+days);return day(d);
+};
 const money=(v:number)=>'£'+Number(v||0).toFixed(2);
 const quoteNo=(n:number)=>'QUO-'+String(n).padStart(5,'0');
 const niceDate=(input:string)=>new Date(input+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
@@ -174,6 +178,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [description,setDescription]=useState('');
  const [notes,setNotes]=useState('');
  const [stage,setStage]=useState<'scope'|'pricing'|'terms'>('scope');
+ const [expandedUnitLine,setExpandedUnitLine]=useState<number|null>(null);
  const [showBusiness,setShowBusiness]=useState(false);
  const [included,setIncluded]=useState('');
  const [excluded,setExcluded]=useState('');
@@ -647,8 +652,12 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
      <Field name="Work or item description *" value={v.description} change={x=>updateLine(i,{description:x})} placeholder="e.g. Fit pipework"/>
      <View style={s.two}><View style={{flex:1}}><Field name="Quantity" numeric value={v.quantity} change={x=>updateLine(i,{quantity:x})}/></View>
       <View style={{flex:1}}><Field name="Price per unit (£)" numeric value={v.unit_price} change={x=>updateLine(i,{unit_price:x})} placeholder="0.00"/></View></View>
-     <View style={s.pills}>{choicesFor(v.kind).map(unit=>
-      <Pill key={unit} name={unitOptionLabel(unit)} selected={v.unit===unit} onPress={()=>changeUnit(i,unit)}/>)}</View>
+     <MotionPressable style={s.compactUnit} onPress={()=>setExpandedUnitLine(x=>x===i?null:i)} accessibilityRole="button">
+       <Text style={s.compactUnitLabel}>CHARGE BY</Text><Text style={s.compactUnitName}>Per {v.unit}</Text>
+       <ChevronRight size={17} color={C.teal} style={expandedUnitLine===i?{transform:[{rotate:'90deg'}]}:undefined}/>
+     </MotionPressable>
+     {expandedUnitLine===i?<View style={s.pills}>{choicesFor(v.kind).map(unit=>
+      <Pill key={unit} name={unitOptionLabel(unit)} selected={v.unit===unit} onPress={()=>{changeUnit(i,unit);setExpandedUnitLine(null)}}/>)}</View>:null}
      <Text style={s.lineTotal}>Customer sees: {formatTradeQuantity(v.quantity,v.unit)} × {money(val(v.unit_price)||0)} = {money(pennies(v)/100)}</Text>
      {v.unit==='job'&&val(v.quantity)!==1?<Text style={s.unitWarning}>Fixed-price work must be 1 job. Choose Per radiator, Per valve or Per item for multiple units.</Text>:null}
     </View>)}
@@ -698,6 +707,9 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <View style={s.two}><View style={{flex:1}}>
           <Field name="Quote date" value={quoteDate} change={setQuoteDate} placeholder="YYYY-MM-DD"/></View>
           <View style={{flex:1}}><Field name="Valid until" value={validUntil} change={setValidUntil} placeholder="YYYY-MM-DD"/></View></View>
+        <Text style={[s.small,{marginBottom:9}]}>Quick validity</Text>
+        <View style={s.pills}>{[7,14,30,60].map(days=><Pill key={days} name={days+' days'}
+         selected={validUntil===offsetQuoteDate(quoteDate,days)} onPress={()=>setValidUntil(offsetQuoteDate(quoteDate,days))}/>)}</View>
         <Field name="Deposit to request (%)" value={deposit} change={setDeposit} placeholder="0"/>
         <Text style={s.helper}>Deposit is a term on the proposal. Tradarr doesn't automatically charge anyone.</Text>
         <Field name="Other terms / assumptions" value={notes} change={setNotes} multi placeholder="e.g. Price subject to safe access"/>
@@ -738,7 +750,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       else setScreen('draftPreview');
     }}
     primaryLabel={stage==='terms'?'Review quotation':'Continue'} amount={money(total)}
-    preview={()=>setScreen('draftPreview')}/>
+    />
    <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
    </View>}
  </View>;
@@ -763,6 +775,9 @@ const s=StyleSheet.create({
  partsActionText:{fontSize:12,fontWeight:'800',color:C.teal},
  unitWarning:{fontSize:11,lineHeight:17,color:C.coralDark,marginTop:9},
 
+ compactUnit:{flexDirection:'row',alignItems:'center',gap:9,minHeight:44,paddingHorizontal:13,backgroundColor:C.tealTint,borderRadius:13,marginTop:9,marginBottom:10},
+ compactUnitLabel:{fontSize:9,fontWeight:'800',color:C.muted,letterSpacing:.6},
+ compactUnitName:{flex:1,textAlign:'right',color:C.teal,fontSize:12,fontWeight:'800'},
  stepBanner:{backgroundColor:C.darkTeal,borderRadius:25,padding:22,marginBottom:13},
  stepSmall:{fontSize:10,color:'#B4D6D2',letterSpacing:1.4,fontWeight:'800'},
  stepTitle:{fontSize:26,fontWeight:'800',color:'#FFFFFF',marginTop:9},
