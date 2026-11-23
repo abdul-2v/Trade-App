@@ -5,6 +5,7 @@ import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import BookingReschedulePanel from './BookingReschedulePanel';
+import {FormFlowSteps,FormFlowFooter} from './PremiumFormFlow';
 import {formatUKDateTime,ukSlotToISO,advanceISOByMinutes,ukDayOf} from './lib/scheduling';
 
 const C=theme.colors;
@@ -25,6 +26,7 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  const [customers,setCustomers]=useState<Customer[]>([]);
  const [view,setView]=useState<'upcoming'|'past'>('upcoming');
  const [editing,setEditing]=useState(false);
+ const [bookingStep,setBookingStep]=useState(0);
  const [editId,setEditId]=useState<string|null>(null);
  const [customerId,setCustomerId]=useState<string|null>(null);
  const [pickCustomer,setPickCustomer]=useState(false);
@@ -56,13 +58,13 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
    .eq('tradesperson_id',uid).order('starts_at',{ascending:true}).limit(400);
   if(!error)setItems((data||[]) as Appointment[]);
  };
- const startNew=()=>{setEditId(null);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(ukDayOf(new Date()));setTime('09:00');setDuration(60);setEditing(true)};
+ const startNew=()=>{setEditId(null);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(ukDayOf(new Date()));setTime('09:00');setDuration(60);setBookingStep(0);setEditing(true)};
  const startEdit=(v:Appointment)=>{const a=new Date(v.starts_at),b=new Date(v.ends_at);
   if(v.job_id){Alert.alert('Confirmed booking','To change the time of an accepted Tradarr job, use Request a different time below. Both parties must agree.');return;}
   if(v.grid_request_id){Alert.alert('Grid booking','This slot is tied to an accepted Grid request. Its time cannot be edited here.');return;}
   setEditId(v.id);setCustomerId(v.customer_id);setTitle(v.title);setName(v.customer_name||'');setAddress(v.address||'');setNotes(v.notes||'');
   setDate(ukDayOf(a));setTime(a.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}));
-  setDuration(Math.max(15,Math.round((b.getTime()-a.getTime())/60000)));setEditing(true);
+  setDuration(Math.max(15,Math.round((b.getTime()-a.getTime())/60000)));setBookingStep(0);setEditing(true);
  };
  const setCustomer=(v:Customer|null)=>{setCustomerId(v?.id||null);if(v){setName(v.name);setAddress(v.address||'')}setPickCustomer(false)};
  const persist=async(a:Date,b:Date)=>{setSaving(true);
@@ -109,9 +111,10 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  {!editing?<MotionPressable onPress={startNew} style={s.new}><Plus size={20} color="#FFFFFF"/><Text style={s.newText}>Add</Text></MotionPressable>:null}
  </View>
  {loading?<ActivityIndicator style={{marginTop:50}} size="large" color={C.teal}/>:
- editing?<ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
- <Text style={s.explain}>Your diary uses UK time. Confirmed Tradarr appointments block overlapping bookings, even if two devices try to book simultaneously.</Text>
- <View style={s.card}>
+ editing?<View style={{flex:1}}><ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:110}]} keyboardShouldPersistTaps="handled">
+ <FormFlowSteps labels={['Job details','Time','Review']} active={bookingStep} onSelect={setBookingStep}
+ subtitle={['Who and where is the appointment for?','Choose when the work takes place.','Check everything before adding it to the diary.'][bookingStep]}/>
+ {bookingStep===0&&<View style={s.card}>
  <Field label="Work / appointment title *" value={title} change={setTitle} placeholder="e.g. Replace radiator valves"/>
  <Text style={s.explain}>
   For a Tradarr customer job, open the accepted job in Jobs to propose an appointment.
@@ -127,15 +130,34 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  </View>:null}
  <Field label="Customer name" value={name} change={setName}/>
  <Field label="Job address" value={address} change={setAddress} multi/>
+ </View>}
+ {bookingStep===1&&<View style={s.card}>
  <View style={{flexDirection:'row',gap:10}}><View style={{flex:1}}><Field label="Date (YYYY-MM-DD)" value={date} change={setDate}/></View>
  <View style={{flex:1}}><Field label="Start time (HH:MM)" value={time} change={setTime}/></View></View>
  <Text style={s.label}>Time reserved</Text>
  <View style={s.chips}>{[30,60,90,120,180].map(d=><MotionPressable key={d} onPress={()=>setDuration(d)} style={[s.chip,d===duration&&s.chipOn]}>
  <Text style={[s.chipText,d===duration&&s.chipTextOn]}>{d<60?d+'m':d/60+'h'}</Text></MotionPressable>)}</View>
  <Field label="Job notes" value={notes} change={setNotes} multi placeholder="Parts needed, access instructions..."/>
- </View><MotionPressable style={s.primary} onPress={save} disabled={saving}>
- {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Save appointment</Text>}
- </MotionPressable></ScrollView>:
+ </View>}
+ {bookingStep===2&&<View style={s.card}>
+  <Text style={s.reviewEyebrow}>APPOINTMENT SUMMARY</Text>
+  <Text style={s.reviewTitle}>{title||'Appointment title missing'}</Text>
+  <Text style={s.reviewLine}>Customer: {name||'Not specified'}</Text>
+  <Text style={s.reviewLine}>Address: {address||'Not specified'}</Text>
+  <Text style={s.reviewLine}>Date: {date} at {time}</Text>
+  <Text style={s.reviewLine}>Reserved for {duration} minutes</Text>
+  {notes?<Text style={[s.reviewLine,{marginTop:10}]}>Notes: {notes}</Text>:null}
+  <Text style={[s.explain,{marginTop:16,marginBottom:0}]}>Tradarr checks your diary for overlapping appointments when you save.</Text>
+ </View>}
+ </ScrollView>
+ <FormFlowFooter active={bookingStep} total={3}
+ onPrevious={()=>setBookingStep(v=>Math.max(0,v-1))}
+ onNext={()=>{
+   if(bookingStep===0&&!title.trim()){Alert.alert('Add an appointment title','Describe the work before continuing.');return;}
+   if(bookingStep<2)setBookingStep(v=>v+1);else void save();
+ }}
+ nextDisabled={saving} primaryLabel={bookingStep===2?(saving?'Saving…':'Save appointment'):'Continue'}/>
+ </View>:
  <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page}>
  <Text style={s.explain}>Appointments from accepted Tradarr jobs and Grid slots appear alongside your private diary. Confirmed times cannot overlap.</Text>
  <View style={s.summary}><CalendarDays size={26} color={C.teal}/>
@@ -172,7 +194,10 @@ const s=StyleSheet.create({
  back:{width:44,height:44,borderRadius:24,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
  eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.5,color:C.teal},title:{fontSize:27,fontWeight:'800',color:C.ink,marginTop:3},
  new:{backgroundColor:C.darkTeal,paddingHorizontal:15,minHeight:44,borderRadius:23,flexDirection:'row',alignItems:'center',gap:5},newText:{color:'#FFFFFF',fontWeight:'800'},
- page:{paddingHorizontal:20,paddingBottom:40,paddingTop:9},explain:{color:C.muted,fontSize:13,lineHeight:21,marginBottom:18},
+ page:{paddingHorizontal:20,paddingBottom:40,paddingTop:9},
+ reviewEyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.1,color:C.teal},
+ reviewTitle:{fontSize:22,fontWeight:'800',color:C.ink,marginTop:9,marginBottom:16},
+ reviewLine:{fontSize:13,color:C.muted,lineHeight:22,marginBottom:5},explain:{color:C.muted,fontSize:13,lineHeight:21,marginBottom:18},
  card:{backgroundColor:'#FFFFFF',padding:18,borderRadius:23,marginBottom:14,...theme.shadow},
  field:{marginBottom:13},label:{fontSize:12,fontWeight:'800',color:C.ink,marginBottom:7},
  input:{minHeight:48,borderRadius:13,borderWidth:1,borderColor:C.line,paddingHorizontal:12,paddingVertical:10,color:C.ink,fontSize:14,backgroundColor:'#F9FBFA'},
