@@ -10,6 +10,7 @@ import TradeCustomersScreen from './TradeCustomersScreen';
 import TradeDiaryScreen from './TradeDiaryScreen';
 import TradeProfitScreen from './TradeProfitScreen';
 import TradeMaterialsScreen from './TradeMaterialsScreen';
+import TradarrDocumentBuilderScreen from './TradarrDocumentBuilderScreen';
 import CustomerQuotesScreen from './CustomerQuotesScreen';
 import CustomerInvoicesScreen from './CustomerInvoicesScreen';
 import TradeTrustScreen from './TradeTrustScreen';
@@ -124,6 +125,7 @@ type CustomerScreen =
   | 'requestDetail'
   | 'customerQuotes'
   | 'customerInvoices'
+  | 'customerDocuments'
   | 'customerSupport'
   | 'customerSafety'
   | 'staffConsole'
@@ -139,7 +141,7 @@ type CustomerScreen =
   | 'customerProfile'
   | 'assurance';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro' | 'tradeAssurance';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeDocuments' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro' | 'tradeAssurance';
 type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -982,6 +984,7 @@ function TradarrApp() {
     if (tradeScreen === 'tradeDiary') return <TradeShell current="tradeDiary" navigate={navigateTrade}><TradeDiaryScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeProfit') return <TradeShell current="tradeProfit" navigate={navigateTrade}>
       <TradeProfitScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
+    if (tradeScreen === 'tradeDocuments') return <TradeShell current="tradeTools" navigate={navigateTrade}><TradarrDocumentBuilderScreen role="tradesperson" goBack={()=>navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeMaterials') return <TradeShell current="tradeMaterials" navigate={navigateTrade}>
       <TradeMaterialsScreen initialKitId={materialKitPreviewId} goBack={() => navigateTrade('tradeTools')}
         openMerchants={() => navigateTrade('tradeMap')}
@@ -1325,6 +1328,7 @@ function TradarrApp() {
         goToTradesperson={() => {setMode('tradesperson');setTradeScreen('tradeHome');}}/>
     </CustomerShell>;
   }
+  if (customerScreen === 'customerDocuments') return <CustomerShell current="discover" navigate={setCustomerScreen}><TradarrDocumentBuilderScreen role="customer" goBack={()=>setCustomerScreen('discover')}/></CustomerShell>;
   if (customerScreen === 'myHome') {
     return <CustomerShell current={homeBackScreen} navigate={setCustomerScreen}>
       <CustomerHomePassportScreen goBack={() => setCustomerScreen(homeBackScreen)}/>
@@ -1362,7 +1366,7 @@ function TradarrApp() {
       setCustomerScreen(urgent?'urgent':'map');
     }}/></CustomerShell>;
   if (customerScreen === 'discover') {
-    return <CustomerDiscoverScreen navigate={setCustomerScreen} />;
+    return <CustomerDiscoverScreen navigate={screen=>{if(screen==='myHome')setHomeBackScreen('discover');setCustomerScreen(screen);}} />;
   }
   if (customerScreen === 'customerProfile') {
     return (
@@ -1455,62 +1459,56 @@ function CustomerNav({
 
 
 function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>void}){
-  const features=[
-    {route:'grid' as CustomerScreen,Icon:Route,title:'Grid',subtitle:'Nearby appointment gaps',
-      detail:'Request genuine spare slots published by local tradespeople.'},
-    {route:'oneJob' as CustomerScreen,Icon:Users,title:'OneJob',subtitle:'One project, multiple trades',
-      detail:'Plan a kitchen, bathroom or renovation by stage.'},
-    {route:'firstFix' as CustomerScreen,Icon:Camera,title:'FirstFix',subtitle:'Prepare before the visit',
-      detail:'Create a repair brief with model details and private photos.'},
-    {route:'rescue' as CustomerScreen,Icon:RotateCw,title:'Rescue',subtitle:'When a booking falls through',
-      detail:'Restart a cancelled job request without writing it again.'},
-    {route:'priceLens' as CustomerScreen,Icon:BarChart3,title:'Price Lens',subtitle:'Compare real quotations',
-      detail:'Understand what you pay, included work and observed price bands.'},
-    {route:'collective' as CustomerScreen,Icon:HandCoins,title:'Collective',subtitle:'Neighbourhood group offers',
-      detail:'Join nearby households and request genuine per-home prices.'},
-  ];
-  return <CustomerShell current="discover" navigate={navigate}>
-    <ScrollView style={styles.customerHome} showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.customerDiscoverPage}>
-      <Text style={styles.customerDiscoverEyebrow}>MORE WAYS TO GET THINGS DONE</Text>
-      <Text style={styles.customerDiscoverHeading}>Discover Tradarr</Text>
-      <Text style={styles.customerDiscoverIntro}>Six smarter ways to price, plan and organise home projects.</Text>
-
-      <View style={styles.customerDiscoverHero}>
-        <View style={styles.customerDiscoverHeroIcon}><Search size={23} color={theme.colors.white}/></View>
-        <View style={{flex:1}}>
-          <Text style={styles.customerDiscoverHeroTitle}>Just need a tradesperson?</Text>
-          <Text style={styles.customerDiscoverHeroSub}>Go straight to the usual map and local search.</Text>
-        </View>
-        <MotionPressable style={styles.customerDiscoverHeroAction}
-          onPress={()=>navigate('map')} accessibilityRole="button" accessibilityLabel="Find tradespeople on the map">
-          <ArrowRight size={19} color={theme.colors.darkTeal}/>
-        </MotionPressable>
+ const [category,setCategory]=useState('');
+ const features=[
+  {route:'grid' as CustomerScreen,Icon:Route,title:'Grid',subtitle:'Nearby appointment gaps',detail:'Request available appointments from local tradespeople.'},
+  {route:'oneJob' as CustomerScreen,Icon:Users,title:'OneJob',subtitle:'One project, multiple trades',detail:'Plan a kitchen, bathroom or renovation by stage.'},
+  {route:'firstFix' as CustomerScreen,Icon:Camera,title:'FirstFix',subtitle:'Prepare before the visit',detail:'Create a repair brief with model details and photos.'},
+  {route:'rescue' as CustomerScreen,Icon:RotateCw,title:'Rescue',subtitle:'When a booking falls through',detail:'Restart a cancelled request without retyping it.'},
+  {route:'priceLens' as CustomerScreen,Icon:BarChart3,title:'Price Lens',subtitle:'Compare real quotations',detail:'Understand scope, pricing and included work.'},
+  {route:'collective' as CustomerScreen,Icon:HandCoins,title:'Collective',subtitle:'Neighbourhood group offers',detail:'Join nearby households to request group prices.'},
+  {route:'customerDocuments' as CustomerScreen,Icon:FileText,title:'Create documents',subtitle:'Job briefs and property reports',detail:'Prepare, review and export structured PDFs.'},
+  {route:'myHome' as CustomerScreen,Icon:HomeIcon,title:'Home passport',subtitle:'Property and service records',detail:'Keep maintenance history organised.'}
+ ];
+ const groups=[
+  {id:'planning',title:'Plan & price work',detail:'Organise projects and compare quotations',Icon:ClipboardList,ids:['oneJob','firstFix','priceLens']},
+  {id:'availability',title:'Booking & opportunities',detail:'Spare slots, rescue and group work',Icon:CalendarDays,ids:['grid','rescue','collective']},
+  {id:'documents',title:'Documents & home',detail:'Create records and manage your property',Icon:FileText,ids:['customerDocuments','myHome']}
+ ];
+ return <CustomerShell current="discover" navigate={navigate}>
+ <ScrollView style={styles.customerHome} showsVerticalScrollIndicator={false} contentContainerStyle={styles.customerDiscoverPage}>
+   {category?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button" accessibilityLabel="Back to tool categories"
+      style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:20}}>
+     <ArrowLeft size={18} color={theme.colors.teal}/><Text style={{color:theme.colors.teal,fontSize:13,fontWeight:'800'}}>All categories</Text>
+    </MotionPressable>:null}
+   <Text style={styles.customerDiscoverEyebrow}>YOUR CUSTOMER TOOLKIT</Text>
+   <Text style={styles.customerDiscoverHeading}>{category?groups.find(g=>g.id===category)?.title:'Discover Tradarr'}</Text>
+   <Text style={styles.customerDiscoverIntro}>{category?groups.find(g=>g.id===category)?.detail:'Choose a category. Find the right tool without scrolling through everything.'}</Text>
+   {!category?<View style={styles.customerDiscoverGrid}>
+    {groups.map(group=><MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
+     style={styles.customerDiscoverFeature} accessibilityRole="button" accessibilityLabel={'Open '+group.title}>
+      <View style={styles.customerDiscoverFeatureTop}>
+       <View style={styles.customerDiscoverFeatureIcon}><group.Icon size={23} color={theme.colors.teal}/></View>
+       <ChevronRight size={18} color={theme.colors.teal}/>
       </View>
-      <Text style={styles.customerDiscoverSectionTitle}>More ways to get things done</Text>
-      <View style={styles.customerDiscoverGrid}>
-        {features.map(({route,Icon,title,subtitle,detail})=>
-          <MotionPressable key={route} onPress={()=>navigate(route)}
-            style={styles.customerDiscoverFeature} accessibilityRole="button"
-            accessibilityLabel={title+': '+subtitle}>
-            <View style={styles.customerDiscoverFeatureTop}>
-              <View style={styles.customerDiscoverFeatureIcon}>
-                <Icon size={23} color={theme.colors.teal} strokeWidth={2}/>
-              </View>
-              <ChevronRight size={18} color={theme.colors.teal}/>
-            </View>
-            <Text style={styles.customerDiscoverFeatureTitle}>{title}</Text>
-            <Text style={styles.customerDiscoverFeatureSubtitle}>{subtitle}</Text>
-            <Text style={styles.customerDiscoverFeatureDescription}>{detail}</Text>
-          </MotionPressable>
-        )}
-      </View>
-      <View style={styles.customerDiscoverTip}>
-        <Clock3 size={19} color={theme.colors.teal}/>
-        <Text style={styles.customerDiscoverTipText}>For ordinary repairs, start on Home or Explore. These extra features are there when you need them.</Text>
-      </View>
-    </ScrollView>
-  </CustomerShell>;
+      <Text style={styles.customerDiscoverFeatureTitle}>{group.title}</Text>
+      <Text style={styles.customerDiscoverFeatureSubtitle}>{group.ids.length} tools</Text>
+      <Text style={styles.customerDiscoverFeatureDescription}>{group.detail}</Text>
+    </MotionPressable>)}
+   </View>:<View style={styles.customerDiscoverGrid}>
+    {features.filter(feature=>groups.find(g=>g.id===category)?.ids.includes(feature.route)).map(({route,Icon,title,subtitle,detail})=>
+     <MotionPressable key={route} onPress={()=>navigate(route)} style={styles.customerDiscoverFeature}
+       accessibilityRole="button" accessibilityLabel={title+': '+subtitle}>
+      <View style={styles.customerDiscoverFeatureTop}><View style={styles.customerDiscoverFeatureIcon}>
+       <Icon size={23} color={theme.colors.teal} strokeWidth={2}/></View>
+       <ChevronRight size={18} color={theme.colors.teal}/></View>
+      <Text style={styles.customerDiscoverFeatureTitle}>{title}</Text>
+      <Text style={styles.customerDiscoverFeatureSubtitle}>{subtitle}</Text>
+      <Text style={styles.customerDiscoverFeatureDescription}>{detail}</Text>
+     </MotionPressable>)}
+   </View>}
+ </ScrollView>
+ </CustomerShell>;
 }
 
 function MarketplaceHomeScreen({
@@ -6392,16 +6390,18 @@ function TradeShell({
 function TradeToolsScreen({navigate,openBusinessSuite}:{
  navigate:(screen:TradeScreen)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
 }){
- // One consistently styled list. Category headers are for wayfinding,
- // not oversized featured cards or hidden accordions.
+ const [category,setCategory]=useState('');
  type ToolEntry={title:string;detail:string;Icon:typeof FileText;route?:TradeScreen;feature?:BusinessFeature};
- const groups:Array<{title:string;tools:ToolEntry[]}>= [
-  {title:'Everyday essentials',tools:[
+ const groups:Array<{id:string;title:string;detail:string;Icon:typeof FileText;tools:ToolEntry[]}>= [
+  {id:'essentials',title:'Quotes & finance',detail:'Invoices, quotations, bookings and business figures',Icon:FileText,tools:[
    {route:'tradeInvoices',title:'Invoices & payments',detail:'Create PDF invoices and track money due',Icon:ClipboardList},
    {route:'tradeQuotes',title:'Create a quote',detail:'Estimate and share a job price',Icon:FileText},
-   {route:'tradeDiary',title:'Add a booking',detail:'Plan an appointment in your diary',Icon:CalendarDays}
+   {feature:'moneyHub',title:'Money Hub',detail:'See costs, invoices and outstanding amounts',Icon:HandCoins},
+   {route:'tradeProfit',title:'Job profit & expenses',detail:'Track spending and profit margins',Icon:TrendingUp},
+   {feature:'insights',title:'Business Insights',detail:'Review performance and key figures',Icon:BarChart3}
   ]},
-  {title:'Find & organise work',tools:[
+  {id:'work',title:'Jobs & scheduling',detail:'Run the diary, journeys and active jobs',Icon:CalendarDays,tools:[
+   {route:'tradeDiary',title:'Add a booking',detail:'Plan an appointment in your diary',Icon:CalendarDays},
    {feature:'radar',title:'Opportunity Radar',detail:'Find relevant local work requests',Icon:Radar},
    {feature:'commandCentre',title:'Job Command Centre',detail:'Manage active-job checklists',Icon:ClipboardCheck},
    {feature:'smartDiary',title:'Smart Diary',detail:'Review gaps in your schedule',Icon:CalendarClock},
@@ -6409,64 +6409,66 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
    {route:'tradeRoutes',title:'On My Way & Street Run',detail:'Plan journeys and route-friendly jobs',Icon:Route},
    {route:'tradeGrid',title:'Grid availability',detail:'Publish openings and manage enquiries',Icon:CalendarDays}
   ]},
-  {title:'Quotes, money & materials',tools:[
-   {feature:'quoteStudio',title:'Smart Quote Studio',detail:'Reusable scope and estimate templates',Icon:FileText},
-   {feature:'moneyHub',title:'Money Hub',detail:'See costs, invoices and outstanding amounts',Icon:HandCoins},
-   {route:'tradeProfit',title:'Job profit & expenses',detail:'Track spending and profit margins',Icon:TrendingUp},
+  {id:'documents',title:'Documents & reports',detail:'Professional paperwork and reusable records',Icon:FolderLock,tools:[
+   {route:'tradeDocuments',title:'Create job documents',detail:'Job sheets, inspections, completion and extra work',Icon:FileText},
+   {feature:'documentVault',title:'Document Vault',detail:'Store and find private business files',Icon:FolderLock},
+   {feature:'quoteStudio',title:'Smart Quote Studio',detail:'Reusable scope and estimate templates',Icon:ClipboardCheck},
+   {feature:'growthKit',title:'Business templates',detail:'Reusable customer message templates',Icon:Megaphone}
+  ]},
+  {id:'materials',title:'Materials & suppliers',detail:'Plan purchases, stock and supplier visits',Icon:Package,tools:[
    {route:'tradeMaterials',title:'Materials planner',detail:'Shopping lists and local trade suppliers',Icon:Package},
-   {feature:'documentVault',title:'Document Vault',detail:'Store and find private business files',Icon:FolderLock}
+   {feature:'assistant',title:'Business Assistant',detail:'Suggestions based on your business records',Icon:Bot}
   ]},
-  {title:'Customers & growth',tools:[
+  {id:'people',title:'Customers & team',detail:'Customer relationships, crews and follow-ups',Icon:Users,tools:[
    {route:'tradeCustomers',title:'Customer book',detail:'Contacts, notes and previous jobs',Icon:Users},
-   {feature:'repeatEngine',title:'Repeat Customer Engine',detail:'Legitimate reminders and follow-ups',Icon:Repeat},
+   {feature:'repeatEngine',title:'Repeat Customer Engine',detail:'Reminders and follow-ups',Icon:Repeat},
    {feature:'bookingProfile',title:'Business Booking Profile',detail:'Shareable business contact details',Icon:Globe},
-   {feature:'growthKit',title:'Growth Toolkit',detail:'Reusable customer message templates',Icon:Megaphone},
-   {route:'tradeCollective',title:'Collective group offers',detail:'Local group enquiries and offers',Icon:Users}
-  ]},
-  {title:'People & insights',tools:[
+   {route:'tradeCollective',title:'Collective group offers',detail:'Local group enquiries and offers',Icon:Users},
    {route:'tradeCrew',title:'Tradarr Crew',detail:'Local helpers and extra hands',Icon:Users},
    {feature:'crewOps',title:'Crew Operations',detail:'Manage agreed helper hours',Icon:BriefcaseBusiness},
-   {feature:'assistant',title:'Business Assistant',detail:'Suggestions from your own business records',Icon:Bot},
-   {feature:'insights',title:'Business Insights',detail:'Review performance and key figures',Icon:BarChart3},
    {route:'tradePro',title:'Tradarr Pro',detail:'Membership and available upgrades',Icon:Sparkles}
   ]}
  ];
+ const selected=groups.find(group=>group.id===category);
  return <TradeShell current="tradeTools" navigate={navigate}>
   <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage]}
     showsVerticalScrollIndicator={false}>
-   <View style={styles.premiumScreenHeading}>
-    <View style={{flex:1}}>
-     <Text style={styles.premiumEyebrow}>Run your business</Text>
-     <Text style={styles.premiumPageTitle}>Tools</Text>
-     <Text style={styles.premiumScreenSub}>Everything you need, organised in one place.</Text>
-    </View>
-   </View>
-   <View style={styles.tradeToolsUnifiedList}>
-    {groups.map((group,groupIndex)=><View key={group.title}>
-     <View style={[styles.tradeToolsUnifiedGroupHeader,
-      groupIndex>0&&styles.tradeToolsUnifiedGroupDivider]}>
-      <Text style={styles.tradeToolsUnifiedGroupTitle}>{group.title}</Text>
-     </View>
-     {group.tools.map((item,rowIndex)=>{
-      const Icon=item.Icon;
-      return <MotionPressable key={item.title} accessibilityRole="button"
-        accessibilityLabel={'Open '+item.title}
-        accessibilityHint={item.detail}
-        onPress={()=>item.route?navigate(item.route):item.feature?openBusinessSuite(item.feature):undefined}
-        style={[styles.tradeToolsUnifiedRow,rowIndex>0&&styles.tradeToolsRowDivider]}>
-       <View style={styles.tradeToolsRowIcon}>
-        <Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/>
-       </View>
+   {selected?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button"
+     accessibilityLabel="Back to tool categories" style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:18}}>
+     <ArrowLeft size={18} color={theme.colors.teal}/>
+     <Text style={{fontFamily:theme.font.heading,color:theme.colors.teal,fontWeight:'800',fontSize:13}}>All categories</Text>
+    </MotionPressable>:null}
+   <View style={styles.premiumScreenHeading}><View style={{flex:1}}>
+    <Text style={styles.premiumEyebrow}>Run your business</Text>
+    <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
+    <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Everything neatly organised into categories.'}</Text>
+   </View></View>
+   {!selected?<View style={{gap:11}}>
+     {groups.map(group=><MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
+      accessibilityRole="button" accessibilityLabel={'Open '+group.title}
+      style={[styles.tradeToolsUnifiedList,{paddingVertical:17,paddingHorizontal:16,flexDirection:'row',alignItems:'center',gap:13}]}>
+      <View style={styles.tradeToolsRowIcon}><group.Icon size={23} color={theme.colors.teal}/></View>
+      <View style={{flex:1}}>
+       <Text style={styles.tradeToolsRowTitle}>{group.title}</Text>
+       <Text style={styles.tradeToolsRowDesc}>{group.detail}</Text>
+       <Text style={{fontSize:10,color:theme.colors.teal,fontWeight:'800',marginTop:7}}>{group.tools.length} tools</Text>
+      </View>
+      <ChevronRight size={20} color={theme.colors.teal}/>
+     </MotionPressable>)}
+    </View>:<View style={styles.tradeToolsUnifiedList}>
+     {selected.tools.map((item,index)=>{const Icon=item.Icon;return <MotionPressable key={item.title}
+       accessibilityRole="button" accessibilityLabel={'Open '+item.title} accessibilityHint={item.detail}
+       onPress={()=>item.route?navigate(item.route):item.feature?openBusinessSuite(item.feature):undefined}
+       style={[styles.tradeToolsUnifiedRow,index>0&&styles.tradeToolsRowDivider]}>
+       <View style={styles.tradeToolsRowIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
        <View style={{flex:1}}>
         <Text style={styles.tradeToolsRowTitle}>{item.title}</Text>
         <Text style={styles.tradeToolsRowDesc}>{item.detail}</Text>
        </View>
        <ChevronRight size={19} color="#82958D"/>
-      </MotionPressable>;
-     })}
-    </View>)}
-   </View>
-   <Text style={styles.tradeToolsFooter}>Business records stay private to your account. Share only what you choose to publish.</Text>
+      </MotionPressable>})}
+    </View>}
+   <Text style={styles.tradeToolsFooter}>Your private business records are only shared when you choose to share them.</Text>
   </ScrollView>
  </TradeShell>;
 }
