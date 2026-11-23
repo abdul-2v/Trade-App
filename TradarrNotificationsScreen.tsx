@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,AppState,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {ArrowLeft,Bell,BellRing,BriefcaseBusiness,CalendarClock,
  CheckCheck,ChevronRight,MessageCircle,RefreshCw,FileText,Users} from 'lucide-react-native';
@@ -28,12 +28,23 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  const [loadingOlder,setLoadingOlder]=useState(false);
  const [olderError,setOlderError]=useState('');
  const PAGE_SIZE=50;
+ const refreshVersion=useRef(0);
+ const activeUserRef=useRef('');
 
  const refresh=useCallback(async()=>{
+  const version=++refreshVersion.current;
   const {data:{user},error:authError}=await supabase.auth.getUser();
+  if(version!==refreshVersion.current)return;
   if(authError||!user){
+    activeUserRef.current='';
+    setUid('');setItems([]);setHasOlder(false);setTotalUnread(0);
     setError('Sign in to see your notifications.');
     setLoading(false);return;
+  }
+  if(activeUserRef.current!==user.id){
+    // Never show a previous account's notifications after account switching.
+    activeUserRef.current=user.id;
+    setItems([]);setHasOlder(false);setTotalUnread(0);
   }
   setUid(user.id);
   const [alerts,unreadCount]=await Promise.all([
@@ -43,11 +54,13 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
    supabase.from('tradarr_notifications').select('id',{count:'exact',head:true})
     .eq('recipient_id',user.id).is('read_at',null)
   ]);
+  if(version!==refreshVersion.current)return;
   if(alerts.error||unreadCount.error){
    setError('Your updates could not be loaded. '+(alerts.error?.message||unreadCount.error?.message));
    setLoading(false);return;
   }
   setItems((alerts.data||[]) as TradarrAlert[]);
+  setLoadingOlder(false);
   setHasOlder((alerts.data||[]).length===PAGE_SIZE);
   setTotalUnread(unreadCount.count||0);
   setOlderError('');
@@ -73,7 +86,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
     if(state==='active'&&active)void refresh();
   });
   return()=>{
-    active=false;foreground.remove();
+    active=false;refreshVersion.current++;foreground.remove();
     if(subscription)void supabase.removeChannel(subscription);
   };
  },[refresh]);
@@ -81,13 +94,18 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  const unread=totalUnread;
  useEffect(()=>{onUnreadCountChange?.(unread);},[unread,onUnreadCountChange]);
  const loadOlder=async()=>{
-  if(loadingOlder||!hasOlder||!uid)return;
+  if(loadingOlder||!hasOlder||!uid||!items.length)return;
+  const oldest=items[items.length-1],version=refreshVersion.current,userId=uid;
+  if(!Number.isFinite(Date.parse(oldest.created_at)))return;
   setLoadingOlder(true);setOlderError('');
   try{
+   // A new alert arriving while scrolling shifts OFFSET pages and skips
+   // records. Page by the previously loaded oldest timestamp instead.
    const {data,error:pageError}=await supabase.from('tradarr_notifications')
     .select('id,kind,title,body,data,created_at,read_at')
-    .eq('recipient_id',uid).order('created_at',{ascending:false})
-    .range(items.length,items.length+PAGE_SIZE-1);
+    .eq('recipient_id',userId).lt('created_at',oldest.created_at)
+    .order('created_at',{ascending:false}).limit(PAGE_SIZE);
+   if(version!==refreshVersion.current||activeUserRef.current!==userId)return;
    if(pageError)throw pageError;
    const next=(data||[]) as TradarrAlert[];
    setItems(previous=>{
@@ -95,8 +113,12 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
     return [...previous,...next.filter(x=>!known.has(x.id))];
    });
    setHasOlder(next.length===PAGE_SIZE);
-  }catch(e:any){setOlderError(e?.message||'Older notifications could not be loaded.');}
-  finally{setLoadingOlder(false);}
+  }catch(e:any){
+   if(version===refreshVersion.current&&activeUserRef.current===userId)
+    setOlderError(e?.message||'Older notifications could not be loaded.');
+  }finally{
+   if(version===refreshVersion.current&&activeUserRef.current===userId)setLoadingOlder(false);
+  }
  };
  const shown=useMemo(()=>unreadOnly?items.filter(x=>!x.read_at):items,
   [unreadOnly,items]);

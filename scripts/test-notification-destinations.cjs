@@ -30,4 +30,18 @@ eq(resolve('tradesperson','job_offer',{}).screen,'tradeJobs');
 eq(resolve('tradesperson','job_offer',{screen:'accountSafety'}).screen,'tradeSafety');
 eq(resolve('crew','crew_update',{conversationId:id}).screen,'crew');
 eq(resolve('crew','crew_update',{conversationId:id}).conversationId,null);
+const inbox=fs.readFileSync('TradarrNotificationsScreen.tsx','utf8');
+assert(inbox.includes('const refreshVersion=useRef(0)'),
+ 'Newer notification refreshes must invalidate older results');
+assert(inbox.includes('if(version!==refreshVersion.current)return'),
+ 'Out-of-order response must not overwrite fresh notifications');
+assert(inbox.includes("setUid('');setItems([]);setHasOlder(false);setTotalUnread(0)"),
+ 'Signed-out users must not see previous notification contents');
+assert(inbox.includes('if(activeUserRef.current!==user.id)'),
+ 'Switching accounts must discard previous account notification state');
+assert(inbox.includes(".lt('created_at',oldest.created_at)"),
+ 'Use keyset pagination to avoid missing alerts when new notifications arrive');
+assert(!inbox.includes('.range(items.length,items.length+PAGE_SIZE-1)'),
+ 'Offset paging skips records under concurrent notification inserts');
+
 console.log('Native notification destination tests passed (roles, quotes, chats, safety and malformed IDs).');
