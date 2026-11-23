@@ -715,7 +715,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         primaryLabel={formStep===3?'Review full invoice':'Continue'}
         amount={money(total)} preview={()=>setScreen('draftPreview')}/>
        <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
-      </View>
+      </View>}
   </View>;
 }
 
