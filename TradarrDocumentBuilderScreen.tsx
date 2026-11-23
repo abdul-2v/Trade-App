@@ -1,5 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,Platform,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import type {ScrollViewInstance} from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import {WebView} from 'react-native-webview';
@@ -137,7 +138,7 @@ export function tradarrDocumentHtml(template:DocTemplate,values:Record<string,st
 export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;goBack:()=>void}){
  const [selectedId,setSelectedId]=useState('');
  const [fieldStep,setFieldStep]=useState(0);
- const formScrollRef=useRef<ScrollView>(null);
+ const formScrollRef=useRef<ScrollViewInstance>(null);
  useEffect(()=>{formScrollRef.current?.scrollTo({y:0,animated:false});},[fieldStep,selectedId]);
  const [values,setValues]=useState<Record<string,string>>({date:localDate()});
  const [preview,setPreview]=useState(false);

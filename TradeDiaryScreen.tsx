@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
+import type {ScrollViewInstance} from 'react-native';
 import {ArrowLeft,CalendarDays,ChevronRight,Check,Clock3,MapPin,Plus,Pencil,Users,Trash2} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
@@ -27,7 +28,7 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  const [view,setView]=useState<'upcoming'|'past'>('upcoming');
  const [editing,setEditing]=useState(false);
  const [bookingStep,setBookingStep]=useState(0);
- const bookingScrollRef=useRef<ScrollView>(null);
+ const bookingScrollRef=useRef<ScrollViewInstance>(null);
  useEffect(()=>{if(editing)bookingScrollRef.current?.scrollTo({y:0,animated:false});},[bookingStep,editing]);
  const [editId,setEditId]=useState<string|null>(null);
  const [customerId,setCustomerId]=useState<string|null>(null);

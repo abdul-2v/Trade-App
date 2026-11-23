@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import type {ScrollViewInstance} from 'react-native';
 import { ArrowLeft, Check, ChevronRight, FileText, Plus, Share2, Trash2 } from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -87,7 +88,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [sharing, setSharing] = useState<string | null>(null);
   const [screen, setScreen] = useState<'list' | 'create' | 'draftPreview' | 'preview'>('list');
   const [formStep,setFormStep]=useState(0);
-  const formScrollRef=useRef<ScrollView>(null);
+  const formScrollRef=useRef<ScrollViewInstance>(null);
   const [expandedUnitLine,setExpandedUnitLine]=useState<number|null>(null);
   const [showBusinessDetails,setShowBusinessDetails]=useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
