@@ -185,6 +185,15 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [validUntil,setValidUntil]=useState(addDays(30));
  const [vatRate,setVatRate]=useState(0);
  const [lines,setLines]=useState<DraftLine[]>([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
+ const selected=quotes.find(q=>q.id===selectedId)||null;
+ const selectedDelivery=deliveries.find(d=>d.quote_id===selectedId);
+ const awaitingQuotes=quotes.filter(q=>q.status==='sent');
+ const wonQuotes=quotes.filter(q=>['accepted','converted'].includes(q.status));
+ const displayedQuotes=quotes.filter(q=>listFilter==='all'||listFilter==='awaiting'&&q.status==='sent'||listFilter==='won'&&['accepted','converted'].includes(q.status));
+ const valueAwaiting=awaitingQuotes.reduce((n,q)=>n+Number(q.total),0);
+ const subtotal=useMemo(()=>Math.round(lines.reduce((sum,l)=>sum+pennies(l),0))/100,[lines]);
+ const vat=Math.round(subtotal*vatRate)/100;
+ const total=Math.round((subtotal+vat)*100)/100;
  const draftQuote:Quote={
  id:'unsaved-draft',tradesperson_id:uid,quote_no:0,customer_id:customerId,
  business_name:businessName||'Business name',business_address:businessAddress||'Business address',
@@ -199,15 +208,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  optional_extras:extras.filter(x=>x.name.trim()).map(x=>({name:x.name,price:Math.max(0,val(x.price)||0)})),
  status:'draft',invoice_id:null,created_at:new Date().toISOString()
 };
-const selected=quotes.find(q=>q.id===selectedId)||null;
- const selectedDelivery=deliveries.find(d=>d.quote_id===selectedId);
- const awaitingQuotes=quotes.filter(q=>q.status==='sent');
- const wonQuotes=quotes.filter(q=>['accepted','converted'].includes(q.status));
- const displayedQuotes=quotes.filter(q=>listFilter==='all'||listFilter==='awaiting'&&q.status==='sent'||listFilter==='won'&&['accepted','converted'].includes(q.status));
- const valueAwaiting=awaitingQuotes.reduce((n,q)=>n+Number(q.total),0);
- const subtotal=useMemo(()=>Math.round(lines.reduce((sum,l)=>sum+pennies(l),0))/100,[lines]);
- const vat=Math.round(subtotal*vatRate)/100;
- const total=Math.round((subtotal+vat)*100)/100;
+
  const costEstimate=estimateCost.trim()?val(estimateCost):0;
  const marginGoal=val(targetMargin);
  const costPreview=Number.isFinite(costEstimate)&&costEstimate>=0?costEstimate:0;
