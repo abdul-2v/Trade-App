@@ -7,7 +7,7 @@ import { WebView } from 'react-native-webview';
 import { MotionPressable } from './Motion';
 import { supabase } from './lib/supabase';
 import { theme } from './theme';
-import {hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
+import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 import {invoiceHtml} from './lib/tradarrInvoicePdf';
 
 type InvoiceLineKind = 'labour' | 'material' | 'other';
