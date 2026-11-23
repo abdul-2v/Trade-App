@@ -34,6 +34,7 @@ type Invoice = {
   payment_details: string | null; notes: string | null;
   status: 'draft' | 'sent' | 'paid' | 'void'; created_at: string;
   discount_amount?: number; deposit_requested?: number;
+  invoice_details?: {companyNumber?:string;jobReference?:string;purchaseOrder?:string;workAddress?:string;workStartDate?:string;paymentTerms?:string};
 };
 
 const money = (n: number) => '£' + Number(n || 0).toFixed(2);
@@ -55,92 +56,119 @@ const invoiceStatusLabel = (status: Invoice['status']) =>
   status === 'sent' ? 'SENT · UNPAID' :
   status === 'paid' ? 'PAID' : 'VOID';
 
-function invoiceHtml(doc: Invoice) {
-  const groups = (['labour', 'material', 'other'] as const).map(kind => {
-    const entries = (doc.items || []).filter(item => (item.kind || 'other') === kind);
-    if (!entries.length) return '';
-    return '<tr class="group"><td colspan="4">' + labelForKind(kind) + '</td></tr>' +
-      entries.map(item => '<tr class="line"><td class="desc">' + htmlText(item.description) +
-        '</td><td class="right">' + safe(formatTradeQuantity(item.quantity,item.unit)) +
-        '</td><td class="right">' + money(item.unit_price) +
-        '</td><td class="right amount">' + money(linePence(item) / 100) + '</td></tr>').join('');
+function invoiceHtml(doc: Invoice, paidAmount = 0) {
+  const extra=doc.invoice_details||{};
+  const isVat=Number(doc.vat_rate)>0 && !!doc.vat_number;
+  const lineGroups=(['labour','material','other'] as const).map(kind=>{
+    const entries=(doc.items||[]).filter(item=>(item.kind||'other')===kind);
+    if(!entries.length)return '';
+    return '<tr class="group"><td colspan="5">'+safe(labelForKind(kind))+'</td></tr>'+
+      entries.map(item=>'<tr class="line"><td class="desc">'+htmlText(item.description)+'</td>'+
+        '<td class="right">'+safe(formatTradeQuantity(item.quantity,item.unit).replace(/\s*[^\d.,].*$/,''))+'</td>'+
+        '<td>'+safe(item.unit==='each'?'item':item.unit||'item')+'</td>'+
+        '<td class="right">'+money(item.unit_price)+'</td>'+
+        '<td class="right bold">'+money(linePence(item)/100)+'</td></tr>').join('');
   }).join('');
-  const vat = doc.vat_rate > 0 && !!doc.vat_number;
-  // Explicit A4-width document margins rather than relying on CSS @page margins.
-  // iOS WebKit's PDF printer may ignore @page margins for flex-based layouts.
-  const css = [
-    '@page{size:A4;margin:0}',
-    '*{box-sizing:border-box}',
-    'html,body{padding:0;margin:0;width:100%;color:#20333B;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,Arial,Helvetica,sans-serif;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
-    '.sheet{width:178mm;max-width:100%;margin:18mm auto 20mm;min-height:255mm}',
-    'table{border-collapse:collapse;border-spacing:0;width:100%;table-layout:fixed}',
-    '.heading td{vertical-align:top;padding:0}',
-    '.businessName{font-weight:800;font-size:24px;line-height:1.2;color:#0E3038;margin-bottom:13px;overflow-wrap:anywhere}',
-    '.businessMeta{font-size:11px;line-height:1.8;color:#52676D;overflow-wrap:anywhere}',
-    '.documentTitle{text-align:right;color:#124A4A;font-size:28px;letter-spacing:1.8px;font-weight:800;line-height:1.25}',
-    '.documentNo{text-align:right;margin-top:13px;font-size:12px;color:#243C42;font-weight:700}',
-    '.divider{height:3px;background:#225C5C;margin-top:26px;margin-bottom:28px}',
-    '.meta{margin:0 0 28px}',
-    '.meta td{width:50%;vertical-align:top;padding:0 24px 0 0;overflow-wrap:anywhere}',
-    '.meta td+td{padding:0 0 0 18px}',
-    '.label{color:#245758;font-weight:800;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:11px}',
-    '.contactName{font-weight:800;font-size:14px;margin-bottom:6px;color:#20333B}',
-    '.contactText{font-size:11px;line-height:1.9;color:#4E6268;overflow-wrap:anywhere}',
-    '.detailRow{font-size:11px;color:#3A5158;margin-bottom:6px}',
-    '.detailRow strong{display:inline-block;min-width:90px;color:#20333B}',
-    '.workSummary{padding:17px 18px;background:#F1F6F5;border-left:3px solid #2A6263;margin:0 0 24px;overflow-wrap:anywhere}',
-    '.workSummary .label{margin:0 0 6px}',
-    '.sectionTitle{font-size:13px;color:#20333B;font-weight:800;margin-bottom:11px}',
-    '.items{margin:0 0 26px}',
-    '.items th{background:#12353C;color:#FFFFFF;font-size:10px;text-align:left;padding:12px 11px;line-height:1.4}',
-    '.items th.right{text-align:right}',
-    '.items td{vertical-align:top;padding:13px 11px;border-bottom:1px solid #E2E9E7;font-size:11px;line-height:1.6;overflow-wrap:anywhere}',
-    '.items .group td{background:#EDF4F2;color:#245758;font-weight:800;font-size:11px;padding:8px 11px;letter-spacing:.3px}',
-    '.items .line{page-break-inside:avoid;break-inside:avoid}',
-    '.right{text-align:right;white-space:normal}',
-    '.amount{font-weight:700;white-space:nowrap}',
-    '.totals{width:48%;margin:14px 0 0 auto}',
-    '.totals td{font-size:12px;padding:8px 0;color:#41585E}',
-    '.totals td:last-child{text-align:right;font-weight:700}',
-    '.totals .grand td{border-top:2px solid #2B6263;padding-top:14px;font-size:16px;font-weight:800;color:#10383D}',
-    '.notes{background:#F5F8F7;border:1px solid #E8EEEC;border-radius:8px;padding:16px 19px;margin-top:27px;overflow-wrap:anywhere;page-break-inside:avoid;break-inside:avoid}',
-    '.notes .label{margin-bottom:7px}',
-    '.finePrint{margin-top:35px;padding-top:14px;border-top:1px solid #E5EBE9;color:#87979A;font-size:9px}',
-    '@media screen and (max-width:650px){.sheet{width:100%;min-height:0;margin:0;padding:28px 18px 36px}.businessName{font-size:21px}.documentTitle{font-size:23px}.meta td{padding-right:11px}.meta td+td{padding-left:10px}.items th,.items td{padding-left:7px;padding-right:7px}.items td{font-size:10px}.totals{width:60%}}'
+  const dateLabel=(value:string)=>{
+    if(!value)return '—';
+    const d=new Date(value+'T12:00:00Z');
+    return Number.isNaN(d.getTime())?safe(value):d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
+  };
+  const detail=(name:string,value:unknown)=>'<div class="detail"><span>'+safe(name)+'</span><strong>'+safe(value)+'</strong></div>';
+  const showDate=(name:string,value:string)=>'<div class="detail"><span>'+safe(name)+'</span><strong>'+dateLabel(value)+'</strong></div>';
+  const workDate=extra.workStartDate && extra.workStartDate!==doc.service_date
+   ?showDate('Work started',extra.workStartDate)+showDate('Work finished',doc.service_date)
+   :showDate('Date of work',doc.service_date);
+  const company=[
+    doc.business_legal_name && doc.business_legal_name!==doc.business_name ? '<div>'+htmlText(doc.business_legal_name)+'</div>':'',
+    '<div>'+htmlText(doc.business_address)+'</div>',
+    doc.business_email?'<div>'+htmlText(doc.business_email)+'</div>':'',
+    doc.business_phone?'<div>'+htmlText(doc.business_phone)+'</div>':'',
+    extra.companyNumber?'<div>Company no. '+safe(extra.companyNumber)+'</div>':'',
+    isVat?'<div>VAT registration: '+safe(doc.vat_number)+'</div>':''
   ].join('');
-  const contact = [
-    doc.business_legal_name ? '<div>' + htmlText(doc.business_legal_name) + '</div>' : '',
-    '<div>' + htmlText(doc.business_address) + '</div>',
-    doc.business_email ? '<div>' + htmlText(doc.business_email) + '</div>' : '',
-    doc.business_phone ? '<div>' + htmlText(doc.business_phone) + '</div>' : '',
-    vat ? '<div>VAT registration: ' + htmlText(doc.vat_number) + '</div>' : ''
+  const discount=Math.max(0,Number(doc.discount_amount||0));
+  const total=Math.max(0,Number(doc.total||0));
+  const received=Math.min(total,Math.max(0,Number(paidAmount)||0));
+  const balance=Math.max(0,Math.round((total-received)*100)/100);
+  const invoiceRef=Number(doc.invoice_no)>0?invoiceNumber(doc.invoice_no):'DRAFT · NUMBER ON SAVE';
+  const vat=Number(doc.vat_rate)>0&&!!doc.vat_number;
+  const css=[
+    '@page{size:A4;margin:0}*{box-sizing:border-box}',
+    'html,body{padding:0;margin:0;width:100%;background:#fff;color:#25323B;font-family:-apple-system,BlinkMacSystemFont,Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.sheet{width:178mm;max-width:100%;margin:17mm auto 22mm;min-height:252mm}',
+    'header{display:flex;justify-content:space-between;gap:26px;align-items:flex-start}',
+    '.company{max-width:60%;color:#657276;overflow-wrap:anywhere;line-height:1.65}',
+    '.businessName{font-size:23px;line-height:1.25;color:#182b34;font-weight:800;letter-spacing:-.5px;margin:4px 0 12px}',
+    '.overline{font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:#5e716f;font-weight:800}',
+    '.title{text-align:right;font-size:30px;font-weight:850;letter-spacing:1px;color:#162f34}',
+    '.invoiceNo{text-align:right;font-size:11px;color:#496060;font-weight:800;margin-top:8px}',
+    '.draft{text-align:right;color:#B35D42;font-weight:800;font-size:9px;letter-spacing:.5px;margin-top:5px}',
+    '.divider{border-bottom:1px solid #849894;margin:23px 0 19px}',
+    '.billing{display:flex;justify-content:space-between;gap:30px;margin-bottom:22px}',
+    '.billing>section{flex:1;min-width:0}.billing>section+section{max-width:47%}',
+    '.billing h3,.site h3,.summary h3,.notes h3{font-size:9px;letter-spacing:1.2px;color:#58716d;text-transform:uppercase;margin:0 0 8px}',
+    '.clientName{font-size:13px;font-weight:800;line-height:1.4;color:#25343b;margin-bottom:4px}',
+    '.clientAddress{white-space:pre-wrap;line-height:1.55;color:#52646b;overflow-wrap:anywhere}',
+    '.detail{display:flex;gap:10px;justify-content:space-between;margin:4px 0}',
+    '.detail span{color:#617174}.detail strong{text-align:right;font-weight:700;overflow-wrap:anywhere}',
+    '.site{margin-bottom:18px;padding:13px 14px;background:#f6f9f8;border:1px solid #e5eae8}',
+    '.summary{padding:14px 17px;background:#f1f5f3;margin-bottom:19px;overflow-wrap:anywhere}',
+    '.summary>div,.notes p{white-space:pre-wrap;overflow-wrap:anywhere}',
+    '.sectionTitle{font-size:13px;font-weight:800;margin:0 0 10px;color:#273b3f}',
+    'table{border-collapse:collapse;table-layout:fixed;width:100%;font-size:10px}',
+    'thead th{background:#e7ece9;color:#354b4c;font-size:9px;text-align:left;padding:10px 8px;font-weight:850}',
+    'th:nth-child(1){width:43%}th:nth-child(2){width:9%;text-align:right}th:nth-child(3){width:11%}th:nth-child(4){width:17%;text-align:right}th:nth-child(5){width:20%;text-align:right}',
+    'tbody td{border-bottom:1px solid #e4eae8;padding:11px 8px;vertical-align:top;overflow-wrap:anywhere}',
+    'tr.line{break-inside:avoid;page-break-inside:avoid}.right{text-align:right}.bold{font-weight:800;white-space:nowrap}',
+    '.group td{text-align:left;background:#f6f8f7;color:#43615b;font-weight:800;font-size:9px;padding:7px 8px}',
+    '.foot{display:flex;justify-content:space-between;gap:24px;margin-top:26px;align-items:flex-start}',
+    '.notesColumn{flex:1;min-width:0}.totals{width:46%;min-width:210px}',
+    '.totals .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0}',
+    '.totals .row span{color:#586b6d}.totals .row strong{font-weight:750}',
+    '.totals .invoiceTotal{border-top:2px solid #33494b;margin-top:7px;padding-top:11px;font-weight:800;font-size:13px}',
+    '.totals .invoiceTotal span,.totals .invoiceTotal strong{color:#243538;font-weight:800}',
+    '.totals .due{background:#1d3536;color:#fff;border-radius:5px;margin-top:10px;padding:13px 12px;align-items:center;font-weight:850}',
+    '.totals .due span,.totals .due strong{color:#fff;font-weight:850;font-size:13px}',
+    '.notes{background:#f6f8f7;padding:12px 15px;margin-bottom:10px;break-inside:avoid;page-break-inside:avoid;overflow-wrap:anywhere}',
+    '.notes p{margin:0;font-size:10px;line-height:1.55}',
+    '.payment{background:#eef5f5;margin-top:22px;padding:15px 17px;break-inside:avoid;page-break-inside:avoid}',
+    'footer{border-top:1px solid #d1dcd9;margin-top:27px;padding-top:12px;color:#889695;font-size:9px}',
+    '@media screen and (max-width:650px){.sheet{width:100%;min-height:0;margin:0;padding:26px 18px 36px}.businessName{font-size:19px}.title{font-size:23px}.billing{gap:14px}.billing>section+section{max-width:55%}table{font-size:9px}thead th,tbody td{padding-left:5px;padding-right:5px}.foot{gap:14px}.totals{min-width:0;width:52%}}'
   ].join('');
-  return '<!doctype html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>' +
-    '<style>' + css + '</style></head><body><main class="sheet">' +
-    '<table class="heading"><colgroup><col style="width:62%"/><col style="width:38%"/></colgroup><tr>' +
-    '<td><div class="businessName">' + htmlText(doc.business_name) + '</div><div class="businessMeta">' + contact + '</div></td>' +
-    '<td><div class="documentTitle">INVOICE</div><div class="documentNo">' + invoiceNumber(doc.invoice_no) + '</div></td>' +
-    '</tr></table><div class="divider"></div>' +
-    '<table class="meta"><tr><td><div class="label">Billed to</div><div class="contactName">' + htmlText(doc.customer_name) + '</div>' +
-    '<div class="contactText">' + htmlText(doc.customer_address) + (doc.customer_email ? '<div>' + htmlText(doc.customer_email) + '</div>' : '') +
-    '</div></td><td><div class="label">Invoice details</div>' +
-    '<div class="detailRow"><strong>Issued</strong>' + safe(doc.invoice_date) + '</div>' +
-    '<div class="detailRow"><strong>Work date</strong>' + safe(doc.service_date) + '</div>' +
-    '<div class="detailRow"><strong>Payment due</strong>' + safe(doc.due_date) + '</div>' +
-    '</td></tr></table>' +
-    (doc.description ? '<div class="workSummary"><div class="label">Work carried out</div>' + htmlText(doc.description) + '</div>' : '') +
-    '<div class="sectionTitle">Itemised charges</div>' +
-    '<table class="items"><colgroup><col style="width:48%"/><col style="width:15%"/><col style="width:19%"/><col style="width:18%"/></colgroup>' +
-    '<thead><tr><th>Work / materials</th><th class="right">Quantity</th><th class="right">Unit price</th><th class="right">Amount</th></tr></thead><tbody>' +
-    groups + '</tbody></table>' +
-    '<table class="totals"><tr><td>Subtotal</td><td>' + money(doc.subtotal) + '</td></tr>' +
-    (Number(doc.discount_amount || 0) > 0 ? '<tr><td>Discount</td><td>−' + money(Number(doc.discount_amount)) + '</td></tr>' : '') +
-    (vat ? '<tr><td>VAT (' + safe(doc.vat_rate) + '%)</td><td>' + money(doc.vat_amount) + '</td></tr>' : '') +
-    '<tr class="grand"><td>Total due</td><td>' + money(doc.total) + '</td></tr></table>' +
-    (Number(doc.deposit_requested || 0) > 0 ? '<div class="notes"><div class="label">Deposit requested</div>' + money(Number(doc.deposit_requested)) + ' within the total due above. Record any payment received.</div>' : '') +
-    (doc.payment_details ? '<div class="notes"><div class="label">Payment instructions</div>' + htmlText(doc.payment_details) + '</div>' : '') +
-    (doc.notes ? '<div class="notes"><div class="label">Additional notes</div>' + htmlText(doc.notes) + '</div>' : '') +
-    '<div class="finePrint">Created with Tradarr. Please keep this invoice for your records.</div></main></body></html>';
+  return '<!doctype html><html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>'+
+    '<style>'+css+'</style></head><body><main class="sheet">'+
+    '<header><div class="company"><div class="overline">FROM</div><div class="businessName">'+htmlText(doc.business_name)+'</div>'+company+'</div>'+
+    '<div><div class="title">INVOICE</div><div class="invoiceNo">'+invoiceRef+'</div>'+
+    (Number(doc.invoice_no)>0&&doc.status==='draft'?'<div class="draft">DRAFT · NOT SENT</div>':'')+'</div></header>'+
+    '<div class="divider"></div><div class="billing"><section><h3>BILL TO</h3><div class="clientName">'+htmlText(doc.customer_name)+'</div>'+
+    '<div class="clientAddress">'+htmlText(doc.customer_address)+'</div>'+
+    (doc.customer_email?'<div class="clientAddress">'+htmlText(doc.customer_email)+'</div>':'')+'</section>'+
+    '<section><h3>INVOICE DETAILS</h3>'+
+    showDate('Invoice date',doc.invoice_date)+workDate+showDate('Payment due',doc.due_date)+
+    (extra.jobReference?detail('Job reference',extra.jobReference):'')+
+    (extra.purchaseOrder?detail('Purchase order',extra.purchaseOrder):'')+'</section></div>'+
+    (extra.workAddress?'<div class="site"><h3>JOB / SITE ADDRESS</h3><div class="clientAddress">'+htmlText(extra.workAddress)+'</div></div>':'')+
+    (doc.description?'<div class="summary"><h3>DESCRIPTION OF WORK</h3><div>'+htmlText(doc.description)+'</div></div>':'')+
+    '<div class="sectionTitle">Itemised work & materials</div>'+
+    '<table><thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Unit price</th><th>Amount</th></tr></thead><tbody>'+
+    lineGroups+'</tbody></table>'+
+    '<div class="foot"><div class="notesColumn">'+
+    (Number(doc.deposit_requested)>0?'<section class="notes"><h3>DEPOSIT REQUESTED</h3><p>'+money(Number(doc.deposit_requested))+
+      ' is included in the total; this is not a recorded payment.</p></section>':'')+
+    (extra.paymentTerms?'<section class="notes"><h3>PAYMENT TERMS</h3><p>'+htmlText(extra.paymentTerms)+'</p></section>':'')+
+    (doc.notes?'<section class="notes"><h3>NOTES</h3><p>'+htmlText(doc.notes)+'</p></section>':'')+
+    '</div><div class="totals">'+
+    '<div class="row"><span>Subtotal</span><strong>'+money(doc.subtotal)+'</strong></div>'+
+    (discount>0?'<div class="row"><span>Discount</span><strong>−'+money(discount)+'</strong></div>'+
+       '<div class="row"><span>Net after discount</span><strong>'+money(Number(doc.subtotal)-discount)+'</strong></div>':'')+
+    (vat?'<div class="row"><span>VAT ('+safe(doc.vat_rate)+'%)</span><strong>'+money(doc.vat_amount)+'</strong></div>':'')+
+    '<div class="row invoiceTotal"><span>Invoice total</span><strong>'+money(total)+'</strong></div>'+
+    (received>0?'<div class="row"><span>Payments received</span><strong>−'+money(received)+'</strong></div>':'')+
+    '<div class="row due"><span>BALANCE DUE</span><strong>'+money(balance)+'</strong></div></div></div>'+
+    (doc.payment_details?'<section class="payment notes"><h3>HOW TO PAY</h3><p>'+htmlText(doc.payment_details)+'</p></section>':'')+
+    '<footer>Prepared with Tradarr · Keep this invoice for your records. Payment due '+dateLabel(doc.due_date)+'.</footer>'+
+    '</main></body></html>';
 }
 
 function Field({ label, value, onChange, placeholder, multi, numeric, required }: {
@@ -164,7 +192,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
-  const [screen, setScreen] = useState<'list' | 'create' | 'preview'>('list');
+  const [screen, setScreen] = useState<'list' | 'create' | 'draftPreview' | 'preview'>('list');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [jobs, setJobs] = useState<AppJob[]>([]);
@@ -179,6 +207,12 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [businessAddress, setBusinessAddress] = useState('');
   const [businessEmail, setBusinessEmail] = useState('');
   const [businessPhone, setBusinessPhone] = useState('');
+  const [companyNumber,setCompanyNumber]=useState('');
+  const [jobReference,setJobReference]=useState('');
+  const [purchaseOrder,setPurchaseOrder]=useState('');
+  const [workAddress,setWorkAddress]=useState('');
+  const [workStartDate,setWorkStartDate]=useState('');
+  const [paymentTerms,setPaymentTerms]=useState('');
   const [vatNumber, setVatNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
@@ -250,6 +284,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         setBusinessPhone(last?.business_phone || business.data?.public_phone || profile.data?.phone || '');
         setVatNumber(last?.vat_number || '');
         setPaymentDetails(last?.payment_details || '');
+        setCompanyNumber(last?.invoice_details?.companyNumber || '');
+        setPaymentTerms(last?.invoice_details?.paymentTerms || '');
         const raw: AppJob[] = [
           ...(regular.data || []).map(j => ({ key: 'job:' + j.id, id: j.id, kind: 'job' as const,
             customer_id: j.customer_id, trade: j.trade, issue: j.issue, customerName: '',
@@ -284,12 +320,14 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setSelectedJob(job.key);
     setCustomerName(job.customerName || '');
     setCustomerAddress(job.address || '');
+    setWorkAddress(job.address || '');
     setDescription(job.issue);
     setLines([{ kind: 'labour', description: job.issue, quantity: '1', unit_price: job.suggestedPrice ? String(job.suggestedPrice) : '', unit: 'job' }]);
   };
   const startNew = () => {
     setSource('external'); setSelectedJob(null); setSelectedCustomerId(null); setCustomerBookOpen(false); setCustomerName(''); setCustomerAddress('');
     setCustomerEmail(''); setDescription(''); setNotes('');
+    setJobReference('');setPurchaseOrder('');setWorkAddress('');setWorkStartDate('');
     setIncludePaymentDetails(false); setSelectedInvoiceId(null);
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
     setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
@@ -314,7 +352,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     if (sharing) return;
     setSharing(doc.id);
     try {
-      const html = invoiceHtml(doc);
+      const html = invoiceHtml(doc,paymentTotals[doc.id]||0);
       if (Platform.OS === 'web') {
         await Print.printAsync({ html });
       } else {
@@ -333,6 +371,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     if (!userId || saving) return;
     if (!businessName.trim() || !businessAddress.trim() || !customerName.trim() || !customerAddress.trim()) {
       Alert.alert('Complete the invoice', 'Business name and address, plus customer name and address, are required.'); return;
+    }
+    if (workStartDate && (!validDate(workStartDate) || workStartDate>serviceDate)) {
+      Alert.alert('Check work dates','The work start date must be valid and no later than the completion date.');return;
     }
     if (![invoiceDate, serviceDate, dueDate].every(validDate)) {
       Alert.alert('Check dates', 'Use dates in YYYY-MM-DD format.'); return;
@@ -374,6 +415,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         vat_rate: vatRate, subtotal, discount_amount: discount,
          deposit_requested:Math.round(requestedDeposit*100)/100,vat_amount: vat, total,
         payment_details: includePaymentDetails ? paymentDetails.trim() || null : null,
+        invoice_details:{companyNumber:companyNumber.trim(),jobReference:jobReference.trim(),purchaseOrder:purchaseOrder.trim(),workAddress:workAddress.trim(),workStartDate:workStartDate.trim(),paymentTerms:paymentTerms.trim()},
         notes: notes.trim() || null, status: 'draft' as const,
       };
       const { data, error } = await supabase.from('trade_invoices').insert(payload).select('*').single();
@@ -410,18 +452,34 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
       }}]
     );
   };
+  const draftInvoice:Invoice={
+    id:'draft-preview',invoice_no:0,tradesperson_id:userId,source,app_job_id:null,urgent_request_id:null,
+    business_name:businessName||'Business name',business_legal_name:legalName||null,
+    business_address:businessAddress||'Business address',business_email:businessEmail||null,business_phone:businessPhone||null,
+    vat_number:vatRate?vatNumber||null:null,customer_name:customerName||'Customer name',
+    customer_address:customerAddress||'Billing address',customer_email:customerEmail||null,
+    description:description||null,
+    items:lines.map(line=>({kind:line.kind,description:line.description||'Description',quantity:Math.max(0,numericValue(line.quantity)||0),
+      unit_price:Math.max(0,numericValue(line.unit_price)||0),unit:line.unit})),
+    invoice_date:invoiceDate,service_date:serviceDate,due_date:dueDate,
+    vat_rate:vatRate,subtotal,discount_amount:discount,vat_amount:vat,total,
+    deposit_requested:Math.max(0,numericValue(depositInput)||0),
+    payment_details:includePaymentDetails?paymentDetails||null:null,notes:notes||null,
+    invoice_details:{companyNumber,jobReference,purchaseOrder,workAddress,workStartDate,paymentTerms},
+    status:'draft',created_at:new Date().toISOString()
+  };
   const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId) || null;
   const paid = invoices.filter(i => i.status === 'paid').reduce((n, i) => n + Number(i.total), 0);
   const outstanding = invoices.filter(i => i.status === 'sent').reduce((n, i) =>
     n + Math.max(0,Number(i.total)-(paymentTotals[i.id]||0)),0);
   return <View style={s.root}>
     <View style={s.header}>
-      <MotionPressable style={s.back} onPress={screen === 'create' || screen === 'preview' ? () => setScreen('list') : goBack}
+      <MotionPressable style={s.back} onPress={screen === 'draftPreview' ? () => setScreen('create') : screen === 'create' || screen === 'preview' ? () => setScreen('list') : goBack}
         accessibilityRole="button" accessibilityLabel="Back">
         <ArrowLeft size={23} color={theme.colors.ink} />
       </MotionPressable>
       <View style={{ flex: 1 }}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-        <Text style={s.title}>{screen === 'create' ? 'New invoice' : screen === 'preview' ? 'Invoice preview' : 'Invoices'}</Text></View>
+        <Text style={s.title}>{screen === 'create' ? 'New invoice' : screen === 'draftPreview' ? 'Preview draft' : screen === 'preview' ? 'Invoice preview' : 'Invoices'}</Text></View>
       {screen === 'list' ? <MotionPressable style={s.addTop} onPress={startNew} accessibilityRole="button" accessibilityLabel="Create invoice">
         <Plus color="#FFFFFF" size={21} /><Text style={s.addTopText}>New</Text></MotionPressable> : null}
     </View>
@@ -479,7 +537,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           </View>
           <View style={s.previewPaper}>
             <WebView
-              source={{ html: invoiceHtml(selectedInvoice) }}
+              source={{ html: invoiceHtml(selectedInvoice,paymentTotals[selectedInvoice.id]||0) }}
               style={s.previewWeb}
               originWhitelist={['*']}
               javaScriptEnabled={false}
@@ -504,7 +562,30 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             <Text style={s.heroButtonText}>Back to invoices</Text>
           </MotionPressable>
         </View>
-      ) : <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      ) : screen==='draftPreview' ? <View style={s.previewRoot}>
+         <View style={s.previewInfo}>
+          <View style={{flex:1}}>
+           <Text style={s.previewInvoiceNo}>DRAFT · NOT SAVED</Text>
+           <Text style={s.previewCustomer}>{customerName||'Customer name'}</Text>
+          </View><Text style={s.previewAmount}>{money(total)}</Text>
+         </View>
+         <View style={s.previewPaper}>
+          <WebView source={{html:invoiceHtml(draftInvoice)}} style={s.previewWeb}
+             originWhitelist={['*']} javaScriptEnabled={false} showsVerticalScrollIndicator={false}/>
+         </View>
+         <View style={s.previewActions}>
+          <MotionPressable style={s.previewShare} onPress={createInvoice} disabled={saving}
+            accessibilityRole="button" accessibilityLabel="Save invoice draft">
+           {saving?<ActivityIndicator color="#FFFFFF"/>:<Check size={20} color="#FFFFFF"/>}
+           <Text style={s.previewShareText}>{saving?'Saving…':'Save invoice draft'}</Text>
+          </MotionPressable>
+          <MotionPressable style={s.previewMarkSent} onPress={()=>setScreen('create')}
+             accessibilityRole="button" accessibilityLabel="Back to edit invoice">
+            <ArrowLeft size={18} color={theme.colors.teal}/><Text style={s.previewMarkSentText}>Back to editing</Text>
+          </MotionPressable>
+          <Text style={s.previewHint}>Preview only. Nothing is saved or sent until you choose Save invoice draft.</Text>
+         </View>
+        </View> : <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={s.explainer}>Add the job and customer details. Tradarr handles the layout, calculations, invoice number and PDF.</Text>
         <Text style={s.section}>Where was the job from?</Text>
         <View style={s.pillRow}>
@@ -530,6 +611,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Field label="Business address" value={businessAddress} onChange={setBusinessAddress} multi required />
           <Field label="Business email" value={businessEmail} onChange={setBusinessEmail} />
           <Field label="Business phone" value={businessPhone} onChange={setBusinessPhone} />
+          <Field label="Company registration number (if limited)" value={companyNumber} onChange={setCompanyNumber} placeholder="Optional" />
           <Text style={s.helper}>These details will be remembered from your latest invoice.</Text>
         </View>
 
@@ -555,13 +637,17 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Field label="Customer name / company" value={customerName} onChange={setCustomerName} required />
           <Field label="Billing address" value={customerAddress} onChange={setCustomerAddress} multi required />
           <Field label="Customer email (optional)" value={customerEmail} onChange={setCustomerEmail} />
+          <Field label="Job / project reference (optional)" value={jobReference} onChange={setJobReference}/>
+          <Field label="Customer purchase order (optional)" value={purchaseOrder} onChange={setPurchaseOrder}/>
+          <Field label="Work address (if different)" value={workAddress} onChange={setWorkAddress} multi/>
           <Field label="Work summary (optional)" value={description} onChange={setDescription} multi placeholder="e.g. Replaced leaking kitchen tap" />
         </View>
 
         <Text style={s.section}>Dates</Text>
         <View style={s.card}>
           <Field label="Invoice date (YYYY-MM-DD)" value={invoiceDate} onChange={setInvoiceDate} required />
-          <Field label="Date work was done (YYYY-MM-DD)" value={serviceDate} onChange={setServiceDate} required />
+          <Field label="Work start date (optional, YYYY-MM-DD)" value={workStartDate} onChange={setWorkStartDate}/>
+          <Field label="Date work was completed (YYYY-MM-DD)" value={serviceDate} onChange={setServiceDate} required />
           <Field label="Payment due (YYYY-MM-DD)" value={dueDate} onChange={setDueDate} required />
         </View>
 
@@ -655,6 +741,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
               placeholder="Account name, sort code, account number, reference" />
           </View> : null}
           <View style={{ marginTop: 12 }}>
+            <Field label="Payment terms (optional)" value={paymentTerms} onChange={setPaymentTerms} multi placeholder="e.g. Payment due within 14 days, as agreed"/>
             <Field label="Additional notes (optional)" value={notes} onChange={setNotes} multi />
           </View>
         </View>
@@ -663,6 +750,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           {vatRate > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>VAT ({vatRate}%)</Text><Text style={s.totalLabel}>{money(vat)}</Text></View> : null}
           <View style={s.totalRow}><Text style={s.totalTitle}>Total due</Text><Text style={s.totalNumber}>{money(total)}</Text></View>
         </View>
+        <MotionPressable style={[s.heroButton,s.previewDraftButton]} onPress={()=>setScreen('draftPreview')} accessibilityRole="button" accessibilityLabel="Preview invoice before saving">
+          <FileText size={20} color={theme.colors.teal}/><Text style={[s.heroButtonText,{color:theme.colors.teal}]}>Preview invoice</Text>
+        </MotionPressable>
         <MotionPressable style={[s.heroButton, saving && { opacity: 0.55 }]} onPress={createInvoice} disabled={saving}>
           {saving ? <ActivityIndicator color="#FFFFFF" /> : <FileText size={20} color="#FFFFFF" />}
           <Text style={s.heroButtonText}>{saving ? 'Creating…' : 'Create and view invoice'}</Text>
@@ -701,6 +791,7 @@ const s = StyleSheet.create({
   status: { backgroundColor: theme.colors.tealTint, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 11, fontSize: 10, overflow: 'hidden', color: theme.colors.teal, fontWeight: '800' },
   paidStatus: { color: '#14744B', backgroundColor: '#E4F4EC' },
   previewAction: { backgroundColor: '#D8EAE5' },
+  previewDraftButton:{backgroundColor:theme.colors.tealTint,borderWidth:1,borderColor:'#C5DBD7'},
   customerPicker: { minHeight: 47, borderRadius: 16, backgroundColor: theme.colors.tealTint, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 10 },
   customerPickerLabel: { color: theme.colors.teal, fontWeight: '800', fontSize: 13, flex: 1 },
   customerPickerList: { backgroundColor: '#FFFFFF', marginTop: 6, paddingHorizontal: 10, borderRadius: 16, maxHeight: 200 },
