@@ -9,6 +9,7 @@ import { supabase } from './lib/supabase';
 import { theme } from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 import {invoiceHtml} from './lib/tradarrInvoicePdf';
+import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
 
 type InvoiceLineKind = 'labour' | 'material' | 'other';
 type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
@@ -80,6 +81,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
   const [screen, setScreen] = useState<'list' | 'create' | 'draftPreview' | 'preview'>('list');
+  const [formStep,setFormStep]=useState(0);
+  const [showBusinessDetails,setShowBusinessDetails]=useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [jobs, setJobs] = useState<AppJob[]>([]);
@@ -228,6 +231,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
     setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
     setDiscountInput('0');setDepositInput('0');
+    setFormStep(0);setShowBusinessDetails(!businessName.trim()||!businessAddress.trim());
     setScreen('create');
   };
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
@@ -368,6 +372,24 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
       accountNumber:includePaymentDetails?accountNumber:'',paymentReference:includePaymentDetails?paymentReference:''},
     status:'draft',created_at:new Date().toISOString()
   };
+  const changeFormStep=(index:number)=>{setFormStep(Math.min(3,Math.max(0,index)));};
+  const goForward=()=>{
+    if(formStep===0&&(!businessName.trim()||!businessAddress.trim()||!customerName.trim()||!customerAddress.trim())){
+      setShowBusinessDetails(true);
+      Alert.alert('Finish the people and property details','Add the trading name, business address, customer name and billing address before continuing.');
+      return;
+    }
+    if(formStep===1){
+      if(!validDate(invoiceDate)||!validDate(serviceDate)||!validDate(dueDate)){
+        Alert.alert('Check the dates','Enter valid invoice, work and payment due dates.');return;
+      }
+      if(!lines.length||lines.some(l=>!l.description.trim()||hasInvalidTradeQuantity(numericValue(l.quantity),l.unit)||
+        !Number.isFinite(numericValue(l.unit_price))||numericValue(l.unit_price)<0)){
+        Alert.alert('Check the work breakdown','Each labour task or material needs a description, valid quantity and price.');return;
+      }
+    }
+    if(formStep<3)changeFormStep(formStep+1);else setScreen('draftPreview');
+  };
   const selectedInvoice = invoices.find(i => i.id === selectedInvoiceId) || null;
   const paid = invoices.filter(i => i.status === 'paid').reduce((n, i) => n + Number(i.total), 0);
   const outstanding = invoices.filter(i => i.status === 'sent').reduce((n, i) =>
@@ -485,8 +507,12 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           </MotionPressable>
           <Text style={s.previewHint}>Preview only. Nothing is saved or sent until you choose Save invoice draft.</Text>
          </View>
-        </View> : <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Text style={s.explainer}>Add the job and customer details. Tradarr handles the layout, calculations, invoice number and PDF.</Text>
+        </View> : <View style={{flex:1}}>
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
+         subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>
+        {formStep===0&&<>
+        <Text style={s.flowIntro}>Start with the customer. Your business details are remembered, so you only need to change them when necessary.</Text>
         <Text style={s.section}>Where was the job from?</Text>
         <View style={s.pillRow}>
           <Pill label="My own customer" active={source === 'external'} onPress={() => { setSource('external'); setSelectedJob(null); }} />
@@ -504,8 +530,14 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Text style={s.helper}>Job details are suggested automatically. Check the customer's full billing address before creating the invoice.</Text>
         </View> : null}
 
-        <Text style={s.section}>Your business</Text>
-        <View style={s.card}>
+        <MotionPressable style={s.businessCompact} onPress={()=>setShowBusinessDetails(v=>!v)} accessibilityRole="button"
+          accessibilityLabel="Edit business details" accessibilityState={{expanded:showBusinessDetails}}>
+          <View style={{flex:1}}><Text style={s.compactOverline}>ISSUED BY</Text>
+           <Text style={s.compactTitle}>{businessName||'Add your business details'}</Text>
+           <Text style={s.compactCaption} numberOfLines={1}>{businessAddress||'Business address required'}</Text>
+          </View><Text style={s.compactAction}>{showBusinessDetails?'Done':'Edit'}</Text>
+        </MotionPressable>
+        {showBusinessDetails?<View style={s.card}>
           <Field label="Trading / business name" value={businessName} onChange={setBusinessName} required />
           <Field label="Legal name (if different)" value={legalName} onChange={setLegalName} />
           <Field label="Business address" value={businessAddress} onChange={setBusinessAddress} multi required />
@@ -513,7 +545,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Field label="Business phone" value={businessPhone} onChange={setBusinessPhone} />
           <Field label="Company registration number (if limited)" value={companyNumber} onChange={setCompanyNumber} placeholder="Optional" />
           <Text style={s.helper}>These details will be remembered from your latest invoice.</Text>
-        </View>
+        </View>:null}
 
         <Text style={s.section}>Bill to</Text>
         {source === 'external' ? <View style={{ marginBottom: 10 }}>
@@ -543,6 +575,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Field label="Work summary (optional)" value={description} onChange={setDescription} multi placeholder="e.g. Replaced leaking kitchen tap" />
         </View>
 
+        </>}
+        {formStep===1&&<>
         <Text style={s.section}>Dates</Text>
         <View style={s.card}>
           <Field label="Invoice date (YYYY-MM-DD)" value={invoiceDate} onChange={setInvoiceDate} required />
@@ -607,6 +641,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           {breakdown.other > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>Other charges</Text><Text style={s.totalLabel}>{money(breakdown.other)}</Text></View> : null}
         </View>
 
+        </>}
+        {formStep===2&&<>
         <Text style={s.section}>Discount & deposit</Text>
         <View style={s.card}>
           <Text style={s.helper}>A fixed discount reduces the amount charged and VAT is calculated after the discount.</Text>
@@ -650,20 +686,36 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             <Field label="Additional notes (optional)" value={notes} onChange={setNotes} multi />
           </View>
         </View>
+        </>}
+        {formStep===3&&<>
+         <View style={s.reviewHero}><Text style={s.reviewOverline}>READY FOR YOUR REVIEW</Text>
+          <Text style={s.reviewHeading}>One last look.</Text>
+          <Text style={s.reviewText}>The invoice isn't saved or sent yet. Review the information and open the full A4 preview before creating it.</Text>
+         </View>
+         <View style={s.card}>
+          <Text style={s.reviewLabel}>CUSTOMER</Text><Text style={s.reviewMain}>{customerName||'Not entered'}</Text>
+          <Text style={s.reviewMuted}>{customerAddress||'No billing address'}</Text>
+          <Text style={[s.reviewLabel,{marginTop:20}]}>WORK & PAYMENT</Text>
+          <Text style={s.reviewMain}>{lines.filter(l=>l.description.trim()).length} itemised entries</Text>
+          <Text style={s.reviewMuted}>Work completed {serviceDate} · Due {dueDate}</Text>
+          <MotionPressable style={s.reviewEdit} onPress={()=>setFormStep(1)} accessibilityRole="button">
+            <Text style={s.reviewEditText}>Edit the work breakdown</Text><ChevronRight size={17} color={theme.colors.teal}/>
+          </MotionPressable>
+         </View>
         <View style={s.totalCard}><View style={s.totalRow}><Text style={s.totalLabel}>Subtotal</Text><Text style={s.totalLabel}>{money(subtotal)}</Text></View>
           {discount>0?<View style={s.totalRow}><Text style={s.totalLabel}>Discount</Text><Text style={s.totalLabel}>−{money(discount)}</Text></View>:null}
           {vatRate > 0 ? <View style={s.totalRow}><Text style={s.totalLabel}>VAT ({vatRate}%)</Text><Text style={s.totalLabel}>{money(vat)}</Text></View> : null}
           <View style={s.totalRow}><Text style={s.totalTitle}>Total due</Text><Text style={s.totalNumber}>{money(total)}</Text></View>
         </View>
-        <MotionPressable style={[s.heroButton,s.previewDraftButton]} onPress={()=>setScreen('draftPreview')} accessibilityRole="button" accessibilityLabel="Preview invoice before saving">
-          <FileText size={20} color={theme.colors.teal}/><Text style={[s.heroButtonText,{color:theme.colors.teal}]}>Preview invoice</Text>
-        </MotionPressable>
-        <MotionPressable style={[s.heroButton, saving && { opacity: 0.55 }]} onPress={createInvoice} disabled={saving}>
-          {saving ? <ActivityIndicator color="#FFFFFF" /> : <FileText size={20} color="#FFFFFF" />}
-          <Text style={s.heroButtonText}>{saving ? 'Creating…' : 'Create and view invoice'}</Text>
-        </MotionPressable>
-        <Text style={[s.helper, { textAlign: 'center', marginBottom: 12 }]}>Invoices are saved to your account. Preview here, then share when ready.</Text>
-      </ScrollView>}
+         <Text style={s.reviewMuted}>Your invoice number is assigned when you save the draft. Sharing is separate.</Text>
+        </>}
+       </ScrollView>
+       <FormFlowFooter active={formStep} total={4} onPrevious={()=>changeFormStep(formStep-1)}
+        onNext={formStep===3?()=>setScreen('draftPreview'):goForward}
+        primaryLabel={formStep===3?'Review full invoice':'Continue'}
+        amount={money(total)} preview={()=>setScreen('draftPreview')}/>
+       <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
+      </View>
   </View>;
 }
 
@@ -676,6 +728,23 @@ const s = StyleSheet.create({
   addTop: { backgroundColor: theme.colors.darkTeal, borderRadius: 23, minHeight: 45, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 6 },
   addTopText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   page: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 35 },
+  flowIntro:{fontSize:12,color:theme.colors.muted,lineHeight:18,marginBottom:16},
+  businessCompact:{flexDirection:'row',alignItems:'center',gap:12,padding:16,borderRadius:19,backgroundColor:'#FFFFFF',
+    borderWidth:1,borderColor:theme.colors.line,marginTop:20,marginBottom:12},
+  compactOverline:{fontSize:9,fontWeight:'800',letterSpacing:1.1,color:theme.colors.teal},
+  compactTitle:{fontSize:17,fontWeight:'800',color:theme.colors.ink,marginTop:5},
+  compactCaption:{fontSize:11,color:theme.colors.muted,marginTop:4},
+  compactAction:{color:theme.colors.teal,fontWeight:'800',fontSize:13},
+  reviewHero:{backgroundColor:theme.colors.tealTint,borderRadius:21,padding:23,marginVertical:8},
+  reviewOverline:{fontSize:10,color:theme.colors.teal,fontWeight:'800',letterSpacing:1.1},
+  reviewHeading:{fontSize:26,fontWeight:'800',color:theme.colors.ink,marginTop:6},
+  reviewText:{color:theme.colors.muted,fontSize:13,lineHeight:21,marginTop:7},
+  reviewLabel:{fontSize:10,color:theme.colors.teal,fontWeight:'800',letterSpacing:.8},
+  reviewMain:{fontSize:17,fontWeight:'800',color:theme.colors.ink,marginTop:6},
+  reviewMuted:{fontSize:12,color:theme.colors.muted,lineHeight:20,marginTop:6},
+  reviewEdit:{flexDirection:'row',alignItems:'center',gap:8,marginTop:16},
+  reviewEditText:{color:theme.colors.teal,fontSize:12,fontWeight:'800'},
+
   explainer: { color: theme.colors.muted, lineHeight: 21, fontSize: 13, marginBottom: 18 },
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   stat: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 17, ...theme.shadow },
