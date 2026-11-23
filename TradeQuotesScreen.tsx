@@ -10,6 +10,7 @@ import type {QuoteDraftFromSuite} from './TradeBusinessSuiteScreen';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
+import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
 
 type Kind='labour'|'material'|'other';
 type Line={kind:Kind;description:string;quantity:number;unit_price:number;unit:string};
@@ -172,7 +173,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [title,setTitle]=useState('');
  const [description,setDescription]=useState('');
  const [notes,setNotes]=useState('');
- const [stage,setStage]=useState<'scope'|'pricing'>('scope');
+ const [stage,setStage]=useState<'scope'|'pricing'|'terms'>('scope');
  const [showBusiness,setShowBusiness]=useState(false);
  const [included,setIncluded]=useState('');
  const [excluded,setExcluded]=useState('');
@@ -472,11 +473,11 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       Alert.alert('Delivered','The customer can review the quotation in their Quote Centre and respond inside Tradarr.');
     }}]);
  };
- const back=()=>screen==='list'?goBack():screen==='draftPreview'?setScreen('new'):screen==='send'?setScreen('preview'):screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
+ const back=()=>screen==='list'?goBack():screen==='draftPreview'?setScreen('new'):screen==='send'?setScreen('preview'):screen==='new'&&stage==='terms'?setStage('pricing'):screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
  return <View style={s.root}>
   <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan a job':'Build your price'):screen==='draftPreview'?'Preview quotation':screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
+    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan the work':stage==='pricing'?'Build your price':'Final details'):screen==='draftPreview'?'Preview quotation':screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
    {screen==='list'?<MotionPressable style={s.add} onPress={newQuote}><Plus size={19} color="#FFFFFF"/><Text style={s.addText}>New</Text></MotionPressable>:null}
   </View>
   {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
@@ -590,19 +591,14 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
          <Send size={16} color={C.teal}/><Text style={s.partsActionText}>Prepare follow-up message</Text></MotionPressable>:null}
        <Text style={s.previewHint}>Statuses are marked manually. Sharing a PDF does not mean the customer has accepted it.</Text>
     </View>
-   </View>:<ScrollView ref={scrollRef} style={{flex:1}}
-     contentContainerStyle={[s.page,{paddingBottom:180}]}
+   </View>:<View style={{flex:1}}><ScrollView ref={scrollRef} style={{flex:1}}
+     contentContainerStyle={[s.page,{paddingBottom:125}]}
      automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}
      keyboardShouldPersistTaps="handled">
-    <View style={s.stepBanner}>
-      <Text style={s.stepSmall}>CUSTOMER PROPOSAL · {stage==='scope'?'STEP 1 OF 2':'STEP 2 OF 2'}</Text>
-      <Text style={s.stepTitle}>{stage==='scope'?'Plan the work':'Price the job'}</Text>
-      <Text style={s.stepDesc}>{stage==='scope'
-        ?'Explain exactly what your customer gets — and what is excluded. Good quotes win trust before work starts.'
-        :'Work out a fair charge, protect your margin and offer useful upgrades. The customer only sees the final proposal.'}</Text>
-      <View style={s.stepTrack}><View style={[s.stepFill,{width:stage==='scope'?'50%':'100%'}]}/></View>
-    </View>
+    <FormFlowSteps labels={['Scope','Pricing','Final details']} active={stage==='scope'?0:stage==='pricing'?1:2}
+      onSelect={index=>setStage(index===0?'scope':index===1?'pricing':'terms')}
+      subtitle={stage==='scope'?'Who is the job for and what are you including?':stage==='pricing'?'Build the price and optional upgrades.':'Set validity, VAT and final customer-facing terms.'}/>
     {stage==='scope'?<>
       <Text style={s.section}>Who is the job for?</Text>
       <View style={s.card}>
@@ -635,16 +631,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <Field name="Estimated time on site" value={duration} change={setDuration} onFocus={bringBottomIntoView}
           placeholder="e.g. 2 days, subject to access"/>
       </View>
-      <MotionPressable style={s.primary} onPress={()=>{
-        if(!customerName.trim()||!customerAddress.trim()||!title.trim()){
-          Alert.alert('Finish the job brief','Add a customer, address and project title first.');return;
-        }
-        setStage('pricing');
-      }} accessibilityRole="button">
-        <Text style={s.primaryText}>Continue to pricing</Text><ChevronRight size={20} color="#FFFFFF"/>
-      </MotionPressable>
-      <Text style={[s.helper,{textAlign:'center',marginTop:7}]}>Nothing is sent to the customer at this stage.</Text>
-    </>:<>
+    </>:stage==='pricing'?<>
       <View style={s.projectSummary}><Text style={s.projectSummaryTitle}>{title}</Text>
         <Text style={s.projectSummarySub}>For {customerName} · {customerAddress}</Text>
         <MotionPressable onPress={()=>setStage('scope')} style={s.editScope}><Text style={s.editScopeText}>Edit scope</Text><ChevronRight size={16} color={C.teal}/></MotionPressable>
@@ -700,6 +687,13 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <MotionPressable onPress={()=>setExtras(old=>[...old,{name:'',price:''}])} disabled={extras.length>=15}
           style={s.addExtra}><Plus size={18} color={C.teal}/><Text style={s.addLineText}>Add an optional upgrade</Text></MotionPressable>
       </View>
+      </>}
+      {stage==='terms'&&<>
+      <View style={s.projectSummary}>
+       <Text style={s.projectSummaryTitle}>{title||'Your project'}</Text>
+       <Text style={s.projectSummarySub}>For {customerName||'your customer'} · {money(total)} proposed price</Text>
+       <MotionPressable style={s.editScope} onPress={()=>setStage('pricing')}><Text style={s.editScopeText}>Edit pricing</Text><ChevronRight size={16} color={C.teal}/></MotionPressable>
+      </View>
       <Text style={s.section}>Quote validity & terms</Text>
       <View style={s.card}>
         <View style={s.two}><View style={{flex:1}}>
@@ -732,21 +726,22 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <View style={s.summaryDivider}/>
         <Text style={s.proposalSummaryDetail}>Validity: until {validUntil} · Deposit requested: {val(deposit)||0}%</Text>
       </View>
-      <MotionPressable style={[s.primary,{backgroundColor:C.tealTint,marginBottom:11}]} onPress={()=>setScreen('draftPreview')}
-       accessibilityRole="button" accessibilityLabel="Preview quotation before saving">
-       <FileText size={19} color={C.teal}/><Text style={[s.primaryText,{color:C.teal}]}>Preview quotation</Text>
-      </MotionPressable>
-      <MotionPressable style={s.primary} disabled={saving} onPress={()=>{
-        if(!businessName.trim()||!businessAddress.trim()){setShowBusiness(true);
-          Alert.alert('Finish business details','Please check your business name and full address before creating the proposal.');return;}
-        void saveQuote();
-      }}>
-        {saving?<ActivityIndicator color="#FFFFFF"/>:<FileText size={20} color="#FFFFFF"/>}
-        <Text style={s.primaryText}>{saving?'Creating…':'Generate customer proposal'}</Text>
-      </MotionPressable>
-      <Text style={[s.helper,{textAlign:'center',marginTop:8}]}>You'll preview it inside Tradarr first. Nothing gets sent automatically.</Text>
+      <Text style={[s.helper,{textAlign:'center',marginTop:8}]}>Preview your proposal before saving. Nothing is sent automatically.</Text>
     </>}
-   </ScrollView>}
+   </ScrollView>
+   <FormFlowFooter active={stage==='scope'?0:stage==='pricing'?1:2} total={3}
+    onPrevious={()=>setStage(stage==='terms'?'pricing':'scope')}
+    onNext={()=>{
+      if(stage==='scope'&&(!customerName.trim()||!customerAddress.trim()||!title.trim())){
+       Alert.alert('Finish the job brief','Add a customer, address and project title first.');return;}
+      if(stage==='scope')setStage('pricing');
+      else if(stage==='pricing')setStage('terms');
+      else setScreen('draftPreview');
+    }}
+    primaryLabel={stage==='terms'?'Review quotation':'Continue'} amount={money(total)}
+    preview={()=>setScreen('draftPreview')}/>
+   <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
+   </View>}
  </View>;
 }
 const s=StyleSheet.create({
