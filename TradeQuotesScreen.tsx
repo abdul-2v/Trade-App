@@ -687,8 +687,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
         <MotionPressable onPress={()=>setExtras(old=>[...old,{name:'',price:''}])} disabled={extras.length>=15}
           style={s.addExtra}><Plus size={18} color={C.teal}/><Text style={s.addLineText}>Add an optional upgrade</Text></MotionPressable>
       </View>
-      </>}
-      {stage==='terms'&&<>
+      </>:<>
       <View style={s.projectSummary}>
        <Text style={s.projectSummaryTitle}>{title||'Your project'}</Text>
        <Text style={s.projectSummarySub}>For {customerName||'your customer'} · {money(total)} proposed price</Text>
