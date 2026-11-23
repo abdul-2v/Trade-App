@@ -3,12 +3,16 @@ import {ActivityIndicator,Alert,AppState,Platform,RefreshControl,ScrollView,Styl
 import {ArrowLeft,CalendarDays,CheckCircle2,ChevronRight,FileText,RefreshCw,Share2,ShieldCheck} from 'lucide-react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import {WebView} from 'react-native-webview';
+import {invoiceHtml} from './lib/tradarrInvoicePdf';
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
 type Line={kind?:string;description:string;quantity:number;unit_price:number;unit?:string};
 type Invoice={
+ invoice_details?:{companyNumber?:string;jobReference?:string;purchaseOrder?:string;workAddress?:string;workStartDate?:string;paymentTerms?:string;bankName?:string;accountName?:string;sortCode?:string;accountNumber?:string;paymentReference?:string};
+ discount_amount?:number;deposit_requested?:number;business_legal_name?:string|null;
  id:string;invoice_no:number;source:string;status:'sent'|'paid';created_at:string;
  tradesperson_id:string;app_job_id:string|null;urgent_request_id:string|null;quote_id:string|null;
  business_name:string;business_address:string;business_email:string|null;business_phone:string|null;
@@ -21,47 +25,6 @@ const money=(value:number)=>'£'+Number(value||0).toFixed(2);
 const date=(value:string|null)=>value?new Date(value+'T12:00:00').toLocaleDateString('en-GB',
  {day:'numeric',month:'short',year:'numeric'}):'—';
 const invNo=(n:number)=>'INV-'+String(n).padStart(5,'0');
-const escapeHtml=(value:unknown)=>String(value==null?'':value).replace(/[&<>"']/g,ch=>({
- '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-}[ch]||ch));
-const htmlText=(value:unknown)=>escapeHtml(value).replace(/\n/g,'<br/>');
-
-function invoiceHtml(doc:Invoice){
- const rows=(Array.isArray(doc.items)?doc.items:[]).map(item=>
-  '<tr><td>'+escapeHtml(item.description)+'</td><td>'+
-  escapeHtml(String(item.quantity))+' '+escapeHtml(item.unit||'')+
-  '</td><td>'+escapeHtml(money(Number(item.unit_price)))+
-  '</td><td>'+escapeHtml(money(Number(item.quantity)*Number(item.unit_price)))+'</td></tr>'
- ).join('');
- return '<!doctype html><html lang="en"><head><meta charset="utf-8"/>'+
-  '<meta name="viewport" content="width=device-width,initial-scale=1"/>'+
-  '<style>*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#183238;margin:35px;font-size:12px}'+
-  'h1{font-size:27px;margin:0 0 8px;color:#144F50}.top{display:flex;justify-content:space-between;gap:25px}'+
-  'h2{font-size:13px;margin:18px 0 7px}.small{font-size:11px;color:#52706F;line-height:1.6}'+
-  'table{border-collapse:collapse;width:100%;margin-top:23px}th,td{border-bottom:1px solid #DCE5E3;padding:11px 5px;text-align:left}'+
-  'th{background:#EDF4F0;font-size:11px}.totals{margin-left:auto;max-width:260px;margin-top:16px}'+
-  '.total{font-size:18px;font-weight:bold;border-top:2px solid #144F50;padding-top:8px}'+
-  '.note{margin-top:20px;padding:12px;background:#F1F7F4;white-space:normal;line-height:1.6}'+
-  '</style></head><body><div class="top"><div><h1>INVOICE</h1><b>'+
-  escapeHtml(invNo(doc.invoice_no))+'</b><p class="small">'+
-  escapeHtml(doc.status==='paid'?'Marked paid by tradesperson':'Issued · payment status not confirmed')+
-  '</p></div><div class="small"><b>'+escapeHtml(doc.business_name)+'</b><br/>'+
-  htmlText(doc.business_address)+'<br/>'+escapeHtml(doc.business_email||'')+
-  '<br/>'+escapeHtml(doc.business_phone||'')+'</div></div>'+
-  '<h2>Bill to</h2><div>'+escapeHtml(doc.customer_name)+'<br/>'+htmlText(doc.customer_address)+
-  (doc.customer_email?'<br/>'+escapeHtml(doc.customer_email):'')+'</div>'+
-  '<h2>Dates</h2><div class="small">Invoice '+escapeHtml(date(doc.invoice_date))+
-  ' · Work '+escapeHtml(date(doc.service_date))+' · Due '+escapeHtml(date(doc.due_date))+'</div>'+
-  (doc.description?'<h2>Work description</h2><div>'+htmlText(doc.description)+'</div>':'')+
-  '<table><thead><tr><th>Item</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-  '<div class="totals"><p>Subtotal: '+escapeHtml(money(doc.subtotal))+
-  '</p><p>VAT ('+escapeHtml(String(doc.vat_rate))+'%): '+escapeHtml(money(doc.vat_amount))+
-  '</p><p class="total">Total: '+escapeHtml(money(doc.total))+'</p></div>'+
-  (doc.vat_number?'<p class="small">VAT number: '+escapeHtml(doc.vat_number)+'</p>':'')+
-  (doc.payment_details?'<div class="note"><b>Payment details</b><br/>'+htmlText(doc.payment_details)+'</div>':'')+
-  (doc.notes?'<div class="note"><b>Notes</b><br/>'+htmlText(doc.notes)+'</div>':'')+
-  '<p class="small">This document was issued by the named tradesperson using Tradarr. Tradarr does not process or verify the payment.</p></body></html>';
-}
 export default function CustomerInvoicesScreen({goBack,openActivity}:{
  goBack:()=>void;openActivity:()=>void
 }){
@@ -71,6 +34,7 @@ export default function CustomerInvoicesScreen({goBack,openActivity}:{
  const [error,setError]=useState('');
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const [sharing,setSharing]=useState(false);
+ const [pdfPreview,setPdfPreview]=useState(false);
  const chosen=rows.find(x=>x.id===selectedId)||null;
  const load=useCallback(async(refresh=false)=>{
   if(refresh)setRefreshing(true);else setLoading(true);
@@ -98,30 +62,50 @@ export default function CustomerInvoicesScreen({goBack,openActivity}:{
   if(sharing)return;
   setSharing(true);
   try{
-   if(Platform.OS==='web')await Print.printAsync({html:invoiceHtml(doc)});
+   if(Platform.OS==='web')await Print.printAsync({html:invoiceHtml(doc,doc.status==='paid'?Number(doc.total):null)});
    else{
-    const file=await Print.printToFileAsync({html:invoiceHtml(doc)});
+    const file=await Print.printToFileAsync({html:invoiceHtml(doc,doc.status==='paid'?Number(doc.total):null)});
     if(await Sharing.isAvailableAsync())await Sharing.shareAsync(file.uri,{
       mimeType:'application/pdf',UTI:'com.adobe.pdf',dialogTitle:'Save or share '+invNo(doc.invoice_no)
     });
-    else await Print.printAsync({html:invoiceHtml(doc)});
+    else await Print.printAsync({html:invoiceHtml(doc,doc.status==='paid'?Number(doc.total):null)});
    }
   }catch(e:any){Alert.alert('Unable to export invoice',e?.message||'Please retry.');}
   finally{setSharing(false);}
  };
  return <View style={s.root}>
   <View style={s.header}>
-   <MotionPressable onPress={selectedId?()=>setSelectedId(null):goBack}
+   <MotionPressable onPress={pdfPreview?()=>setPdfPreview(false):selectedId?()=>setSelectedId(null):goBack}
      style={s.back} accessibilityRole="button" accessibilityLabel="Back">
     <ArrowLeft size={22} color={C.ink}/>
    </MotionPressable>
    <View style={{flex:1}}>
     <Text style={s.overline}>YOUR JOB RECORDS</Text>
-    <Text style={s.heading}>{chosen?'Invoice details':'Invoices & receipts'}</Text>
+    <Text style={s.heading}>{pdfPreview?'Invoice preview':chosen?'Invoice details':'Invoices & receipts'}</Text>
    </View>
   </View>
   {loading?<View style={s.loading}><ActivityIndicator color={C.teal} size="large"/>
     <Text style={s.muted}>Loading your issued invoices…</Text></View>:
+   chosen&&pdfPreview?<View style={{flex:1}}>
+     <View style={{flex:1,marginHorizontal:12,marginTop:10,borderRadius:14,overflow:'hidden',backgroundColor:'#FFFFFF',borderWidth:1,borderColor:C.line}}>
+      <WebView source={{html:invoiceHtml(chosen,chosen.status==='paid'?Number(chosen.total):null)}}
+       originWhitelist={['*']} javaScriptEnabled={false} showsVerticalScrollIndicator={false}
+       style={{flex:1,backgroundColor:'#FFFFFF'}}/>
+     </View>
+     <View style={{paddingHorizontal:18,paddingTop:12,paddingBottom:16}}>
+      <MotionPressable style={[s.primary,{backgroundColor:C.tealTint,marginBottom:12}]} onPress={()=>setPdfPreview(true)}
+       accessibilityRole="button" accessibilityLabel="Preview invoice PDF before sharing">
+       <FileText color={C.teal} size={18}/><Text style={[s.primaryText,{color:C.teal}]}>Preview invoice</Text>
+     </MotionPressable>
+     <MotionPressable style={s.primary} disabled={sharing} onPress={()=>{void share(chosen)}}
+        accessibilityRole="button" accessibilityLabel="Save or share invoice PDF">
+       {sharing?<ActivityIndicator color="#FFFFFF"/>:<Share2 color="#FFFFFF" size={18}/>}
+       <Text style={s.primaryText}>{sharing?'Preparing PDF…':'Save or share PDF'}</Text>
+      </MotionPressable>
+      <MotionPressable onPress={()=>setPdfPreview(false)} accessibilityRole="button"
+        style={{padding:12,alignItems:'center'}}><Text style={{color:C.teal,fontWeight:'800'}}>Back to invoice details</Text></MotionPressable>
+     </View>
+    </View>:
    <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void load(true)}} tintColor={C.teal}/>}>
     {error?<View style={s.error}>
@@ -183,6 +167,7 @@ export default function CustomerInvoicesScreen({goBack,openActivity}:{
         <Text style={s.lineAmount}>{money(line.quantity*line.unit_price)}</Text>
        </View>)}
       <View style={s.totals}><Text style={s.muted}>Subtotal</Text><Text style={s.lineAmount}>{money(chosen.subtotal)}</Text></View>
+      {Number(chosen.discount_amount||0)>0?<View style={s.totals}><Text style={s.muted}>Discount</Text><Text style={s.lineAmount}>−{money(Number(chosen.discount_amount))}</Text></View>:null}
       <View style={s.totals}><Text style={s.muted}>VAT ({chosen.vat_rate}%)</Text><Text style={s.lineAmount}>{money(chosen.vat_amount)}</Text></View>
       <View style={s.totals}><Text style={s.totalLabel}>Total</Text><Text style={s.bigTotalSmall}>{money(chosen.total)}</Text></View>
      </View>
