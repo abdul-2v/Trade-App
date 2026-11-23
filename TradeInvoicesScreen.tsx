@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { ArrowLeft, Check, ChevronRight, FileText, Plus, Share2, Trash2 } from 'lucide-react-native';
 import * as Print from 'expo-print';
@@ -87,6 +87,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [sharing, setSharing] = useState<string | null>(null);
   const [screen, setScreen] = useState<'list' | 'create' | 'draftPreview' | 'preview'>('list');
   const [formStep,setFormStep]=useState(0);
+  const formScrollRef=useRef<ScrollView>(null);
   const [expandedUnitLine,setExpandedUnitLine]=useState<number|null>(null);
   const [showBusinessDetails,setShowBusinessDetails]=useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -378,6 +379,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
       accountNumber:includePaymentDetails?accountNumber:'',paymentReference:includePaymentDetails?paymentReference:''},
     status:'draft',created_at:new Date().toISOString()
   };
+  useEffect(()=>{if(screen==='create')formScrollRef.current?.scrollTo({y:0,animated:false});},[formStep,screen]);
   const changeFormStep=(index:number)=>{setFormStep(Math.min(3,Math.max(0,index)));};
   const goForward=()=>{
     if(formStep===0&&(!businessName.trim()||!businessAddress.trim()||!customerName.trim()||!customerAddress.trim())){
@@ -514,7 +516,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <Text style={s.previewHint}>Preview only. Nothing is saved or sent until you choose Save invoice draft.</Text>
          </View>
         </View> : <View style={{flex:1}}>
-        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={formScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
          subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>
         {formStep===0&&<>

@@ -1,4 +1,4 @@
-import React,{useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,Platform,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -137,6 +137,8 @@ export function tradarrDocumentHtml(template:DocTemplate,values:Record<string,st
 export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;goBack:()=>void}){
  const [selectedId,setSelectedId]=useState('');
  const [fieldStep,setFieldStep]=useState(0);
+ const formScrollRef=useRef<ScrollView>(null);
+ useEffect(()=>{formScrollRef.current?.scrollTo({y:0,animated:false});},[fieldStep,selectedId]);
  const [values,setValues]=useState<Record<string,string>>({date:localDate()});
  const [preview,setPreview]=useState(false);
  const [working,setWorking]=useState(false);
@@ -196,7 +198,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
    <Text style={sx.fine}>Preview only — nothing is sent or saved to your account.</Text>
   </View>
  </View>;
- return <View style={sx.root}><ScrollView style={{flex:1}} contentContainerStyle={[sx.content,{paddingBottom:120}]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
+ return <View style={sx.root}><ScrollView ref={formScrollRef} style={{flex:1}} contentContainerStyle={[sx.content,{paddingBottom:120}]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false}>
   <MotionPressable onPress={goBackOne} style={sx.backLabel} accessibilityRole="button" accessibilityLabel={selected?'Back to documents':'Back to tools'}>
    <ArrowLeft color={theme.colors.teal} size={19}/><Text style={sx.backText}>{selected?'Documents':'Tools'}</Text>
   </MotionPressable>

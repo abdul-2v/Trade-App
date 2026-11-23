@@ -178,6 +178,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [description,setDescription]=useState('');
  const [notes,setNotes]=useState('');
  const [stage,setStage]=useState<'scope'|'pricing'|'terms'>('scope');
+ useEffect(()=>{if(screen==='new')scrollRef.current?.scrollTo({y:0,animated:false});},[stage,screen]);
  const [expandedUnitLine,setExpandedUnitLine]=useState<number|null>(null);
  const [showBusiness,setShowBusiness]=useState(false);
  const [included,setIncluded]=useState('');

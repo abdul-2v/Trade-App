@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {ArrowLeft,CalendarDays,ChevronRight,Check,Clock3,MapPin,Plus,Pencil,Users,Trash2} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
@@ -27,6 +27,8 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  const [view,setView]=useState<'upcoming'|'past'>('upcoming');
  const [editing,setEditing]=useState(false);
  const [bookingStep,setBookingStep]=useState(0);
+ const bookingScrollRef=useRef<ScrollView>(null);
+ useEffect(()=>{if(editing)bookingScrollRef.current?.scrollTo({y:0,animated:false});},[bookingStep,editing]);
  const [editId,setEditId]=useState<string|null>(null);
  const [customerId,setCustomerId]=useState<string|null>(null);
  const [pickCustomer,setPickCustomer]=useState(false);
@@ -111,7 +113,7 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  {!editing?<MotionPressable onPress={startNew} style={s.new}><Plus size={20} color="#FFFFFF"/><Text style={s.newText}>Add</Text></MotionPressable>:null}
  </View>
  {loading?<ActivityIndicator style={{marginTop:50}} size="large" color={C.teal}/>:
- editing?<View style={{flex:1}}><ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:110}]} keyboardShouldPersistTaps="handled">
+ editing?<View style={{flex:1}}><ScrollView ref={bookingScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:110}]} keyboardShouldPersistTaps="handled">
  <FormFlowSteps labels={['Job details','Time','Review']} active={bookingStep} onSelect={setBookingStep}
  subtitle={['Who and where is the appointment for?','Choose when the work takes place.','Check everything before adding it to the diary.'][bookingStep]}/>
  {bookingStep===0&&<View style={s.card}>
