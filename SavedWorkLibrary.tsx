@@ -57,8 +57,10 @@ export async function saveTradarrPreset(ownerId:string,scope:'line'|'invoice'|'q
  return data as Preset;
 }
 const C=theme.colors;
-export function SavedWorkLibrary({ownerId,history,onAdd}:{ownerId:string;history:WorkHistory[];onAdd:(line:WorkLine)=>void}){
- const [open,setOpen]=useState(false),[search,setSearch]=useState(''),[presets,setPresets]=useState<Preset[]>([]);
+export function SavedWorkLibrary({ownerId,history,onAdd,initiallyOpen=false}:{
+ ownerId:string;history:WorkHistory[];onAdd:(line:WorkLine)=>void;initiallyOpen?:boolean;
+}){
+ const [open,setOpen]=useState(initiallyOpen),[search,setSearch]=useState(''),[presets,setPresets]=useState<Preset[]>([]);
  const [category,setCategory]=useState('all');
  const [loading,setLoading]=useState(false),[error,setError]=useState('');
  const suggested=useMemo(()=>pastWorkSuggestions(history),[history]);
@@ -168,9 +170,11 @@ export function SaveWorkPreset({ownerId,line}:{ownerId:string;line:WorkLine}){
   </View>}
  </View>;
 }
-export function DocumentPresetBar({ownerId,scope,documentKind='',snapshot,onApply}:{ownerId:string;scope:'invoice'|'quote'|'document';
- documentKind?:string;snapshot:object;onApply:(payload:any)=>void}){
- const [open,setOpen]=useState(false),[saving,setSaving]=useState(false),[name,setName]=useState(''),[rows,setRows]=useState<Preset[]>([]);
+export function DocumentPresetBar({ownerId,scope,documentKind='',snapshot,onApply,initiallyOpen=false}:{
+ ownerId:string;scope:'invoice'|'quote'|'document';documentKind?:string;
+ snapshot:object;onApply:(payload:any)=>void;initiallyOpen?:boolean;
+}){
+ const [open,setOpen]=useState(initiallyOpen),[saving,setSaving]=useState(false),[name,setName]=useState(''),[rows,setRows]=useState<Preset[]>([]);
  const [busy,setBusy]=useState(false);
  const reload=async()=>{
   if(!ownerId)return;

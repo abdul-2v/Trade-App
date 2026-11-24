@@ -10,9 +10,9 @@ import { supabase } from './lib/supabase';
 import { theme } from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 import {invoiceHtml} from './lib/tradarrInvoicePdf';
-import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
+import {FormFlowSteps,FormFlowFooter} from './PremiumFormFlow';
 import {SavedWorkLibrary,SaveWorkPreset,DocumentPresetBar,type WorkHistory,type WorkLine} from './SavedWorkLibrary';
-import DocumentComposerOverview from './DocumentComposerOverview';
+import InvoiceComposerOverview from './InvoiceComposerOverview';
 
 type InvoiceLineKind = 'labour' | 'material' | 'other';
 type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
@@ -616,20 +616,24 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId, initialC
          </View>
         </View> : <View style={{flex:1}}>
         <ScrollView ref={formScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {formStep===-1&&<DocumentComposerOverview title={editingDraftId?'Edit your invoice':'Build your invoice'}
-         description="Everything in one place. Tap the details you need to change or reuse a previous job."
+        {formStep===-1&&<InvoiceComposerOverview title={editingDraftId?'Edit your invoice':'Build your invoice'}
+         description="Everything in one place. Add the details, preview and create your invoice."
          sections={[
-          {title:'Customer & business',label:customerName||'Add customer',detail:customerAddress||'Customer, address, job source and business details',
+          {title:'Customer & business',label:customerName||'Add customer',
+           detail:'Customer, address, job source and business details',
            done:!!customerName.trim()&&!!customerAddress.trim()&&!!businessName.trim()&&!!businessAddress.trim()},
           {title:'Work & materials',label:lines.filter(l=>l.description.trim()).length+' itemised entries',
            detail:'Labour, materials, quantity and rates',done:lines.some(l=>l.description.trim()&&l.unit_price.trim())},
           {title:'Payment details',label:dueDate,detail:'VAT, bank details and payment terms',done:!!dueDate},
           {title:'Review & create',label:money(total),detail:'Check the A4 document before saving',done:total>0},
          ]}
-         amount={money(total)} onEdit={changeFormStep} onPreview={()=>setScreen('draftPreview')}>
-          <SavedWorkLibrary ownerId={userId} history={workHistory} onAdd={addSavedLine}/>
-          <DocumentPresetBar ownerId={userId} scope="invoice" snapshot={invoiceSetup} onApply={applyInvoiceSetup}/>
-         </DocumentComposerOverview>}
+         amount={money(total)} onEdit={changeFormStep} onPreview={()=>setScreen('draftPreview')}
+         renderWorkLibrary={close=><SavedWorkLibrary initiallyOpen ownerId={userId}
+            history={workHistory} onAdd={line=>{addSavedLine(line);close();}}/>}
+         renderInvoiceSetups={close=><DocumentPresetBar initiallyOpen ownerId={userId}
+            scope="invoice" snapshot={invoiceSetup}
+            onApply={preset=>{applyInvoiceSetup(preset);close();}}/>}
+        />}
         {formStep>=0&&<FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
          subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>}
         {formStep===0&&<>
@@ -854,9 +858,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId, initialC
         </>}
        </ScrollView>
        {formStep>=0&&<FormFlowFooter active={formStep} total={4} onPrevious={()=>setFormStep(-1)}
-        onNext={()=>setFormStep(-1)} primaryLabel="Done · Back to overview" amount={money(total)}/>}
-       
-       <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
+        onNext={()=>setFormStep(-1)} primaryLabel="Done · Back to overview"
+        amount={money(total)} preview={()=>setScreen('draftPreview')}/>}
       </View>}
   </View>;
 }
