@@ -9,6 +9,7 @@ import {MotionPressable} from './Motion';
 import {theme} from './theme';
 import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
 import {DocumentPresetBar} from './SavedWorkLibrary';
+import DocumentComposerOverview from './DocumentComposerOverview';
 import {supabase} from './lib/supabase';
 
 type Role='tradesperson'|'customer';
@@ -151,7 +152,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
  const available=templates[role];
  const selected=available.find(template=>template.id===selectedId);
  const html=useMemo(()=>selected?tradarrDocumentHtml(selected,values):'', [selected,values]);
- const open=(id:string)=>{setSelectedId(id);setValues({date:localDate()});setError('');setPreview(false);setFieldStep(0)};
+ const open=(id:string)=>{setSelectedId(id);setValues({date:localDate()});setError('');setPreview(false);setFieldStep(-1)};
  const update=(key:string,value:string)=>{setValues(v=>({...v,[key]:value}));setError('')};
  const validate=()=>{
   if(!selected)return false;
@@ -187,7 +188,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
   if(fieldStep<selected.groups.length-1)setFieldStep(v=>v+1);
   else setPreview(true);
  };
- const goBackOne=()=>{if(preview)setPreview(false);else if(selectedId&&fieldStep>0)setFieldStep(v=>v-1);else if(selectedId)setSelectedId('');else goBack();};
+ const goBackOne=()=>{if(preview)setPreview(false);else if(selectedId&&fieldStep>=0)setFieldStep(-1);else if(selectedId)setSelectedId('');else goBack();};
  if(preview&&selected)return <View style={sx.root}>
   <View style={sx.top}><MotionPressable onPress={goBackOne} style={sx.back} accessibilityRole="button" accessibilityLabel="Back to editing"><ArrowLeft size={19} color={theme.colors.teal}/></MotionPressable>
    <View style={{flex:1}}><Text style={sx.eyebrow}>FULL DOCUMENT PREVIEW</Text><Text style={sx.topTitle}>{selected.title}</Text></View>
@@ -219,9 +220,17 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
   <View style={{gap:13}}>
    <DocumentPresetBar ownerId={ownerId} scope="document" documentKind={selected.id} snapshot={values}
       onApply={payload=>{if(payload&&typeof payload==='object'){
-       setValues({...payload,date:localDate()});setFieldStep(0);setError('');
+       setValues({...payload,date:localDate()});setFieldStep(-1);setError('');
       }}}/>
-   <FormFlowSteps labels={selected.groups.map(g=>g.title.length>20?g.title.split(' ')[0]:g.title)}
+   {fieldStep===-1?<DocumentComposerOverview title={selected.title}
+    description={selected.intro}
+    sections={selected.groups.map(group=>({
+     title:group.title,detail:group.fields.slice(0,3).map(f=>f.label).join(' · '),
+     label:group.fields.filter(f=>String(values[f.key]||'').trim()).length+' fields completed',
+     done:group.fields.filter(f=>f.required).every(f=>String(values[f.key]||'').trim())
+    }))}
+    onEdit={setFieldStep} onPreview={()=>{if(validate())setPreview(true)}}/>:null}
+   {fieldStep>=0&&<FormFlowSteps labels={selected.groups.map(g=>g.title.length>20?g.title.split(' ')[0]:g.title)}
      active={fieldStep} onSelect={setFieldStep} subtitle="Focus on one group of details at a time. You can return to any previous step."/>
    {selected.groups.filter((_,i)=>i===fieldStep).map((group,i)=><View style={sx.group} key={group.title}>
     <View style={sx.groupHead}><Text style={sx.groupIndex}>{String(fieldStep+1).padStart(2,'0')}</Text><Text style={sx.groupTitle}>{group.title}</Text></View>
@@ -240,10 +249,10 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
    {selected?note(selected.id)+' ':''}These documents are general records and do not replace official certificates. No electronic signature is implied, and drafts are not automatically saved to your account.
   </Text></View>
  </ScrollView>
- {selected?<><FormFlowFooter active={fieldStep} total={selected.groups.length}
+ {selected?<>{fieldStep>=0&&<FormFlowFooter active={fieldStep} total={selected.groups.length}
     onPrevious={()=>setFieldStep(v=>Math.max(0,v-1))}
     onNext={advance} primaryLabel={fieldStep===selected.groups.length-1?'Preview document':'Continue'}
-    />
+    />}
    <FormFlowFloatingPreview onPress={()=>setPreview(true)} label="A4 preview"/>
   </>:null}
  </View>;
