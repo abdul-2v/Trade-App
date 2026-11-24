@@ -624,13 +624,23 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         <Text style={s.flowIntro}>Start with the customer. Your business details are remembered, so you only need to change them when necessary.</Text>
         <Text style={s.section}>Where was the job from?</Text>
         <View style={s.pillRow}>
-          <Pill label="My own customer" active={source === 'external'} onPress={() => { setSource('external'); setSelectedJob(null); }} />
-          <Pill label="Tradarr job" active={source === 'app'} onPress={() => setSource('app')} />
+          <Pill label="My own customer" active={source === 'external'} onPress={() => {
+            if(editingDraftId){Alert.alert('Linked source is locked','The existing invoice keeps its original source and job. Save a new invoice to use a different job.');return;}
+            setSource('external');setSelectedJob(null);
+          }} />
+          <Pill label="Tradarr job" active={source === 'app'} onPress={() => {
+            if(editingDraftId){Alert.alert('Linked source is locked','The existing invoice keeps its original source and job. Save a new invoice to use a different job.');return;}
+            setSource('app');
+          }} />
         </View>
+        {editingDraftId?<Text style={s.helper}>Invoice job source and linked booking cannot be changed after the draft is created. All other draft details remain editable.</Text>:null}
         {source === 'app' ? <View style={s.card}>
           <Text style={s.cardTitle}>Choose an accepted job</Text>
           {!jobs.length ? <Text style={s.small}>No accepted app jobs yet. You can invoice outside work instead.</Text> :
-            jobs.map(job => <MotionPressable key={job.key} onPress={() => pickJob(job)}
+            jobs.map(job => <MotionPressable key={job.key} onPress={() => {
+             if(editingDraftId){Alert.alert('Original job is protected','To change the linked Tradarr job, create a new invoice instead.');return;}
+             pickJob(job);
+            }}
               style={[s.jobChoice, selectedJob === job.key && s.jobSelected]}>
               <View style={{ flex: 1 }}><Text style={s.jobTitle}>{job.trade} · {job.kind === 'urgent' ? 'Urgent callout' : 'Booking'}</Text>
                 <Text style={s.small} numberOfLines={2}>{job.issue}</Text></View>
