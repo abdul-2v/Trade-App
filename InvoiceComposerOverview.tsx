@@ -1,13 +1,13 @@
 import React,{useState} from 'react';
 import {Modal,SafeAreaView,ScrollView,StyleSheet,Text,View,useWindowDimensions} from 'react-native';
-import {ArrowRight,Bookmark,ChevronRight,Eye,X} from 'lucide-react-native';
+import {ChevronRight,Clock3,Eye,FileCheck2,Files,X} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
 
 type Section={title:string;detail:string;label:string;done?:boolean};
 type Props={
  title:string;description:string;sections:Section[];amount:string;
- onEdit:(index:number)=>void;onPreview:()=>void;
+ onEdit:(index:number)=>void;onPreview:()=>void;onSave:()=>void;saving?:boolean;
  renderWorkLibrary:(close:()=>void)=>React.ReactNode;
  renderInvoiceSetups:(close:()=>void)=>React.ReactNode;
 };
@@ -16,7 +16,7 @@ type Props={
  * Keeps the original invoice data, validation and saving flows unchanged.
  */
 export default function InvoiceComposerOverview({
- title,description,sections,amount,onEdit,onPreview,renderWorkLibrary,renderInvoiceSetups
+ title,description,sections,amount,onEdit,onPreview,onSave,saving=false,renderWorkLibrary,renderInvoiceSetups
 }:Props){
  const [sheet,setSheet]=useState<'work'|'setups'|null>(null);
  const {width}=useWindowDimensions();
@@ -48,20 +48,20 @@ export default function InvoiceComposerOverview({
 
   <View style={s.quickRow}>
    <MotionPressable onPress={()=>setSheet('work')} style={s.quickCard} accessibilityRole="button"
-    accessibilityLabel="Saved work and previous prices">
-    <View style={s.quickIcon}><Bookmark color={C.teal} size={20}/></View>
+    accessibilityLabel="Saved jobs and previous prices">
+    <View style={s.quickIcon}><Clock3 color={C.teal} size={20}/></View>
     <View style={s.quickCopy}>
-     <Text style={s.quickTitle} numberOfLines={2}>Saved work & previous prices</Text>
-     <Text style={s.quickSub} numberOfLines={1}>Reuse your own jobs</Text>
+     <Text style={s.quickTitle}>Saved jobs</Text>
+     <Text style={s.quickSub}>Past prices</Text>
     </View>
     <ChevronRight color={C.teal} size={17}/>
    </MotionPressable>
    <MotionPressable onPress={()=>setSheet('setups')} style={s.quickCard} accessibilityRole="button"
-    accessibilityLabel="My saved invoice setups">
-    <View style={s.quickIcon}><Bookmark color={C.teal} size={20}/></View>
+    accessibilityLabel="Saved invoice templates">
+    <View style={s.quickIcon}><Files color={C.teal} size={20}/></View>
     <View style={s.quickCopy}>
-     <Text style={s.quickTitle} numberOfLines={2}>My saved invoice setups</Text>
-     <Text style={s.quickSub} numberOfLines={1}>Reuse all fields</Text>
+     <Text style={s.quickTitle}>Invoice templates</Text>
+     <Text style={s.quickSub}>Reuse fields</Text>
     </View>
     <ChevronRight color={C.teal} size={17}/>
    </MotionPressable>
@@ -91,14 +91,15 @@ export default function InvoiceComposerOverview({
    {!narrow&&<View style={s.verticalDivider}/>}
    <View style={[s.totalButtons,narrow&&s.totalButtonsNarrow]}>
     <MotionPressable onPress={onPreview} style={s.secondaryButton}
-     accessibilityRole="button" accessibilityLabel="A4 invoice preview">
-     <Eye size={17} color={C.teal}/>
-     <Text style={s.secondaryText}>A4 preview</Text>
-    </MotionPressable>
-    <MotionPressable onPress={onPreview} style={s.primaryButton}
      accessibilityRole="button" accessibilityLabel="Preview invoice">
-     <Eye color="#FFFFFF" size={17}/><Text style={s.primaryText}>Preview</Text>
-     <ArrowRight color="#FFFFFF" size={17}/>
+     <Eye size={17} color={C.teal}/>
+     <Text style={s.secondaryText}>Preview</Text>
+    </MotionPressable>
+    <MotionPressable onPress={onSave} disabled={saving} style={[s.primaryButton,saving&&s.buttonDisabled]}
+     accessibilityRole="button" accessibilityLabel={saving?'Saving invoice draft':'Save invoice draft'}
+     accessibilityState={{disabled:saving}}>
+     <FileCheck2 color="#FFFFFF" size={17}/>
+     <Text style={s.primaryText}>{saving?'Saving…':'Save draft'}</Text>
     </MotionPressable>
    </View>
   </View>
@@ -141,12 +142,12 @@ const s=StyleSheet.create({
  stepText:{fontSize:10.5,color:C.muted,fontWeight:'700',lineHeight:14,textAlign:'center',minHeight:29},
  stepTextOn:{color:C.teal,fontWeight:'800'},
  quickRow:{flexDirection:'row',gap:8,marginTop:0},
- quickCard:{flex:1,minWidth:0,minHeight:72,flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:10,paddingVertical:10,
+ quickCard:{flex:1,minWidth:0,minHeight:77,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:8,paddingVertical:9,
   borderRadius:17,backgroundColor:'#FFFFFF',borderWidth:1,borderColor:C.line},
- quickIcon:{width:34,height:34,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:C.tealTint},
+ quickIcon:{width:31,height:34,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:C.tealTint},
  quickCopy:{flex:1,minWidth:0,gap:4},
- quickTitle:{fontSize:12,fontWeight:'800',lineHeight:15,color:C.ink},
- quickSub:{fontSize:10.5,color:C.muted},
+ quickTitle:{fontSize:11.5,fontWeight:'800',lineHeight:15,color:C.ink,flexShrink:1},
+ quickSub:{fontSize:10,color:C.muted,marginTop:1},
  sectionsCard:{borderRadius:19,borderWidth:1,borderColor:C.line,backgroundColor:'#FFFFFF',overflow:'hidden'},
  sectionRow:{flexDirection:'row',gap:13,alignItems:'center',paddingHorizontal:15,paddingVertical:11,minHeight:69},
  sectionDivider:{borderTopWidth:1,borderTopColor:C.line},
@@ -165,10 +166,11 @@ const s=StyleSheet.create({
  totalLabel:{fontSize:9,fontWeight:'800',letterSpacing:1.1,color:C.muted},
  totalValue:{fontSize:21,fontWeight:'800',color:C.teal},
  verticalDivider:{width:1,height:39,backgroundColor:C.line},
- totalButtons:{flexDirection:'row',alignItems:'center',gap:7},
+ totalButtons:{flexDirection:'row',alignItems:'center',gap:6},
+ buttonDisabled:{opacity:.55},
  totalButtonsNarrow:{justifyContent:'flex-end'},
  secondaryButton:{minHeight:39,borderRadius:24,borderWidth:1,borderColor:'#A6CEC4',
-  flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5,paddingHorizontal:9},
+  flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5,paddingHorizontal:10},
  secondaryText:{color:C.teal,fontSize:11.5,fontWeight:'800'},
  primaryButton:{minHeight:39,borderRadius:24,backgroundColor:C.darkTeal,
   flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:12},

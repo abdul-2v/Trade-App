@@ -615,7 +615,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId, initialC
           <Text style={s.previewHint}>Preview only. Nothing is saved or sent until you choose Save invoice draft.</Text>
          </View>
         </View> : <View style={{flex:1}}>
-        <ScrollView ref={formScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView key={formStep===-1?'invoice-overview':`invoice-section-${formStep}`}
+         ref={formScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {formStep===-1&&<InvoiceComposerOverview title={editingDraftId?'Edit your invoice':'Build your invoice'}
          description="Everything in one place. Add the details, preview and create your invoice."
          sections={[
@@ -628,6 +629,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId, initialC
           {title:'Review & create',label:money(total),detail:'Check the A4 document before saving',done:total>0},
          ]}
          amount={money(total)} onEdit={changeFormStep} onPreview={()=>setScreen('draftPreview')}
+         onSave={()=>void createInvoice()} saving={saving}
          renderWorkLibrary={close=><SavedWorkLibrary initiallyOpen ownerId={userId}
             history={workHistory} onAdd={line=>{addSavedLine(line);close();}}/>}
          renderInvoiceSetups={close=><DocumentPresetBar initiallyOpen ownerId={userId}
