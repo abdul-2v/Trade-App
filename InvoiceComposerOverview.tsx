@@ -96,10 +96,10 @@ export default function InvoiceComposerOverview({
      <Text style={s.secondaryText}>Preview</Text>
     </MotionPressable>
     <MotionPressable onPress={onSave} disabled={saving} style={[s.primaryButton,saving&&s.buttonDisabled]}
-     accessibilityRole="button" accessibilityLabel={saving?'Saving invoice draft':'Save invoice draft'}
+     accessibilityRole="button" accessibilityLabel={saving?'Saving invoice':'Save invoice'}
      accessibilityState={{disabled:saving}}>
      <FileCheck2 color="#FFFFFF" size={17}/>
-     <Text style={s.primaryText}>{saving?'Saving…':'Save draft'}</Text>
+     <Text style={s.primaryText}>{saving?'Saving…':'Save'}</Text>
     </MotionPressable>
    </View>
   </View>
