@@ -4,6 +4,7 @@ import {ArrowLeft,Check,CheckCheck,ChevronRight,MapPin,Package,Plus,Share2,Shopp
 import {MotionPressable} from './Motion';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
+import {DocumentPresetBar} from './SavedWorkLibrary';
 const C=theme.colors;
 type Item={id:string;name:string;qty:number;unit:string;unit_cost:number;merchant:string;done:boolean};
 type Kit={id:string;tradesperson_id:string;name:string;job_address:string|null;items:Item[];created_at:string;updated_at:string};
@@ -22,6 +23,7 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
  const [showJobAddress,setShowJobAddress]=useState(false);
  const [showPartExtras,setShowPartExtras]=useState(false);
  const [project,setProject]=useState(''),[address,setAddress]=useState('');
+ const [starterItems,setStarterItems]=useState<Item[]>([]);
  const [part,setPart]=useState(''),[qty,setQty]=useState('1'),[unit,setUnit]=useState('each'),[cost,setCost]=useState(''),[merchant,setMerchant]=useState('');
  const [busyId,setBusyId]=useState<string|null>(null);
  const selected=kits.find(k=>k.id===selectedId)||null;
@@ -33,13 +35,26 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
   if(!alive)return;if(error)Alert.alert('Could not load materials',error.message);
   setKits((data||[]) as Kit[]);setLoading(false);
  })().catch(e=>{if(alive){Alert.alert('Materials error',String(e));setLoading(false)}});return()=>{alive=false};},[]);
+ const materialsSetup=selected?{name:selected.name,job_address:selected.job_address||'',items:selected.items}:
+  {name:project,job_address:address,items:starterItems};
+ const applyMaterialsSetup=(payload:any)=>{
+  if(!payload||typeof payload!=='object')return;
+  const source=Array.isArray(payload.items)?payload.items.slice(0,150):[];
+  const rehydrated:Item[]=source.map((item:any,index:number)=>({
+   id:'preset-'+Date.now()+'-'+index,name:String(item.name||'').trim().slice(0,300),
+   qty:Math.max(.01,Number(item.qty)||1),unit:String(item.unit||'each').slice(0,30),
+   unit_cost:Math.max(0,Number(item.unit_cost)||0),merchant:String(item.merchant||'').slice(0,150),done:false
+  })).filter((item:Item)=>item.name);
+  setProject(String(payload.name||'').slice(0,120));setAddress(String(payload.job_address||'').slice(0,400));
+  setStarterItems(rehydrated);setSelectedId(null);setCreating(true);setAdding(false);
+ };
  const create=async()=>{
   if(!uid||saving)return;
   if(!project.trim()){Alert.alert('Name your job','Enter a job or project name first.');return;}
   setSaving(true);
-  const {data,error}=await supabase.from('trade_material_kits').insert({tradesperson_id:uid,name:project.trim(),job_address:address.trim()||null,items:[]}).select('*').single();
+  const {data,error}=await supabase.from('trade_material_kits').insert({tradesperson_id:uid,name:project.trim(),job_address:address.trim()||null,items:starterItems}).select('*').single();
   setSaving(false);if(error||!data){Alert.alert('Could not create list',error?.message||'Try again.');return;}
-  const row=data as Kit;setKits(old=>[row,...old]);setSelectedId(row.id);setCreating(false);setProject('');setAddress('');
+  const row=data as Kit;setKits(old=>[row,...old]);setSelectedId(row.id);setCreating(false);setProject('');setAddress('');setStarterItems([]);
  };
  const updateItems=async(kit:Kit,items:Item[])=>{
   if(busyId)return false;setBusyId(kit.id);
@@ -83,6 +98,8 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
   <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
   {!selected?<>
    <Text style={s.explain}>Never arrive without the right parts. Build a materials list for each job, tick off what you've bought and find merchants nearby.</Text>
+   <DocumentPresetBar ownerId={uid} scope="document" documentKind="material-kit"
+      snapshot={materialsSetup} onApply={applyMaterialsSetup}/>
    <View style={s.statRow}><View style={s.stat}><Text style={s.statNumber}>{topSummary.lists}</Text><Text style={s.statLabel}>Job lists</Text></View>
     <View style={s.stat}><Text style={s.statNumber}>{topSummary.items}</Text><Text style={s.statLabel}>Items still to buy</Text></View></View>
    {creating?<View style={s.card}><Text style={s.cardTitle}>New job materials list</Text>
@@ -91,6 +108,7 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
       accessibilityLabel="Job address optional" accessibilityState={{expanded:showJobAddress}}>
       <Text style={s.extraToggleText}>+ Add job address (optional)</Text></MotionPressable>
    {showJobAddress?<Field label="Job address (optional)" value={address} set={setAddress} placeholder="Street or postcode"/>:null}
+   {starterItems.length>0?<Text style={s.explain}>{starterItems.length} saved material items will be copied into this new list. Quantities and prices can be edited after creation.</Text>:null}
    <MotionPressable onPress={create} disabled={saving} style={s.primary}>
     {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Create materials list</Text>}</MotionPressable></View>:null}
    <Text style={s.section}>Your job lists</Text>
@@ -104,6 +122,8 @@ export default function TradeMaterialsScreen({goBack,openMerchants,openProfit,in
     <MotionPressable style={s.primary} onPress={()=>setCreating(true)}><Plus size={19} color="#FFFFFF"/><Text style={s.primaryText}>Create first list</Text></MotionPressable></View>}
    <MotionPressable style={s.mapAction} onPress={openMerchants}><MapPin size={19} color={C.teal}/><Text style={s.mapText}>Open nearby merchants map</Text><ChevronRight size={19} color={C.teal}/></MotionPressable>
   </>:<>
+   <DocumentPresetBar ownerId={uid} scope="document" documentKind="material-kit"
+     snapshot={materialsSetup} onApply={applyMaterialsSetup}/>
    <View style={s.hero}><Text style={s.heroSmall}>JOB MATERIALS</Text><Text style={s.heroTitle}>{selected.name}</Text>
     {selected.job_address?<Text style={s.heroAddress}>{selected.job_address}</Text>:null}
     <View style={s.heroRow}><View><Text style={s.heroMetric}>{selected.items.filter(i=>i.done).length}/{selected.items.length}</Text><Text style={s.heroLabel}>Bought</Text></View>
