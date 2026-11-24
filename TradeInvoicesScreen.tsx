@@ -11,6 +11,7 @@ import { theme } from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 import {invoiceHtml} from './lib/tradarrInvoicePdf';
 import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
+import {SavedWorkLibrary,SaveWorkPreset,DocumentPresetBar,type WorkHistory,type WorkLine} from './SavedWorkLibrary';
 
 type InvoiceLineKind = 'labour' | 'material' | 'other';
 type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
@@ -93,6 +94,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
   const [showBusinessDetails,setShowBusinessDetails]=useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [workHistory,setWorkHistory]=useState<WorkHistory[]>([]);
+  const [editingDraftId,setEditingDraftId]=useState<string|null>(null);
   const [jobs, setJobs] = useState<AppJob[]>([]);
   const [savedCustomers, setSavedCustomers] = useState<SavedCustomer[]>([]);
   const [customerBookOpen, setCustomerBookOpen] = useState(false);
@@ -154,7 +157,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         const user = auth.user;
         if (!user || !alive) return;
         setUserId(user.id);
-        const [saved, profile, business, regular, urgent, customerDetails, privateCustomers, invoicePayments] = await Promise.all([
+        const [saved, profile, business, regular, urgent, customerDetails, privateCustomers, invoicePayments, previousQuotes] = await Promise.all([
           supabase.from('trade_invoices').select('*').eq('tradesperson_id', user.id).order('created_at', { ascending: false }).limit(100),
           supabase.from('profiles').select('first_name, last_name, phone').eq('id', user.id).maybeSingle(),
           supabase.from('tradesperson_profiles').select('business_name, display_name, public_phone, primary_trade').eq('user_id', user.id).maybeSingle(),
@@ -163,10 +166,12 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           supabase.rpc('trade_invoice_customer_details'),
           supabase.from('trade_customers').select('id,name,email,address').eq('tradesperson_id', user.id).order('name'),
           supabase.from('trade_invoice_payments').select('invoice_id,amount').eq('tradesperson_id',user.id).limit(500),
+          supabase.from('trade_quotes').select('items,created_at').eq('tradesperson_id',user.id).order('created_at',{ascending:false}).limit(100),
         ]);
         if (!alive) return;
         const docs = (saved.data || []) as Invoice[];
         setInvoices(docs);
+        setWorkHistory([...(docs||[]),...(previousQuotes.data||[])]);
         if (!invoicePayments.error) {
           const totals:Record<string,number>={};
           (invoicePayments.data||[]).forEach(entry=>{
@@ -232,6 +237,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setLines([{ kind: 'labour', description: job.issue, quantity: '1', unit_price: job.suggestedPrice ? String(job.suggestedPrice) : '', unit: 'job' }]);
   };
   const startNew = () => {
+    setEditingDraftId(null);
     setSource('external'); setSelectedJob(null); setSelectedCustomerId(null); setCustomerBookOpen(false); setCustomerName(''); setCustomerAddress('');
     setCustomerEmail(''); setDescription(''); setNotes('');
     setJobReference('');setPurchaseOrder('');setWorkAddress('');setWorkStartDate('');setPaymentReference('');
@@ -256,6 +262,75 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     });
   };
 
+  const editableFrom=(doc:Invoice)=>{
+    const locked=doc.status!=='draft'||!!doc.quote_id;
+    setEditingDraftId(locked?null:doc.id);
+    setSelectedInvoiceId(null);
+    setSource(locked?'external':doc.source);
+    setSelectedJob(!locked&&doc.source==='app'?
+      (doc.app_job_id?'job:'+doc.app_job_id:doc.urgent_request_id?'urgent:'+doc.urgent_request_id:null):null);
+    setSelectedCustomerId(locked?null:(doc as any).customer_id||null);
+    setCustomerName(doc.customer_name||'');setCustomerAddress(doc.customer_address||'');setCustomerEmail(doc.customer_email||'');
+    setBusinessName(doc.business_name||'');setLegalName(doc.business_legal_name||'');
+    setBusinessAddress(doc.business_address||'');setBusinessEmail(doc.business_email||'');setBusinessPhone(doc.business_phone||'');
+    setVatNumber(doc.vat_number||'');setVatRate(Number(doc.vat_rate)||0);
+    setDescription(doc.description||'');setNotes(locked?'Correction based on '+invoiceNumber(doc.invoice_no)+(doc.notes?'\n'+doc.notes:''):doc.notes||'');
+    setInvoiceDate(locked?dateToday():doc.invoice_date);setServiceDate(doc.service_date||dateToday());
+    setDueDate(locked?datePlusDays(14):doc.due_date);
+    setDiscountInput(String(doc.discount_amount||0));setDepositInput(String(doc.deposit_requested||0));
+    setPaymentDetails(doc.payment_details||'');
+    setIncludePaymentDetails(!!(doc.payment_details||doc.invoice_details?.bankName||doc.invoice_details?.accountName));
+    const d=doc.invoice_details||{};
+    setCompanyNumber(d.companyNumber||'');setJobReference(d.jobReference||'');setPurchaseOrder(d.purchaseOrder||'');
+    setWorkAddress(d.workAddress||'');setWorkStartDate(d.workStartDate||'');setPaymentTerms(d.paymentTerms||'');
+    setBankName(d.bankName||'');setAccountName(d.accountName||'');setSortCode(d.sortCode||'');
+    setAccountNumber(d.accountNumber||'');setPaymentReference(d.paymentReference||'');
+    setLines((doc.items||[]).length?(doc.items||[]).map(line=>({kind:line.kind||'other',description:line.description,
+      quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit||'item'})):
+       [{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
+    setFormStep(0);setShowBusinessDetails(false);setScreen('create');
+    if(locked)Alert.alert('New corrected invoice','The original issued invoice is protected. This is a new editable draft with a new invoice number when saved. The original remains in your records.');
+  };
+  const addSavedLine=(line:WorkLine)=>setLines(old=>{
+    const valid=old.filter(v=>v.description.trim()||v.unit_price.trim());
+    return [...valid,{kind:line.kind||'other',description:line.description,quantity:String(line.quantity),
+     unit_price:String(line.unit_price),unit:line.unit||'item'}];
+  });
+  const invoiceSetup={
+    businessName,legalName,businessAddress,businessEmail,businessPhone,companyNumber,vatNumber,
+    customerName,customerAddress,customerEmail,description,invoiceDate,serviceDate,dueDate,
+    vatRate,discountInput,depositInput,paymentDetails,includePaymentDetails,notes,
+    invoiceDetails:{companyNumber,jobReference,purchaseOrder,workAddress,workStartDate,paymentTerms,
+     bankName,accountName,sortCode,accountNumber,paymentReference},
+    lines
+  };
+  const applyInvoiceSetup=(v:any)=>{
+    if(!v||typeof v!=='object')return;
+    setBusinessName(String(v.businessName||''));setLegalName(String(v.legalName||''));
+    setBusinessAddress(String(v.businessAddress||''));setBusinessEmail(String(v.businessEmail||''));
+    setBusinessPhone(String(v.businessPhone||''));setVatNumber(String(v.vatNumber||''));
+    setCustomerName(String(v.customerName||''));setCustomerAddress(String(v.customerAddress||''));
+    setCustomerEmail(String(v.customerEmail||''));setDescription(String(v.description||''));
+    setVatRate([0,5,20].includes(Number(v.vatRate))?Number(v.vatRate):0);
+    setDiscountInput(String(v.discountInput||'0'));setDepositInput(String(v.depositInput||'0'));
+    setPaymentDetails(String(v.paymentDetails||''));setIncludePaymentDetails(Boolean(v.includePaymentDetails));
+    setNotes(String(v.notes||''));
+    const d=v.invoiceDetails||{};
+    setCompanyNumber(String(d.companyNumber||''));setJobReference(String(d.jobReference||''));
+    setPurchaseOrder(String(d.purchaseOrder||''));setWorkAddress(String(d.workAddress||''));
+    setWorkStartDate(String(d.workStartDate||''));setPaymentTerms(String(d.paymentTerms||''));
+    setBankName(String(d.bankName||''));setAccountName(String(d.accountName||''));
+    setSortCode(String(d.sortCode||''));setAccountNumber(String(d.accountNumber||''));
+    setPaymentReference(String(d.paymentReference||''));
+    if(Array.isArray(v.lines)&&v.lines.length)setLines(v.lines.slice(0,100).map((line:any)=>({
+      kind:['labour','material','other'].includes(line.kind)?line.kind:'other',
+      description:String(line.description||''),quantity:String(line.quantity||1),
+      unit_price:String(line.unit_price??''),unit:String(line.unit||'item')})));
+    // Reset dates for new invoices. Presets never silently reissue a previous date or number.
+    setInvoiceDate(dateToday());setServiceDate(dateToday());setDueDate(datePlusDays(14));
+    setEditingDraftId(null);setSource('external');setSelectedJob(null);setSelectedCustomerId(null);
+    setFormStep(0);
+  };
   const sharePdf = async (doc: Invoice) => {
     if (sharing) return;
     setSharing(doc.id);
@@ -328,10 +403,16 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           accountNumber:includePaymentDetails?accountNumber.trim():'',paymentReference:includePaymentDetails?paymentReference.trim():''},
         notes: notes.trim() || null, status: 'draft' as const,
       };
-      const { data, error } = await supabase.from('trade_invoices').insert(payload).select('*').single();
+      const { data, error } = editingDraftId?
+        await supabase.from('trade_invoices').update({
+          ...Object.fromEntries(Object.entries(payload).filter(([key])=>!['invoice_no','tradesperson_id','source','app_job_id','urgent_request_id'].includes(key))),
+          updated_at:new Date().toISOString()
+        }).eq('id',editingDraftId).eq('tradesperson_id',userId).eq('status','draft').is('quote_id',null).select('*').single():
+        await supabase.from('trade_invoices').insert(payload).select('*').single();
       if (error || !data) throw new Error(error?.message || 'Could not save invoice');
       const doc = data as Invoice;
-      setInvoices(old => [doc, ...old]);
+      setInvoices(old => editingDraftId?old.map(x=>x.id===doc.id?doc:x):[doc,...old]);
+      setEditingDraftId(null);
       setSelectedInvoiceId(doc.id);
       setScreen('preview');
     } catch (e) { Alert.alert('Could not create invoice', String(e)); }
@@ -410,7 +491,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         <ArrowLeft size={23} color={theme.colors.ink} />
       </MotionPressable>
       <View style={{ flex: 1 }}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-        <Text style={s.title}>{screen === 'create' ? 'New invoice' : screen === 'draftPreview' ? 'Preview draft' : screen === 'preview' ? 'Invoice preview' : 'Invoices'}</Text></View>
+        <Text style={s.title}>{screen === 'create' ? (editingDraftId?'Edit invoice draft':'New invoice') : screen === 'draftPreview' ? 'Preview draft' : screen === 'preview' ? 'Invoice preview' : 'Invoices'}</Text></View>
       {screen === 'list' ? <MotionPressable style={s.addTop} onPress={startNew} accessibilityRole="button" accessibilityLabel="Create invoice">
         <Plus color="#FFFFFF" size={21} /><Text style={s.addTopText}>New</Text></MotionPressable> : null}
     </View>
@@ -448,6 +529,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
               </MotionPressable>
               <MotionPressable style={s.action} onPress={() => sharePdf(doc)} disabled={sharing === doc.id}>
                 <Share2 size={17} color={theme.colors.teal} /><Text style={s.actionText}>{sharing === doc.id ? 'Opening…' : 'Share PDF'}</Text>
+              </MotionPressable>
+              <MotionPressable style={s.action} onPress={()=>editableFrom(doc)} accessibilityRole="button" accessibilityLabel={doc.status==='draft'&&!doc.quote_id?'Edit invoice':'Make corrected invoice'}>
+               <FileText size={17} color={theme.colors.teal}/><Text style={s.actionText}>{doc.status==='draft'&&!doc.quote_id?'Edit':'Revise'}</Text>
               </MotionPressable>
               {doc.status === 'draft' ? <MotionPressable style={s.action} onPress={() => setStatus(doc, 'sent')}>
                 <Check size={17} color={theme.colors.teal} /><Text style={s.actionText}>Mark sent</Text></MotionPressable> : null}
@@ -521,6 +605,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
         <FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
          subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>
         {formStep===0&&<>
+        <DocumentPresetBar ownerId={userId} scope="invoice" snapshot={invoiceSetup} onApply={applyInvoiceSetup}/>
         <Text style={s.flowIntro}>Start with the customer. Your business details are remembered, so you only need to change them when necessary.</Text>
         <Text style={s.section}>Where was the job from?</Text>
         <View style={s.pillRow}>
@@ -586,6 +671,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
 
         </>}
         {formStep===1&&<>
+        <SavedWorkLibrary ownerId={userId} history={workHistory} onAdd={addSavedLine}/>
         <Text style={s.section}>Dates</Text>
         <View style={s.card}>
           <Field label="Invoice date (YYYY-MM-DD)" value={invoiceDate} onChange={setInvoiceDate} required />
@@ -643,6 +729,8 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
             <Field label={'Price per ' + (item.unit === 'each' ? 'item' : item.unit) + ' (£)'}
               numeric value={item.unit_price} onChange={v => changeLine(i, { unit_price: v })} placeholder="0.00" required />
           </View></View>
+          <SaveWorkPreset ownerId={userId} line={{kind:item.kind,description:item.description,quantity:numericValue(item.quantity),
+             unit_price:numericValue(item.unit_price),unit:item.unit}}/>
           <View style={s.lineTotalBar}><Text style={s.lineTotalLabel}>{formatTradeQuantity(item.quantity,item.unit)}</Text>
              <Text style={s.lineTotal}>{money(linePence(item) / 100)}</Text></View>
            {item.unit==='job'&&numericValue(item.quantity)!==1?

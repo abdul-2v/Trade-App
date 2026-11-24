@@ -8,6 +8,8 @@ import {ArrowLeft,ArrowRight,ClipboardCheck,Eye,FileText,Printer,ShieldCheck} fr
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
 import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
+import {DocumentPresetBar} from './SavedWorkLibrary';
+import {supabase} from './lib/supabase';
 
 type Role='tradesperson'|'customer';
 type DocField={key:string;label:string;multi?:boolean;required?:boolean;date?:boolean;hint?:string};
@@ -137,6 +139,8 @@ export function tradarrDocumentHtml(template:DocTemplate,values:Record<string,st
 }
 export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;goBack:()=>void}){
  const [selectedId,setSelectedId]=useState('');
+ const [ownerId,setOwnerId]=useState('');
+ useEffect(()=>{supabase.auth.getUser().then(({data})=>setOwnerId(data.user?.id||'')).catch(()=>{});},[]);
  const [fieldStep,setFieldStep]=useState(0);
  const formScrollRef=useRef<ScrollViewInstance>(null);
  useEffect(()=>{formScrollRef.current?.scrollTo({y:0,animated:false});},[fieldStep,selectedId]);
@@ -213,6 +217,10 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
    <ArrowRight size={18} color={theme.colors.teal}/>
   </MotionPressable>)}</View>:
   <View style={{gap:13}}>
+   <DocumentPresetBar ownerId={ownerId} scope="document" documentKind={selected.id} snapshot={values}
+      onApply={payload=>{if(payload&&typeof payload==='object'){
+       setValues({...payload,date:localDate()});setFieldStep(0);setError('');
+      }}}/>
    <FormFlowSteps labels={selected.groups.map(g=>g.title.length>20?g.title.split(' ')[0]:g.title)}
      active={fieldStep} onSelect={setFieldStep} subtitle="Focus on one group of details at a time. You can return to any previous step."/>
    {selected.groups.filter((_,i)=>i===fieldStep).map((group,i)=><View style={sx.group} key={group.title}>

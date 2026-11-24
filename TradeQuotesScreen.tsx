@@ -11,6 +11,7 @@ import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
+import {SavedWorkLibrary,SaveWorkPreset,DocumentPresetBar,type WorkHistory,type WorkLine} from './SavedWorkLibrary';
 
 type Kind='labour'|'material'|'other';
 type Line={kind:Kind;description:string;quantity:number;unit_price:number;unit:string};
@@ -161,6 +162,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [listFilter,setListFilter]=useState<'all'|'awaiting'|'won'>('all');
  const [screen,setScreen]=useState<'list'|'new'|'draftPreview'|'preview'|'send'>('list');
  const [quotes,setQuotes]=useState<Quote[]>([]);
+ const [workHistory,setWorkHistory]=useState<WorkHistory[]>([]);
+ const [editingQuoteId,setEditingQuoteId]=useState<string|null>(null);
  const [customers,setCustomers]=useState<Customer[]>([]);
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const [customerId,setCustomerId]=useState<string|null>(null);
@@ -226,7 +229,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   const {data:a}=await supabase.auth.getUser();const id=a.user?.id;
   if(!id||!alive){if(alive)setLoading(false);return}
   setUid(id);
-  const [docs,people,profile,last,assignedJobs,urgentJobs,delivered]=await Promise.all([
+  const [docs,people,profile,last,assignedJobs,urgentJobs,delivered,previousInvoices]=await Promise.all([
    supabase.from('trade_quotes').select('*').eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(100),
    supabase.from('trade_customers').select('id,name,phone,email,address').eq('tradesperson_id',id).order('name'),
    supabase.from('tradesperson_profiles').select('business_name,display_name,public_phone').eq('user_id',id).maybeSingle(),
@@ -237,10 +240,12 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
    supabase.from('urgent_requests').select('id,customer_id,trade,issue,status').eq('accepted_tradesperson_id',id)
       .in('status',['matched','en_route','arrived','completed']).order('created_at',{ascending:false}).limit(50),
    supabase.from('trade_customer_proposals').select('id,quote_id,decision,feedback,customer_id,job_id,urgent_request_id').eq('tradesperson_id',id),
+   supabase.from('trade_invoices').select('items,created_at').eq('tradesperson_id',id).order('created_at',{ascending:false}).limit(100),
   ]);
   if(!alive)return;
   if(docs.error)Alert.alert('Unable to load quotes',docs.error.message);
   setQuotes((docs.data||[]) as Quote[]);setCustomers((people.data||[]) as Customer[]);
+  setWorkHistory([...(docs.data||[]),...(previousInvoices.data||[])]);
   setAppJobs([
     ...(assignedJobs.data||[]).map(v=>({...v,job_kind:'job' as const})),
     ...(urgentJobs.data||[]).map(v=>({...v,job_kind:'urgent' as const})),
@@ -283,6 +288,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   return()=>{alive=false;foreground.remove();void supabase.removeChannel(channel);};
  },[uid]);
  const newQuote=()=>{
+  setEditingQuoteId(null);
   setCustomerId(null);setCustomerName('');setCustomerEmail('');setCustomerPhone('');setCustomerAddress('');
   setTitle('');setDescription('');setNotes('');setQuoteDate(day(new Date()));setValidUntil(addDays(30));
   setStage('scope');setShowBusiness(false);setIncluded('');setExcluded('');setDuration('');
@@ -311,6 +317,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   if(lineItems.length)setLines(lineItems);
  },[loading,initialDraft]);
  const reviseQuote=(doc:Quote)=>{
+   const canEditDraft=doc.status==='draft'&&!deliveries.some(p=>p.quote_id===doc.id);
+   setEditingQuoteId(canEditDraft?doc.id:null);
    // A customer-facing quotation is an issued snapshot. Create a new numbered proposal,
    // preserving the original for records rather than silently overwriting it.
    setBusinessName(doc.business_name);setBusinessAddress(doc.business_address);
@@ -327,12 +335,38 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
    setLines((doc.items||[]).map(line=>({kind:line.kind,description:line.description,
      quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit==='each'?'item':line.unit||'item'})));
    setShowBusiness(false);setSelectedId(null);setStage('pricing');setScreen('new');
+   if(canEditDraft)return;
    Alert.alert('Creating a revised proposal','A new quote number will be issued when you save. The original quotation stays in your records. Review the quantities and units before sharing.');
  };
  const chooseCustomer=(c:Customer|null)=>{
   setCustomerId(c?.id||null);
   if(c){setCustomerName(c.name);setCustomerAddress(c.address||'');setCustomerEmail(c.email||'');setCustomerPhone(c.phone||'');}
   setShowPicker(false);
+ };
+ const addSuggestedLine=(line:WorkLine)=>{
+  setLines(old=>[...old.filter(l=>l.description.trim()||l.unit_price.trim()),{
+   kind:line.kind||'other',description:line.description,quantity:String(line.quantity),
+   unit_price:String(line.unit_price),unit:line.unit||'item'}]);
+ };
+ const quoteSetup={businessName,businessAddress,businessEmail,businessPhone,vatNumber,customerName,customerAddress,
+  customerEmail,customerPhone,title,description,notes,included,excluded,duration,deposit,extras,
+  estimateCost,targetMargin,vatRate,lines};
+ const applyQuoteSetup=(v:any)=>{
+  if(!v||typeof v!=='object')return;
+  setBusinessName(String(v.businessName||''));setBusinessAddress(String(v.businessAddress||''));
+  setBusinessEmail(String(v.businessEmail||''));setBusinessPhone(String(v.businessPhone||''));
+  setVatNumber(String(v.vatNumber||''));setCustomerName(String(v.customerName||''));
+  setCustomerAddress(String(v.customerAddress||''));setCustomerEmail(String(v.customerEmail||''));
+  setCustomerPhone(String(v.customerPhone||''));setTitle(String(v.title||''));setDescription(String(v.description||''));
+  setNotes(String(v.notes||''));setIncluded(String(v.included||''));setExcluded(String(v.excluded||''));
+  setDuration(String(v.duration||''));setDeposit(String(v.deposit||'0'));
+  setExtras(Array.isArray(v.extras)?v.extras.slice(0,15):[]);
+  setEstimateCost(String(v.estimateCost||''));setTargetMargin(String(v.targetMargin||'30'));
+  setVatRate([0,5,20].includes(Number(v.vatRate))?Number(v.vatRate):0);
+  if(Array.isArray(v.lines)&&v.lines.length)setLines(v.lines.slice(0,100).map((l:any)=>({
+   kind:['labour','material','other'].includes(l.kind)?l.kind:'other',description:String(l.description||''),
+   quantity:String(l.quantity||1),unit_price:String(l.unit_price??''),unit:String(l.unit||'item')})));
+  setQuoteDate(day(new Date()));setValidUntil(addDays(30));setEditingQuoteId(null);setCustomerId(null);setStage('scope');
  };
  const addLine=(kind:Kind)=>{setLines(old=>[...old.filter(l=>l.description.trim()||l.unit_price.trim()),{kind,description:'',quantity:'1',unit_price:'',unit:kind==='labour'?'job':kind==='material'?'item':'job'}])};
  const choicesFor=(kind:Kind):string[]=>
@@ -380,10 +414,13 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
    estimated_duration:duration.trim()||null,deposit_percent:val(deposit),
    optional_extras:extras.map(x=>({name:x.name.trim(),price:Math.round(val(x.price)*100)/100})),
    estimated_cost:estimateCost.trim()?costPreview:null,target_margin:val(targetMargin),status:'draft' as const};
-  const {data,error}=await supabase.from('trade_quotes').insert(payload).select('*').single();
+  const {data,error}=editingQuoteId?
+    await supabase.from('trade_quotes').update(Object.fromEntries(Object.entries(payload).filter(([k])=>!['quote_no','tradesperson_id','status'].includes(k))))
+     .eq('id',editingQuoteId).eq('tradesperson_id',uid).eq('status','draft').select('*').single():
+    await supabase.from('trade_quotes').insert(payload).select('*').single();
   setSaving(false);
   if(error||!data){Alert.alert('Could not create quote',error?.message||'Please try again');return;}
-  const doc=data as Quote;setQuotes(old=>[doc,...old]);setSelectedId(doc.id);setScreen('preview');
+  const doc=data as Quote;setQuotes(old=>editingQuoteId?old.map(x=>x.id===doc.id?doc:x):[doc,...old]);setEditingQuoteId(null);setSelectedId(doc.id);setScreen('preview');
  };
  const setStatus=async(q:Quote,status:Quote['status'])=>{
   const {data,error}=await supabase.from('trade_quotes').update({status,updated_at:new Date().toISOString()})
@@ -483,7 +520,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  return <View style={s.root}>
   <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
-    <Text style={s.title}>{screen==='new'?(stage==='scope'?'Plan the work':stage==='pricing'?'Build your price':'Final details'):screen==='draftPreview'?'Preview quotation':screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
+    <Text style={s.title}>{screen==='new'?(editingQuoteId?'Edit quote draft':stage==='scope'?'Plan the work':stage==='pricing'?'Build your price':'Final details'):screen==='draftPreview'?'Preview quotation':screen==='preview'?'Customer proposal':screen==='send'?'Send to customer':'Quotes'}</Text></View>
    {screen==='list'?<MotionPressable style={s.add} onPress={newQuote}><Plus size={19} color="#FFFFFF"/><Text style={s.addText}>New</Text></MotionPressable>:null}
   </View>
   {loading?<ActivityIndicator style={{marginTop:50}} color={C.teal} size="large"/>:
@@ -602,6 +639,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
      automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}
      keyboardShouldPersistTaps="handled">
+    <DocumentPresetBar ownerId={uid} scope="quote" snapshot={quoteSetup} onApply={applyQuoteSetup}/>
     <FormFlowSteps labels={['Scope','Pricing','Final details']} active={stage==='scope'?0:stage==='pricing'?1:2}
       onSelect={index=>setStage(index===0?'scope':index===1?'pricing':'terms')}
       subtitle={stage==='scope'?'Who is the job for and what are you including?':stage==='pricing'?'Build the price and optional upgrades.':'Set validity, VAT and final customer-facing terms.'}/>
@@ -644,6 +682,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       </View>
       <Text style={s.section}>Build the job price</Text>
       <Text style={s.sectionSub}>Price each labour task and part separately. Only this breakdown goes into the final quote and later invoice.</Text>
+    <SavedWorkLibrary ownerId={uid} history={workHistory} onAdd={addSuggestedLine}/>
     <View style={s.sectionRow}><Text style={s.section}>Labour & materials</Text></View>
     <View style={s.twoButtons}><MotionPressable style={s.addLine} onPress={()=>addLine('labour')}><Plus size={16} color={C.teal}/><Text style={s.addLineText}>Add labour</Text></MotionPressable>
      <MotionPressable style={s.addLine} onPress={()=>addLine('material')}><Plus size={16} color={C.teal}/><Text style={s.addLineText}>Add material</Text></MotionPressable></View>
@@ -659,6 +698,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
      </MotionPressable>
      {expandedUnitLine===i?<View style={s.pills}>{choicesFor(v.kind).map(unit=>
       <Pill key={unit} name={unitOptionLabel(unit)} selected={v.unit===unit} onPress={()=>{changeUnit(i,unit);setExpandedUnitLine(null)}}/>)}</View>:null}
+     <SaveWorkPreset ownerId={uid} line={{kind:v.kind,description:v.description,quantity:val(v.quantity),
+       unit_price:val(v.unit_price),unit:v.unit}}/>
      <Text style={s.lineTotal}>Customer sees: {formatTradeQuantity(v.quantity,v.unit)} × {money(val(v.unit_price)||0)} = {money(pennies(v)/100)}</Text>
      {v.unit==='job'&&val(v.quantity)!==1?<Text style={s.unitWarning}>Fixed-price work must be 1 job. Choose Per radiator, Per valve or Per item for multiple units.</Text>:null}
     </View>)}
