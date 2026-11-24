@@ -566,6 +566,11 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
               {sharing === selectedInvoice.id ? <ActivityIndicator color="#FFFFFF" /> : <Share2 size={20} color="#FFFFFF" />}
               <Text style={s.previewShareText}>{sharing === selectedInvoice.id ? 'Preparing PDF…' : 'Share PDF'}</Text>
             </MotionPressable>
+            <MotionPressable style={s.previewMarkSent} onPress={()=>editableFrom(selectedInvoice)}
+              accessibilityRole="button" accessibilityLabel={selectedInvoice.status==='draft'&&!selectedInvoice.quote_id?'Edit invoice draft':'Create corrected invoice'}>
+              <FileText size={18} color={theme.colors.teal}/>
+              <Text style={s.previewMarkSentText}>{selectedInvoice.status==='draft'&&!selectedInvoice.quote_id?'Edit all fields':'Create corrected invoice'}</Text>
+            </MotionPressable>
             {selectedInvoice.status === 'draft' ? <MotionPressable style={s.previewMarkSent} onPress={() => setStatus(selectedInvoice, 'sent')}
               accessibilityRole="button" accessibilityLabel="Mark invoice as sent">
               <Check size={18} color={theme.colors.teal} /><Text style={s.previewMarkSentText}>Mark sent</Text>
