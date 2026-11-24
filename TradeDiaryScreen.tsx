@@ -7,6 +7,7 @@ import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import {FormFlowSteps,FormFlowFooter} from './PremiumFormFlow';
+import {DocumentPresetBar} from './SavedWorkLibrary';
 import {formatUKDateTime,ukSlotToISO,advanceISOByMinutes,ukDayOf} from './lib/scheduling';
 
 const C=theme.colors;
@@ -115,6 +116,16 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
  </View>
  {loading?<ActivityIndicator style={{marginTop:50}} size="large" color={C.teal}/>:
  editing?<View style={{flex:1}}><ScrollView ref={bookingScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:110}]} keyboardShouldPersistTaps="handled">
+ <DocumentPresetBar ownerId={uid} scope="document" documentKind="appointment"
+  snapshot={{title,notes,duration,address}}
+  onApply={payload=>{
+   if(!payload||typeof payload!=='object')return;
+   setTitle(String(payload.title||''));setNotes(String(payload.notes||''));
+   setAddress(String(payload.address||''));
+   setDuration(Math.max(15,Math.min(1440,Number(payload.duration)||60)));
+   setBookingStep(0);
+   // Customer and appointment time deliberately remain unchanged: never silently rebook a previous customer.
+  }}/>
  <FormFlowSteps labels={['Job details','Time','Review']} active={bookingStep} onSelect={setBookingStep}
  subtitle={['Who and where is the appointment for?','Choose when the work takes place.','Check everything before adding it to the diary.'][bookingStep]}/>
  {bookingStep===0&&<View style={s.card}>
