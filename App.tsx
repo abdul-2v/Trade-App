@@ -56,9 +56,12 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import {decodeChatPhotoBase64,detectChatPhotoMime} from './lib/chatPhoto';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
   AppState,
+  Easing,
   Image,
   Linking,
   Modal,
@@ -72,6 +75,7 @@ import {
   Switch,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -6387,6 +6391,54 @@ function TradeShell({
   );
 }
 
+/** Decorative native motion: a business workflow, not a looping video or GIF. */
+function TradeToolsOrbit(){
+ const phase=useRef(new Animated.Value(0)).current;
+ const [reduced,setReduced]=useState(true);
+ const [foreground,setForeground]=useState(AppState.currentState==='active');
+ useEffect(()=>{
+  let mounted=true;
+  AccessibilityInfo.isReduceMotionEnabled().then(value=>{if(mounted)setReduced(value);}).catch(()=>{});
+  const preference=AccessibilityInfo.addEventListener('reduceMotionChanged',setReduced);
+  const state=AppState.addEventListener('change',value=>setForeground(value==='active'));
+  return()=>{mounted=false;preference.remove();state.remove();};
+ },[]);
+ useEffect(()=>{
+  phase.setValue(0);
+  if(reduced||!foreground)return;
+  const animation=Animated.loop(Animated.timing(phase,{toValue:1,duration:7200,
+   easing:Easing.linear,useNativeDriver:true,isInteraction:false}));
+  animation.start();
+  return()=>animation.stop();
+ },[phase,reduced,foreground]);
+ const points=Array.from({length:33},(_,i)=>i/32);
+ const orbit=(offset:number,axis:'x'|'y')=>phase.interpolate({
+  inputRange:points,outputRange:points.map(t=>{
+   const angle=(t+offset)*Math.PI*2;
+   const x=54*Math.cos(angle),y=32*Math.sin(angle);
+   const tilt=-.31;
+   return axis==='x'?x*Math.cos(tilt)-y*Math.sin(tilt):x*Math.sin(tilt)+y*Math.cos(tilt);
+  })
+ });
+ const float=phase.interpolate({inputRange:[0,.25,.5,.75,1],outputRange:[0,-3,0,3,0]});
+ return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+  pointerEvents="none" style={styles.tradeToolsOrbit}>
+  <View style={styles.tradeToolsOrbitHalo}/>
+  <View style={styles.tradeToolsOrbitRing}/>
+  <View style={[styles.tradeToolsOrbitSatellite,{left:8,top:12}]}><CalendarDays size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
+  <View style={[styles.tradeToolsOrbitSatellite,{right:3,top:3}]}><FileText size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
+  <View style={[styles.tradeToolsOrbitSatellite,{left:1,bottom:7}]}><Package size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
+  <View style={[styles.tradeToolsOrbitSatellite,{right:8,bottom:0}]}><Users size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
+  <Animated.View style={[styles.tradeToolsOrbitCore,{transform:[{translateY:float},{rotate:'-8deg'}]}]}>
+   <Wrench size={32} color={theme.colors.white} strokeWidth={1.8}/>
+  </Animated.View>
+  {[0,.5].map((offset,index)=><Animated.View key={offset} style={[
+   styles.tradeToolsOrbitDot,index===1&&{backgroundColor:theme.colors.coral,width:5,height:5},
+   {transform:[{translateX:orbit(offset,'x')},{translateY:orbit(offset,'y')}]}
+  ]}/>)}
+ </View>;
+}
+
 function TradeToolsScreen({navigate,openBusinessSuite}:{
  navigate:(screen:TradeScreen)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
 }){
@@ -6430,32 +6482,64 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
   ]}
  ];
  const selected=groups.find(group=>group.id===category);
+ const {width,fontScale}=useWindowDimensions();
+ const compact=width<350||fontScale>1.25;
+ const showOrbit=width>=350&&fontScale<=1.15;
+ const shortcuts:Array<{title:string;Icon:typeof FileText;onPress:()=>void;hint:string}>=[
+  {title:'New invoice',Icon:ClipboardList,onPress:()=>navigate('tradeInvoices'),hint:'Open invoices and payments'},
+  {title:'New booking',Icon:CalendarDays,onPress:()=>navigate('tradeDiary'),hint:'Open the appointment diary'},
+  {title:'New quote',Icon:FileText,onPress:()=>navigate('tradeQuotes'),hint:'Open the quotation builder'},
+  {title:'Upload file',Icon:FolderLock,onPress:()=>openBusinessSuite('documentVault'),hint:'Open the document vault to upload a file'},
+ ];
  return <TradeShell current="tradeTools" navigate={navigate}>
-  <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage]}
+  <ScrollView key={category||'categories'} contentContainerStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,{paddingBottom:30}]}
     showsVerticalScrollIndicator={false}>
    {selected?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button"
      accessibilityLabel="Back to tool categories" style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:18}}>
      <ArrowLeft size={18} color={theme.colors.teal}/>
      <Text style={{fontFamily:theme.font.heading,color:theme.colors.teal,fontWeight:'800',fontSize:13}}>All categories</Text>
     </MotionPressable>:null}
-   <View style={styles.premiumScreenHeading}><View style={{flex:1}}>
-    <Text style={styles.premiumEyebrow}>Run your business</Text>
-    <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
-    <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Everything neatly organised into categories.'}</Text>
-   </View></View>
-   {!selected?<View style={{gap:11}}>
-     {groups.map(group=><MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
-      accessibilityRole="button" accessibilityLabel={'Open '+group.title}
-      style={[styles.tradeToolsUnifiedList,{paddingVertical:17,paddingHorizontal:16,flexDirection:'row',alignItems:'center',gap:13}]}>
-      <View style={styles.tradeToolsRowIcon}><group.Icon size={23} color={theme.colors.teal}/></View>
-      <View style={{flex:1}}>
-       <Text style={styles.tradeToolsRowTitle}>{group.title}</Text>
-       <Text style={styles.tradeToolsRowDesc}>{group.detail}</Text>
-       <Text style={{fontSize:10,color:theme.colors.teal,fontWeight:'800',marginTop:7}}>{group.tools.length} tools</Text>
-      </View>
-      <ChevronRight size={20} color={theme.colors.teal}/>
+   <View style={[styles.premiumScreenHeading,!selected&&{marginBottom:15,gap:7}]}>
+    <View style={{flex:1}}>
+     <Text style={styles.premiumEyebrow}>Run your business</Text>
+     <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
+     <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Everything you need to run your business.'}</Text>
+    </View>
+    {!selected&&showOrbit?<TradeToolsOrbit/>:null}
+   </View>
+   {!selected?<FadeSlideIn>
+    <View style={[styles.tradeToolsShortcutBar,compact&&{flexWrap:'wrap'}]}>
+     {shortcuts.map(({title,Icon,onPress,hint},index)=><MotionPressable key={title} onPress={onPress}
+      accessibilityLabel={title} accessibilityHint={hint} pressScale={.96}
+      style={[styles.tradeToolsShortcutButton,compact&&{flexBasis:'48%',flexGrow:1},!compact&&index>0&&styles.tradeToolsShortcutDivider]}>
+      <View style={styles.tradeToolsShortcutGlyph}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
+      <Text style={styles.tradeToolsShortcutLabel}>{title}</Text>
      </MotionPressable>)}
-    </View>:<View style={styles.tradeToolsUnifiedList}>
+    </View>
+    <View style={styles.tradeToolsIndexRow}>
+     <Text style={styles.tradeToolsSectionTitleNew}>All tools</Text>
+     <Text style={styles.tradeToolsIndexMeta}>{groups.reduce((sum,group)=>sum+group.tools.length,0)} tools · {groups.length} categories</Text>
+    </View>
+    <View style={styles.tradeToolsTileGrid}>
+     {groups.map(group=>{
+      const wide=compact||group.id==='people';
+      const Icon=group.Icon;
+      return <MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
+       accessibilityRole="button" accessibilityLabel={'Open '+group.title+', '+group.tools.length+' tools'}
+       accessibilityHint={group.detail} pressScale={.975}
+       style={[styles.tradeToolsTile,wide&&styles.tradeToolsTileWide]}>
+       <View pointerEvents="none" style={styles.tradeToolsTileAccent}/>
+       <View style={[styles.tradeToolsTileGlyph,wide&&{marginBottom:0}]}><Icon size={25} color={theme.colors.teal} strokeWidth={1.9}/></View>
+       <View style={wide?{flex:1,minWidth:0}:{flex:1}}>
+        <Text style={styles.tradeToolsTileTitle}>{group.title}</Text>
+        <Text style={styles.tradeToolsTileDetail}>{group.detail}</Text>
+        <View style={styles.tradeToolsTileCount}><Text style={styles.tradeToolsTileCountText}>{group.tools.length} tools</Text></View>
+       </View>
+       <View style={wide?styles.tradeToolsTileArrowWide:styles.tradeToolsTileArrow}><ChevronRight size={17} strokeWidth={2} color={theme.colors.teal}/></View>
+      </MotionPressable>;
+     })}
+    </View>
+   </FadeSlideIn>:<FadeSlideIn><View style={styles.tradeToolsUnifiedList}>
      {selected.tools.map((item,index)=>{const Icon=item.Icon;return <MotionPressable key={item.title}
        accessibilityRole="button" accessibilityLabel={'Open '+item.title} accessibilityHint={item.detail}
        onPress={()=>item.route?navigate(item.route):item.feature?openBusinessSuite(item.feature):undefined}
@@ -6467,7 +6551,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        </View>
        <ChevronRight size={19} color="#82958D"/>
       </MotionPressable>})}
-    </View>}
+    </View></FadeSlideIn>}
    <Text style={styles.tradeToolsFooter}>Your private business records are only shared when you choose to share them.</Text>
   </ScrollView>
  </TradeShell>;
@@ -11288,7 +11372,32 @@ const styles = StyleSheet.create({
   tradeToolsCategoryRowTitle:{fontFamily:theme.font.heading,fontSize:13,color:theme.colors.ink,letterSpacing:-.15},
   tradeToolsCategoryRowDesc:{fontFamily:theme.font.body,fontSize:11,lineHeight:16,color:theme.colors.muted,marginTop:4},
   // One unified list; invoices and every other tool share the same row.
-  tradeToolsUnifiedPage:{paddingHorizontal:21,paddingTop:23},
+  tradeToolsUnifiedPage:{paddingHorizontal:18,paddingTop:19},
+  tradeToolsOrbit:{width:132,height:115,position:'relative',alignItems:'center',justifyContent:'center'},
+  tradeToolsOrbitHalo:{position:'absolute',width:108,height:100,borderRadius:54,backgroundColor:theme.colors.tealTint,opacity:.85},
+  tradeToolsOrbitRing:{position:'absolute',width:111,height:66,borderRadius:56,borderWidth:1.5,borderColor:theme.colors.tealMid,opacity:.28,transform:[{rotate:'-18deg'}]},
+  tradeToolsOrbitCore:{width:57,height:57,borderRadius:19,backgroundColor:theme.colors.darkTeal,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:theme.colors.tealMid,shadowColor:theme.colors.ink,shadowOpacity:.19,shadowRadius:10,shadowOffset:{width:0,height:5},elevation:4},
+  tradeToolsOrbitSatellite:{position:'absolute',width:31,height:31,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,shadowColor:theme.colors.ink,shadowOpacity:.08,shadowRadius:5,shadowOffset:{width:0,height:2},elevation:2},
+  tradeToolsOrbitDot:{position:'absolute',width:6,height:6,borderRadius:4,backgroundColor:theme.colors.tealMid,left:63,top:54},
+  tradeToolsShortcutBar:{flexDirection:'row',backgroundColor:theme.colors.white,borderRadius:21,borderWidth:1,borderColor:theme.colors.line,paddingVertical:9,paddingHorizontal:4,marginBottom:19,shadowColor:theme.colors.ink,shadowOpacity:.05,shadowRadius:9,shadowOffset:{width:0,height:3},elevation:1},
+  tradeToolsShortcutButton:{flex:1,minWidth:0,minHeight:66,alignItems:'center',justifyContent:'center',paddingHorizontal:2,paddingVertical:4,gap:5},
+  tradeToolsShortcutDivider:{borderLeftWidth:1,borderLeftColor:theme.colors.line},
+  tradeToolsShortcutGlyph:{width:37,height:37,borderRadius:12,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
+  tradeToolsShortcutLabel:{fontSize:11,fontWeight:'700',color:theme.colors.ink,textAlign:'center'},
+  tradeToolsIndexRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:4,marginBottom:9},
+  tradeToolsSectionTitleNew:{fontFamily:theme.font.heading,fontSize:17,fontWeight:'800',color:theme.colors.ink},
+  tradeToolsIndexMeta:{fontSize:11,color:theme.colors.muted,fontWeight:'500'},
+  tradeToolsTileGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:10},
+  tradeToolsTile:{width:'48.5%',minHeight:154,backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,borderRadius:21,padding:12,overflow:'hidden',position:'relative'},
+  tradeToolsTileWide:{width:'100%',minHeight:102,flexDirection:'row',alignItems:'center',gap:11},
+  tradeToolsTileAccent:{position:'absolute',width:98,height:75,top:-24,left:-21,borderRadius:45,transform:[{rotate:'-22deg'}],backgroundColor:theme.colors.tealTint,opacity:.68},
+  tradeToolsTileGlyph:{width:41,height:41,borderRadius:13,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center',marginBottom:8},
+  tradeToolsTileTitle:{fontFamily:theme.font.heading,fontSize:15,lineHeight:19,fontWeight:'800',color:theme.colors.ink,letterSpacing:-.2},
+  tradeToolsTileDetail:{fontSize:11.5,lineHeight:16,color:theme.colors.muted,marginTop:3},
+  tradeToolsTileCount:{alignSelf:'flex-start',borderRadius:10,backgroundColor:theme.colors.tealTint,paddingHorizontal:8,paddingVertical:3,marginTop:7},
+  tradeToolsTileCountText:{fontSize:10.5,fontWeight:'800',color:theme.colors.teal},
+  tradeToolsTileArrow:{position:'absolute',right:10,top:13,width:28,height:28,alignItems:'center',justifyContent:'center',borderRadius:14,backgroundColor:theme.colors.soft},
+  tradeToolsTileArrowWide:{width:28,height:28,alignItems:'center',justifyContent:'center',borderRadius:14,backgroundColor:theme.colors.soft},
   tradeToolsUnifiedList:{backgroundColor:theme.colors.white,borderRadius:22,
     paddingHorizontal:16,borderWidth:1,borderColor:'#E3EAE6',overflow:'hidden'},
   tradeToolsUnifiedGroupHeader:{paddingTop:17,paddingBottom:9,paddingHorizontal:2},
