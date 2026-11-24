@@ -84,7 +84,8 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
   </MotionPressable>;
 }
 
-export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBack: () => void; initialPreviewId?: string | null }) {
+export default function TradeInvoicesScreen({ goBack, initialPreviewId, initialCreate=false, onCreateOpened }: { goBack: () => void; initialPreviewId?: string | null; initialCreate?:boolean; onCreateOpened?:()=>void }) {
+  const handledCreate=useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
@@ -249,6 +250,13 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setFormStep(-1);setExpandedUnitLine(null);setShowBusinessDetails(!businessName.trim()||!businessAddress.trim());
     setScreen('create');
   };
+  // Wait for business defaults, then consume a new-draft shortcut exactly once.
+  useEffect(()=>{
+    if(!initialCreate||loading||!userId||handledCreate.current)return;
+    handledCreate.current=true;
+    if(!initialPreviewId&&screen==='list')startNew();
+    onCreateOpened?.();
+  },[initialCreate,loading,userId,initialPreviewId,screen]);
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
     setLines(existing => existing.map((item, i) => i === index ? { ...item, ...patch } : item));
   const addLine = (kind: InvoiceLineKind, description = '') => {

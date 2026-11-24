@@ -145,10 +145,12 @@ function Pill({name,selected,onPress}:{name:string;selected:boolean;onPress:()=>
  return <MotionPressable onPress={onPress} style={[s.pill,selected&&s.pillOn]}>
  <Text style={[s.pillText,selected&&s.pillTextOn]}>{name}</Text></MotionPressable>;
 }
-export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated,initialDraft}:{
+export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCreated,initialDraft,initialCreate=false,onCreateOpened}:{
  goBack:()=>void;onInvoiceCreated:(invoiceId:string)=>void;onMaterialsCreated:(kitId:string)=>void;
  initialDraft?:QuoteDraftFromSuite|null;
+ initialCreate?:boolean;onCreateOpened?:()=>void;
 }){
+ const handledCreate=useRef(false);
  const scrollRef=useRef<ScrollViewInstance>(null);
  const bringBottomIntoView=()=>{setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),360);};
  const [uid,setUid]=useState('');
@@ -317,6 +319,13 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   });
   if(lineItems.length)setLines(lineItems);
  },[loading,initialDraft]);
+ // A blank shortcut never overwrites an existing Business Suite draft.
+ useEffect(()=>{
+  if(!initialCreate||loading||!uid||handledCreate.current)return;
+  handledCreate.current=true;
+  if(!initialDraft&&screen==='list')newQuote();
+  onCreateOpened?.();
+ },[initialCreate,loading,uid,initialDraft,screen]);
  const reviseQuote=(doc:Quote)=>{
    const canEditDraft=doc.status==='draft'&&!deliveries.some(p=>p.quote_id===doc.id);
    setEditingQuoteId(canEditDraft?doc.id:null);

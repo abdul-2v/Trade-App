@@ -60,4 +60,22 @@ assert.ok(map.includes('openDirections(selected)'),'Keep merchant directions int
 assert.ok(inbox.includes('const receiveScale = flight.interpolate('),'Keep Inbox animation');
 assert.ok(!inbox.includes('recipientAura')&&!inbox.includes('receiveGlow'),
  'Keep unwanted receiver orange glow removed');
+// Shortcuts use the real existing composers, rather than opening a list.
+for(const [route,file,guard] of [
+ ['tradeInvoices','TradeInvoicesScreen.tsx',"if(!initialPreviewId&&screen==='list')startNew()"],
+ ['tradeQuotes','TradeQuotesScreen.tsx',"if(!initialDraft&&screen==='list')newQuote()"],
+ ['tradeDiary','TradeDiaryScreen.tsx',"if(!editing)startNew()"],
+]){
+ assert.ok(screen.includes("navigate('"+route+"',true)"),'Shortcut must request create mode for '+route);
+ assert.ok(app.includes("initialCreate={tradeCreateEntry==='"+route+"'}"),'Create intent must reach '+route);
+ const composer=read(file);
+ assert.ok(composer.includes('handledCreate.current=true')&&composer.includes(guard)&&composer.includes('onCreateOpened?.()'),
+  'Create mode must wait, open the original composer and consume its intent: '+route);
+}
+assert.equal((screen.match(/(?:route|feature):'/g)||[]).length,25,'All 25 tools must be retained');
+assert.ok(screen.includes('fontScale>1.2')&&screen.includes('wide=compact'),'Large text must switch to wide cards');
+assert.ok(app.includes('tradeToolsTileBody:{flex:1,minWidth:0,justifyContent:'),'Card content must flex without truncation');
+const orbit=app.slice(app.indexOf('function TradeToolsOrbit'),start);
+assert.ok(orbit.includes('useNativeDriver:true')&&orbit.includes('isInteraction:false'),'Native decoration must not block user interaction');
+assert.ok(orbit.includes('if(reduced||!foreground)return')&&orbit.includes('animation.stop()'),'Animation must pause and clean up');
 console.log('PASS: system fonts, category-first Tools, invoices first, unique actions, light map and clean Inbox');

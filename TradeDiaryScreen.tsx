@@ -20,7 +20,8 @@ function Field({label,value,change,multi,placeholder}:{label:string;value:string
  <TextInput value={value} onChangeText={change} placeholder={placeholder} placeholderTextColor="#94A2A2"
  style={[s.input,multi&&{minHeight:81}]} multiline={multi} textAlignVertical={multi?'top':'center'}/></View>;
 }
-export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
+export default function TradeDiaryScreen({goBack,initialCreate=false,onCreateOpened}:{goBack:()=>void;initialCreate?:boolean;onCreateOpened?:()=>void}){
+ const handledCreate=useRef(false);
  const [uid,setUid]=useState('');
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
@@ -63,6 +64,13 @@ export default function TradeDiaryScreen({goBack}:{goBack:()=>void}){
   if(!error)setItems((data||[]) as Appointment[]);
  };
  const startNew=()=>{setEditId(null);setCustomerId(null);setTitle('');setName('');setAddress('');setNotes('');setDate(ukDayOf(new Date()));setTime('09:00');setDuration(60);setBookingStep(0);setEditing(true)};
+ // Use the same appointment composer and conflict checks as the Add button.
+ useEffect(()=>{
+  if(!initialCreate||loading||!uid||handledCreate.current)return;
+  handledCreate.current=true;
+  if(!editing)startNew();
+  onCreateOpened?.();
+ },[initialCreate,loading,uid,editing]);
  const startEdit=(v:Appointment)=>{const a=new Date(v.starts_at),b=new Date(v.ends_at);
   if(v.job_id){Alert.alert('Confirmed booking','To change the time of an accepted Tradarr job, use Request a different time below. Both parties must agree.');return;}
   if(v.grid_request_id){Alert.alert('Grid booking','This slot is tied to an accepted Grid request. Its time cannot be edited here.');return;}

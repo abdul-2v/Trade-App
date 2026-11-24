@@ -631,9 +631,13 @@ function TradarrApp() {
   const [businessFeature,setBusinessFeature]=useState<BusinessFeature>('radar');
   const [businessQuoteDraft,setBusinessQuoteDraft]=useState<QuoteDraftFromSuite|null>(null);
   const [invoicePreviewId,setInvoicePreviewId]=useState<string|null>(null);
+  const [tradeCreateEntry,setTradeCreateEntry]=useState<TradeScreen|null>(null);
   const [materialKitPreviewId,setMaterialKitPreviewId]=useState<string|null>(null);
   const [tradeJobsEntry, setTradeJobsEntry] = useState<TradeJobsEntry>({ view: 'offers', filter: 'all' });
-  const navigateTrade = (screen: TradeScreen) => {
+  const navigateTrade = (screen: TradeScreen, startCreate=false) => {
+    const create=startCreate&&(screen==='tradeInvoices'||screen==='tradeQuotes'||screen==='tradeDiary');
+    setTradeCreateEntry(create?screen:null);
+    if(create&&screen==='tradeQuotes')setBusinessQuoteDraft(null);
     if (screen === 'tradeJobs') setTradeJobsEntry({ view: 'offers', filter: 'all' });
     if (screen === 'tradeInvoices') setInvoicePreviewId(null);
     if (screen === 'tradeMaterials') setMaterialKitPreviewId(null);
@@ -978,14 +982,14 @@ function TradarrApp() {
     };
 
     if (tradeScreen === 'tradeInvoices') return <TradeShell current="tradeInvoices" navigate={navigateTrade}><TradeInvoicesScreen
-      initialPreviewId={invoicePreviewId} goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
+      initialPreviewId={invoicePreviewId} initialCreate={tradeCreateEntry==='tradeInvoices'} onCreateOpened={()=>setTradeCreateEntry(null)} goBack={() => navigateTrade('tradeTools')} /></TradeShell>;
     if (tradeScreen === 'tradeQuotes') return <TradeShell current="tradeQuotes" navigate={navigateTrade}><TradeQuotesScreen
       goBack={() => {setBusinessQuoteDraft(null);navigateTrade('tradeTools');}}
-      initialDraft={businessQuoteDraft}
+      initialDraft={businessQuoteDraft} initialCreate={tradeCreateEntry==='tradeQuotes'} onCreateOpened={()=>setTradeCreateEntry(null)}
       onInvoiceCreated={id => { setInvoicePreviewId(id); setTradeScreen('tradeInvoices'); }}
       onMaterialsCreated={id => { setMaterialKitPreviewId(id); setTradeScreen('tradeMaterials'); }} /></TradeShell>;
     if (tradeScreen === 'tradeCustomers') return <TradeShell current="tradeCustomers" navigate={navigateTrade}><TradeCustomersScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
-    if (tradeScreen === 'tradeDiary') return <TradeShell current="tradeDiary" navigate={navigateTrade}><TradeDiaryScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
+    if (tradeScreen === 'tradeDiary') return <TradeShell current="tradeDiary" navigate={navigateTrade}><TradeDiaryScreen initialCreate={tradeCreateEntry==='tradeDiary'} onCreateOpened={()=>setTradeCreateEntry(null)} goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeProfit') return <TradeShell current="tradeProfit" navigate={navigateTrade}>
       <TradeProfitScreen goBack={() => navigateTrade('tradeTools')}/></TradeShell>;
     if (tradeScreen === 'tradeDocuments') return <TradeShell current="tradeTools" navigate={navigateTrade}><TradarrDocumentBuilderScreen role="tradesperson" goBack={()=>navigateTrade('tradeTools')}/></TradeShell>;
@@ -6421,14 +6425,16 @@ function TradeToolsOrbit(){
   })
  });
  const float=phase.interpolate({inputRange:[0,.25,.5,.75,1],outputRange:[0,-3,0,3,0]});
+ const satelliteMotion=(offset:number)=>phase.interpolate({inputRange:points,
+  outputRange:points.map(t=>1+.055*Math.cos((t+offset)*Math.PI*2))});
  return <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
   pointerEvents="none" style={styles.tradeToolsOrbit}>
   <View style={styles.tradeToolsOrbitHalo}/>
   <View style={styles.tradeToolsOrbitRing}/>
-  <View style={[styles.tradeToolsOrbitSatellite,{left:8,top:12}]}><CalendarDays size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
-  <View style={[styles.tradeToolsOrbitSatellite,{right:3,top:3}]}><FileText size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
-  <View style={[styles.tradeToolsOrbitSatellite,{left:1,bottom:7}]}><Package size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
-  <View style={[styles.tradeToolsOrbitSatellite,{right:8,bottom:0}]}><Users size={17} strokeWidth={1.8} color={theme.colors.teal}/></View>
+  <Animated.View style={[styles.tradeToolsOrbitSatellite,{left:8,top:12,transform:[{scale:satelliteMotion(0)}]}]}><CalendarDays size={17} strokeWidth={1.8} color={theme.colors.teal}/></Animated.View>
+  <Animated.View style={[styles.tradeToolsOrbitSatellite,{right:3,top:3,transform:[{scale:satelliteMotion(0.25)}]}]}><FileText size={17} strokeWidth={1.8} color={theme.colors.teal}/></Animated.View>
+  <Animated.View style={[styles.tradeToolsOrbitSatellite,{left:1,bottom:7,transform:[{scale:satelliteMotion(0.75)}]}]}><Package size={17} strokeWidth={1.8} color={theme.colors.teal}/></Animated.View>
+  <Animated.View style={[styles.tradeToolsOrbitSatellite,{right:8,bottom:0,transform:[{scale:satelliteMotion(0.5)}]}]}><Users size={17} strokeWidth={1.8} color={theme.colors.teal}/></Animated.View>
   <Animated.View style={[styles.tradeToolsOrbitCore,{transform:[{translateY:float},{rotate:'-8deg'}]}]}>
    <Wrench size={32} color={theme.colors.white} strokeWidth={1.8}/>
   </Animated.View>
@@ -6440,19 +6446,19 @@ function TradeToolsOrbit(){
 }
 
 function TradeToolsScreen({navigate,openBusinessSuite}:{
- navigate:(screen:TradeScreen)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
+ navigate:(screen:TradeScreen,startCreate?:boolean)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
 }){
  const [category,setCategory]=useState('');
  type ToolEntry={title:string;detail:string;Icon:typeof FileText;route?:TradeScreen;feature?:BusinessFeature};
  const groups:Array<{id:string;title:string;detail:string;Icon:typeof FileText;tools:ToolEntry[]}>= [
-  {id:'essentials',title:'Quotes & finance',detail:'Invoices, quotations, bookings and business figures',Icon:FileText,tools:[
+  {id:'essentials',title:'Quotes & finance',detail:'Invoices, quotes, payments and profit',Icon:FileText,tools:[
    {route:'tradeInvoices',title:'Invoices & payments',detail:'Create PDF invoices and track money due',Icon:ClipboardList},
    {route:'tradeQuotes',title:'Create a quote',detail:'Estimate and share a job price',Icon:FileText},
    {feature:'moneyHub',title:'Money Hub',detail:'See costs, invoices and outstanding amounts',Icon:HandCoins},
    {route:'tradeProfit',title:'Job profit & expenses',detail:'Track spending and profit margins',Icon:TrendingUp},
    {feature:'insights',title:'Business Insights',detail:'Review performance and key figures',Icon:BarChart3}
   ]},
-  {id:'work',title:'Jobs & scheduling',detail:'Run the diary, journeys and active jobs',Icon:CalendarDays,tools:[
+  {id:'work',title:'Jobs & scheduling',detail:'Bookings, routes and active jobs',Icon:CalendarDays,tools:[
    {route:'tradeDiary',title:'Add a booking',detail:'Plan an appointment in your diary',Icon:CalendarDays},
    {feature:'radar',title:'Opportunity Radar',detail:'Find relevant local work requests',Icon:Radar},
    {feature:'commandCentre',title:'Job Command Centre',detail:'Manage active-job checklists',Icon:ClipboardCheck},
@@ -6461,17 +6467,17 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
    {route:'tradeRoutes',title:'On My Way & Street Run',detail:'Plan journeys and route-friendly jobs',Icon:Route},
    {route:'tradeGrid',title:'Grid availability',detail:'Publish openings and manage enquiries',Icon:CalendarDays}
   ]},
-  {id:'documents',title:'Documents & reports',detail:'Professional paperwork and reusable records',Icon:FolderLock,tools:[
+  {id:'documents',title:'Documents & reports',detail:'Job paperwork, files and templates',Icon:FolderLock,tools:[
    {route:'tradeDocuments',title:'Create job documents',detail:'Job sheets, inspections, completion and extra work',Icon:FileText},
    {feature:'documentVault',title:'Document Vault',detail:'Store and find private business files',Icon:FolderLock},
    {feature:'quoteStudio',title:'Smart Quote Studio',detail:'Reusable scope and estimate templates',Icon:ClipboardCheck},
    {feature:'growthKit',title:'Business templates',detail:'Reusable customer message templates',Icon:Megaphone}
   ]},
-  {id:'materials',title:'Materials & suppliers',detail:'Plan purchases, stock and supplier visits',Icon:Package,tools:[
+  {id:'materials',title:'Materials & suppliers',detail:'Purchases, stock and suppliers',Icon:Package,tools:[
    {route:'tradeMaterials',title:'Materials planner',detail:'Shopping lists and local trade suppliers',Icon:Package},
    {feature:'assistant',title:'Business Assistant',detail:'Suggestions based on your business records',Icon:Bot}
   ]},
-  {id:'people',title:'Customers & team',detail:'Customer relationships, crews and follow-ups',Icon:Users,tools:[
+  {id:'people',title:'Customers & team',detail:'Customers, crews and follow-ups',Icon:Users,tools:[
    {route:'tradeCustomers',title:'Customer book',detail:'Contacts, notes and previous jobs',Icon:Users},
    {feature:'repeatEngine',title:'Repeat Customer Engine',detail:'Reminders and follow-ups',Icon:Repeat},
    {feature:'bookingProfile',title:'Business Booking Profile',detail:'Shareable business contact details',Icon:Globe},
@@ -6483,19 +6489,19 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
  ];
  const selected=groups.find(group=>group.id===category);
  const {width,fontScale}=useWindowDimensions();
- const compact=width<350||fontScale>1.25;
- const showOrbit=width>=350&&fontScale<=1.15;
+ const compact=width<350||fontScale>1.2;
+ const showOrbit=width>=365&&fontScale<=1.15;
  const shortcuts:Array<{title:string;Icon:typeof FileText;onPress:()=>void;hint:string}>=[
-  {title:'New invoice',Icon:ClipboardList,onPress:()=>navigate('tradeInvoices'),hint:'Open invoices and payments'},
-  {title:'New booking',Icon:CalendarDays,onPress:()=>navigate('tradeDiary'),hint:'Open the appointment diary'},
-  {title:'New quote',Icon:FileText,onPress:()=>navigate('tradeQuotes'),hint:'Open the quotation builder'},
+  {title:'New invoice',Icon:ClipboardList,onPress:()=>navigate('tradeInvoices',true),hint:'Start a new editable invoice draft'},
+  {title:'New booking',Icon:CalendarDays,onPress:()=>navigate('tradeDiary',true),hint:'Start a new appointment'},
+  {title:'New quote',Icon:FileText,onPress:()=>navigate('tradeQuotes',true),hint:'Start a new editable quotation'},
   {title:'Upload file',Icon:FolderLock,onPress:()=>openBusinessSuite('documentVault'),hint:'Open the document vault to upload a file'},
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
-  <ScrollView key={category||'categories'} contentContainerStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,{paddingBottom:30}]}
+  <ScrollView key={category||'categories'} style={{backgroundColor:theme.colors.proBackground}} contentContainerStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,{paddingBottom:30}]}
     showsVerticalScrollIndicator={false}>
    {selected?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button"
-     accessibilityLabel="Back to tool categories" style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:18}}>
+     accessibilityLabel="Back to tool categories" style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44,marginBottom:8}}>
      <ArrowLeft size={18} color={theme.colors.teal}/>
      <Text style={{fontFamily:theme.font.heading,color:theme.colors.teal,fontWeight:'800',fontSize:13}}>All categories</Text>
     </MotionPressable>:null}
@@ -6503,7 +6509,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
     <View style={{flex:1}}>
      <Text style={styles.premiumEyebrow}>Run your business</Text>
      <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
-     <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Everything you need to run your business.'}</Text>
+     <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Your business, all in one place.'}</Text>
     </View>
     {!selected&&showOrbit?<TradeToolsOrbit/>:null}
    </View>
@@ -6530,9 +6536,11 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        style={[styles.tradeToolsTile,wide&&styles.tradeToolsTileWide]}>
        <View pointerEvents="none" style={styles.tradeToolsTileAccent}/>
        <View style={[styles.tradeToolsTileGlyph,wide&&{marginBottom:0}]}><Icon size={25} color={theme.colors.teal} strokeWidth={1.9}/></View>
-       <View style={wide?{flex:1,minWidth:0}:{flex:1}}>
-        <Text style={styles.tradeToolsTileTitle}>{group.title}</Text>
-        <Text style={styles.tradeToolsTileDetail}>{group.detail}</Text>
+       <View style={styles.tradeToolsTileBody}>
+        <View>
+         <Text style={styles.tradeToolsTileTitle}>{group.title}</Text>
+         <Text style={styles.tradeToolsTileDetail}>{group.detail}</Text>
+        </View>
         <View style={styles.tradeToolsTileCount}><Text style={styles.tradeToolsTileCountText}>{group.tools.length} tools</Text></View>
        </View>
        <View style={wide?styles.tradeToolsTileArrowWide:styles.tradeToolsTileArrow}><ChevronRight size={17} strokeWidth={2} color={theme.colors.teal}/></View>
@@ -11388,12 +11396,13 @@ const styles = StyleSheet.create({
   tradeToolsSectionTitleNew:{fontFamily:theme.font.heading,fontSize:17,fontWeight:'800',color:theme.colors.ink},
   tradeToolsIndexMeta:{fontSize:11,color:theme.colors.muted,fontWeight:'500'},
   tradeToolsTileGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:10},
-  tradeToolsTile:{width:'48.5%',minHeight:154,backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,borderRadius:21,padding:12,overflow:'hidden',position:'relative'},
+  tradeToolsTile:{width:'48.5%',minHeight:160,backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,borderRadius:21,padding:13,overflow:'hidden',position:'relative'},
+  tradeToolsTileBody:{flex:1,minWidth:0,justifyContent:'space-between'},
   tradeToolsTileWide:{width:'100%',minHeight:102,flexDirection:'row',alignItems:'center',gap:11},
   tradeToolsTileAccent:{position:'absolute',width:98,height:75,top:-24,left:-21,borderRadius:45,transform:[{rotate:'-22deg'}],backgroundColor:theme.colors.tealTint,opacity:.68},
   tradeToolsTileGlyph:{width:41,height:41,borderRadius:13,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center',marginBottom:8},
   tradeToolsTileTitle:{fontFamily:theme.font.heading,fontSize:15,lineHeight:19,fontWeight:'800',color:theme.colors.ink,letterSpacing:-.2},
-  tradeToolsTileDetail:{fontSize:11.5,lineHeight:16,color:theme.colors.muted,marginTop:3},
+  tradeToolsTileDetail:{fontSize:12,lineHeight:17,color:theme.colors.muted,marginTop:4},
   tradeToolsTileCount:{alignSelf:'flex-start',borderRadius:10,backgroundColor:theme.colors.tealTint,paddingHorizontal:8,paddingVertical:3,marginTop:7},
   tradeToolsTileCountText:{fontSize:10.5,fontWeight:'800',color:theme.colors.teal},
   tradeToolsTileArrow:{position:'absolute',right:10,top:13,width:28,height:28,alignItems:'center',justifyContent:'center',borderRadius:14,backgroundColor:theme.colors.soft},
