@@ -12,6 +12,7 @@ import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib
 import {invoiceHtml} from './lib/tradarrInvoicePdf';
 import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
 import {SavedWorkLibrary,SaveWorkPreset,DocumentPresetBar,type WorkHistory,type WorkLine} from './SavedWorkLibrary';
+import DocumentComposerOverview from './DocumentComposerOverview';
 
 type InvoiceLineKind = 'labour' | 'material' | 'other';
 type LineItem = { kind?: InvoiceLineKind; description: string; quantity: number; unit_price: number; unit?: string };
@@ -245,7 +246,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setInvoiceDate(dateToday()); setServiceDate(dateToday()); setDueDate(datePlusDays(14));
     setLines([{ kind: 'labour', description: '', quantity: '1', unit_price: '', unit: 'job' }]);
     setDiscountInput('0');setDepositInput('0');
-    setFormStep(0);setExpandedUnitLine(null);setShowBusinessDetails(!businessName.trim()||!businessAddress.trim());
+    setFormStep(-1);setExpandedUnitLine(null);setShowBusinessDetails(!businessName.trim()||!businessAddress.trim());
     setScreen('create');
   };
   const changeLine = (index: number, patch: Partial<EditableLine>) =>
@@ -288,7 +289,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     setLines((doc.items||[]).length?(doc.items||[]).map(line=>({kind:line.kind||'other',description:line.description,
       quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit||'item'})):
        [{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);
-    setFormStep(0);setShowBusinessDetails(false);setScreen('create');
+    setFormStep(-1);setShowBusinessDetails(false);setScreen('create');
     if(locked)Alert.alert('New corrected invoice','The original issued invoice is protected. This is a new editable draft with a new invoice number when saved. The original remains in your records.');
   };
   const addSavedLine=(line:WorkLine)=>setLines(old=>{
@@ -329,7 +330,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     // Reset dates for new invoices. Presets never silently reissue a previous date or number.
     setInvoiceDate(dateToday());setServiceDate(dateToday());setDueDate(datePlusDays(14));
     setEditingDraftId(null);setSource('external');setSelectedJob(null);setSelectedCustomerId(null);
-    setFormStep(0);
+    setFormStep(-1);
   };
   const sharePdf = async (doc: Invoice) => {
     if (sharing) return;
@@ -486,7 +487,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
     n + Math.max(0,Number(i.total)-(paymentTotals[i.id]||0)),0);
   return <View style={s.root}>
     <View style={s.header}>
-      <MotionPressable style={s.back} onPress={screen === 'draftPreview' ? () => setScreen('create') : screen === 'create' || screen === 'preview' ? () => setScreen('list') : goBack}
+      <MotionPressable style={s.back} onPress={screen === 'draftPreview' ? () => setScreen('create') : screen === 'create' ? () => formStep>=0?setFormStep(-1):setScreen('list') : screen === 'preview' ? () => setScreen('list') : goBack}
         accessibilityRole="button" accessibilityLabel="Back">
         <ArrowLeft size={23} color={theme.colors.ink} />
       </MotionPressable>
@@ -602,7 +603,21 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
          </View>
         </View> : <View style={{flex:1}}>
         <ScrollView ref={formScrollRef} automaticallyAdjustKeyboardInsets contentContainerStyle={[s.page,{paddingBottom:135}]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
+        {formStep===-1&&<DocumentComposerOverview title={editingDraftId?'Edit your invoice':'Build your invoice'}
+         description="Everything in one place. Tap the details you need to change or reuse a previous job."
+         sections={[
+          {title:'Customer & business',label:customerName||'Add customer',detail:customerAddress||'Customer, address, job source and business details',
+           done:!!customerName.trim()&&!!customerAddress.trim()&&!!businessName.trim()&&!!businessAddress.trim()},
+          {title:'Work & materials',label:lines.filter(l=>l.description.trim()).length+' itemised entries',
+           detail:'Labour, materials, quantity and rates',done:lines.some(l=>l.description.trim()&&l.unit_price.trim())},
+          {title:'Payment details',label:dueDate,detail:'VAT, bank details and payment terms',done:!!dueDate},
+          {title:'Review & create',label:money(total),detail:'Check the A4 document before saving',done:total>0},
+         ]}
+         amount={money(total)} onEdit={changeFormStep} onPreview={()=>setScreen('draftPreview')}>
+          <SavedWorkLibrary ownerId={userId} history={workHistory} onAdd={addSavedLine}/>
+          <DocumentPresetBar ownerId={userId} scope="invoice" snapshot={invoiceSetup} onApply={applyInvoiceSetup}/>
+         </DocumentComposerOverview>}
+        {formStep>=0&&<FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
          subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>
         {formStep===0&&<>
         <DocumentPresetBar ownerId={userId} scope="invoice" snapshot={invoiceSetup} onApply={applyInvoiceSetup}/>
@@ -815,10 +830,9 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
          <Text style={s.reviewMuted}>Your invoice number is assigned when you save the draft. Sharing is separate.</Text>
         </>}
        </ScrollView>
-       <FormFlowFooter active={formStep} total={4} onPrevious={()=>changeFormStep(formStep-1)}
-        onNext={formStep===3?()=>setScreen('draftPreview'):goForward}
-        primaryLabel={formStep===3?'Review full invoice':'Continue'}
-        amount={money(total)}/>
+       {formStep>=0&&<FormFlowFooter active={formStep} total={4} onPrevious={()=>setFormStep(-1)}
+        onNext={()=>setFormStep(-1)} primaryLabel="Done · Back to overview" amount={money(total)}/>}
+       
        <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
       </View>}
   </View>;
