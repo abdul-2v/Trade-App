@@ -148,7 +148,7 @@ export function SaveWorkPreset({ownerId,line}:{ownerId:string;line:WorkLine}){
   finally{setBusy(false);}
  };
  return <View style={{marginTop:8}}>
-  {!open?<MotionPressable style={s.saveButton} onPress={()=>{setName(line.description);setOpen(true)}} accessibilityRole="button">
+  {!open?<MotionPressable style={s.saveButton} onPress={()=>{setName(line.description);setCategory(tradeFor(line.description));setOpen(true)}} accessibilityRole="button">
    <Bookmark size={15} color={C.teal}/><Text style={s.saveText}>Save as reusable job</Text>
   </MotionPressable>:<View style={s.saveEditor}>
    <Text style={s.group}>PRESET NAME</Text>
