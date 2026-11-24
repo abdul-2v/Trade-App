@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {Bookmark,Check,ChevronRight,Clock3,Plus,Search,Trash2} from 'lucide-react-native';
 import {supabase} from './lib/supabase';
 import {MotionPressable} from './Motion';
@@ -8,6 +8,30 @@ import {theme} from './theme';
 export type WorkLine={kind?:'labour'|'material'|'other';description:string;quantity:number;unit_price:number;unit?:string};
 export type WorkHistory={items?:WorkLine[];created_at?:string};
 export type Preset={id:string;scope:string;document_kind:string;name:string;payload:any;usage_count:number;updated_at:string;pinned:boolean};
+export const tradeGroups=[
+ {id:'all',label:'All'}, {id:'plumbing',label:'Plumbing'},{id:'electrical',label:'Electrical'},
+ {id:'carpentry',label:'Carpentry'},{id:'gardening',label:'Gardening'},
+ {id:'painting',label:'Decorating'},{id:'roofing',label:'Roofing'},{id:'general',label:'General'}
+];
+const commonJobs:Record<string,string[]>={
+ plumbing:['Fit radiator','Replace radiator valve','Replace kitchen tap','Repair leaking pipe','Fit toilet'],
+ electrical:['Replace double socket','Install ceiling light','Replace light switch','Install fused spur'],
+ carpentry:['Hang internal door','Fit skirting board','Install shelving','Repair timber gate'],
+ gardening:['Mow lawn','Trim hedge','Garden clearance','Replace fence panel'],
+ painting:['Paint bedroom','Paint external door','Prepare and paint woodwork'],
+ roofing:['Replace broken roof tile','Repair gutter','Investigate roof leak'],
+ general:['Call-out fee','Site inspection','Disposal of waste']
+};
+export const tradeFor=(description:string)=>{
+ const s=description.toLowerCase();
+ if(/radiator|boiler|tap|toilet|plumb|leak|pipe|drain|basin|bath|shower|valve/.test(s))return 'plumbing';
+ if(/socket|light|switch|fuse|electric|wiring|consumer unit|circuit/.test(s))return 'electrical';
+ if(/carpentr|joiner|timber|door|skirting|shelv|cabinet|woodwork/.test(s))return 'carpentry';
+ if(/garden|lawn|hedge|fence|mow|weed|tree|grass/.test(s))return 'gardening';
+ if(/paint|decorat|wallpaper|plaster/.test(s))return 'painting';
+ if(/roof|gutter|tile|flashing/.test(s))return 'roofing';
+ return 'general';
+};
 const money=(n:number)=>'£'+Number(n||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
 const validWork=(line:WorkLine)=>!!String(line.description||'').trim() && Number.isFinite(Number(line.unit_price))&&Number(line.unit_price)>=0;
 const key=(line:WorkLine)=>[String(line.kind||'other'),String(line.description||'').toLocaleLowerCase('en-GB').trim().replace(/\s+/g,' '),String(line.unit||'item')].join('|');
@@ -15,7 +39,7 @@ const cleanLine=(line:WorkLine):WorkLine=>({kind:line.kind||'other',description:
  quantity:Math.max(0,Number(line.quantity)||1),unit_price:Math.max(0,Number(line.unit_price)||0),unit:line.unit||'item'});
 export function pastWorkSuggestions(history:WorkHistory[]):Array<{line:WorkLine;count:number}>{
  const grouped=new Map<string,{line:WorkLine;count:number}>();
- for(const doc of history){
+ for(const doc of [...history].sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')))){
   for(const raw of doc.items||[]){
    if(!validWork(raw))continue;
    const line=cleanLine(raw),k=key(line),previous=grouped.get(k);
@@ -35,6 +59,7 @@ export async function saveTradarrPreset(ownerId:string,scope:'line'|'invoice'|'q
 const C=theme.colors;
 export function SavedWorkLibrary({ownerId,history,onAdd}:{ownerId:string;history:WorkHistory[];onAdd:(line:WorkLine)=>void}){
  const [open,setOpen]=useState(false),[search,setSearch]=useState(''),[presets,setPresets]=useState<Preset[]>([]);
+ const [category,setCategory]=useState('all');
  const [loading,setLoading]=useState(false),[error,setError]=useState('');
  const suggested=useMemo(()=>pastWorkSuggestions(history),[history]);
  const refresh=async()=>{
@@ -58,8 +83,12 @@ export function SavedWorkLibrary({ownerId,history,onAdd}:{ownerId:string;history
    if(error)Alert.alert('Could not delete',error.message);else setPresets(x=>x.filter(row=>row.id!==p.id));
   }}]);
  const query=search.toLowerCase().trim();
- const saved=presets.filter(p=>!query||[p.name,p.payload?.description,p.document_kind].join(' ').toLowerCase().includes(query));
- const recent=suggested.filter(x=>!query||[x.line.description,x.line.kind].join(' ').toLowerCase().includes(query)).slice(0,12);
+ const matchCategory=(description:string,stored='')=>category==='all'||(stored&&tradeGroups.some(x=>x.id===stored)&&stored===category)||tradeFor(description)===category;
+ const saved=presets.filter(p=>(!query||[p.name,p.payload?.description,p.document_kind].join(' ').toLowerCase().includes(query))&&
+  matchCategory(p.payload?.description||p.name,p.document_kind));
+ const recent=suggested.filter(x=>(!query||[x.line.description,x.line.kind].join(' ').toLowerCase().includes(query))&&
+  matchCategory(x.line.description)).slice(0,12);
+ const starters=(category==='all'?commonJobs.general:commonJobs[category]||[]).filter(name=>!query||name.toLowerCase().includes(query)).slice(0,7);
  return <View style={s.shell}>
    <MotionPressable style={s.header} onPress={()=>setOpen(x=>!x)} accessibilityRole="button"
      accessibilityLabel="Saved work and learned prices" accessibilityState={{expanded:open}}>
@@ -72,6 +101,12 @@ export function SavedWorkLibrary({ownerId,history,onAdd}:{ownerId:string;history
     <View style={s.searchRow}><Search color={C.muted} size={17}/>
      <TextInput style={s.input} placeholder="Search radiator, socket, painting…" placeholderTextColor="#82928F"
       value={search} onChangeText={setSearch} accessibilityLabel="Search previous jobs and saved prices"/></View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>
+      {tradeGroups.map(group=><MotionPressable key={group.id} style={[s.categoryChip,category===group.id&&s.categoryChipOn]}
+        onPress={()=>setCategory(group.id)} accessibilityRole="button" accessibilityState={{selected:category===group.id}}>
+        <Text style={[s.categoryText,category===group.id&&s.categoryTextOn]}>{group.label}</Text>
+      </MotionPressable>)}
+    </ScrollView>
     {!!error&&<Text style={s.error}>Couldn't load saved presets: {error}</Text>}
     {loading?<ActivityIndicator color={C.teal}/>:null}
     {saved.length?<><Text style={s.group}>SAVED WORK · {saved.length}</Text>
@@ -90,18 +125,24 @@ export function SavedWorkLibrary({ownerId,history,onAdd}:{ownerId:string;history
        <Text style={s.detail}>Last seen {money(line.unit_price)} / {line.unit||'item'} · {count} use{count===1?'':'s'} · editable</Text></View>
       <Plus color={C.teal} size={18}/>
      </MotionPressable>)}</>}
-    {!loading&&!saved.length&&!recent.length?<Text style={s.empty}>Your past priced jobs will appear here. You can also save any line item as a reusable preset.</Text>:null}
+    {!!starters.length&&<><Text style={s.group}>COMMON JOB STARTERS · SET YOUR OWN PRICE</Text>
+      {starters.map(label=><MotionPressable key={label} style={s.row} onPress={()=>onAdd({kind:'labour',description:label,quantity:1,unit_price:0,unit:'job'})}
+        accessibilityRole="button" accessibilityLabel={'Add '+label+' without a price'}>
+       <Plus size={17} color={C.teal}/><View style={{flex:1}}><Text style={s.name}>{label}</Text>
+        <Text style={s.detail}>No preset price · enter your own rate</Text></View><ChevronRight color={C.teal} size={16}/></MotionPressable>)}</>
+    {!loading&&!saved.length&&!recent.length&&category==='all'?<Text style={s.empty}>Your own past prices will show here. Pick a trade above for job starters.</Text>:null}
    </View>}
   </View>;
 }
 export function SaveWorkPreset({ownerId,line}:{ownerId:string;line:WorkLine}){
  const [open,setOpen]=useState(false),[name,setName]=useState(''),[busy,setBusy]=useState(false);
+ const [category,setCategory]=useState(tradeFor(line.description));
  const save=async()=>{
   if(!validWork(line)||!Number.isFinite(Number(line.quantity))||Number(line.quantity)<=0){
    Alert.alert('Complete the item first','Add a description, quantity and valid price.');return;
   }
   setBusy(true);
-  try{await saveTradarrPreset(ownerId,'line',name||line.description,cleanLine(line),line.kind||'other');
+  try{await saveTradarrPreset(ownerId,'line',name||line.description,cleanLine(line),category);
    setOpen(false);setName('');Alert.alert('Saved work','This price is now available on your website and app. You can still edit it for every job.');
   }catch(e:any){Alert.alert('Unable to save work',e?.message||String(e));}
   finally{setBusy(false);}
@@ -112,6 +153,11 @@ export function SaveWorkPreset({ownerId,line}:{ownerId:string;line:WorkLine}){
   </MotionPressable>:<View style={s.saveEditor}>
    <Text style={s.group}>PRESET NAME</Text>
    <TextInput value={name} onChangeText={setName} maxLength={120} placeholder="e.g. Fit standard radiator" style={s.saveInput}/>
+   <Text style={s.group}>TRADE CATEGORY</Text>
+   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryRow}>
+    {tradeGroups.filter(g=>g.id!=='all').map(g=><MotionPressable key={g.id} style={[s.categoryChip,category===g.id&&s.categoryChipOn]}
+     onPress={()=>setCategory(g.id)}><Text style={[s.categoryText,category===g.id&&s.categoryTextOn]}>{g.label}</Text></MotionPressable>)}
+   </ScrollView>
    <View style={{flexDirection:'row',gap:8}}>
     <MotionPressable onPress={()=>setOpen(false)} style={s.cancel}><Text style={s.saveText}>Cancel</Text></MotionPressable>
     <MotionPressable onPress={()=>void save()} disabled={busy} style={s.confirm}>
@@ -169,6 +215,11 @@ export function DocumentPresetBar({ownerId,scope,documentKind='',snapshot,onAppl
   </View>;
 }
 const s=StyleSheet.create({
+ categoryRow:{gap:7,paddingVertical:7,paddingRight:10},
+ categoryChip:{paddingHorizontal:13,paddingVertical:9,borderRadius:20,backgroundColor:'#F0F5F1'},
+ categoryChipOn:{backgroundColor:C.darkTeal},
+ categoryText:{fontSize:11,fontWeight:'800',color:C.teal},
+ categoryTextOn:{color:'#FFFFFF'},
  shell:{backgroundColor:'#FFFFFF',borderRadius:18,borderWidth:1,borderColor:C.line,marginVertical:10,overflow:'hidden'},
  header:{flexDirection:'row',alignItems:'center',gap:11,padding:13,minHeight:69},
  symbol:{backgroundColor:C.tealTint,width:39,height:39,borderRadius:13,alignItems:'center',justifyContent:'center'},
