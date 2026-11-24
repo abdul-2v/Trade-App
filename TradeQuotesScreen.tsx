@@ -653,7 +653,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       </DocumentComposerOverview>:null}
     {stage!=='overview'&&<FormFlowSteps labels={['Scope','Pricing','Final details']} active={stage==='scope'?0:stage==='pricing'?1:2}
       onSelect={index=>setStage(index===0?'scope':index===1?'pricing':'terms')}
-      subtitle={stage==='scope'?'Who is the job for and what are you including?':stage==='pricing'?'Build the price and optional upgrades.':'Set validity, VAT and final customer-facing terms.'}/>
+      subtitle={stage==='scope'?'Who is the job for and what are you including?':stage==='pricing'?'Build the price and optional upgrades.':'Set validity, VAT and final customer-facing terms.'}/>}
     {stage==='overview'?null:stage==='scope'?<>
       <Text style={s.section}>Who is the job for?</Text>
       <View style={s.card}>

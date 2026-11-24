@@ -231,7 +231,7 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
     }))}
     onEdit={setFieldStep} onPreview={()=>{if(validate())setPreview(true)}}/>:null}
    {fieldStep>=0&&<FormFlowSteps labels={selected.groups.map(g=>g.title.length>20?g.title.split(' ')[0]:g.title)}
-     active={fieldStep} onSelect={setFieldStep} subtitle="Focus on one group of details at a time. You can return to any previous step."/>
+     active={fieldStep} onSelect={setFieldStep} subtitle="Focus on one group of details at a time. You can return to any previous step."/>}
    {selected.groups.filter((_,i)=>i===fieldStep).map((group,i)=><View style={sx.group} key={group.title}>
     <View style={sx.groupHead}><Text style={sx.groupIndex}>{String(fieldStep+1).padStart(2,'0')}</Text><Text style={sx.groupTitle}>{group.title}</Text></View>
     {group.fields.map(field=><View style={sx.field} key={field.key}>

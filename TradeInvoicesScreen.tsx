@@ -618,7 +618,7 @@ export default function TradeInvoicesScreen({ goBack, initialPreviewId }: { goBa
           <DocumentPresetBar ownerId={userId} scope="invoice" snapshot={invoiceSetup} onApply={applyInvoiceSetup}/>
          </DocumentComposerOverview>}
         {formStep>=0&&<FormFlowSteps labels={['People','Work','Payment','Review']} active={formStep} onSelect={changeFormStep}
-         subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>
+         subtitle={['Who is the work for?','What was done, and when?','VAT, terms and how to pay','Check the details before saving'][formStep]}/>}
         {formStep===0&&<>
         <DocumentPresetBar ownerId={userId} scope="invoice" snapshot={invoiceSetup} onApply={applyInvoiceSetup}/>
         <Text style={s.flowIntro}>Start with the customer. Your business details are remembered, so you only need to change them when necessary.</Text>
