@@ -27,7 +27,7 @@ type AppJob = {
   trade: string; issue: string; customerName: string; address: string; suggestedPrice: number;
 };
 type Invoice = {
-  id: string; invoice_no: number; tradesperson_id: string;
+  id: string; invoice_no: number; tradesperson_id: string; quote_id?: string|null;
   source: 'external' | 'app'; app_job_id: string | null; urgent_request_id: string | null;
   business_name: string; business_legal_name: string | null; business_address: string;
   business_email: string | null; business_phone: string | null; vat_number: string | null;
