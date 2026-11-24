@@ -129,7 +129,7 @@ export function SavedWorkLibrary({ownerId,history,onAdd}:{ownerId:string;history
       {starters.map(label=><MotionPressable key={label} style={s.row} onPress={()=>onAdd({kind:'labour',description:label,quantity:1,unit_price:0,unit:'job'})}
         accessibilityRole="button" accessibilityLabel={'Add '+label+' without a price'}>
        <Plus size={17} color={C.teal}/><View style={{flex:1}}><Text style={s.name}>{label}</Text>
-        <Text style={s.detail}>No preset price · enter your own rate</Text></View><ChevronRight color={C.teal} size={16}/></MotionPressable>)}</>
+        <Text style={s.detail}>No preset price · enter your own rate</Text></View><ChevronRight color={C.teal} size={16}/></MotionPressable>)}</>}
     {!loading&&!saved.length&&!recent.length&&category==='all'?<Text style={s.empty}>Your own past prices will show here. Pick a trade above for job starters.</Text>:null}
    </View>}
   </View>;
