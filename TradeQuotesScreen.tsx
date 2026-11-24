@@ -12,6 +12,7 @@ import {theme} from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
 import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
 import {SavedWorkLibrary,SaveWorkPreset,DocumentPresetBar,type WorkHistory,type WorkLine} from './SavedWorkLibrary';
+import DocumentComposerOverview from './DocumentComposerOverview';
 
 type Kind='labour'|'material'|'other';
 type Line={kind:Kind;description:string;quantity:number;unit_price:number;unit:string};
@@ -180,7 +181,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
  const [title,setTitle]=useState('');
  const [description,setDescription]=useState('');
  const [notes,setNotes]=useState('');
- const [stage,setStage]=useState<'scope'|'pricing'|'terms'>('scope');
+ const [stage,setStage]=useState<'overview'|'scope'|'pricing'|'terms'>('overview');
  useEffect(()=>{if(screen==='new')scrollRef.current?.scrollTo({y:0,animated:false});},[stage,screen]);
  const [expandedUnitLine,setExpandedUnitLine]=useState<number|null>(null);
  const [showBusiness,setShowBusiness]=useState(false);
@@ -291,7 +292,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   setEditingQuoteId(null);
   setCustomerId(null);setCustomerName('');setCustomerEmail('');setCustomerPhone('');setCustomerAddress('');
   setTitle('');setDescription('');setNotes('');setQuoteDate(day(new Date()));setValidUntil(addDays(30));
-  setStage('scope');setShowBusiness(false);setIncluded('');setExcluded('');setDuration('');
+  setStage('overview');setShowBusiness(false);setIncluded('');setExcluded('');setDuration('');
   setDeposit('0');setExtras([]);setEstimateCost('');setTargetMargin('30');
   setLines([{kind:'labour',description:'',quantity:'1',unit_price:'',unit:'job'}]);setVatRate(0);
   setSelectedId(null);setScreen('new');
@@ -334,7 +335,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
    setVatRate(doc.vat_rate);setQuoteDate(day(new Date()));setValidUntil(addDays(30));
    setLines((doc.items||[]).map(line=>({kind:line.kind,description:line.description,
      quantity:String(line.quantity),unit_price:String(line.unit_price),unit:line.unit==='each'?'item':line.unit||'item'})));
-   setShowBusiness(false);setSelectedId(null);setStage('pricing');setScreen('new');
+   setShowBusiness(false);setSelectedId(null);setStage('overview');setScreen('new');
    if(canEditDraft)return;
    Alert.alert('Creating a revised proposal','A new quote number will be issued when you save. The original quotation stays in your records. Review the quantities and units before sharing.');
  };
@@ -366,7 +367,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
   if(Array.isArray(v.lines)&&v.lines.length)setLines(v.lines.slice(0,100).map((l:any)=>({
    kind:['labour','material','other'].includes(l.kind)?l.kind:'other',description:String(l.description||''),
    quantity:String(l.quantity||1),unit_price:String(l.unit_price??''),unit:String(l.unit||'item')})));
-  setQuoteDate(day(new Date()));setValidUntil(addDays(30));setEditingQuoteId(null);setCustomerId(null);setStage('scope');
+  setQuoteDate(day(new Date()));setValidUntil(addDays(30));setEditingQuoteId(null);setCustomerId(null);setStage('overview');
  };
  const addLine=(kind:Kind)=>{setLines(old=>[...old.filter(l=>l.description.trim()||l.unit_price.trim()),{kind,description:'',quantity:'1',unit_price:'',unit:kind==='labour'?'job':kind==='material'?'item':'job'}])};
  const choicesFor=(kind:Kind):string[]=>
@@ -516,7 +517,7 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       Alert.alert('Delivered','The customer can review the quotation in their Quote Centre and respond inside Tradarr.');
     }}]);
  };
- const back=()=>screen==='list'?goBack():screen==='draftPreview'?setScreen('new'):screen==='send'?setScreen('preview'):screen==='new'&&stage==='terms'?setStage('pricing'):screen==='new'&&stage==='pricing'?setStage('scope'):setScreen('list');
+ const back=()=>screen==='list'?goBack():screen==='draftPreview'?setScreen('new'):screen==='send'?setScreen('preview'):screen==='new'&&stage!=='overview'?setStage('overview'):setScreen('list');
  return <View style={s.root}>
   <View style={s.header}><MotionPressable style={s.back} onPress={back}><ArrowLeft size={23} color={C.ink}/></MotionPressable>
    <View style={{flex:1}}><Text style={s.eyebrow}>BUSINESS TOOLS</Text>
@@ -639,11 +640,21 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
      automaticallyAdjustKeyboardInsets={Platform.OS==='ios'}
      keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}
      keyboardShouldPersistTaps="handled">
-    <DocumentPresetBar ownerId={uid} scope="quote" snapshot={quoteSetup} onApply={applyQuoteSetup}/>
-    <FormFlowSteps labels={['Scope','Pricing','Final details']} active={stage==='scope'?0:stage==='pricing'?1:2}
+    {stage==='overview'?<DocumentComposerOverview title={editingQuoteId?'Edit quotation':'Build your quotation'}
+      description="Customer, scope and pricing together. Tap any section, reuse a previous job and edit the result."
+      sections={[
+       {title:'Customer & scope',detail:'Who is this quotation for and what is included?',label:customerName||title||'Add project',done:!!customerName.trim()&&!!title.trim()},
+       {title:'Work & pricing',detail:'Labour, materials and optional extras',label:lines.filter(l=>l.description.trim()).length+' line items',done:subtotal>0},
+       {title:'Terms & VAT',detail:'Validity, deposit, business details and notes',label:validUntil,done:!!businessName&&!!validUntil}
+      ]}
+      amount={money(total)} onEdit={index=>setStage(index===0?'scope':index===1?'pricing':'terms')} onPreview={()=>setScreen('draftPreview')}>
+       <SavedWorkLibrary ownerId={uid} history={workHistory} onAdd={addSuggestedLine}/>
+       <DocumentPresetBar ownerId={uid} scope="quote" snapshot={quoteSetup} onApply={applyQuoteSetup}/>
+      </DocumentComposerOverview>:null}
+    {stage!=='overview'&&<FormFlowSteps labels={['Scope','Pricing','Final details']} active={stage==='scope'?0:stage==='pricing'?1:2}
       onSelect={index=>setStage(index===0?'scope':index===1?'pricing':'terms')}
       subtitle={stage==='scope'?'Who is the job for and what are you including?':stage==='pricing'?'Build the price and optional upgrades.':'Set validity, VAT and final customer-facing terms.'}/>
-    {stage==='scope'?<>
+    {stage==='overview'?null:stage==='scope'?<>
       <Text style={s.section}>Who is the job for?</Text>
       <View style={s.card}>
         <MotionPressable style={s.picker} onPress={()=>setShowPicker(x=>!x)}
@@ -782,17 +793,11 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
       <Text style={[s.helper,{textAlign:'center',marginTop:8}]}>Preview your proposal before saving. Nothing is sent automatically.</Text>
     </>}
    </ScrollView>
-   <FormFlowFooter active={stage==='scope'?0:stage==='pricing'?1:2} total={3}
-    onPrevious={()=>setStage(stage==='terms'?'pricing':'scope')}
-    onNext={()=>{
-      if(stage==='scope'&&(!customerName.trim()||!customerAddress.trim()||!title.trim())){
-       Alert.alert('Finish the job brief','Add a customer, address and project title first.');return;}
-      if(stage==='scope')setStage('pricing');
-      else if(stage==='pricing')setStage('terms');
-      else setScreen('draftPreview');
-    }}
-    primaryLabel={stage==='terms'?'Review quotation':'Continue'} amount={money(total)}
-    />
+   {stage!=='overview'&&<FormFlowFooter active={stage==='scope'?0:stage==='pricing'?1:2} total={3}
+    onPrevious={()=>setStage('overview')}
+    onNext={()=>setStage('overview')}
+    primaryLabel="Done · Back to overview" amount={money(total)}
+    />}
    <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
    </View>}
  </View>;
