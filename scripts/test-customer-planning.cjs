@@ -1,0 +1,18 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),ts=require('typescript');
+const app=fs.readFileSync('App.tsx','utf8'),screen=fs.readFileSync('CustomerPlanningScreen.tsx','utf8');
+const js=ts.transpileModule(fs.readFileSync('lib/customerPlanning.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText;
+const exp={};new Function('exports',js)(exp);
+assert.equal(exp.moneyPence('12.34'),1234);assert.equal(exp.moneyPence('0.1'),10);
+for(const x of ['-1','1.999','NaN','1e5','abc','9999999999'])assert.equal(exp.moneyPence(x),null);
+const p=exp.initialPlan('budget');p.limit='100';p.rows.push({id:'a',label:'Materials',estimated:'80',paid:'10.25',done:false});
+assert.deepEqual(exp.budgetSummary(p),{limit:10000,estimated:8000,paid:1025,reserve:800,planned:8800,remaining:1200});
+assert.deepEqual(exp.parsePlan(JSON.stringify(p),'budget'),p);
+assert.throws(()=>exp.parsePlan('{"rows":[]}','budget'));
+assert.equal(exp.initialPlan('hire').rows.length,7);assert.equal(exp.initialPlan('snags').rows.length,0);
+const discover=app.slice(app.indexOf('function CustomerDiscoverScreen('),app.indexOf('function MarketplaceHomeScreen('));
+const routes=[...discover.matchAll(/route:'([^']+)' as CustomerScreen/g)].map(m=>m[1]);
+assert.equal(routes.length,11);assert.equal(new Set(routes).size,11);
+for(const route of ['grid','oneJob','firstFix','rescue','priceLens','collective','customerDocuments','myHome','customerBudget','customerHireCheck','customerSnags'])assert.ok(routes.includes(route)&&app.includes("customerScreen === '"+route+"'")||routes.includes(route)&&app.includes("customerScreen==='"+route+"'"));
+assert.ok(screen.includes("userId+':'+mode")&&screen.includes('Storage.setItem(key,JSON.stringify(plan))'));
+assert.ok(app.includes('useState(__DEV__)'),'Fictional map defaults must not be used in release builds');
+console.log('PASS: customer toolkit routes, integer-pence budget calculations, persisted plan validation and production demo default');

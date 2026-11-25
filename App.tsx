@@ -31,6 +31,7 @@ import CustomerFirstFixScreen from './CustomerFirstFixScreen';
 import CustomerRescueScreen from './CustomerRescueScreen';
 import CustomerPriceLensScreen from './CustomerPriceLensScreen';
 import CustomerCollectiveScreen from './CustomerCollectiveScreen';
+import CustomerPlanningScreen from './CustomerPlanningScreen';
 import TradeCollectiveScreen from './TradeCollectiveScreen';
 import TradarrCrewScreen from './TradarrCrewScreen';
 import TradeBusinessSuiteScreen from './TradeBusinessSuiteScreen';
@@ -139,6 +140,9 @@ type CustomerScreen =
   | 'firstFix'
   | 'rescue'
   | 'priceLens'
+  | 'customerBudget'
+  | 'customerHireCheck'
+  | 'customerSnags'
   | 'collective'
   | 'discover'
   | 'messages'
@@ -1373,6 +1377,13 @@ function TradarrApp() {
       setServiceIntent({trade:trade as TradeCategory,service:issue,timing:urgent?'Now':'Next few days'});
       setCustomerScreen(urgent?'urgent':'map');
     }}/></CustomerShell>;
+  if(customerScreen==='customerBudget'||customerScreen==='customerHireCheck'||customerScreen==='customerSnags'){
+    return <CustomerShell current="discover" navigate={setCustomerScreen}>
+      <CustomerPlanningScreen key={(session?.user.id||'')+customerScreen} userId={session?.user.id||''}
+        mode={customerScreen==='customerBudget'?'budget':customerScreen==='customerHireCheck'?'hire':'snags'}
+        goBack={()=>setCustomerScreen('discover')}/>
+    </CustomerShell>;
+  }
   if (customerScreen === 'discover') {
     return <CustomerDiscoverScreen navigate={screen=>{if(screen==='myHome')setHomeBackScreen('discover');setCustomerScreen(screen);}} />;
   }
@@ -1468,6 +1479,8 @@ function CustomerNav({
 
 function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>void}){
  const [category,setCategory]=useState('');
+ const {width,fontScale}=useWindowDimensions();
+ const compact=width<350||fontScale>1.2;
  const features=[
   {route:'grid' as CustomerScreen,Icon:Route,title:'Grid',subtitle:'Nearby appointment gaps',detail:'Request available appointments from local tradespeople.'},
   {route:'oneJob' as CustomerScreen,Icon:Users,title:'OneJob',subtitle:'One project, multiple trades',detail:'Plan a kitchen, bathroom or renovation by stage.'},
@@ -1476,45 +1489,66 @@ function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>vo
   {route:'priceLens' as CustomerScreen,Icon:BarChart3,title:'Price Lens',subtitle:'Compare real quotations',detail:'Understand scope, pricing and included work.'},
   {route:'collective' as CustomerScreen,Icon:HandCoins,title:'Collective',subtitle:'Neighbourhood group offers',detail:'Join nearby households to request group prices.'},
   {route:'customerDocuments' as CustomerScreen,Icon:FileText,title:'Create documents',subtitle:'Job briefs and property reports',detail:'Prepare, review and export structured PDFs.'},
-  {route:'myHome' as CustomerScreen,Icon:HomeIcon,title:'Home passport',subtitle:'Property and service records',detail:'Keep maintenance history organised.'}
+  {route:'myHome' as CustomerScreen,Icon:HomeIcon,title:'Home passport',subtitle:'Property and service records',detail:'Keep maintenance history organised.'},
+  {route:'customerBudget' as CustomerScreen,Icon:HandCoins,title:'Budget planner',subtitle:'Plan and track costs',detail:'Add expected costs, spending and a contingency.'},
+  {route:'customerHireCheck' as CustomerScreen,Icon:ShieldCheck,title:'Hire checklist',subtitle:'Know what to check',detail:'Review insurance, qualifications, scope and payment terms.'},
+  {route:'customerSnags' as CustomerScreen,Icon:ClipboardCheck,title:'Snag list',subtitle:'Track outstanding work',detail:'Record issues, mark fixes and share a handover list.'}
  ];
  const groups=[
-  {id:'planning',title:'Plan & price work',detail:'Organise projects and compare quotations',Icon:ClipboardList,ids:['oneJob','firstFix','priceLens']},
+  {id:'planning',title:'Plan & price work',detail:'Projects, repair briefs, quotes and budgets',Icon:ClipboardList,ids:['oneJob','firstFix','priceLens','customerBudget']},
   {id:'availability',title:'Booking & opportunities',detail:'Spare slots, rescue and group work',Icon:CalendarDays,ids:['grid','rescue','collective']},
-  {id:'documents',title:'Documents & home',detail:'Create records and manage your property',Icon:FileText,ids:['customerDocuments','myHome']}
+  {id:'documents',title:'Documents & home',detail:'Property records and useful documents',Icon:FileText,ids:['customerDocuments','myHome']},
+  {id:'confidence',title:'Hire & finish well',detail:'Check a trader and track unfinished work',Icon:ShieldCheck,ids:['customerHireCheck','customerSnags']}
  ];
+ const selected=groups.find(g=>g.id===category);
+ const shortcuts=[{route:'firstFix',Icon:Camera,label:'Repair brief'},{route:'priceLens',Icon:BarChart3,label:'Compare quotes'},{route:'customerBudget',Icon:HandCoins,label:'Plan budget'},{route:'myHome',Icon:HomeIcon,label:'My home'}] as const;
  return <CustomerShell current="discover" navigate={navigate}>
- <ScrollView style={styles.customerHome} showsVerticalScrollIndicator={false} contentContainerStyle={styles.customerDiscoverPage}>
-   {category?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button" accessibilityLabel="Back to tool categories"
-      style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:20}}>
+ <ScrollView key={category||'all'} style={styles.customerHome} showsVerticalScrollIndicator={false} contentContainerStyle={styles.customerDiscoverPage}>
+   {selected?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button" accessibilityLabel="Back to tool categories"
+      style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44,marginBottom:8}}>
      <ArrowLeft size={18} color={theme.colors.teal}/><Text style={{color:theme.colors.teal,fontSize:13,fontWeight:'800'}}>All categories</Text>
     </MotionPressable>:null}
-   <Text style={styles.customerDiscoverEyebrow}>YOUR CUSTOMER TOOLKIT</Text>
-   <Text style={styles.customerDiscoverHeading}>{category?groups.find(g=>g.id===category)?.title:'Discover Tradarr'}</Text>
-   <Text style={styles.customerDiscoverIntro}>{category?groups.find(g=>g.id===category)?.detail:'Choose a category. Find the right tool without scrolling through everything.'}</Text>
-   {!category?<View style={styles.customerDiscoverGrid}>
-    {groups.map(group=><MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
-     style={styles.customerDiscoverFeature} accessibilityRole="button" accessibilityLabel={'Open '+group.title}>
-      <View style={styles.customerDiscoverFeatureTop}>
-       <View style={styles.customerDiscoverFeatureIcon}><group.Icon size={23} color={theme.colors.teal}/></View>
-       <ChevronRight size={18} color={theme.colors.teal}/>
-      </View>
-      <Text style={styles.customerDiscoverFeatureTitle}>{group.title}</Text>
-      <Text style={styles.customerDiscoverFeatureSubtitle}>{group.ids.length} tools</Text>
-      <Text style={styles.customerDiscoverFeatureDescription}>{group.detail}</Text>
-    </MotionPressable>)}
-   </View>:<View style={styles.customerDiscoverGrid}>
-    {features.filter(feature=>groups.find(g=>g.id===category)?.ids.includes(feature.route)).map(({route,Icon,title,subtitle,detail})=>
-     <MotionPressable key={route} onPress={()=>navigate(route)} style={styles.customerDiscoverFeature}
-       accessibilityRole="button" accessibilityLabel={title+': '+subtitle}>
-      <View style={styles.customerDiscoverFeatureTop}><View style={styles.customerDiscoverFeatureIcon}>
-       <Icon size={23} color={theme.colors.teal} strokeWidth={2}/></View>
-       <ChevronRight size={18} color={theme.colors.teal}/></View>
-      <Text style={styles.customerDiscoverFeatureTitle}>{title}</Text>
-      <Text style={styles.customerDiscoverFeatureSubtitle}>{subtitle}</Text>
-      <Text style={styles.customerDiscoverFeatureDescription}>{detail}</Text>
+   <View style={{flexDirection:'row',alignItems:'center',gap:7,marginBottom:13}}>
+    <View style={{flex:1,minWidth:0}}>
+     <Text style={styles.customerDiscoverEyebrow}>YOUR CUSTOMER TOOLKIT</Text>
+     <Text style={styles.customerDiscoverHeading}>{selected?selected.title:'Discover'}</Text>
+     <Text style={styles.customerDiscoverIntro}>{selected?selected.detail:'Plan, book and look after your home.'}</Text>
+    </View>
+    {!selected&&width>=365&&fontScale<=1.15?<TradeToolsOrbit customer/>:null}
+   </View>
+   {!selected?<FadeSlideIn>
+    <View style={[styles.tradeToolsShortcutBar,compact&&{flexWrap:'wrap'}]}>
+     {shortcuts.map(({route,Icon,label},index)=><MotionPressable key={route} onPress={()=>navigate(route)}
+      accessibilityRole="button" accessibilityLabel={label} pressScale={.96}
+      style={[styles.tradeToolsShortcutButton,compact&&{flexBasis:'48%',flexGrow:1},!compact&&index>0&&styles.tradeToolsShortcutDivider]}>
+      <View style={styles.tradeToolsShortcutGlyph}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
+      <Text style={styles.tradeToolsShortcutLabel}>{label}</Text>
      </MotionPressable>)}
-   </View>}
+    </View>
+    <View style={styles.tradeToolsIndexRow}><Text style={styles.tradeToolsSectionTitleNew}>All tools</Text>
+     <Text style={styles.tradeToolsIndexMeta}>{features.length} tools · {groups.length} categories</Text></View>
+    <View style={styles.tradeToolsTileGrid}>
+     {groups.map(group=><MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
+      accessibilityRole="button" accessibilityLabel={'Open '+group.title+', '+group.ids.length+' tools'}
+      style={[styles.tradeToolsTile,compact&&styles.tradeToolsTileWide]} pressScale={.975}>
+      <View pointerEvents="none" style={styles.tradeToolsTileAccent}/>
+      <View style={[styles.tradeToolsTileGlyph,compact&&{marginBottom:0}]}><group.Icon size={25} color={theme.colors.teal}/></View>
+      <View style={styles.tradeToolsTileBody}>
+       <View><Text style={styles.tradeToolsTileTitle}>{group.title}</Text><Text style={styles.tradeToolsTileDetail}>{group.detail}</Text></View>
+       <View style={styles.tradeToolsTileCount}><Text style={styles.tradeToolsTileCountText}>{group.ids.length} tools</Text></View>
+      </View>
+      <View style={compact?styles.tradeToolsTileArrowWide:styles.tradeToolsTileArrow}><ChevronRight size={17} color={theme.colors.teal}/></View>
+     </MotionPressable>)}
+    </View>
+   </FadeSlideIn>:<FadeSlideIn><View style={styles.tradeToolsUnifiedList}>
+    {features.filter(feature=>selected.ids.includes(feature.route)).map(({route,Icon,title,subtitle,detail})=>
+     <MotionPressable key={route} onPress={()=>navigate(route)}
+       style={styles.customerDiscoverToolRow} accessibilityRole="button" accessibilityLabel={title+': '+subtitle}>
+      <View style={styles.tradeToolsRowIcon}><Icon size={22} color={theme.colors.teal}/></View>
+      <View style={{flex:1,minWidth:0}}><Text style={styles.tradeToolsRowTitle}>{title}</Text><Text style={styles.tradeToolsRowDesc}>{detail}</Text></View>
+      <ChevronRight size={19} color={theme.colors.teal}/>
+     </MotionPressable>)}
+   </View></FadeSlideIn>}
  </ScrollView>
  </CustomerShell>;
 }
@@ -2336,7 +2370,7 @@ function MapScreen({
   const [liveTrades, setLiveTrades] = useState<Trade[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [marketIsLive, setMarketIsLive] = useState(false);
-  const [showDemoProfiles, setShowDemoProfiles] = useState(true);
+  const [showDemoProfiles, setShowDemoProfiles] = useState(__DEV__);
   const [marketError, setMarketError] = useState(false);
   const [reloadMarketplace, setReloadMarketplace] = useState(0);
   const [distanceOrigin, setDistanceOrigin] = useState('Leicester centre');
@@ -2614,7 +2648,7 @@ function MapScreen({
       setSelectedMapTrade(null);
     }
   }, [selectedCategory, maxDistance, minRating, marketMode, verifiedOnly,
-    insuredOnly, minReviews, nearbyNowOnly, sortBy, showDemoProfiles, liveTrades]);
+    insuredOnly, minReviews, nearbyNowOnly, sortBy, showDemoProfiles, liveTrades, searchQuery]);
 
   const clearFilters = () => {
     setMaxDistance(50);
@@ -2717,14 +2751,11 @@ function MapScreen({
               <Text style={styles.mapCompactLink}>Retry</Text>
             </MotionPressable>
           ) : (
-            <MotionPressable onPress={()=>{setShowDemoProfiles(true);setSelectedMapTrade(null);}}
-              accessibilityRole="button" accessibilityLabel="Show fictional demo profiles"
-              style={styles.mapCompactStatus}>
-              <Text style={styles.mapCompactStatusText} numberOfLines={1}>
-                {marketIsLive ? 'REAL · '+liveTrades.length+' nearby' : 'No real profiles'}
-              </Text>
-              <Text style={styles.mapCompactLink}>Demo</Text>
-            </MotionPressable>
+            <View style={styles.mapCompactStatus}>
+              <LiveStatusDot color={theme.colors.teal}/>
+              <Text style={styles.mapCompactStatusText} numberOfLines={1}>{filtered.length+' found'}</Text>
+              {__DEV__?<MotionPressable onPress={()=>{setShowDemoProfiles(true);setSelectedMapTrade(null);}} accessibilityLabel="Show fictional demo profiles"><Text style={styles.mapCompactLink}>Demo</Text></MotionPressable>:null}
+            </View>
           )}
         </View>
         {showAreaSearch ? (
@@ -2798,7 +2829,7 @@ function MapScreen({
           ) : (
             <View style={styles.noResults}>
               <Text style={styles.noResultsTitle}>{marketIsLive || showDemoProfiles ? 'No tradespeople match those filters' : 'No real tradespeople found yet'}</Text>
-              <Text style={styles.noResultsSub}>{marketIsLive || showDemoProfiles ? 'Try expanding your distance or changing the filters.' : 'We are building local coverage. You can preview sample profiles with the option above.'}</Text>
+              <Text style={styles.noResultsSub}>{marketIsLive || showDemoProfiles ? 'Try expanding your distance or changing the filters.' : 'Try a wider search area or change your filters.'}</Text>
             </View>
           )}
         </ScrollView>
@@ -2919,13 +2950,13 @@ function MapScreen({
                   <Text style={styles.customerExploreEmptyText}>{showDemoProfiles ? 'Try changing your trade or filters.' : 'No real profiles match your current location and filters.'}</Text>
                 </View>
               </View>
-              {!showDemoProfiles ? (
+              {!showDemoProfiles&&__DEV__ ? (
                 <MotionPressable style={styles.customerExploreDemoButton} onPress={() => { setShowDemoProfiles(true); setSelectedMapTrade(null); }}
                   accessibilityRole="button" accessibilityLabel="Preview fictional tradespeople on the map">
                   <Text style={styles.customerExploreDemoText}>Preview demo</Text>
                 </MotionPressable>
               ) : <MotionPressable style={styles.customerExploreDemoButton} onPress={clearFilters} accessibilityRole="button"><Text style={styles.customerExploreDemoText}>Clear filters</Text></MotionPressable>}
-              {!showDemoProfiles ? <Text style={styles.customerExploreDemoNote}>Demo profiles are examples, not real businesses.</Text> : null}
+              {!showDemoProfiles&&__DEV__ ? <Text style={styles.customerExploreDemoNote}>Demo profiles are examples, not real businesses.</Text> : null}
             </View>
           ) : null}
         </View>
@@ -5054,13 +5085,17 @@ function RequestsScreen({
   const cached=lastCustomerActivity?.owner===userId?lastCustomerActivity.items:null;
   const [liveRequests,setLiveRequests]=useState<RequestItem[]>(cached||[]);
   const [loading,setLoading]=useState(!cached);
+  const [loadError,setLoadError]=useState(false);
+  const {width,fontScale}=useWindowDimensions();
+  const stackActions=width<350||fontScale>1.2;
 
   const loadLiveRequests = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user||user.id!==userId) {
+      setLoadError(true);
       setLoading(false);
       return;
     }
@@ -5070,6 +5105,7 @@ function RequestsScreen({
       .select('id, trade, issue, urgency, status, created_at')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false });
+    setLoadError(Boolean(error));
     if(!error){
       const fresh=(data||[]).map(row=>({
         id:row.id,trade:row.trade,issue:row.issue,urgency:row.urgency,
@@ -5132,8 +5168,15 @@ function RequestsScreen({
   return (
     <CustomerShell current="requests" navigate={navigate}>
       <ScrollView style={styles.customerActivityScreen} contentContainerStyle={styles.customerActivityContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.customerActivityTitle}>Activity</Text>
-        <Text style={styles.customerActivitySub}>{active.length ? active.length + ' open request' + (active.length === 1 ? '' : 's') : 'Your requests and bookings'}</Text>
+        <View style={{flexDirection:'row',alignItems:'center',gap:12,marginBottom:12}}>
+          <View style={{flex:1}}><Text style={styles.premiumEyebrow}>Your home projects</Text><Text style={styles.customerActivityTitle}>Activity</Text></View>
+          <MotionPressable onPress={()=>navigate('home')} style={styles.customerActivityNew} accessibilityLabel="Post a new job"><Plus size={18} color={theme.colors.white}/><Text style={{color:theme.colors.white,fontSize:12,fontWeight:'800'}}>New job</Text></MotionPressable>
+        </View>
+        <View style={styles.premiumJobOverview}>
+          <View style={styles.premiumJobMetric}><View style={{flex:1,minWidth:0}}><Text style={styles.premiumJobMetricNumber}>{loading||syncError||loadError?'–':active.length}</Text><Text style={styles.premiumJobMetricLabel}>Open requests</Text></View></View>
+          <View style={styles.premiumJobDivider}/>
+          <View style={styles.premiumJobMetric}><View style={{flex:1,minWidth:0}}><Text style={styles.premiumJobMetricNumber}>{loading||syncError||loadError?'–':past.length}</Text><Text style={styles.premiumJobMetricLabel}>Past requests</Text></View></View>
+        </View>
         <MotionPressable style={{flexDirection:'row',alignItems:'center',gap:12,
           backgroundColor:'#EAF4ED',borderWidth:1,borderColor:'#B8DAC8',borderRadius:16,
           paddingHorizontal:15,paddingVertical:13,marginTop:14,marginBottom:10}}
@@ -5143,34 +5186,16 @@ function RequestsScreen({
             <Text style={{fontSize:11,color:theme.colors.muted,lineHeight:17}}>Review extras, finished-work records and aftercare</Text></View>
           <ChevronRight size={18} color={theme.colors.teal}/>
         </MotionPressable>
-        {syncError?<View style={{padding:12,borderRadius:14,backgroundColor:'#FFF1DE',marginBottom:12}}>
+        {syncError||loadError?<View style={{padding:12,borderRadius:14,backgroundColor:'#FFF1DE',marginBottom:12}}>
           <Text style={{fontSize:12,fontWeight:'800',color:'#705124'}}>Connection unavailable</Text>
           <Text style={{fontSize:11,color:'#705124',lineHeight:17,marginTop:3}}>
             Showing your last loaded requests. Reconnect to update booking status.
           </Text>
         </View>:null}
-        <View style={styles.customerActivityQuoteRow}>
-          <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('customerQuotes')}
-            accessibilityRole="button" accessibilityLabel="View customer quotes">
-            <View style={styles.customerActivityQuoteIcon}><FileText size={22} color={theme.colors.teal}/></View>
-            <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>Quote Centre</Text>
-              <Text style={styles.customerActivityQuoteSub}>Review, compare and accept proposals</Text></View>
-            <ChevronRight size={20} color={theme.colors.teal}/>
-          </MotionPressable>
-          <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('customerInvoices')}
-            accessibilityRole="button" accessibilityLabel="View issued invoices and receipts">
-            <View style={styles.customerActivityQuoteIcon}><FileText size={22} color={theme.colors.teal}/></View>
-            <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>Invoices</Text>
-              <Text style={styles.customerActivityQuoteSub}>Issued invoices, payment status and PDFs</Text></View>
-            <ChevronRight size={20} color={theme.colors.teal}/>
-          </MotionPressable>
-          <MotionPressable style={styles.customerActivityQuoteCard} onPress={()=>navigate('myHome')}
-            accessibilityRole="button" accessibilityLabel="Open My Home records">
-            <View style={styles.customerActivityQuoteIcon}><HomeIcon size={22} color={theme.colors.teal}/></View>
-            <View style={{flex:1}}><Text style={styles.customerActivityQuoteTitle}>My Home</Text>
-              <Text style={styles.customerActivityQuoteSub}>Your repair history and reminders</Text></View>
-            <ChevronRight size={20} color={theme.colors.teal}/>
-          </MotionPressable>
+        <View style={[styles.customerActivityQuickRow,stackActions&&{flexDirection:'column'}]}>
+          {([{route:'customerQuotes',Icon:FileText,title:'Quotes'},{route:'customerInvoices',Icon:ClipboardList,title:'Invoices'},{route:'myHome',Icon:HomeIcon,title:'My home'}] as const).map(({route,Icon,title})=><MotionPressable key={route}
+            style={[styles.customerAccountQuickItem,stackActions&&{flexDirection:'row',justifyContent:'flex-start'}]} onPress={()=>navigate(route)} accessibilityLabel={'Open '+title}>
+            <View style={styles.tradeToolsShortcutGlyph}><Icon size={21} color={theme.colors.teal}/></View><Text style={styles.tradeToolsShortcutLabel}>{title}</Text></MotionPressable>)}
         </View>
         <View style={styles.customerActivitySegment}>
           <MotionPressable onPress={() => setView('active')} style={[styles.customerActivityTab, view === 'active' && styles.customerActivityTabActive]}
@@ -5216,13 +5241,12 @@ function RequestsScreen({
               </MotionPressable>
             ) : null}
           </>
+        ) : syncError||loadError ? (
+          <View style={styles.customerActivityEmptyCard}><Text style={styles.customerActivityEmptyTitle}>Could not confirm requests</Text><Text style={styles.customerActivityEmptyBody}>Reconnect to see your latest booking status.</Text><MotionPressable style={styles.customerActivityPostButton} onPress={()=>{setLoading(true);void loadLiveRequests();}} accessibilityLabel="Retry loading requests"><Text style={styles.customerActivityPostText}>Retry</Text></MotionPressable></View>
         ) : (
           <>
             <View style={styles.customerActivityEmptyCard}>
-              <View style={styles.customerActivityEmptyGraphic}>
-                <ClipboardList size={36} color={theme.colors.teal} strokeWidth={1.8} />
-                <View style={styles.customerActivityEmptyPlus}><Plus size={20} color="#FFFFFF" strokeWidth={2.4} /></View>
-              </View>
+              <TradeToolsOrbit customer/>
               <Text style={styles.customerActivityEmptyTitle}>{view === 'active' ? 'No requests yet' : 'No past jobs yet'}</Text>
               <Text style={styles.customerActivityEmptyBody}>{view === 'active'
                 ? 'Post a job and nearby pros can respond. Compare your options and choose who suits you.'
@@ -5866,6 +5890,8 @@ function CustomerProfileScreen({
   });
   const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | 'help' | null>(null);
   const [saving, setSaving] = useState(false);
+  const [profileLoaded,setProfileLoaded]=useState(false);
+  const [profileLoadError,setProfileLoadError]=useState(false);
   const [accountEmail, setAccountEmail] = useState('');
   const [savedTrades, setSavedTrades] = useState<Trade[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(false);
@@ -5995,13 +6021,15 @@ function CustomerProfileScreen({
     if (!user) return;
     setAccountEmail(user.email || '');
 
-    const { data } = await supabase
+    const { data,error } = await supabase
       .from('profiles')
       .select('first_name, last_name, phone, default_address, notifications_enabled')
       .eq('id', user.id)
       .single();
 
-    if (data) {
+    setProfileLoadError(Boolean(error||!data));
+    setProfileLoaded(Boolean(data&&!error));
+    if (data&&!error) {
       setProfile({
         first_name: data.first_name || '',
         last_name: data.last_name || '',
@@ -6055,6 +6083,7 @@ function CustomerProfileScreen({
   return (
     <CustomerShell current="customerProfile" navigate={navigate}>
       <ScrollView style={styles.customerAccountScreen} contentContainerStyle={styles.customerAccountContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.premiumEyebrow}>Your personal space</Text>
         <Text style={styles.customerAccountTitle}>Account</Text>
         <View style={styles.customerAccountHero}>
           <View style={styles.customerAccountAvatar}><Text style={styles.customerAccountInitial}>{initial}</Text></View>
@@ -6068,72 +6097,7 @@ function CustomerProfileScreen({
           </MotionPressable>
         </View>
 
-        <View style={styles.customerAccountGroup}>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('details')}
-            accessibilityRole="button" accessibilityLabel="Edit personal details">
-            <View style={styles.customerAccountRowIcon}><UserRound size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.customerAccountRowText}>Personal details</Text>
-            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('address')}
-            accessibilityRole="button" accessibilityLabel="Edit your saved address">
-            <View style={styles.customerAccountRowIcon}><MapPin size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerAccountRowText}>Saved address</Text>
-              {profile.default_address ? <Text numberOfLines={1} style={styles.customerAccountRowDetail}>{profile.default_address}</Text> : null}
-            </View>
-            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('myHome')}
-            accessibilityRole="button" accessibilityLabel="Open My Home records">
-            <View style={styles.customerAccountRowIcon}><HomeIcon size={20} strokeWidth={2} color={theme.colors.teal}/></View>
-            <Text style={styles.customerAccountRowText}>My Home & maintenance</Text>
-            <ChevronRight size={20} color={theme.colors.muted}/>
-          </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerQuotes')}
-            accessibilityRole="button" accessibilityLabel="Open Quote Centre">
-            <View style={styles.customerAccountRowIcon}><FileText size={20} strokeWidth={2} color={theme.colors.teal}/></View>
-            <Text style={styles.customerAccountRowText}>Quotes & approvals</Text>
-            <ChevronRight size={20} color={theme.colors.muted}/>
-          </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={showSavedTrades}
-            accessibilityRole="button" accessibilityLabel="View saved tradespeople">
-            <View style={styles.customerAccountRowIcon}><Heart size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.customerAccountRowText}>Saved tradespeople</Text>
-            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </MotionPressable>
-        </View>
-
-        <Text style={styles.customerAccountSectionLabel}>SETTINGS</Text>
-        <View style={styles.customerAccountGroup}>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('notifications')}
-            accessibilityRole="button" accessibilityLabel="Manage notifications">
-            <View style={styles.customerAccountRowIcon}><Bell size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.customerAccountRowText}>Notifications</Text>
-            <Text style={styles.customerAccountRowStatus}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
-            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerSafety')}
-            accessibilityRole="button" accessibilityLabel="Privacy and security information">
-            <View style={styles.customerAccountRowIcon}><LockKeyhole size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.customerAccountRowText}>Privacy & security</Text>
-            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </MotionPressable>
-          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerSupport')}
-            accessibilityRole="button" accessibilityLabel="Open support cases and help">
-            <View style={styles.customerAccountRowIcon}><CircleHelp size={20} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.customerAccountRowText}>Help, reports & support cases</Text>
-            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
-          </MotionPressable>
-          {staffAccess?<MotionPressable style={styles.customerAccountRow}
-            onPress={() => navigate('staffConsole')} accessibilityRole="button"
-            accessibilityLabel="Open staff moderation console">
-            <View style={styles.customerAccountRowIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
-            <Text style={styles.customerAccountRowText}>Admin Gateway · Secure access</Text>
-            <ChevronRight size={20} color={theme.colors.muted}/>
-          </MotionPressable>:null}
-        </View>
-
+        {profileLoadError?<MotionPressable style={styles.customerAccountProSwitch} onPress={loadProfile} accessibilityLabel="Retry loading account"><RotateCw size={20} color={theme.colors.teal}/><Text style={{flex:1,color:theme.colors.ink}}>Could not load account details. Tap to retry.</Text></MotionPressable>:null}
         {(accountType === 'tradesperson'||staffAccess) ? (
           <MotionPressable style={styles.customerAccountProSwitch} onPress={switchToTrade}
             accessibilityRole="button" accessibilityLabel="Switch to tradesperson view">
@@ -6149,6 +6113,77 @@ function CustomerProfileScreen({
             <ChevronRight size={20} color={theme.colors.teal} />
           </MotionPressable>
         ) : null}
+        <View style={styles.customerAccountQuickRow}>
+          {([{title:'My home',Icon:HomeIcon,onPress:()=>navigate('myHome')},{title:'Saved pros',Icon:Heart,onPress:showSavedTrades},{title:'Invoices',Icon:FileText,onPress:()=>navigate('customerInvoices')}] as const).map(({title,Icon,onPress})=><MotionPressable key={title} style={styles.customerAccountQuickItem} onPress={onPress} accessibilityLabel={title}>
+           <View style={styles.tradeToolsShortcutGlyph}><Icon size={21} color={theme.colors.teal}/></View><Text style={styles.tradeToolsShortcutLabel}>{title}</Text></MotionPressable>)}
+        </View>
+        <Text style={styles.customerAccountSectionLabel}>PERSONAL DETAILS</Text>
+        <View style={styles.customerAccountGroup}>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('details')}
+            accessibilityRole="button" accessibilityLabel="Edit personal details">
+            <View style={styles.customerAccountRowIcon}><UserRound size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Personal details</Text><Text style={styles.customerAccountRowDetail}>{profileLoaded&&profile.first_name&&profile.last_name&&profile.phone?'Name and contact details saved':'Manage name and contact details'}</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('address')}
+            accessibilityRole="button" accessibilityLabel="Edit your saved address">
+            <View style={styles.customerAccountRowIcon}><MapPin size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.customerAccountRowText}>Saved address</Text>
+              {profile.default_address ? <Text numberOfLines={1} style={styles.customerAccountRowDetail}>{profile.default_address}</Text> : null}
+            </View>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('myHome')}
+            accessibilityRole="button" accessibilityLabel="Open My Home records">
+            <View style={styles.customerAccountRowIcon}><HomeIcon size={20} strokeWidth={2} color={theme.colors.teal}/></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>My Home & maintenance</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerQuotes')}
+            accessibilityRole="button" accessibilityLabel="Open Quote Centre">
+            <View style={styles.customerAccountRowIcon}><FileText size={20} strokeWidth={2} color={theme.colors.teal}/></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Quotes & approvals</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={showSavedTrades}
+            accessibilityRole="button" accessibilityLabel="View saved tradespeople">
+            <View style={styles.customerAccountRowIcon}><Heart size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Saved tradespeople</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </MotionPressable>
+        </View>
+
+        <Text style={styles.customerAccountSectionLabel}>SETTINGS</Text>
+        <View style={styles.customerAccountGroup}>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => setEditMode('notifications')}
+            accessibilityRole="button" accessibilityLabel="Manage notifications">
+            <View style={styles.customerAccountRowIcon}><Bell size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Notifications</Text></View>
+            <Text style={styles.customerAccountRowStatus}>{profile.notifications_enabled ? 'On' : 'Off'}</Text>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerSafety')}
+            accessibilityRole="button" accessibilityLabel="Privacy and security information">
+            <View style={styles.customerAccountRowIcon}><LockKeyhole size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Privacy & security</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </MotionPressable>
+          <MotionPressable style={styles.customerAccountRow} onPress={() => navigate('customerSupport')}
+            accessibilityRole="button" accessibilityLabel="Open support cases and help">
+            <View style={styles.customerAccountRowIcon}><CircleHelp size={20} strokeWidth={2} color={theme.colors.teal} /></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Help, reports & support cases</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted} strokeWidth={2} />
+          </MotionPressable>
+          {staffAccess?<MotionPressable style={styles.customerAccountRow}
+            onPress={() => navigate('staffConsole')} accessibilityRole="button"
+            accessibilityLabel="Open staff moderation console">
+            <View style={styles.customerAccountRowIcon}><ShieldCheck size={20} color={theme.colors.teal}/></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.customerAccountRowText}>Admin Gateway · Secure access</Text></View>
+            <ChevronRight size={20} color={theme.colors.muted}/>
+          </MotionPressable>:null}
+        </View>
+
         <MotionPressable style={styles.customerAccountSignout} onPress={signOut} accessibilityRole="button" accessibilityLabel="Log out">
           <Text style={styles.customerAccountSignoutText}>Log out</Text>
         </MotionPressable>
@@ -6396,7 +6431,7 @@ function TradeShell({
 }
 
 /** Decorative native motion: a business workflow, not a looping video or GIF. */
-function TradeToolsOrbit(){
+function TradeToolsOrbit({customer=false}:{customer?:boolean}={}){
  const phase=useRef(new Animated.Value(0)).current;
  const [reduced,setReduced]=useState(true);
  const [foreground,setForeground]=useState(AppState.currentState==='active');
@@ -6436,7 +6471,7 @@ function TradeToolsOrbit(){
   <Animated.View style={[styles.tradeToolsOrbitSatellite,{left:1,bottom:7,transform:[{scale:satelliteMotion(0.75)}]}]}><Package size={17} strokeWidth={1.8} color={theme.colors.teal}/></Animated.View>
   <Animated.View style={[styles.tradeToolsOrbitSatellite,{right:8,bottom:0,transform:[{scale:satelliteMotion(0.5)}]}]}><Users size={17} strokeWidth={1.8} color={theme.colors.teal}/></Animated.View>
   <Animated.View style={[styles.tradeToolsOrbitCore,{transform:[{translateY:float},{rotate:'-8deg'}]}]}>
-   <Wrench size={32} color={theme.colors.white} strokeWidth={1.8}/>
+   {customer?<HomeIcon size={32} color={theme.colors.white} strokeWidth={1.8}/>:<Wrench size={32} color={theme.colors.white} strokeWidth={1.8}/>}
   </Animated.View>
   {[0,.5].map((offset,index)=><Animated.View key={offset} style={[
    styles.tradeToolsOrbitDot,index===1&&{backgroundColor:theme.colors.coral,width:5,height:5},
@@ -9832,7 +9867,7 @@ const styles = StyleSheet.create({
   navActive: { color: C.blue, fontWeight: '800' },
   mapTop: { paddingHorizontal: 15, paddingTop: 8, backgroundColor: theme.colors.customerBackground, zIndex: 5, paddingBottom: 4 },
   mapSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  mapSearch: { flex: 1, height: 43, borderRadius: 23, backgroundColor: '#FFFFFF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', ...theme.shadow },
+  mapSearch: { flex: 1, height: 43, borderRadius: 23, backgroundColor: '#FFFFFF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center',borderWidth:1,borderColor:theme.colors.line },
   mapSearchText: { marginLeft: 9, color: C.muted, fontSize: 15 },
   mapSearchInput: { flex: 1, marginLeft: 10, color: theme.colors.ink, fontSize: 14, paddingVertical: 0 },
   mapControlButton: { width: 42, height: 42, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', position: 'relative', ...theme.shadow },
@@ -9854,7 +9889,7 @@ const styles = StyleSheet.create({
   mapCompactAction: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, minHeight:33, backgroundColor:'#FFFFFF', borderRadius:17, borderWidth:1, borderColor:'#E2E8E5', paddingHorizontal:11, maxWidth:'48%' },
   mapCompactActionSelected: { borderColor:theme.colors.teal },
   mapCompactActionText: { fontSize:11, fontWeight:'800', color:theme.colors.teal, flexShrink:1 },
-  mapCompactStatus: { flex:1, flexDirection:'row', minHeight:33, alignItems:'center', justifyContent:'flex-end', gap:7, backgroundColor:'#F1F1EB', borderRadius:17, paddingHorizontal:10 },
+  mapCompactStatus: { flex:1, flexDirection:'row', minHeight:33, alignItems:'center', justifyContent:'flex-end', gap:7, backgroundColor:theme.colors.tealTint, borderRadius:17, paddingHorizontal:10 },
   mapCompactStatusText: { fontSize:10, fontWeight:'700', color:theme.colors.muted, flexShrink:1 },
   mapCompactLink: { fontSize:11, fontWeight:'900', color:theme.colors.teal },
   mapAreaSearchPanel: { marginTop:6, padding:10, backgroundColor:'#F5F7F4', borderRadius:16, gap:7 },
@@ -11930,10 +11965,13 @@ const styles = StyleSheet.create({
   customerProfileQuoteText: { fontSize: 14, color: '#FFFFFF', fontWeight: '800' },
 
   customerActivityScreen: { flex: 1, backgroundColor: theme.colors.customerBackground },
-  customerActivityContent: { paddingHorizontal: 23, paddingTop: 30, paddingBottom: 50 },
+  customerActivityContent: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 36 },
+  customerActivityNew:{minHeight:44,paddingHorizontal:13,borderRadius:22,backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',gap:5},
+  customerActivityQuickRow:{flexDirection:'row',gap:8,marginBottom:12,marginTop:4},
   customerActivityTitle: {fontFamily:theme.font.editorial,  fontSize: 32, fontWeight: '800', letterSpacing: -0.95, color: theme.colors.ink },
   customerActivitySub: { fontSize: 14, color: theme.colors.muted, marginTop: 5, marginBottom: 18 },
-  customerDiscoverPage:{paddingHorizontal:21,paddingTop:25,paddingBottom:44},
+  customerDiscoverPage:{paddingHorizontal:18,paddingTop:20,paddingBottom:36},
+  customerDiscoverToolRow:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:13,paddingVertical:14,minHeight:70,borderBottomWidth:1,borderBottomColor:theme.colors.line},
   customerDiscoverEyebrow:{fontSize:10,fontWeight:'800',color:theme.colors.teal,letterSpacing:1.6},
   customerDiscoverHeading:{fontFamily:theme.font.editorial, fontSize:30,fontWeight:'800',color:theme.colors.ink,letterSpacing:-0.7,marginTop:6},
   customerDiscoverIntro:{fontSize:13,lineHeight:21,color:theme.colors.muted,marginTop:8,marginBottom:19},
@@ -12020,7 +12058,9 @@ const styles = StyleSheet.create({
   customerInboxNoMatches: { alignItems: 'center', marginTop: 80 },
 
   customerAccountScreen: { flex: 1, backgroundColor: theme.colors.customerBackground },
-  customerAccountContent: { paddingTop: 26, paddingHorizontal: 23, paddingBottom: 65 },
+  customerAccountContent: { paddingTop: 20, paddingHorizontal: 18, paddingBottom: 40 },
+  customerAccountQuickRow:{flexDirection:'row',gap:8,marginBottom:17},
+  customerAccountQuickItem:{flex:1,minWidth:0,minHeight:69,backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,borderRadius:17,padding:8,alignItems:'center',justifyContent:'center',gap:5},
   customerAccountTitle: {fontFamily:theme.font.heading,  color: theme.colors.ink, fontSize: 30, fontWeight: '800', letterSpacing: -1, marginBottom: 17 },
   customerAccountHero: { backgroundColor: theme.colors.darkTeal, borderRadius: 28, padding: 18, minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 15, ...theme.shadow },
   customerAccountAvatar: { width: 66, height: 66, borderRadius: 33, backgroundColor: theme.colors.coralTint, alignItems: 'center', justifyContent: 'center' },
@@ -12029,7 +12069,7 @@ const styles = StyleSheet.create({
   customerAccountMeta: { color: '#B5CACB', fontSize: 12, marginTop: 5 },
   customerAccountHeroEdit: { height: 44, width: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#36555A', borderColor: '#547478', borderWidth: 1 },
   customerAccountGroup: { borderRadius: 26, backgroundColor: '#FFFFFF', paddingHorizontal: 17, marginBottom: 19, overflow: 'hidden', ...theme.shadow },
-  customerAccountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 67, borderBottomWidth: 1, borderBottomColor: '#F0EBE3', paddingVertical: 10 },
+  customerAccountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, borderBottomWidth: 1, borderBottomColor: '#F0EBE3', paddingVertical: 10 },
   customerAccountRowIcon: { width: 37, height: 37, borderRadius: 12, backgroundColor: theme.colors.tealTint, alignItems: 'center', justifyContent: 'center' },
   customerAccountRowText: { color: theme.colors.ink, fontSize: 14, fontWeight: '800', flexShrink: 1 },
   customerAccountRowDetail: { marginTop: 4, color: theme.colors.muted, fontSize: 12 },

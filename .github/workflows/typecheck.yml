@@ -55,6 +55,9 @@ jobs:
       - name: Check supplier directory classification and radius logic
         run: node scripts/test-supplier-directory.cjs --logic
 
+      - name: Check customer toolkit and planning logic
+        run: node scripts/test-customer-planning.cjs
+
       - name: Test native notification destinations and safe app role routing
         run: node scripts/test-notification-destinations.cjs
 
