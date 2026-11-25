@@ -52,6 +52,9 @@ jobs:
       - name: Check native Tools, supplier map and Inbox layout safeguards
         run: node scripts/test-mobile-screen-layout.cjs
 
+      - name: Check supplier directory classification and radius logic
+        run: node scripts/test-supplier-directory.cjs --logic
+
       - name: Test native notification destinations and safe app role routing
         run: node scripts/test-notification-destinations.cjs
 

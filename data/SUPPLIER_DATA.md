@@ -1,5 +1,5 @@
 # Tradarr supplier directory
-The map uses the existing local radius, filters, clustering and postcode search. The bundled Midlands directory is generated from public OpenStreetMap county extracts distributed by Geofabrik; it is enriched at runtime by the existing Overpass lookup. OpenStreetMap data is not a complete business register and may omit or contain outdated shops. Directory records are not verified stock, opening hours or exact shop-door coordinates; OSM ways and relations use their bounding-box centres.
+The nearby supplier list and live lookup use the existing local radius. The bundled regional directory is also visible when panning or zooming out, using the same trade filters and existing viewport clustering. The on-map counter reports individual suppliers in the current viewport, not the nearby list size. The bundled Midlands directory is generated from public OpenStreetMap county extracts distributed by Geofabrik; it is enriched at runtime by the existing Overpass lookup. OpenStreetMap data is not a complete business register and may omit or contain outdated shops. Directory records are not verified stock, opening hours or exact shop-door coordinates; OSM ways and relations use their bounding-box centres.
 
 ## Coverage
 East Midlands: Derbyshire, Leicestershire, Lincolnshire, Northamptonshire, Nottinghamshire, Rutland.

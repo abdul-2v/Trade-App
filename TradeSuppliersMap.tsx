@@ -76,18 +76,24 @@ function localDirectorySuppliers(near: Coordinates, radiusMiles: number): Suppli
 function mergeMerchantSources(directory: Supplier[], live: Supplier[]): Supplier[] {
   const combined = [...live];
   const ids=new Set(live.map(shop=>shop.id));
+  const names=new Map<string,Supplier[]>();
+  const approximate:Supplier[]=[];
+  const key=(shop:Supplier)=>shop.name.toLowerCase().replace(/[^a-z0-9]/g,'');
+  const index=(shop:Supplier)=>{const name=key(shop);const matches=names.get(name)||[];matches.push(shop);names.set(name,matches);if(shop.postcodeApproximate)approximate.push(shop);};
+  for(const shop of live)index(shop);
   for (const shop of directory) {
     if(ids.has(shop.id))continue;
-    const duplicate = combined.some(other => {
-      const a = other.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const b = shop.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const b=key(shop);
+    const candidates=shop.postcodeApproximate?combined:[...(names.get(b)||[]),...approximate];
+    const duplicate = candidates.some(other => {
+      const a=key(other);
       return (a === b || a.includes(b) || b.includes(a))
         && haversine(
           { latitude: other.latitude, longitude: other.longitude },
           { latitude: shop.latitude, longitude: shop.longitude }
-        ) < 0.35;
+        ) < (shop.postcodeApproximate||other.postcodeApproximate?0.35:0.09);
     });
-    if (!duplicate){combined.push(shop);ids.add(shop.id);}
+    if (!duplicate){combined.push(shop);ids.add(shop.id);index(shop);}
   }
   return combined.sort((a, b) => a.distance - b.distance);
 }
@@ -137,8 +143,10 @@ function classifyShop(tags: Record<string, string>): { kinds: TradeName[]; gener
   const name = [tags.name, tags.brand, tags.operator].filter(Boolean).join(' ');
   const specialty = [tags.trade,tags.wholesale,tags['shop:trade']].filter(Boolean).join(' ').toLowerCase();
   const shop = (tags.shop || '').toLowerCase();
-  // Never reintroduce a mapped closed or vacant branch via brand-only matching.
-  if(['vacant','closed','disused','abandoned'].includes(shop)||tags.disused==='yes'||tags.abandoned==='yes'||tags.closed==='yes')return null;
+  // Names also occur on bus stops, roads and other non-merchant features.
+  // A branch must be tagged as a shop/trade or a commercial building.
+  if(tags.highway||tags.public_transport||tags.railway||tags['disused:shop']||['vacant','closed','disused','abandoned'].includes(shop)||tags.disused==='yes'||tags.abandoned==='yes'||tags.closed==='yes')return null;
+  if(!shop&&!tags.trade&&!tags.wholesale&&!['retail','warehouse','commercial','industrial'].includes(tags.building||''))return null;
   for (const group of merchantGroups) {
     if (group.match.test(name)) return { kinds: group.trades, general: Boolean(group.general) };
   }
@@ -197,7 +205,7 @@ function convertResults(elements: OsmElement[], near: Coordinates, radiusMiles: 
     const classification = classifyShop(tags);
     if (!classification) continue;
     const distance = haversine(near, { latitude, longitude });
-    if (distance > radiusMiles + 0.2) continue;
+    if (distance > radiusMiles) continue;
 
     const address = [
       [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' '),
@@ -347,7 +355,7 @@ map.attributionControl.setPrefix('');
 map.attributionControl.addAttribution('© OpenStreetMap contributors · OpenFreeMap');
 var layer=L.layerGroup().addTo(map);
 var activeShops=new Map();
-var shops=[],selectedShopId=null;
+var shops=[],selectedShopId=null,lastViewportCount=-1;
 function playShopSweep(){
  var el=document.getElementById('shop-sweep');
  if(!el||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
@@ -414,8 +422,9 @@ window.clearShopLine=function(){
 };
 function draw(){
  var zoom=map.getZoom(),buckets={},desired=new Set();
- var bounds=map.getBounds().pad(.18);
+ var viewport=map.getBounds(),bounds=viewport.pad(.18),viewportCount=0;
  shops.forEach(function(shop){
+  if(viewport.contains([shop.lat,shop.lng]))viewportCount++;
   if(!bounds.contains([shop.lat,shop.lng]))return;
   var p=map.project([shop.lat,shop.lng],zoom);
   // World-pixel buckets remain stable while panning; selected pins always open individually.
@@ -466,6 +475,10 @@ function draw(){
  activeShops.forEach(function(marker,key){
   if(!desired.has(key)){layer.removeLayer(marker);activeShops.delete(key);}
  });
+ if(viewportCount!==lastViewportCount&&window.ReactNativeWebView){
+  lastViewportCount=viewportCount;
+  window.ReactNativeWebView.postMessage(JSON.stringify({type:'viewportCount',count:viewportCount}));
+ }
 }
 window.showSuppliers=function(list){
   shops=Array.isArray(list)?list:[];draw();refreshShopLine();playShopSweep();
@@ -518,6 +531,7 @@ export default function TradeSuppliersMap() {
   const [filter, setFilter] = useState<Filter>('mine');
   const [radius, setRadius] = useState(10);
   const [shops, setShops] = useState<Supplier[]>([]);
+  const [viewportCount,setViewportCount]=useState<number|null>(null);
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [searchExpanded,setSearchExpanded]=useState(false);
   const [nearbyExpanded,setNearbyExpanded]=useState(false);
@@ -689,13 +703,14 @@ export default function TradeSuppliersMap() {
   // start at the user's device, even when browsing merchants near a postcode.
   const referencePosition = gpsPosition || manualArea || savedWorkArea || centre;
   const usingGps = gpsState === 'ready' && !!gpsPosition;
+  const matchesFilter=(shop:Supplier)=>{
+    if(filter==='all')return true;
+    if(filter==='general')return shop.general;
+    if(filter==='specialist')return !shop.general&&(!primaryTrade||shop.kinds.includes(primaryTrade));
+    return !primaryTrade||shop.kinds.includes(primaryTrade);
+  };
   const visible = useMemo(() => shops
-    .filter(shop => {
-      if (filter === 'all') return true;
-      if (filter === 'general') return shop.general;
-      if (filter === 'specialist') return !shop.general && (!primaryTrade || shop.kinds.includes(primaryTrade));
-      return !primaryTrade || shop.kinds.includes(primaryTrade);
-    })
+    .filter(matchesFilter)
     .map(shop => ({
       ...shop,
       distance: haversine(referencePosition, { latitude: shop.latitude, longitude: shop.longitude }),
@@ -703,17 +718,22 @@ export default function TradeSuppliersMap() {
     .sort((a,b) => a.distance - b.distance),
   [shops, filter, primaryTrade, referencePosition.latitude, referencePosition.longitude]);
 
+  // The wider directory is browsable without changing the radius-limited nearby list.
+  // The native WebView clusters only points in its padded viewport, not the whole dataset.
+  const regional=useMemo(()=>convertResults(directoryElements,LEICESTER,300),[]);
+  const mapVisible=useMemo(()=>mergeMerchantSources(regional.filter(matchesFilter),shops.filter(matchesFilter)),[regional,shops,filter,primaryTrade]);
+  const mapVisibleById=useMemo(()=>new Map(mapVisible.map(shop=>[shop.id,shop])),[mapVisible]);
   useEffect(() => {
-    if (selected && !visible.some(s => s.id === selected.id)) setSelected(null);
-  }, [visible, selected]);
+    if (selected && !mapVisibleById.has(selected.id)) setSelected(null);
+  }, [mapVisibleById, selected]);
 
   const sendToMap = () => {
-    const values = visible.map(s => ({ id: s.id, name: s.name, lat: s.latitude, lng: s.longitude, general: s.general }));
+    const values = mapVisible.map(s => ({ id: s.id, name: s.name, lat: s.latitude, lng: s.longitude, general: s.general }));
     const encoded = JSON.stringify(values).replace(/</g, '\\u003c').replace(/\u2028|\u2029/g, '');
     mapRef.current?.injectJavaScript('if(window.showSuppliers){window.showSuppliers(' + encoded + ')};true;');
   };
 
-  useEffect(sendToMap, [visible]);
+  useEffect(sendToMap, [mapVisible]);
 
   const sendPositionToMap = () => {
     const payload = {
@@ -789,9 +809,10 @@ export default function TradeSuppliersMap() {
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data) as { type?: string; id?: string };
+      const data = JSON.parse(event.nativeEvent.data) as { type?: string; id?: string; count?:number };
+      if(data.type==='viewportCount'&&typeof data.count==='number'&&Number.isSafeInteger(data.count)&&data.count>=0){setViewportCount(data.count);return;}
       if (data.type === 'supplier' && data.id) {
-        const item = visible.find(s => s.id === data.id);
+        const item = mapVisibleById.get(data.id);
         if (item) setSelected(item);
       }
     } catch { /* ignore unexpected messages */ }
@@ -889,14 +910,14 @@ export default function TradeSuppliersMap() {
           <Crosshair size={23} color={INK} strokeWidth={2} />
         </MotionPressable>
         <View pointerEvents="none" style={S.counter}>
-          <Text style={S.counterText}>{loading ? 'Finding shops…' : visible.length + ' shops on map'}</Text>
+          <Text style={S.counterText}>{loading&&!mapVisible.length ? 'Finding shops…' : (viewportCount??visible.length) + ' shops on map'}</Text>
         </View>
-        {loading ? (
+        {loading && !mapVisible.length ? (
           <View style={S.loading}>
             <ActivityIndicator color={ACCENT} />
             <Text style={S.loadingText}>Finding nearby trade merchants…</Text>
           </View>
-        ) : problem ? (
+        ) : problem && !mapVisible.length ? (
           <View style={S.notice}>
             <Text style={S.noticeText}>{problem}</Text>
             <View style={S.noticeActions}>
@@ -908,7 +929,7 @@ export default function TradeSuppliersMap() {
               </MotionPressable>
             </View>
           </View>
-        ) : !visible.length ? (
+        ) : !visible.length && !mapVisible.length ? (
           <View style={S.notice}>
             <Text style={S.noticeText}>No matching merchants found in this area. Try All shops or increase the radius.</Text>
           </View>
