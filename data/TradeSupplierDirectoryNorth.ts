@@ -1,6 +1,6 @@
 // Generated: ODbL 1.0; © OpenStreetMap contributors. See data/SUPPLIER_DATA.md.
 export type DirectoryElement={type:string;id:number;lat:number;lon:number;tags:Record<string,string>};
-export const directoryMetadata={"source":"OpenStreetMap / Geofabrik","license":"ODbL-1.0","regions":["south-yorkshire","west-yorkshire","greater-manchester","cheshire","merseyside","lancashire","north-yorkshire","east-yorkshire-with-hull"],"generatedAt":"2026-11-25T19:07:54.042850+00:00","count":2606,"counts":{"south-yorkshire":254,"west-yorkshire":501,"greater-manchester":787,"cheshire":222,"merseyside":326,"lancashire":287,"north-yorkshire":223,"east-yorkshire-with-hull":45}};
+export const directoryMetadata={"source":"OpenStreetMap / Geofabrik","license":"ODbL-1.0","regions":["south-yorkshire","west-yorkshire","greater-manchester","cheshire","merseyside","lancashire","north-yorkshire","east-yorkshire-with-hull"],"generatedAt":"2026-11-25T21:10:56.073548+00:00","count":2606,"counts":{"south-yorkshire":254,"west-yorkshire":501,"greater-manchester":787,"cheshire":222,"merseyside":326,"lancashire":287,"north-yorkshire":223,"east-yorkshire-with-hull":45}};
 export const directoryElements:DirectoryElement[]=[
 {"type":"node","id":268975100,"lat":53.8780201,"lon":-1.6712623,"tags":{"name":"Airedale DIY","shop":"doityourself"}} as DirectoryElement,
 {"type":"node","id":278047346,"lat":53.3638836,"lon":-2.7304447,"tags":{"name":"Manby's","shop":"doityourself"}} as DirectoryElement,
