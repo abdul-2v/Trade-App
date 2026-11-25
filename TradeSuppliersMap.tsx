@@ -723,6 +723,7 @@ export default function TradeSuppliersMap() {
   const regional=useMemo(()=>convertResults(directoryElements,LEICESTER,300),[]);
   const mapVisible=useMemo(()=>mergeMerchantSources(regional.filter(matchesFilter),shops.filter(matchesFilter)),[regional,shops,filter,primaryTrade]);
   const mapVisibleById=useMemo(()=>new Map(mapVisible.map(shop=>[shop.id,shop])),[mapVisible]);
+  const onScreenSupplierCount=viewportCount??visible.length;
   useEffect(() => {
     if (selected && !mapVisibleById.has(selected.id)) setSelected(null);
   }, [mapVisibleById, selected]);
@@ -910,14 +911,14 @@ export default function TradeSuppliersMap() {
           <Crosshair size={23} color={INK} strokeWidth={2} />
         </MotionPressable>
         <View pointerEvents="none" style={S.counter}>
-          <Text style={S.counterText}>{loading&&!mapVisible.length ? 'Finding shops…' : (viewportCount??visible.length) + ' shops on map'}</Text>
+          <Text style={S.counterText}>{loading&&!onScreenSupplierCount ? 'Finding shops…' : onScreenSupplierCount + ' shops on map'}</Text>
         </View>
-        {loading && !mapVisible.length ? (
+        {loading && !onScreenSupplierCount ? (
           <View style={S.loading}>
             <ActivityIndicator color={ACCENT} />
             <Text style={S.loadingText}>Finding nearby trade merchants…</Text>
           </View>
-        ) : problem && !mapVisible.length ? (
+        ) : problem && !onScreenSupplierCount ? (
           <View style={S.notice}>
             <Text style={S.noticeText}>{problem}</Text>
             <View style={S.noticeActions}>
@@ -929,7 +930,7 @@ export default function TradeSuppliersMap() {
               </MotionPressable>
             </View>
           </View>
-        ) : !visible.length && !mapVisible.length ? (
+        ) : !visible.length && !onScreenSupplierCount ? (
           <View style={S.notice}>
             <Text style={S.noticeText}>No matching merchants found in this area. Try All shops or increase the radius.</Text>
           </View>
