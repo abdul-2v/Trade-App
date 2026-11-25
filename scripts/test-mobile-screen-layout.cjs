@@ -79,3 +79,20 @@ const orbit=app.slice(app.indexOf('function TradeToolsOrbit'),start);
 assert.ok(orbit.includes('useNativeDriver:true')&&orbit.includes('isInteraction:false'),'Native decoration must not block user interaction');
 assert.ok(orbit.includes('if(reduced||!foreground)return')&&orbit.includes('animation.stop()'),'Animation must pause and clean up');
 console.log('PASS: system fonts, category-first Tools, invoices first, unique actions, light map and clean Inbox');
+
+ // Jobs layout and direct availability controls: protect matching and location preferences.
+const jobsStart=app.indexOf('function TradeJobsScreen(');
+const jobsEnd=app.indexOf('function TradeMapScreen(',jobsStart);
+const jobs=app.slice(jobsStart,jobsEnd);
+const writer=jobs.slice(jobs.indexOf('const changeJobsAvailability='),jobs.indexOf('const loadJobs ='));
+assert.ok(writer.includes(".from('trade_availability')")&&writer.includes(".eq('user_id',user.id)"),'Jobs must persist availability for the authenticated trader');
+assert.ok(writer.includes('is_available:next')&&writer.includes('available_until:next?')&&!writer.includes('radius_miles')&&!writer.includes('location_mode'),'Toggle must preserve saved radius and location privacy');
+assert.ok(writer.includes('availabilityRequest.current+=1')&&writer.includes('availabilityWrite.current=true'),'Pending reads and duplicate writes must be guarded');
+assert.ok(writer.indexOf('setIsReceivingOffers(confirmed)')>writer.indexOf('if(error||!saved)'),'Online label must follow server confirmation');
+assert.ok(jobs.includes('changeJobsAvailability(!isReceivingOffers)')&&jobs.includes('accessibilityRole="switch"'),'Jobs availability is actionable on the page');
+assert.ok(jobs.indexOf('styles.premiumJobOverview')<jobs.indexOf('styles.premiumSegment')&&jobs.indexOf('styles.premiumSegment')<jobs.indexOf('styles.tradeOfflineBanner'),'Summary and offer tabs must precede availability');
+assert.ok(jobs.includes('allOffersEmpty=offerFilter===\'all\'&&!loading&&!loadingMarket&&offered.length===0&&marketOffered.length===0'),'Only confirmed empty all-offers state gets one illustration');
+assert.ok(jobs.includes('<TradeJobsEmptyMotion online={isReceivingOffers}/>'),'Empty state must have native motion');
+const emptyArt=app.slice(app.indexOf('function TradeJobsEmptyMotion('),jobsStart);
+assert.ok(emptyArt.includes('useNativeDriver:true')&&emptyArt.includes('isInteraction:false')&&emptyArt.includes('if(reduce||!foreground)return')&&emptyArt.includes('loop.stop()'),'Empty animation must be native, nonblocking and respect accessibility/background');
+console.log('PASS: direct Jobs availability, preserved privacy settings, compact layout and accessible animation');

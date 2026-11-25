@@ -7251,6 +7251,53 @@ function TradeHomeScreen({
   );
 }
 
+/** Jobs empty-state illustration. A native looping briefcase, not a video.
+ * Decorative only: the copy describes real availability, never simulated demand. */
+function TradeJobsEmptyMotion({online}:{online:boolean|null}){
+  const progress=useRef(new Animated.Value(0)).current;
+  const [reduce,setReduce]=useState(true);
+  const [foreground,setForeground]=useState(AppState.currentState==='active');
+  useEffect(()=>{
+    let mounted=true;
+    AccessibilityInfo.isReduceMotionEnabled().then(value=>{if(mounted)setReduce(value);}).catch(()=>{});
+    const pref=AccessibilityInfo.addEventListener('reduceMotionChanged',setReduce);
+    const state=AppState.addEventListener('change',value=>setForeground(value==='active'));
+    return()=>{mounted=false;pref.remove();state.remove();};
+  },[]);
+  useEffect(()=>{
+    progress.setValue(0);
+    if(reduce||!foreground)return;
+    const loop=Animated.loop(Animated.sequence([
+      Animated.timing(progress,{toValue:1,duration:1450,easing:Easing.inOut(Easing.sin),useNativeDriver:true,isInteraction:false}),
+      Animated.timing(progress,{toValue:0,duration:1450,easing:Easing.inOut(Easing.sin),useNativeDriver:true,isInteraction:false}),
+    ]));
+    loop.start();
+    return()=>loop.stop();
+  },[progress,reduce,foreground]);
+  const rise=progress.interpolate({inputRange:[0,1],outputRange:[0,-6]});
+  const shadow=progress.interpolate({inputRange:[0,1],outputRange:[1,.85]});
+  const accent=progress.interpolate({inputRange:[0,1],outputRange:[.48,1]});
+  return <View style={styles.tradeJobsEmpty}>
+    <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      pointerEvents="none" style={styles.tradeJobsEmptyArt}>
+      <Animated.View style={[styles.tradeJobsEmptyShadow,{transform:[{scaleX:shadow}]}]}/>
+      <Animated.View style={[styles.tradeJobsEmptyBag,{transform:[{translateY:rise}]}]}>
+        <BriefcaseBusiness size={67} color={theme.colors.teal} strokeWidth={1.65}/>
+        <Animated.View style={[styles.tradeJobsEmptyRays,{opacity:accent}]}>
+          <View style={[styles.tradeJobsEmptyRay,{left:1,top:0,transform:[{rotate:'16deg'}]}]}/>
+          <View style={[styles.tradeJobsEmptyRay,{left:12,top:5,transform:[{rotate:'46deg'}]}]}/>
+          <View style={[styles.tradeJobsEmptyRay,{left:18,top:16,transform:[{rotate:'73deg'}]}]}/>
+        </Animated.View>
+      </Animated.View>
+    </View>
+    <Text style={styles.tradeJobsEmptyTitle}>No offers yet</Text>
+    <Text style={styles.tradeJobsEmptyCopy}>{online===true
+      ?'When new work matches your trade and area, it will appear here.'
+      :online===false?'Turn on your availability to receive nearby and relevant job offers.'
+      :'Check your availability above to make sure you can receive new job offers.'}</Text>
+  </View>;
+}
+
 function TradeJobsScreen({
   navigate,
   jobsEntry,
@@ -7293,8 +7340,13 @@ function TradeJobsScreen({
   const [isReceivingOffers, setIsReceivingOffers] = useState<boolean | null>(null);
   const [availabilityCheckError, setAvailabilityCheckError] = useState(false);
   const availabilityRequest = useRef(0);
+  const availabilityWrite = useRef(false);
+  const availabilityMounted = useRef(false);
+  const [savingJobsAvailability,setSavingJobsAvailability]=useState(false);
+  const [jobsAvailableUntil,setJobsAvailableUntil]=useState<string|null>(null);
 
   const refreshAvailability = useCallback(async () => {
+    if(availabilityWrite.current)return;
     const request = ++availabilityRequest.current;
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (request !== availabilityRequest.current) return;
@@ -7313,10 +7365,12 @@ function TradeJobsScreen({
       return;
     }
     setAvailabilityCheckError(false);
+    setJobsAvailableUntil(data.available_until);
     setIsReceivingOffers(tradeAvailabilityActive(data));
   }, []);
 
   useEffect(() => {
+    availabilityMounted.current=true;
     void refreshAvailability();
     const foreground = AppState.addEventListener('change', state => {
       if (state === 'active') void refreshAvailability();
@@ -7339,12 +7393,59 @@ function TradeJobsScreen({
     void subscribe();
     return () => {
       active = false;
+      availabilityMounted.current=false;
       availabilityRequest.current += 1;
       foreground.remove();
       clearInterval(interval);
       if (channel) void supabase.removeChannel(channel);
     };
   }, [refreshAvailability]);
+
+  // Use the same persisted availability row as Home. Change only the status
+  // and expiry; never overwrite the trader's saved radius or map privacy mode.
+  const changeJobsAvailability=async(next:boolean)=>{
+    if(availabilityWrite.current||isReceivingOffers===null||next===isReceivingOffers)return;
+    availabilityWrite.current=true;
+    availabilityRequest.current+=1; // discard a read that began before this write
+    setSavingJobsAvailability(true);
+    let savedUserId:string|null=null;
+    try{
+      const {data:{user},error:authError}=await supabase.auth.getUser();
+      if(authError||!user)throw new Error('Please sign in again to update availability.');
+      const {data:saved,error}=await supabase.from('trade_availability')
+        .update({
+          is_available:next,
+          available_until:next?new Date(Date.now()+2*60*60*1000).toISOString():null,
+          updated_at:new Date().toISOString(),
+        }).eq('user_id',user.id).select('is_available,available_until').maybeSingle();
+      if(error||!saved)throw new Error(error?.message||'Availability was not confirmed. Refresh and try again.');
+      if(!availabilityMounted.current)return;
+      const confirmed=tradeAvailabilityActive(saved);
+      setIsReceivingOffers(confirmed);
+      setJobsAvailableUntil(saved.available_until);
+      setAvailabilityCheckError(false);
+      if(confirmed!==next)throw new Error('The server did not confirm the requested availability.');
+      savedUserId=user.id;
+    }catch(e){
+      if(availabilityMounted.current){
+        // A lost response might have followed a successful write. Re-read rather
+        // than misleading the trader with an optimistic online/offline label.
+        setIsReceivingOffers(null);
+        setAvailabilityCheckError(true);
+        Alert.alert('Could not confirm availability',e instanceof Error?e.message:'Please retry.');
+      }
+    }finally{
+      availabilityWrite.current=false;
+      if(availabilityMounted.current){
+        setSavingJobsAvailability(false);
+        void refreshAvailability();
+        if(savedUserId){
+          void loadJobs(savedUserId);
+          void loadMarketJobs(savedUserId);
+        }
+      }
+    }
+  };
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
@@ -7905,6 +8006,7 @@ function TradeJobsScreen({
   const filteredMarketOffers = marketOffered.filter(job =>
     flexibleMode === 'all' || job.request.job_mode === flexibleMode
   );
+  const allOffersEmpty=offerFilter==='all'&&!loading&&!loadingMarket&&offered.length===0&&marketOffered.length===0;
   const offerFilterDescription = offerFilter === 'urgent'
     ? 'Fast-response call-outs matched to your trade and work radius.'
     : offerFilter === 'flexible'
@@ -7913,8 +8015,9 @@ function TradeJobsScreen({
 
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
-      <ScrollView contentContainerStyle={styles.premiumPage} showsVerticalScrollIndicator={false}>
-        <View style={styles.premiumScreenHeading}>
+      <ScrollView style={{backgroundColor:theme.colors.proBackground}}
+        contentContainerStyle={[styles.premiumPage,styles.tradeJobsDashboardPage]} showsVerticalScrollIndicator={false}>
+        <View style={[styles.premiumScreenHeading,{marginBottom:15}]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumEyebrow}>Your work</Text>
             <Text style={styles.premiumPageTitle}>Jobs</Text>
@@ -7929,82 +8032,24 @@ function TradeJobsScreen({
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </MotionPressable>
         </View>
-        <MotionPressable onPress={()=>navigate('tradeAssurance')} accessibilityRole="button"
-         accessibilityLabel="Open job assurance tools"
-         style={{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:'#EAF4ED',
-           borderWidth:1,borderColor:'#B8DAC8',borderRadius:16,paddingHorizontal:15,paddingVertical:14,marginBottom:12}}>
-          <ShieldCheck size={24} color={theme.colors.teal}/>
-          <View style={{flex:1,gap:4}}><Text style={{color:theme.colors.teal,fontWeight:'900',fontSize:14}}>ScopeGuard & FinishProof</Text>
-            <Text style={{color:theme.colors.muted,fontSize:11,lineHeight:17}}>Get extras approved and share completed-work handovers</Text></View>
-          <ChevronRight size={18} color={theme.colors.teal}/>
-        </MotionPressable>
-        <MotionPressable style={styles.tradeHowToggle} onPress={() => setShowJobGuide(value => !value)}
-          accessibilityRole="button" accessibilityState={{ expanded: showJobGuide }}
-          accessibilityLabel="How getting jobs on Tradarr works">
-          <CircleHelp size={21} color={theme.colors.teal} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.tradeHowToggleTitle}>How do I get jobs?</Text>
-            <Text style={styles.tradeHowToggleSub}>Go online → review matches → accept work</Text>
-          </View>
-          <ChevronRight size={20} color={theme.colors.teal}
-            style={showJobGuide ? { transform: [{ rotate: '90deg' }] } : undefined} />
-        </MotionPressable>
-        {showJobGuide ? (
-          <FadeSlideIn>
-          <View style={styles.tradeHowPanel}>
-            {([
-              ['1', 'Go online on Home', 'Set where you work and how far you can travel.'],
-              ['2', 'Check your offers', 'Matched customer requests appear here. Accept or decline each offer.'],
-              ['3', 'Manage your jobs', 'Accepted jobs move to Active, where you can update their progress.'],
-            ] as const).map(([number, title, detail]) => (
-              <View key={number} style={styles.tradeHowStep}>
-                <View style={styles.tradeHowNumber}><Text style={styles.tradeHowNumberText}>{number}</Text></View>
-                <View style={{ flex: 1 }}><Text style={styles.tradeHowStepTitle}>{title}</Text>
-                  <Text style={styles.tradeHowStepDetail}>{detail}</Text></View>
-              </View>
-            ))}
-            <Text style={styles.tradeHowExtra}>On My Way matches work to an existing journey. Street Run groups nearby jobs in the same area.</Text>
-          </View>
-          </FadeSlideIn>
-        ) : null}
         <View style={styles.premiumJobOverview}>
+          <View pointerEvents="none" style={styles.tradeJobsMetricAccent}/>
           <View style={styles.premiumJobMetric}>
-            <Text style={styles.premiumJobMetricNumber}>{active.length + marketActive.length}</Text>
-            <Text style={styles.premiumJobMetricLabel}>Active</Text>
+            <View style={styles.tradeJobsMetricIcon}><BriefcaseBusiness size={22} color={theme.colors.white}/></View>
+            <View style={{flex:1,minWidth:0}}>
+              <Text style={styles.premiumJobMetricNumber}>{loading||loadingMarket?'–':active.length + marketActive.length}</Text>
+              <Text style={styles.premiumJobMetricLabel}>Active jobs</Text>
+            </View>
           </View>
           <View style={styles.premiumJobDivider} />
           <View style={styles.premiumJobMetric}>
-            <Text style={styles.premiumJobMetricNumber}>{offered.length + marketOffered.length}</Text>
-            <Text style={styles.premiumJobMetricLabel}>New</Text>
-          </View>
-          <View style={styles.premiumOverviewNote}>
-            <View style={styles.premiumOnlineDot} />
-            <Text style={styles.premiumOverviewNoteText}>Offers refresh automatically while the app is open</Text>
+            <View style={styles.tradeJobsMetricIcon}><Inbox size={22} color={theme.colors.white}/></View>
+            <View style={{flex:1,minWidth:0}}>
+              <Text style={styles.premiumJobMetricNumber}>{loading||loadingMarket?'–':offered.length + marketOffered.length}</Text>
+              <Text style={styles.premiumJobMetricLabel}>New offers</Text>
+            </View>
           </View>
         </View>
-        {availabilityCheckError ? (
-          <MotionPressable style={styles.tradeOfflineBanner}
-            onPress={() => { void refreshAvailability(); }}
-            accessibilityRole="button" accessibilityLabel="Retry checking online availability">
-            <View style={styles.tradeOfflineDot} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tradeOfflineTitle}>Couldn't confirm your availability</Text>
-              <Text style={styles.tradeOfflineSub}>Tap to try again. Your online status has not been changed.</Text>
-            </View>
-            <RotateCw size={19} color={theme.colors.teal} />
-          </MotionPressable>
-        ) : null}
-        {isReceivingOffers === false ? (
-          <MotionPressable style={styles.tradeOfflineBanner} onPress={() => navigate('tradeHome')}
-            accessibilityRole="button" accessibilityLabel="Go to Home to turn availability on">
-            <View style={styles.tradeOfflineDot} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tradeOfflineTitle}>You're currently offline</Text>
-              <Text style={styles.tradeOfflineSub}>Turn on availability on Home to receive nearby live offers.</Text>
-            </View>
-            <ChevronRight size={19} color={theme.colors.teal} />
-          </MotionPressable>
-        ) : null}
         <View style={styles.premiumSegment}>
           <MotionPressable onPress={() => setJobsView('offers')} style={styles.premiumSegmentTab}
             pressScale={0.991} disableFlash
@@ -8046,7 +8091,7 @@ function TradeJobsScreen({
                 </MotionPressable>
               ))}
             </View>
-            <Text style={styles.tradeOfferExplanation}>{offerFilterDescription}</Text>
+            {offerFilter!=='all'?<Text style={styles.tradeOfferExplanation}>{offerFilterDescription}</Text>:null}
             {offerFilter === 'flexible' ? (
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -8088,6 +8133,83 @@ function TradeJobsScreen({
         ) : (
           <Text style={styles.tradeOfferExplanation}>Track accepted jobs, get directions and update each stage until completion.</Text>
         )}
+        <View style={{marginBottom:10}}>
+          {isReceivingOffers===null?(
+            availabilityCheckError?<MotionPressable style={styles.tradeOfflineBanner}
+              onPress={()=>{void refreshAvailability();}} accessibilityRole="button"
+              accessibilityLabel="Retry checking online availability">
+              <View style={styles.tradeOfflineDot}/>
+              <View style={{flex:1,minWidth:0}}>
+                <Text style={styles.tradeOfflineTitle}>Couldn't confirm availability</Text>
+                <Text style={styles.tradeOfflineSub}>Tap to retry checking your saved status.</Text>
+              </View>
+              <RotateCw size={19} color={theme.colors.teal}/>
+            </MotionPressable>:<View style={styles.tradeJobsCheckingAvailability}>
+              <ActivityIndicator size="small" color={theme.colors.teal}/>
+              <Text style={styles.tradeOfflineSub}>Checking availability…</Text>
+            </View>
+          ):(
+            <MotionPressable style={[styles.tradeOfflineBanner,isReceivingOffers&&styles.tradeJobsOnlineBanner]}
+              onPress={()=>{void changeJobsAvailability(!isReceivingOffers);}}
+              disabled={savingJobsAvailability} accessibilityRole="switch"
+              accessibilityLabel="Job availability" accessibilityState={{checked:isReceivingOffers,disabled:savingJobsAvailability,busy:savingJobsAvailability}}
+              accessibilityHint="Go online for two hours or turn availability off">
+              <View style={[styles.tradeOfflineDot,isReceivingOffers&&{backgroundColor:theme.colors.success}]}/>
+              <View style={{flex:1,minWidth:0}}>
+                <StatusSwap value={isReceivingOffers}>
+                  <Text style={styles.tradeOfflineTitle}>{isReceivingOffers?"You're currently online":"You're currently offline"}</Text>
+                  <Text style={styles.tradeOfflineSub}>{savingJobsAvailability?'Saving your availability…':isReceivingOffers
+                    ?jobsAvailableUntil?'Available until '+formatUKDateTime(jobsAvailableUntil)+'.':'Available for nearby job offers.'
+                    :'Go online for 2 hours using your saved work settings.'}</Text>
+                </StatusSwap>
+              </View>
+              {savingJobsAvailability?<ActivityIndicator color={theme.colors.teal} style={{width:48}}/>:
+                <View pointerEvents="none" accessible={false}>
+                  <Switch value={isReceivingOffers} trackColor={{false:'#C6CECC',true:theme.colors.teal}}
+                    ios_backgroundColor="#C6CECC" thumbColor={theme.colors.white}
+                    accessible={false} importantForAccessibility="no-hide-descendants"
+                    onValueChange={()=>{}}/>
+                </View>}
+            </MotionPressable>
+          )}
+        </View>
+        <MotionPressable style={styles.tradeHowToggle} onPress={() => setShowJobGuide(value => !value)}
+          accessibilityRole="button" accessibilityState={{ expanded: showJobGuide }}
+          accessibilityLabel="How getting jobs on Tradarr works">
+          <View style={styles.tradeJobsUtilityIcon}><CircleHelp size={22} color={theme.colors.teal}/></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tradeHowToggleTitle}>How do I get jobs?</Text>
+            <Text style={styles.tradeHowToggleSub}>Go online → review matches → accept work</Text>
+          </View>
+          <ChevronRight size={20} color={theme.colors.teal}
+            style={showJobGuide ? { transform: [{ rotate: '90deg' }] } : undefined} />
+        </MotionPressable>
+        {showJobGuide ? (
+          <FadeSlideIn>
+          <View style={styles.tradeHowPanel}>
+            {([
+              ['1', 'Go online here', 'Your saved work area and radius are used. You can change these on Home.'],
+              ['2', 'Check your offers', 'Matched customer requests appear here. Accept or decline each offer.'],
+              ['3', 'Manage your jobs', 'Accepted jobs move to Active, where you can update their progress.'],
+            ] as const).map(([number, title, detail]) => (
+              <View key={number} style={styles.tradeHowStep}>
+                <View style={styles.tradeHowNumber}><Text style={styles.tradeHowNumberText}>{number}</Text></View>
+                <View style={{ flex: 1 }}><Text style={styles.tradeHowStepTitle}>{title}</Text>
+                  <Text style={styles.tradeHowStepDetail}>{detail}</Text></View>
+              </View>
+            ))}
+            <Text style={styles.tradeHowExtra}>On My Way matches work to an existing journey. Street Run groups nearby jobs in the same area.</Text>
+          </View>
+          </FadeSlideIn>
+        ) : null}
+        <MotionPressable onPress={()=>navigate('tradeAssurance')} accessibilityRole="button"
+         accessibilityLabel="Open job assurance tools"
+         style={styles.tradeJobsAssurance}>
+          <View style={styles.tradeJobsUtilityIcon}><ShieldCheck size={23} color={theme.colors.teal}/></View>
+          <View style={{flex:1,gap:4}}><Text style={{color:theme.colors.ink,fontWeight:'800',fontSize:14}}>ScopeGuard & FinishProof</Text>
+            <Text style={{color:theme.colors.muted,fontSize:12,lineHeight:17}}>Get extras approved and share completed-work handovers</Text></View>
+          <ChevronRight size={18} color={theme.colors.teal}/>
+        </MotionPressable>
         {jobsView === 'active' ? (
           <>
         {active.length ? (
@@ -8243,7 +8365,8 @@ function TradeJobsScreen({
           </>
         ) : (
           <>
-        {offerFilter !== 'flexible' ? (
+        {allOffersEmpty?<TradeJobsEmptyMotion online={isReceivingOffers}/>:null}
+        {!allOffersEmpty&&offerFilter !== 'flexible' ? (
           <>
         <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
 
@@ -8312,7 +8435,7 @@ function TradeJobsScreen({
           </>
         ) : null}
 
-        {offerFilter !== 'urgent' ? (
+        {!allOffersEmpty&&offerFilter !== 'urgent' ? (
           <>
         <Text style={styles.dispatchTradeSectionTitle}>Flexible & scheduled offers</Text>
 
@@ -11509,7 +11632,7 @@ const styles = StyleSheet.create({
   premiumScreenSub: { fontSize: 14, color: theme.colors.muted, lineHeight: 21, marginTop: 4 },
   premiumHeaderRefresh: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.white, ...theme.shadow },
   tradeHowToggle: { minHeight: 62, backgroundColor: theme.colors.white, borderRadius: 21,
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17, paddingVertical: 10, marginBottom: 14, ...theme.shadow },
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 9, ...theme.shadow },
   tradeHowToggleTitle: { color: theme.colors.ink, fontSize: 14, fontWeight: '800' },
   tradeHowToggleSub: { color: theme.colors.muted, fontSize: 12, marginTop: 3 },
   tradeHowPanel: { backgroundColor: theme.colors.white, borderRadius: 22,
@@ -11523,7 +11646,7 @@ const styles = StyleSheet.create({
   tradeHowExtra: { color: theme.colors.teal, fontSize: 12, lineHeight: 19, marginTop: 6, paddingTop: 12,
     borderTopColor: theme.colors.line, borderTopWidth: 1 },
   tradeOfflineBanner: { flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 20,
-    padding: 14, marginBottom: 12, backgroundColor: '#FFF2E9', borderWidth: 1, borderColor: '#F0DED2' },
+    paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, backgroundColor: '#FFF2E9', borderWidth: 1, borderColor: '#F0DED2' },
   tradeOfflineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#CF845A' },
   tradeOfflineTitle: { color: theme.colors.ink, fontSize: 13, fontWeight: '800' },
   tradeOfflineSub: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
@@ -11544,11 +11667,26 @@ const styles = StyleSheet.create({
   tradeOtherOfferLink: { minHeight: 48, borderRadius: 24, backgroundColor: theme.colors.tealTint,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 13, gap: 9, marginTop: 12 },
   tradeOtherOfferLinkText: { color: theme.colors.teal, fontSize: 12, fontWeight: '800' },
-  premiumJobOverview: { minHeight: 136, backgroundColor: theme.colors.darkTeal, borderRadius: 30, paddingHorizontal: 24, paddingTop: 21, flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', overflow: 'hidden', ...theme.shadow },
-  premiumJobMetric: { width: 90, minHeight: 63 },
-  premiumJobMetricNumber: {fontFamily:theme.font.numeric,  color: theme.colors.white, fontSize: 39, fontWeight: '800', letterSpacing: -1.4, lineHeight: 42 },
-  premiumJobMetricLabel: { color: '#C0D1D2', fontSize: 14, marginTop: 1 },
-  premiumJobDivider: { width: 1, height: 60, marginRight: 22, backgroundColor: '#355258' },
+  tradeJobsDashboardPage:{paddingHorizontal:18,paddingTop:20,paddingBottom:18},
+  premiumJobOverview: {minHeight:91,backgroundColor:theme.colors.darkTeal,borderRadius:23,paddingHorizontal:13,paddingVertical:14,flexDirection:'row',alignItems:'center',gap:11,marginBottom:13,overflow:'hidden'},
+  tradeJobsMetricAccent:{position:'absolute',width:132,height:61,borderRadius:34,right:-37,bottom:-27,backgroundColor:theme.colors.tealMid,opacity:.64,transform:[{rotate:'-25deg'}]},
+  premiumJobMetric:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:8},
+  tradeJobsMetricIcon:{width:34,height:34,borderRadius:11,backgroundColor:theme.colors.teal,alignItems:'center',justifyContent:'center'},
+  premiumJobMetricNumber:{fontFamily:theme.font.numeric,color:theme.colors.white,fontSize:29,fontWeight:'800',letterSpacing:-.7,lineHeight:33},
+  premiumJobMetricLabel:{color:'#C0D1D2',fontSize:12,lineHeight:16,marginTop:1},
+  premiumJobDivider:{width:1,height:44,backgroundColor:'#355258'},
+  tradeJobsOnlineBanner:{backgroundColor:'#EAF4ED',borderColor:'#B8DAC8'},
+  tradeJobsCheckingAvailability:{flexDirection:'row',alignItems:'center',gap:10,minHeight:52,paddingHorizontal:12},
+  tradeJobsUtilityIcon:{width:35,height:35,borderRadius:12,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
+  tradeJobsAssurance:{minHeight:60,flexDirection:'row',alignItems:'center',gap:10,backgroundColor:'#EAF4ED',borderWidth:1,borderColor:'#B8DAC8',borderRadius:17,paddingHorizontal:12,paddingVertical:9,marginBottom:9},
+  tradeJobsEmpty:{alignItems:'center',paddingHorizontal:16,paddingTop:11,paddingBottom:16},
+  tradeJobsEmptyArt:{width:146,height:95,alignItems:'center',justifyContent:'center'},
+  tradeJobsEmptyShadow:{position:'absolute',bottom:6,width:112,height:13,borderRadius:56,backgroundColor:theme.colors.tealTint},
+  tradeJobsEmptyBag:{width:88,height:82,alignItems:'center',justifyContent:'center'},
+  tradeJobsEmptyRays:{position:'absolute',right:-8,top:0,width:25,height:26},
+  tradeJobsEmptyRay:{position:'absolute',width:3.5,height:9,borderRadius:2,backgroundColor:theme.colors.coral},
+  tradeJobsEmptyTitle:{fontFamily:theme.font.heading,fontSize:23,fontWeight:'800',color:theme.colors.ink,textAlign:'center',marginTop:4,letterSpacing:-.4},
+  tradeJobsEmptyCopy:{fontSize:14,lineHeight:20,color:theme.colors.muted,textAlign:'center',marginTop:6,maxWidth:320},
   premiumOverviewNote: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 },
   premiumOverviewNoteText: { color: '#B4C5C5', fontSize: 12 },
   premiumSegment: { height: 54, borderRadius: 19, backgroundColor: '#E6ECEA', padding: 4, flexDirection: 'row', marginBottom: 14 },
