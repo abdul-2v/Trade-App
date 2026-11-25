@@ -16,3 +16,6 @@ for(const route of ['grid','oneJob','firstFix','rescue','priceLens','collective'
 assert.ok(screen.includes("userId+':'+mode")&&screen.includes('Storage.setItem(key,JSON.stringify(plan))'));
 assert.ok(app.includes('useState(__DEV__)'),'Fictional map defaults must not be used in release builds');
 console.log('PASS: customer toolkit routes, integer-pence budget calculations, persisted plan validation and production demo default');
+
+assert.ok(app.includes('planningLeaveGuard.current(leave)')&&screen.includes('leaveGuard.current=requestLeave'),'Bottom tabs must protect unsaved plans');
+assert.ok(screen.includes('Storage.removeItem(key)'),'Customer can delete their device-local plan');

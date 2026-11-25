@@ -12,7 +12,7 @@ const copy={
  snags:{title:'Snag list',sub:'Record unfinished or faulty work, track fixes and share the remaining list.',Icon:ClipboardCheck}
 };
 const currency=(p:number)=>'£'+(p/100).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
-export default function CustomerPlanningScreen({userId,mode,goBack}:{userId:string;mode:PlanMode;goBack:()=>void}){
+export default function CustomerPlanningScreen({userId,mode,goBack,leaveGuard}:{userId:string;mode:PlanMode;goBack:()=>void;leaveGuard:React.RefObject<((leave:()=>void)=>void)|null>}){
  const [plan,setPlan]=useState<Plan>(()=>initialPlan(mode));
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[dirty,setDirty]=useState(false);
  const [newItem,setNewItem]=useState('');
@@ -39,7 +39,18 @@ export default function CustomerPlanningScreen({userId,mode,goBack}:{userId:stri
   catch{Alert.alert('Could not save','Your changes are still here. Try again before leaving.');}
   finally{busy.current=false;setSaving(false);}
  };
- const back=()=>{if(saving)return;if(dirty)Alert.alert('Unsaved changes','Save your plan before leaving or discard the changes.',[{text:'Keep editing',style:'cancel'},{text:'Discard',style:'destructive',onPress:goBack}]);else goBack();};
+ const requestLeave=(leave:()=>void)=>{if(busy.current)return;if(dirty)Alert.alert('Unsaved changes','Save your plan before leaving or discard the changes.',[{text:'Keep editing',style:'cancel'},{text:'Discard',style:'destructive',onPress:leave}]);else leave();};
+ useEffect(()=>{
+  leaveGuard.current=requestLeave;
+  return()=>{leaveGuard.current=null;};
+ },[dirty,leaveGuard]);
+ const back=()=>requestLeave(goBack);
+ const reset=()=>Alert.alert('Reset this plan?','This will clear the saved plan on this device.',[{text:'Cancel',style:'cancel'},{text:'Reset',style:'destructive',onPress:async()=>{
+  if(busy.current)return;busy.current=true;setSaving(true);
+  try{await Storage.removeItem(key);setPlan(initialPlan(mode));setNewItem('');setDirty(false);}
+  catch{Alert.alert('Could not reset','Your existing plan has been kept.');}
+  finally{busy.current=false;setSaving(false);}
+ }}]);
  const share=async()=>{
   if(invalid)return;
   const heading=plan.title.trim()||config.title;
@@ -73,10 +84,11 @@ export default function CustomerPlanningScreen({userId,mode,goBack}:{userId:stri
     {invalid?<Text style={s.error}>Enter non-negative amounts in pounds with up to two decimal places.</Text>:null}
     <View style={s.row}><MotionPressable disabled={invalid||saving} onPress={save} style={[s.button,{flex:1},(invalid||saving)&&{opacity:.5}]} accessibilityLabel="Save plan">{saving?<ActivityIndicator color={C.white}/>:<Text style={s.buttonText}>{dirty?'Save plan':'Save'}</Text>}</MotionPressable><MotionPressable disabled={invalid||saving} onPress={share} style={[s.share,invalid&&{opacity:.5}]} accessibilityLabel="Share plan"><Share2 size={18} color={C.teal}/><Text style={s.text}>Share</Text></MotionPressable></View>
     <Text style={s.note}>{dirty?'Unsaved changes. Use Save to keep your edits.':'Plans are separate from official bookings, payments and approvals.'}</Text>
+    <MotionPressable onPress={reset} disabled={saving} style={s.reset} accessibilityLabel="Reset this saved plan"><Trash2 size={16} color={C.coralText}/><Text style={s.error}>Reset plan</Text></MotionPressable>
    </>}
   </ScrollView>
  </View>;
 }
 const s=StyleSheet.create({
- root:{flex:1,backgroundColor:C.customerBackground},page:{padding:18,paddingBottom:35,gap:11},header:{flexDirection:'row',alignItems:'center',gap:12},back:{width:44,height:44,borderRadius:22,backgroundColor:C.white,alignItems:'center',justifyContent:'center'},eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.4,color:C.teal},title:{fontFamily:theme.font.editorial,fontSize:28,fontWeight:'800',color:C.ink,letterSpacing:-.7},sub:{fontSize:14,lineHeight:21,color:C.muted,marginBottom:4},card:{borderRadius:20,backgroundColor:C.white,borderWidth:1,borderColor:C.line,padding:13,gap:8},label:{fontSize:12,fontWeight:'700',color:C.ink},input:{minHeight:45,borderRadius:12,borderWidth:1,borderColor:C.line,backgroundColor:C.soft,paddingHorizontal:12,paddingVertical:9,color:C.ink,fontSize:14},note:{fontSize:11,lineHeight:17,color:C.muted},summary:{backgroundColor:C.darkTeal,borderRadius:22,padding:17,gap:6},summaryLabel:{fontSize:12,lineHeight:18,color:'#C0D1D2'},amount:{fontFamily:theme.font.numeric,fontSize:29,fontWeight:'800',color:C.white},track:{height:6,borderRadius:3,backgroundColor:'#355258',overflow:'hidden'},fill:{height:6,backgroundColor:'#B8DBCC'},chips:{flexDirection:'row',flexWrap:'wrap',gap:7},chip:{minHeight:36,paddingHorizontal:12,borderRadius:18,backgroundColor:C.tealTint,alignItems:'center',justifyContent:'center'},chipOn:{backgroundColor:C.darkTeal},chipText:{fontSize:12,fontWeight:'700',color:C.teal},section:{fontSize:18,fontWeight:'800',color:C.ink,marginTop:4},row:{flexDirection:'row',alignItems:'center',gap:10},text:{fontSize:14,fontWeight:'700',color:C.ink},check:{width:44,height:44,borderRadius:13,borderWidth:1,borderColor:C.line,backgroundColor:C.soft,alignItems:'center',justifyContent:'center'},checkOn:{backgroundColor:C.teal},button:{minHeight:49,backgroundColor:C.darkTeal,borderRadius:24,alignItems:'center',justifyContent:'center',paddingHorizontal:16},buttonText:{color:C.white,fontWeight:'800',fontSize:14},share:{minHeight:49,borderRadius:24,backgroundColor:C.white,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:16},error:{fontSize:12,color:C.coralText}
+ root:{flex:1,backgroundColor:C.customerBackground},page:{padding:18,paddingBottom:35,gap:11},header:{flexDirection:'row',alignItems:'center',gap:12},back:{width:44,height:44,borderRadius:22,backgroundColor:C.white,alignItems:'center',justifyContent:'center'},eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.4,color:C.teal},title:{fontFamily:theme.font.editorial,fontSize:28,fontWeight:'800',color:C.ink,letterSpacing:-.7},sub:{fontSize:14,lineHeight:21,color:C.muted,marginBottom:4},card:{borderRadius:20,backgroundColor:C.white,borderWidth:1,borderColor:C.line,padding:13,gap:8},label:{fontSize:12,fontWeight:'700',color:C.ink},input:{minHeight:45,borderRadius:12,borderWidth:1,borderColor:C.line,backgroundColor:C.soft,paddingHorizontal:12,paddingVertical:9,color:C.ink,fontSize:14},note:{fontSize:11,lineHeight:17,color:C.muted},summary:{backgroundColor:C.darkTeal,borderRadius:22,padding:17,gap:6},summaryLabel:{fontSize:12,lineHeight:18,color:'#C0D1D2'},amount:{fontFamily:theme.font.numeric,fontSize:29,fontWeight:'800',color:C.white},track:{height:6,borderRadius:3,backgroundColor:'#355258',overflow:'hidden'},fill:{height:6,backgroundColor:'#B8DBCC'},chips:{flexDirection:'row',flexWrap:'wrap',gap:7},chip:{minHeight:36,paddingHorizontal:12,borderRadius:18,backgroundColor:C.tealTint,alignItems:'center',justifyContent:'center'},chipOn:{backgroundColor:C.darkTeal},chipText:{fontSize:12,fontWeight:'700',color:C.teal},section:{fontSize:18,fontWeight:'800',color:C.ink,marginTop:4},row:{flexDirection:'row',alignItems:'center',gap:10},text:{fontSize:14,fontWeight:'700',color:C.ink},check:{width:44,height:44,borderRadius:13,borderWidth:1,borderColor:C.line,backgroundColor:C.soft,alignItems:'center',justifyContent:'center'},checkOn:{backgroundColor:C.teal},button:{minHeight:49,backgroundColor:C.darkTeal,borderRadius:24,alignItems:'center',justifyContent:'center',paddingHorizontal:16},buttonText:{color:C.white,fontWeight:'800',fontSize:14},share:{minHeight:49,borderRadius:24,backgroundColor:C.white,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:16},reset:{minHeight:44,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7},error:{fontSize:12,color:C.coralText}
 });

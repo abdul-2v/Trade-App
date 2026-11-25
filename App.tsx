@@ -605,6 +605,7 @@ function TradarrApp() {
 
   const [mode, setMode] = useState<Mode>('customer');
   const [customerScreen, setCustomerScreen] = useState<CustomerScreen>('home');
+  const planningLeaveGuard=useRef<((leave:()=>void)=>void)|null>(null);
   const [homeBackScreen,setHomeBackScreen]=useState<CustomerScreen>('home');
   const [tradeScreen, setTradeScreen] = useState<TradeScreen>('tradeHome');
   const [nativeNotificationId,setNativeNotificationId]=useState<string|null>(null);
@@ -1378,10 +1379,13 @@ function TradarrApp() {
       setCustomerScreen(urgent?'urgent':'map');
     }}/></CustomerShell>;
   if(customerScreen==='customerBudget'||customerScreen==='customerHireCheck'||customerScreen==='customerSnags'){
-    return <CustomerShell current="discover" navigate={setCustomerScreen}>
+    return <CustomerShell current="discover" navigate={next=>{
+      const leave=()=>setCustomerScreen(next);
+      if(planningLeaveGuard.current)planningLeaveGuard.current(leave);else leave();
+    }}>
       <CustomerPlanningScreen key={(session?.user.id||'')+customerScreen} userId={session?.user.id||''}
         mode={customerScreen==='customerBudget'?'budget':customerScreen==='customerHireCheck'?'hire':'snags'}
-        goBack={()=>setCustomerScreen('discover')}/>
+        leaveGuard={planningLeaveGuard} goBack={()=>setCustomerScreen('discover')}/>
     </CustomerShell>;
   }
   if (customerScreen === 'discover') {
