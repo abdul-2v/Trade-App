@@ -32,13 +32,13 @@ export default function DocumentComposerOverview({title,description,sections,amo
     </MotionPressable>)}</View>
   </View>
   {(renderWorkLibrary||renderSetups)&&<View style={s.shortcuts}>
-   {renderWorkLibrary&&<MotionPressable style={[s.shortcut,renderSetups&&{flex:1}]}
+   {renderWorkLibrary&&<MotionPressable style={[s.shortcut,{flex:1}]}
       accessibilityRole="button" accessibilityLabel="Saved jobs" onPress={()=>setShortcut('work')}>
      <View style={s.shortcutIcon}><Clock3 color={C.teal} size={20}/></View>
      <View style={s.shortcutCopy}><Text style={s.shortcutTitle}>Saved jobs</Text>
       <Text style={s.shortcutSub}>Past prices</Text></View><ChevronRight color={C.teal} size={17}/>
     </MotionPressable>}
-   {renderSetups&&<MotionPressable style={[s.shortcut,renderWorkLibrary&&{flex:1}]}
+   {renderSetups&&<MotionPressable style={[s.shortcut,{flex:1}]}
       accessibilityRole="button" accessibilityLabel="Saved document setups" onPress={()=>setShortcut('setups')}>
      <View style={s.shortcutIcon}><Files color={C.teal} size={20}/></View>
      <View style={s.shortcutCopy}><Text style={s.shortcutTitle}>Saved setups</Text>
