@@ -32,6 +32,7 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
  const [title,setTitle]=useState(''),[trade,setTrade]=useState<Trade>('Plumber');
  const [name,setName]=useState(''),[amount,setAmount]=useState(''),[included,setIncluded]=useState(''),[excluded,setExcluded]=useState('');
  const [vatIncluded,setVatIncluded]=useState(true),[deposit,setDeposit]=useState('0'),[saving,setSaving]=useState(false);
+ const [extraQuoteTerms,setExtraQuoteTerms]=useState(false);
  const [band,setBand]=useState<Band|null>(null),[bandLoading,setBandLoading]=useState(false);
  const [loadError,setLoadError]=useState('');
  const selected=checks.find(x=>x.id===selectedId)||null;
@@ -177,8 +178,17 @@ export default function CustomerPriceLensScreen({goBack,openQuoteCentre}:{goBack
      <Field label="Company or tradesperson *" value={name} change={setName} placeholder="e.g. ABC Plumbing"/>
      <Field label="Quoted amount (£) *" value={amount} change={setAmount} placeholder="350.00"/>
      <Field label="What's included?" value={included} change={setIncluded} multi placeholder="e.g. Supply, fitting and testing"/>
-     <Field label="What's not included?" value={excluded} change={setExcluded} multi placeholder="e.g. Disposal of old radiators"/>
-     <Field label="Deposit requested (%)" value={deposit} change={setDeposit} placeholder="0"/>
+     <MotionPressable onPress={()=>setExtraQuoteTerms(v=>!v)} style={s.extraToggle}
+       accessibilityRole="button" accessibilityLabel="Optional exclusions and deposit terms"
+       accessibilityState={{expanded:extraQuoteTerms}}>
+      <View style={{flex:1}}><Text style={s.extraTitle}>Exclusions & deposit</Text>
+       <Text style={s.extraSub}>Additional comparison details · optional</Text></View>
+      <ChevronRight size={18} color={C.teal} style={extraQuoteTerms?{transform:[{rotate:'90deg'}]}:undefined}/>
+     </MotionPressable>
+     {extraQuoteTerms&&<View>
+      <Field label="What's not included?" value={excluded} change={setExcluded} multi placeholder="e.g. Disposal of old radiators"/>
+      <Field label="Deposit requested (%)" value={deposit} change={setDeposit} placeholder="0"/>
+     </View>}
      <View style={s.switchRow}><View style={{flex:1}}><Text style={s.label}>Amount includes applicable VAT</Text>
         <Text style={s.meta}>Turn off if VAT will be added or isn't confirmed</Text></View>
         <Switch value={vatIncluded} onValueChange={setVatIncluded} trackColor={{true:C.teal}}/></View>
@@ -212,6 +222,9 @@ const s=StyleSheet.create({
  heroSub:{fontSize:12,color:'#D4E7E3',lineHeight:19},heroMini:{fontSize:10,letterSpacing:1.2,fontWeight:'800',color:'#C3E6E0'},
  section:{fontSize:18,color:C.ink,fontWeight:'800',marginTop:22,marginBottom:12},
  card:{backgroundColor:'#FFFFFF',padding:18,borderRadius:22,marginBottom:11,...theme.shadow},
+ extraToggle:{flexDirection:'row',alignItems:'center',gap:10,padding:13,backgroundColor:C.tealTint,borderRadius:14,marginBottom:14},
+ extraTitle:{fontSize:13,fontWeight:'800',color:C.teal},
+ extraSub:{fontSize:11,color:C.muted,lineHeight:16,marginTop:4},
  cardTitle:{color:C.ink,fontSize:16,fontWeight:'800'},
  listCard:{padding:15,backgroundColor:'#FFFFFF',borderRadius:21,flexDirection:'row',alignItems:'center',gap:11,marginBottom:10,...theme.shadow},
  iconBox:{width:43,height:43,borderRadius:15,backgroundColor:C.tealTint,alignItems:'center',justifyContent:'center'},
