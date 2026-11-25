@@ -100,3 +100,14 @@ console.log('PASS: direct Jobs availability, preserved privacy settings, compact
 assert.ok(jobs.includes('if(offerError)throw offerError')&&jobs.includes('if(requestError)throw requestError')&&jobs.includes('if(jobError)throw jobError'),'Failed requests cannot become empty offers');
 assert.ok(jobs.includes('urgentRequest.current')&&jobs.includes('marketRequest.current'),'Stale refresh responses must not overwrite newer requests');
 assert.ok(jobs.includes('tradeJobsSwitchTrackOn')&&!jobs.includes('onValueChange={()=>{}}'),'Availability card itself is the one real switch action');
+
+// Supplier map uses the same native type hierarchy as the Tools and Jobs screens.
+// Retain the existing compact header, sheet and map viewport; only typography changes.
+const supplierStyle=(name)=>map.split('\n').find(line=>line.trimStart().startsWith(name+':'));
+assert.ok(supplierStyle('title').includes('fontFamily:theme.font.editorial')&&supplierStyle('title').includes('fontWeight:theme.type.titleWeight'),'Map title must match the native app heading');
+assert.ok(supplierStyle('panelTitle').includes('fontWeight: theme.type.sectionWeight'),'Nearby suppliers heading must use the shared bold section weight');
+assert.ok(supplierStyle('chipText').includes("fontWeight:'700'")&&supplierStyle('chipTextActive').includes("fontWeight:'800'"),'Supplier filter typography must match the app');
+assert.ok(supplierStyle('radiusNumber').includes("fontWeight:'800'"),'Radius numeral must match the app');
+assert.ok(supplierStyle('panelHint').includes('fontFamily: theme.font.body')&&supplierStyle('subtitle').includes('fontFamily:theme.font.body'),'Use the native body font');
+assert.ok(map.includes('mapArea:{flex:1')&&map.includes("bottomPanel:{position:'absolute',bottom:11,left:12,right:12"),'Map and nearby sheet must retain their layout');
+console.log('PASS: matching supplier map typography, unchanged map and sheet geometry');
