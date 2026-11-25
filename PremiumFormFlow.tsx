@@ -11,16 +11,20 @@ export function FormFlowSteps({labels,active,onSelect,subtitle}:{
 }){
  return <View style={s.wrap}>
   <View style={s.captionRow}>
-   <Text style={s.caption}>STEP {active+1} OF {labels.length}</Text>
-   <Text style={s.captionRight}>{Math.round((active+1)/labels.length*100)}% through</Text>
+   <Text style={s.caption}>SECTION {active+1} OF {labels.length}</Text>
+   <Text style={s.captionRight}>Tap a section to edit</Text>
   </View>
-  <View style={s.progress}>{labels.map((_,i)=><View key={i} style={[s.progressPart,i<=active&&s.progressPartOn]}/>)}</View>
-  <View style={s.steps}>{labels.map((label,i)=><MotionPressable key={label} onPress={()=>onSelect(i)}
+  <View style={s.timeline}>
+   <View pointerEvents="none" style={s.timelineLine}/>
+   <View style={s.steps}>{labels.map((label,i)=><MotionPressable key={i} onPress={()=>onSelect(i)}
     accessibilityRole="button" accessibilityLabel={'Go to '+label}
-    accessibilityState={{selected:active===i}}
-    style={[s.step,active===i&&s.stepActive]}>
-    <Text style={[s.stepName,active===i&&s.stepNameActive]} numberOfLines={1}>{label}</Text>
-  </MotionPressable>)}</View>
+    accessibilityState={{selected:active===i}} style={s.step}>
+    <View style={[s.stepCircle,active===i&&s.stepCircleActive]}>
+     <Text style={[s.stepNumber,active===i&&s.stepNumberActive]}>{i+1}</Text>
+    </View>
+    <Text style={[s.stepName,active===i&&s.stepNameActive]} numberOfLines={2}>{label}</Text>
+   </MotionPressable>)}</View>
+  </View>
   {subtitle?<Text style={s.subtitle}>{subtitle}</Text>:null}
  </View>;
 }
@@ -53,19 +57,21 @@ export function FormFlowFloatingPreview({onPress,label='Preview'}:{onPress:()=>v
  </MotionPressable>;
 }
 const s=StyleSheet.create({
- wrap:{padding:16,paddingBottom:11,borderRadius:21,backgroundColor:'#FFFFFF',borderColor:C.line,borderWidth:1,marginBottom:18},
+ wrap:{padding:14,paddingBottom:12,borderRadius:18,backgroundColor:'#FFFFFF',borderColor:C.line,borderWidth:1,marginBottom:16},
  captionRow:{flexDirection:'row',justifyContent:'space-between',gap:10,marginBottom:12},
- caption:{color:C.teal,fontSize:10,fontWeight:'800',letterSpacing:1.2},
+ caption:{color:C.teal,fontSize:10,fontWeight:'800',letterSpacing:1.1},
  captionRight:{color:C.muted,fontSize:10,fontWeight:'700'},
- progress:{flexDirection:'row',gap:5,marginBottom:14},
- progressPart:{flex:1,height:4,backgroundColor:'#E1E9E5',borderRadius:4},
- progressPartOn:{backgroundColor:C.teal},
- steps:{flexDirection:'row',gap:5},
- step:{flex:1,minWidth:0,minHeight:38,alignItems:'center',justifyContent:'center',paddingHorizontal:4,borderRadius:10},
- stepActive:{backgroundColor:C.tealTint},
- stepName:{color:C.muted,fontSize:11,fontWeight:'700'},
+ timeline:{position:'relative'},
+ timelineLine:{position:'absolute',height:2,left:'12.5%',right:'12.5%',top:14,backgroundColor:'#C7D9D3'},
+ steps:{flexDirection:'row'},
+ step:{flex:1,minWidth:0,alignItems:'center',gap:7,paddingHorizontal:3},
+ stepCircle:{height:29,width:29,borderRadius:15,backgroundColor:'#ECF3F0',borderWidth:1,borderColor:'#D3E0DA',alignItems:'center',justifyContent:'center'},
+ stepCircleActive:{backgroundColor:C.darkTeal,borderColor:C.darkTeal},
+ stepNumber:{fontSize:13,fontWeight:'800',color:C.muted},
+ stepNumberActive:{color:'#FFFFFF'},
+ stepName:{fontSize:10.5,fontWeight:'700',lineHeight:14,color:C.muted,textAlign:'center',minHeight:27},
  stepNameActive:{color:C.teal,fontWeight:'800'},
- subtitle:{color:C.muted,fontSize:12,lineHeight:18,marginTop:10},
+ subtitle:{color:C.muted,fontSize:11.5,lineHeight:17,marginTop:10},
  footer:{paddingHorizontal:18,paddingTop:11,paddingBottom:13,borderTopWidth:1,borderTopColor:C.line,backgroundColor:'#FFFFFF'},
  footerTotal:{flexDirection:'row',justifyContent:'space-between',alignItems:'baseline',marginBottom:9},
  totalLabel:{color:C.muted,fontSize:10,fontWeight:'800',letterSpacing:.7},
