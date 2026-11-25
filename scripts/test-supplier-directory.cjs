@@ -39,7 +39,7 @@ if(process.argv.includes('--logic')){
  const groups=app.slice(app.indexOf('const merchantGroups:'),app.indexOf('async function getFreshDeviceLocation'));
  const logic=app.slice(app.indexOf('function haversine('),app.indexOf('async function loadSuppliers('));
  const merge=app.slice(app.indexOf('function mergeMerchantSources('),app.indexOf('const merchantGroups:'));
- const source=prefix+groups+merge+logic+'\nreturn {classifyShop,convertResults,overpassQuery,mergeMerchantSources};';
+ const source=prefix+groups+merge+logic+'\nreturn {classifyShop,convertResults,overpassQuery,mergeMerchantSources,supplierMatchesFilter,supplierFilterLabel};';
  const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.None}}).outputText;
  const f=new Function('theme','supplierRules',js)({colors:{}},rules);
  assert.ok(f.classifyShop({shop:'hardware',name:'Independent Hardware'}).general);
@@ -58,6 +58,19 @@ if(process.argv.includes('--logic')){
  assert.equal(nearby.length,250,'No silent cap, duplicate or out-of-radius point');
  assert.equal(f.mergeMerchantSources(nearby,nearby).length,250,'Live and snapshot ID dedup');
  assert.ok(f.overpassQuery(centre,10).includes('["brand"~'));
+ const general={general:true,kinds:['Builder']};
+ const plumber={general:false,kinds:['Plumber','Heating']};
+ const electrical={general:false,kinds:['Electrician']};
+ const builder={general:false,kinds:['Builder','Roofer']};
+ const stock=[general,plumber,electrical,builder];
+ assert.deepEqual(stock.filter(x=>f.supplierMatchesFilter(x,'mine','Electrician')),[general,electrical]);
+ assert.deepEqual(stock.filter(x=>f.supplierMatchesFilter(x,'Plumber','Electrician')),[general,plumber]);
+ assert.deepEqual(stock.filter(x=>f.supplierMatchesFilter(x,'specialist','Plumber')),[plumber,electrical,builder]);
+ assert.deepEqual(stock.filter(x=>f.supplierMatchesFilter(x,'general','Plumber')),[general]);
+ assert.deepEqual(stock.filter(x=>f.supplierMatchesFilter(x,'all','Plumber')),stock);
+ assert.equal(f.supplierFilterLabel('mine','Electrician'),'Electrician');
+ assert.equal(f.supplierFilterLabel('Carpenter','Electrician'),'Carpenter');
+ console.log('PASS: registered default, cross-trade browsing, specialists across all trades, general and all filters');
  console.log('PASS: supplier classification, closure and bus stop rejection, exact radius, 250 points, source dedup');
 }
 assert.ok(app.includes('mapVisible=useMemo')&&app.includes('viewportCount')&&app.includes('mapVisibleById.get(data.id)'),'Regional map pins must remain browsable and selectable separately from the nearby list');
@@ -88,3 +101,7 @@ if(selectedBatch)assert.ok(registry[selectedBatch]&&selectedBatch!=='Midlands','
 const aggregator=fs.readFileSync('data/TradeSupplierDirectoryEngland.ts','utf8');
 assert.ok(aggregator.includes('for(const batch of [midlands,north,eastSouth,outer])')&&aggregator.includes('seen.has(id)'));
 assert.ok(app.includes("from './data/TradeSupplierDirectoryEngland'")&&app.includes('convertResults(directoryElements,LEICESTER,400)'));
+
+assert.ok(app.includes('ALL_TRADES.map(trade=>')&&app.includes("chooseTrade('specialist')"),'Dropdown must expose every supported trade and specialist');
+assert.ok(app.includes("(['general','all'] as const).map")&&!app.includes("['specialist','Specialist']"),'Only General and All shops should remain standalone filters');
+assert.ok(app.includes('[shops, filter, primaryTrade, referencePosition.latitude, referencePosition.longitude]')&&app.includes('[regional,shops,filter,primaryTrade]'),'Map and nearby list must update together');

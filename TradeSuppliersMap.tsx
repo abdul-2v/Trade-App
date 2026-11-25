@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Linking, Pressable, ScrollView, Text, TextInput, View, StyleSheet } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Linking, Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet, useWindowDimensions } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
@@ -8,7 +8,7 @@ import { directoryElements } from './data/TradeSupplierDirectoryEngland';
 import supplierRules from './data/supplier-query-rules.json';
 import { theme } from './theme';
 import { MotionPressable } from './Motion';
-import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight, ChevronUp, ChevronDown, Search } from 'lucide-react-native';
+import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight, ChevronUp, ChevronDown, Search, Check } from 'lucide-react-native';
 
 type TradeName = 'Plumber' | 'Electrician' | 'Builder' | 'Heating' | 'Locksmith' | 'Carpenter' | 'Roofer';
 type Coordinates = { latitude: number; longitude: number };
@@ -26,7 +26,7 @@ type Supplier = {
   general: boolean;
   postcodeApproximate?: boolean;
 };
-type Filter = 'mine' | 'all' | 'general' | 'specialist';
+type Filter = 'mine' | 'all' | 'general' | 'specialist' | TradeName;
 
 const INK = theme.colors.ink;
 const LIGHT = theme.colors.white;
@@ -36,6 +36,18 @@ const ALL_TRADES: TradeName[] = ['Plumber', 'Electrician', 'Builder', 'Heating',
 const PLUMBING: TradeName[] = ['Plumber', 'Heating'];
 const BUILDING: TradeName[] = ['Builder', 'Roofer', 'Carpenter'];
 const STORE_CACHE = new Map<string, { expires: number; stores: Supplier[] }>();
+// A trade selection includes general-purpose merchants that serve that trade.
+// Specialist is deliberately across ALL trades, not just the profile trade.
+function supplierMatchesFilter(shop:Pick<Supplier,'general'|'kinds'>, filter:Filter, primaryTrade:TradeName|null):boolean {
+  if(filter==='all')return true;
+  if(filter==='general')return shop.general;
+  if(filter==='specialist')return !shop.general;
+  const trade=filter==='mine'?primaryTrade:filter;
+  return !trade||shop.general||shop.kinds.includes(trade);
+}
+function supplierFilterLabel(filter:Filter, primaryTrade:TradeName|null):string {
+  return filter==='mine'?primaryTrade||'Choose trade':filter==='all'?'All shops':filter==='general'?'General':filter==='specialist'?'Specialist':filter;
+}
 const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?(?:\d[A-Z]{2})?$/;
 async function lookupUKArea(input: string): Promise<{point: Coordinates; label: string}> {
   const compact = input.toUpperCase().replace(/\s+/g, '');
@@ -529,6 +541,33 @@ export default function TradeSuppliersMap() {
   const [savedWorkArea, setSavedWorkArea] = useState<Coordinates | null>(null);
   const [primaryTrade, setPrimaryTrade] = useState<TradeName | null>(null);
   const [filter, setFilter] = useState<Filter>('mine');
+  const [tradeChoice,setTradeChoice]=useState<TradeName|'mine'|'specialist'>('mine');
+  const [tradeMenuOpen,setTradeMenuOpen]=useState(false);
+  const [tradeMenuAnchor,setTradeMenuAnchor]=useState({x:14,y:150,width:100,height:35});
+  const tradeAnchorRef=useRef<View>(null);
+  const {width:windowWidth,height:windowHeight}=useWindowDimensions();
+  const menuWidth=Math.min(272,Math.max(0,windowWidth-28));
+  const menuLeft=Math.max(14,Math.min(tradeMenuAnchor.x,windowWidth-menuWidth-14));
+  const menuTop=Math.max(12,Math.min(tradeMenuAnchor.y+tradeMenuAnchor.height+6,windowHeight-220));
+  const openTradeMenu=()=>{
+    tradeAnchorRef.current?.measureInWindow((x,y,width,height)=>{
+      if(width>0&&height>0)setTradeMenuAnchor({x,y,width,height});
+    });
+    setTradeMenuOpen(true);
+  };
+  const chooseTrade=(choice:TradeName|'mine'|'specialist')=>{
+    setTradeChoice(choice);
+    setFilter(choice);
+    setTradeMenuOpen(false);
+    setSelected(null);
+  };
+  const chooseTopFilter=(choice:'general'|'all')=>{
+    setFilter(choice);
+    setSelected(null);
+  };
+  const tradeMenuActive=filter!=='general'&&filter!=='all';
+  const chosenTradeLabel=supplierFilterLabel(tradeChoice,primaryTrade);
+  const activeFilterLabel=supplierFilterLabel(filter,primaryTrade);
   const [radius, setRadius] = useState(10);
   const [shops, setShops] = useState<Supplier[]>([]);
   const [viewportCount,setViewportCount]=useState<number|null>(null);
@@ -703,12 +742,7 @@ export default function TradeSuppliersMap() {
   // start at the user's device, even when browsing merchants near a postcode.
   const referencePosition = gpsPosition || manualArea || savedWorkArea || centre;
   const usingGps = gpsState === 'ready' && !!gpsPosition;
-  const matchesFilter=(shop:Supplier)=>{
-    if(filter==='all')return true;
-    if(filter==='general')return shop.general;
-    if(filter==='specialist')return !shop.general&&(!primaryTrade||shop.kinds.includes(primaryTrade));
-    return !primaryTrade||shop.kinds.includes(primaryTrade);
-  };
+  const matchesFilter=(shop:Supplier)=>supplierMatchesFilter(shop,filter,primaryTrade);
   const visible = useMemo(() => shops
     .filter(matchesFilter)
     .map(shop => ({
@@ -829,7 +863,7 @@ export default function TradeSuppliersMap() {
 
   const openShopsInMaps = () =>
     Linking.openURL('https://www.google.com/maps/search/?api=1&query='
-      + encodeURIComponent((primaryTrade || 'trade') + ' merchants near ' + centre.latitude + ',' + centre.longitude));
+      + encodeURIComponent((filter==='general'?'hardware and trade supplies':filter==='all'?'trade supplies':filter==='specialist'?'specialist trade supplies':filter==='mine'?primaryTrade||'trade':filter) + ' merchants near ' + centre.latitude + ',' + centre.longitude));
 
   return (
     <View style={S.root}>
@@ -838,7 +872,7 @@ export default function TradeSuppliersMap() {
           <View style={{flex:1,minWidth:0}}>
             <Text style={S.eyebrow}>LOCAL TRADE SUPPLIES</Text>
             <Text style={S.title}>Supplier map</Text>
-            <Text style={S.subtitle} numberOfLines={1}>{positionName} · {primaryTrade||'All trades'}</Text>
+            <Text style={S.subtitle} numberOfLines={1}>{positionName} · {activeFilterLabel}</Text>
           </View>
           <MotionPressable style={[S.searchToggle,searchExpanded&&S.searchToggleActive]}
             onPress={()=>setSearchExpanded(v=>!v)} accessibilityRole="button"
@@ -852,18 +886,66 @@ export default function TradeSuppliersMap() {
           </MotionPressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={S.filters}>
-          {([
-            ['mine',primaryTrade||'My trade'],
-            ['general','General'],
-            ['specialist','Specialist'],
-            ['all','All shops'],
-          ] as [Filter,string][]).map(([value,label])=><MotionPressable key={value}
-            style={[S.chip,filter===value&&S.chipActive]} onPress={()=>setFilter(value)}
-            accessibilityRole="button" accessibilityLabel={'Show '+label+' suppliers'}
+          <View ref={tradeAnchorRef} collapsable={false}>
+            <MotionPressable style={[S.chip,S.tradeChip,tradeMenuActive&&S.chipActive]}
+              onPress={openTradeMenu} accessibilityRole="button"
+              accessibilityLabel={'Choose trade filter. '+chosenTradeLabel}
+              accessibilityHint="Choose another trade or specialist suppliers across all trades"
+              accessibilityState={{expanded:tradeMenuOpen,selected:tradeMenuActive}}>
+              <Text style={[S.chipText,tradeMenuActive&&S.chipTextActive]}>{chosenTradeLabel}</Text>
+              <ChevronDown size={13} strokeWidth={2.3} color={tradeMenuActive?LIGHT:theme.colors.teal}/>
+            </MotionPressable>
+          </View>
+          {(['general','all'] as const).map(value=><MotionPressable key={value}
+            style={[S.chip,filter===value&&S.chipActive]} onPress={()=>chooseTopFilter(value)}
+            accessibilityRole="button" accessibilityLabel={value==='general'?'Show general suppliers':'Show all shops'}
             accessibilityState={{selected:filter===value}}>
-            <Text style={[S.chipText,filter===value&&S.chipTextActive]}>{label}</Text>
+            <Text style={[S.chipText,filter===value&&S.chipTextActive]}>{supplierFilterLabel(value,primaryTrade)}</Text>
           </MotionPressable>)}
         </ScrollView>
+        <Modal visible={tradeMenuOpen} transparent animationType="none" presentationStyle="overFullScreen"
+          onRequestClose={()=>setTradeMenuOpen(false)}>
+          <View style={S.tradeMenuOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={()=>setTradeMenuOpen(false)}
+              accessibilityRole="button" accessibilityLabel="Dismiss trade filters"/>
+            <View accessibilityViewIsModal style={[S.tradeMenu,{top:menuTop,left:menuLeft,width:menuWidth,maxHeight:Math.max(160,windowHeight-menuTop-32)}]}>
+              <View style={S.tradeMenuHeading}>
+                <Text style={S.tradeMenuTitle}>Choose trade</Text>
+                <MotionPressable onPress={()=>setTradeMenuOpen(false)} style={S.tradeMenuClose}
+                  accessibilityRole="button" accessibilityLabel="Close trade filters">
+                  <X size={18} color={INK}/>
+                </MotionPressable>
+              </View>
+              <ScrollView bounces={false} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                {ALL_TRADES.map(trade=>{
+                  const isMine=trade===primaryTrade;
+                  const checked=tradeChoice===trade||(tradeChoice==='mine'&&isMine);
+                  return <MotionPressable key={trade} onPress={()=>chooseTrade(trade)}
+                    style={[S.tradeMenuOption,checked&&S.tradeMenuOptionActive]}
+                    accessibilityRole="radio" accessibilityState={{checked}}
+                    accessibilityLabel={trade+(isMine?', your registered trade':'')}>
+                    <View style={{flex:1,minWidth:0}}>
+                      <Text style={S.tradeMenuOptionText}>{trade}</Text>
+                      {isMine?<Text style={S.tradeMenuHint}>Your registered trade</Text>:null}
+                    </View>
+                    {checked?<Check size={17} color={theme.colors.teal} strokeWidth={2.5}/>:null}
+                  </MotionPressable>;
+                })}
+                <View style={S.tradeMenuDivider}/>
+                <MotionPressable onPress={()=>chooseTrade('specialist')}
+                  style={[S.tradeMenuOption,tradeChoice==='specialist'&&S.tradeMenuOptionActive]}
+                  accessibilityRole="radio" accessibilityState={{checked:tradeChoice==='specialist'}}
+                  accessibilityLabel="Specialist suppliers across all trades, excluding general shops">
+                  <View style={{flex:1,minWidth:0}}>
+                    <Text style={S.tradeMenuOptionText}>Specialist</Text>
+                    <Text style={S.tradeMenuHint}>All trades · excludes general shops</Text>
+                  </View>
+                  {tradeChoice==='specialist'?<Check size={17} color={theme.colors.teal} strokeWidth={2.5}/>:null}
+                </MotionPressable>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
         {searchExpanded?<View style={S.searchExpandedArea}>
           <View style={S.areaSearch}>
             <TextInput value={postcodeInput} onChangeText={setPostcodeInput}
@@ -949,7 +1031,7 @@ export default function TradeSuppliersMap() {
                 <View style={{ flex: 1 }}>
                   <Text style={S.storeTitle} numberOfLines={2}>{selected.name}</Text>
                   <Text style={S.storeMeta}>
-                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : manualArea ? 'from searched postcode' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : 'Trade specialist'}
+                    {haversine(referencePosition, { latitude: selected.latitude, longitude: selected.longitude }).toFixed(1)} mi {usingGps ? 'from you' : manualArea ? 'from searched postcode' : savedWorkArea ? 'from work area' : 'from Leicester'} · {selected.general ? 'General supplies' : selected.kinds.join(' / ')+' supplies'}
                   </Text>
                 </View>
                 <MotionPressable onPress={() => setSelected(null)} style={S.close} accessibilityRole="button" accessibilityLabel="Close selected supplier"><X size={21} strokeWidth={2} color={theme.colors.ink} /></MotionPressable>
@@ -1026,6 +1108,17 @@ const S = StyleSheet.create({
   chip:{backgroundColor:'#F0F4F0',borderWidth:1,borderColor:'#DDE8DF',borderRadius:20,
     minHeight:35,paddingHorizontal:13,paddingVertical:8,marginRight:7,justifyContent:'center'},
   chipActive:{backgroundColor:INK,borderColor:INK},
+  tradeChip:{flexDirection:'row',alignItems:'center',gap:5},
+  tradeMenuOverlay:{flex:1,backgroundColor:'#0C1F2426'},
+  tradeMenu:{position:'absolute',backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,borderRadius:19,padding:6,...theme.shadow},
+  tradeMenuHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingLeft:11,paddingBottom:3},
+  tradeMenuTitle:{fontFamily:theme.font.heading,fontSize:15,fontWeight:'800',color:INK},
+  tradeMenuClose:{width:44,height:44,alignItems:'center',justifyContent:'center'},
+  tradeMenuOption:{minHeight:44,flexDirection:'row',alignItems:'center',gap:9,paddingHorizontal:11,paddingVertical:8,borderRadius:11},
+  tradeMenuOptionActive:{backgroundColor:theme.colors.tealTint},
+  tradeMenuOptionText:{fontFamily:theme.font.heading,fontSize:13,fontWeight:'700',color:INK},
+  tradeMenuHint:{fontFamily:theme.font.body,fontSize:11,color:theme.colors.muted,marginTop:2},
+  tradeMenuDivider:{height:1,backgroundColor:theme.colors.line,marginHorizontal:10,marginVertical:5},
   chipText:{color:'#5F756B',fontFamily:theme.font.heading,fontSize:11,fontWeight:'700'},
   chipTextActive:{color:'#FFFFFF',fontWeight:'800'},
   searchExpandedArea:{paddingTop:4,paddingBottom:6},
