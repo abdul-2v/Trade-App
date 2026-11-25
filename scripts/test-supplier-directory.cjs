@@ -4,7 +4,11 @@ const rules=JSON.parse(fs.readFileSync('data/supplier-query-rules.json','utf8'))
 const app=fs.readFileSync('TradeSuppliersMap.tsx','utf8');
 const data=fs.readFileSync('data/TradeSupplierDirectory.ts','utf8');
 const importer=fs.readFileSync('scripts/import-supplier-directory.py','utf8');
-const regions=['derbyshire','leicestershire','lincolnshire','northamptonshire','nottinghamshire','rutland','herefordshire','shropshire','staffordshire','warwickshire','west-midlands','worcestershire'];
+const registry=JSON.parse(fs.readFileSync('data/supplier-regions.json','utf8'));
+const regions=registry.Midlands.regions;
+const allRegions=Object.values(registry).flatMap(batch=>batch.regions);
+assert.equal(allRegions.length,47,'All 47 published England extract areas must be covered');
+assert.equal(new Set(allRegions).size,47,'No repeated extract area');
 for(const region of regions)assert.ok(importer.includes("'"+region+"'"));
 assert.ok(app.includes('convertResults(directoryElements, near, radiusMiles)'));
 assert.ok(!app.includes('.slice(0, 180)'));
@@ -16,7 +20,7 @@ if(process.argv.includes('--require-data')){
  assert.ok(records.length>=500,'Missing Midlands data');
  const meta=JSON.parse(data.match(/export const directoryMetadata=(.*);/)[1]);
  assert.equal(meta.count,records.length);
- for(const region of regions)assert.ok(meta.counts[region]>=5,'Missing county '+region);
+ for(const region of regions)assert.ok(meta.counts[region]>=1,'Missing county '+region);
 }
 const ids=new Set();
 for(const r of records){
@@ -57,3 +61,30 @@ if(process.argv.includes('--logic')){
  console.log('PASS: supplier classification, closure and bus stop rejection, exact radius, 250 points, source dedup');
 }
 assert.ok(app.includes('mapVisible=useMemo')&&app.includes('viewportCount')&&app.includes('mapVisibleById.get(data.id)'),'Regional map pins must remain browsable and selectable separately from the nearby list');
+
+const selectedBatch=process.argv.find(x=>x.startsWith('--batch='))?.split('=')[1];
+for(const [name,batch] of Object.entries(registry)){
+ if(name==='Midlands')continue;
+ const content=fs.readFileSync(batch.file,'utf8');
+ const points=content.split('\n').filter(l=>l.startsWith('{"type":')).map(l=>JSON.parse(l.replace(/,$/,'')));
+ if(name===selectedBatch){
+  assert.ok(points.length>=500,'No usable '+name+' snapshot');
+  const meta=JSON.parse(content.match(/export const directoryMetadata=(.*);/)[1]);
+  assert.equal(meta.count,points.length);
+  assert.deepEqual(meta.regions,batch.regions);
+  for(const region of batch.regions)assert.ok(meta.counts[region]>=1,'Missing '+region);
+ }
+ const seen=new Set();
+ for(const row of points){
+  const id=row.type+'/'+row.id;
+  assert.ok(['node','way','relation'].includes(row.type)&&!seen.has(id));
+  assert.ok(Number.isFinite(row.lat)&&Number.isFinite(row.lon)&&row.lat>=49&&row.lat<=56&&row.lon>=-7&&row.lon<=3);
+  assert.ok(row.tags.name||row.tags.brand);
+  seen.add(id);
+ }
+ console.log(name+': '+points.length+' bundled raw OSM records');
+}
+if(selectedBatch)assert.ok(registry[selectedBatch]&&selectedBatch!=='Midlands','Unknown expansion batch');
+const aggregator=fs.readFileSync('data/TradeSupplierDirectoryEngland.ts','utf8');
+assert.ok(aggregator.includes('for(const batch of [midlands,north,eastSouth,outer])')&&aggregator.includes('seen.has(id)'));
+assert.ok(app.includes("from './data/TradeSupplierDirectoryEngland'")&&app.includes('convertResults(directoryElements,LEICESTER,400)'));

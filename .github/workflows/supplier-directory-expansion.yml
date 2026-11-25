@@ -1,0 +1,73 @@
+name: Expand England supplier directory
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/supplier-regions.json'
+      - 'data/supplier-query-rules.json'
+      - 'scripts/import-supplier-directory.py'
+      - '.github/workflows/supplier-directory-expansion.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5 * * 2'
+permissions:
+  contents: write
+concurrency:
+  group: supplier-directory-expansion
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install osmium==4.2.0
+      - name: Import and publish England in outward batches
+        shell: bash
+        run: |
+          set -u
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          failures=0
+          for batch in North EastSouth Outer; do
+            echo "::group::Import $batch"
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              exit 1
+            fi
+            file=$(node -p "require('./data/supplier-regions.json')['$batch'].file")
+            regions=$(node -p "require('./data/supplier-regions.json')['$batch'].regions.join(' ')")
+            if python scripts/import-supplier-directory.py --output "$file" --regions $regions --minimum 500 && node scripts/test-supplier-directory.cjs --batch="$batch"; then
+              git add "$file"
+              if ! git diff --cached --quiet; then
+                git commit -m "Refresh England supplier directory: $batch"
+                published=0
+                for attempt in 1 2 3; do
+                  if git pull --rebase origin main && git push origin HEAD:main; then
+                    published=1
+                    break
+                  fi
+                  git rebase --abort || true
+                  sleep 5
+                done
+                if [ "$published" -ne 1 ]; then
+                  echo "::error::Could not publish $batch"
+                  exit 1
+                fi
+              fi
+            else
+              git restore -- "$file"
+              failures=$((failures+1))
+              echo "::warning::Batch $batch failed; preserving its previous snapshot."
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$failures" -gt 0 ]; then exit 1; fi

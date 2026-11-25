@@ -4,7 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
 import { LEICESTER_SUPPLIER_SEEDS } from './TradeSuppliersLeicester';
-import { directoryElements } from './data/TradeSupplierDirectory';
+import { directoryElements } from './data/TradeSupplierDirectoryEngland';
 import supplierRules from './data/supplier-query-rules.json';
 import { theme } from './theme';
 import { MotionPressable } from './Motion';
@@ -720,7 +720,7 @@ export default function TradeSuppliersMap() {
 
   // The wider directory is browsable without changing the radius-limited nearby list.
   // The native WebView clusters only points in its padded viewport, not the whole dataset.
-  const regional=useMemo(()=>convertResults(directoryElements,LEICESTER,300),[]);
+  const regional=useMemo(()=>convertResults(directoryElements,LEICESTER,400),[]);
   const mapVisible=useMemo(()=>mergeMerchantSources(regional.filter(matchesFilter),shops.filter(matchesFilter)),[regional,shops,filter,primaryTrade]);
   const mapVisibleById=useMemo(()=>new Map(mapVisible.map(shop=>[shop.id,shop])),[mapVisible]);
   const onScreenSupplierCount=viewportCount??visible.length;

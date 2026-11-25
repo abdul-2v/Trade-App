@@ -15,3 +15,13 @@ Run `python -m pip install osmium==4.2.0` and `python scripts/import-supplier-di
 Source extracts: https://download.geofabrik.de/europe/united-kingdom/england/
 The generated `TradeSupplierDirectory.ts` data is available under the Open Data Commons Open Database License 1.0 (ODbL): https://opendatacommons.org/licenses/odbl/1-0/ .
 The OSM dataset remains separate from the hand-maintained Leicester directory. The app already displays OSM attribution on the map. Do not treat retailer directory research as permission to copy their proprietary databases.
+
+## England expansion (outward from the Midlands)
+The expansion publishes independent snapshots in this order:
+1. North — Yorkshire, Greater Manchester, Cheshire, Merseyside and Lancashire.
+2. EastSouth — Cambridge, Peterborough, Bedford, Milton Keynes, Oxford, Gloucester, Reading, Norwich, Ipswich, Essex, London, Bristol and Wiltshire areas.
+3. Outer — Cumbria, North East, South West and remaining South East/coastal areas.
+
+`supplier-regions.json` lists all 47 Geofabrik England subregion extracts. These provider areas, rather than city-centre circles, also cover the rural areas between cities. The expansion workflow imports each batch separately and only publishes it after validation; a failed batch retains its prior snapshot, and does not erase a successful batch. The aggregator deduplicates OSM object IDs across regional snapshots. The live map lookup remains independent of the bundled directory.
+
+Check the individual snapshot metadata and actual source counts before claiming coverage. Empty bootstrap snapshots and a queued workflow are not merchant records. Map records are not a census; official merchant directory reconciliation is still needed to identify missing businesses. Sources: https://download.geofabrik.de/europe/united-kingdom/england/ and https://www.openstreetmap.org/copyright.

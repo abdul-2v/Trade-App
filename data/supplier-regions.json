@@ -1,0 +1,69 @@
+{
+  "Midlands": {
+    "file": "data/TradeSupplierDirectory.ts",
+    "regions": [
+      "derbyshire",
+      "leicestershire",
+      "lincolnshire",
+      "northamptonshire",
+      "nottinghamshire",
+      "rutland",
+      "herefordshire",
+      "shropshire",
+      "staffordshire",
+      "warwickshire",
+      "west-midlands",
+      "worcestershire"
+    ]
+  },
+  "North": {
+    "file": "data/TradeSupplierDirectoryNorth.ts",
+    "regions": [
+      "south-yorkshire",
+      "west-yorkshire",
+      "greater-manchester",
+      "cheshire",
+      "merseyside",
+      "lancashire",
+      "north-yorkshire",
+      "east-yorkshire-with-hull"
+    ]
+  },
+  "EastSouth": {
+    "file": "data/TradeSupplierDirectoryEastSouth.ts",
+    "regions": [
+      "cambridgeshire",
+      "bedfordshire",
+      "buckinghamshire",
+      "oxfordshire",
+      "gloucestershire",
+      "hertfordshire",
+      "berkshire",
+      "norfolk",
+      "suffolk",
+      "essex",
+      "greater-london",
+      "bristol",
+      "wiltshire"
+    ]
+  },
+  "Outer": {
+    "file": "data/TradeSupplierDirectoryOuter.ts",
+    "regions": [
+      "cumbria",
+      "durham",
+      "northumberland",
+      "tyne-and-wear",
+      "somerset",
+      "devon",
+      "dorset",
+      "cornwall",
+      "hampshire",
+      "isle-of-wight",
+      "kent",
+      "surrey",
+      "east-sussex",
+      "west-sussex"
+    ]
+  }
+}

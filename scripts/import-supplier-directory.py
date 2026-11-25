@@ -20,15 +20,17 @@ BRAND = re.compile(RULES['brandPattern'], re.I)
 SHOPS = set(RULES['shopTypes'])
 TAGS = {'name','brand','operator','shop','trade','wholesale','shop:trade','addr:housenumber','addr:street',
         'addr:city','addr:town','addr:village','addr:suburb','addr:postcode','contact:phone','phone',
-        'contact:website','website','opening_hours','disused','abandoned','closed'}
+        'contact:website','website','opening_hours','disused','abandoned','closed','building','highway',
+        'public_transport','railway','disused:shop'}
 CLOSED = {'vacant','closed','disused','abandoned'}
 
 def relevant(tags):
     shop = tags.get('shop','')
-    if shop in CLOSED or any(tags.get(k)=='yes' for k in ('disused','abandoned','closed')):
+    if shop in CLOSED or any(tags.get(k)=='yes' for k in ('disused','abandoned','closed')) or any(tags.get(k) for k in ('highway','public_transport','railway','disused:shop')):
         return False
     name = tags.get('name') or tags.get('brand')
     if not name or not name.strip(): return False
+    if not (shop or tags.get('trade') or tags.get('wholesale') or tags.get('building') in ('retail','warehouse','commercial','industrial')): return False
     return shop in SHOPS or bool(shop and (tags.get('trade') or tags.get('wholesale'))) or bool(BRAND.search(' '.join(tags.get(k,'') for k in ('name','brand','operator'))))
 
 class Extract(osmium.SimpleHandler):
@@ -61,28 +63,32 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--output',default=str(ROOT/'data/TradeSupplierDirectory.ts'))
     parser.add_argument('--input-dir',type=Path,help='Use existing county PBFs (same names as Geofabrik).')
+    parser.add_argument('--regions',nargs='+',default=REGIONS,help='Explicit Geofabrik England extract slugs.')
+    parser.add_argument('--minimum',type=int,default=500,help='Minimum raw mapped records for this batch.')
     args=parser.parse_args()
+    if not args.regions or len(set(args.regions))!=len(args.regions) or any(not re.fullmatch(r'[a-z]+(?:-[a-z]+)*',r) for r in args.regions):
+        parser.error('Invalid or duplicate region slugs')
     all_records={}
     counts={}
     with tempfile.TemporaryDirectory() as tmp:
-        for region in REGIONS:
+        for region in args.regions:
             path=(args.input_dir or Path(tmp))/(region+'-latest.osm.pbf')
             if not args.input_dir:
                 subprocess.run(['curl','--fail','--location','--retry','3','--retry-delay','5','--max-time','300','-o',str(path),BASE+path.name],check=True)
             extract=Extract()
             extract.apply_file(str(path),locations=True,idx='flex_mem')
             counts[region]=len(extract.records)
-            if counts[region]<5: raise RuntimeError(f'Unexpectedly sparse extract: {region}: {counts[region]}')
+            if counts[region]<1: raise RuntimeError(f'Unexpectedly sparse extract: {region}: {counts[region]}')
             all_records.update(extract.records)
             if not args.input_dir: path.unlink()
             print(region,counts[region],flush=True)
-    if len(all_records)<500: raise RuntimeError('Incomplete Midlands directory; refusing to replace previous data.')
+    if len(all_records)<args.minimum: raise RuntimeError('Incomplete supplier directory; refusing to replace previous data.')
     records=sorted(all_records.values(),key=lambda r:(r['type'],r['id']))
     out=Path(args.output)
     previous=out.read_text() if out.exists() else ''
     count_match=re.search(r'"count":(\d+)',previous)
     if count_match and len(records)<int(count_match.group(1))*.8: raise RuntimeError('Directory shrank by over 20%; investigate before replacing.')
-    meta={'source':'OpenStreetMap / Geofabrik','license':'ODbL-1.0','regions':REGIONS,'generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'count':len(records),'counts':counts}
+    meta={'source':'OpenStreetMap / Geofabrik','license':'ODbL-1.0','regions':args.regions,'generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'count':len(records),'counts':counts}
     dump=lambda x:json.dumps(x,ensure_ascii=True,separators=(',',':'))
     # One record per line keeps Git diffs useful and avoids huge source lines.
     output='// Generated: ODbL 1.0; © OpenStreetMap contributors. See data/SUPPLIER_DATA.md.\n'
