@@ -7,7 +7,7 @@ import {WebView} from 'react-native-webview';
 import {ArrowLeft,ArrowRight,ClipboardCheck,Eye,FileText,Printer,ShieldCheck} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
-import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
+import {FormFlowSteps,FormFlowFooter} from './PremiumFormFlow';
 import {DocumentPresetBar} from './SavedWorkLibrary';
 import DocumentComposerOverview from './DocumentComposerOverview';
 import {supabase} from './lib/supabase';
@@ -218,10 +218,6 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
    <ArrowRight size={18} color={theme.colors.teal}/>
   </MotionPressable>)}</View>:
   <View style={{gap:13}}>
-   <DocumentPresetBar ownerId={ownerId} scope="document" documentKind={selected.id} snapshot={values}
-      onApply={payload=>{if(payload&&typeof payload==='object'){
-       setValues({...payload,date:localDate()});setFieldStep(-1);setError('');
-      }}}/>
    {fieldStep===-1?<DocumentComposerOverview title={selected.title}
     description={selected.intro}
     sections={selected.groups.map(group=>({
@@ -229,7 +225,13 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
      label:group.fields.filter(f=>String(values[f.key]||'').trim()).length+' fields completed',
      done:group.fields.filter(f=>f.required).every(f=>String(values[f.key]||'').trim())
     }))}
-    onEdit={setFieldStep} onPreview={()=>{if(validate())setPreview(true)}}/>:null}
+    onEdit={setFieldStep} onPreview={()=>{if(validate())setPreview(true)}}
+    onSave={()=>{void exportPdf()}} saveLabel="Save PDF" saving={working}
+    renderSetups={close=><DocumentPresetBar initiallyOpen ownerId={ownerId} scope="document"
+     documentKind={selected.id} snapshot={values} onApply={payload=>{
+      if(payload&&typeof payload==='object'){setValues({...payload,date:localDate()});setFieldStep(-1);setError('');close();}
+     }}/>}
+    note="Tap any section to edit. PDF export is separate from sharing with customers."/>:null}
    {fieldStep>=0&&<FormFlowSteps labels={selected.groups.map(g=>g.title.length>20?g.title.split(' ')[0]:g.title)}
      active={fieldStep} onSelect={setFieldStep} subtitle="Focus on one group of details at a time. You can return to any previous step."/>}
    {selected.groups.filter((_,i)=>i===fieldStep).map((group,i)=><View style={sx.group} key={group.title}>
@@ -252,8 +254,8 @@ export default function TradarrDocumentBuilderScreen({role,goBack}:{role:Role;go
  {selected?<>{fieldStep>=0&&<FormFlowFooter active={fieldStep} total={selected.groups.length}
     onPrevious={()=>setFieldStep(v=>Math.max(0,v-1))}
     onNext={advance} primaryLabel={fieldStep===selected.groups.length-1?'Preview document':'Continue'}
+    preview={()=>{if(validate())setPreview(true)}}
     />}
-   <FormFlowFloatingPreview onPress={()=>setPreview(true)} label="A4 preview"/>
   </>:null}
  </View>;
 }
