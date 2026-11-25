@@ -7332,6 +7332,12 @@ function TradeJobsScreen({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [marketJobs, setMarketJobs] = useState<MarketOfferJob[]>([]);
   const [loadingMarket, setLoadingMarket] = useState(true);
+  const [urgentLoadError,setUrgentLoadError]=useState(false);
+  const [marketLoadError,setMarketLoadError]=useState(false);
+  const urgentRequest=useRef(0);
+  const marketRequest=useRef(0);
+  const {width:jobsWidth,fontScale:jobsFontScale}=useWindowDimensions();
+  const showMetricIcons=jobsWidth>=350&&jobsFontScale<=1.2;
   const [jobsView, setJobsView] = useState<'offers' | 'active'>(jobsEntry.view);
   const [offerFilter, setOfferFilter] = useState<TradeJobsEntry['filter']>(jobsEntry.filter);
   const [flexibleMode, setFlexibleMode] = useState<'all' | 'normal' | 'route' | 'street_run'>('all');
@@ -7395,6 +7401,8 @@ function TradeJobsScreen({
       active = false;
       availabilityMounted.current=false;
       availabilityRequest.current += 1;
+      urgentRequest.current+=1;
+      marketRequest.current+=1;
       foreground.remove();
       clearInterval(interval);
       if (channel) void supabase.removeChannel(channel);
@@ -7449,6 +7457,9 @@ function TradeJobsScreen({
 
   const loadJobs = async (knownUserId?: string) => {
     setLoading(true);
+    const request=++urgentRequest.current;
+    const current=()=>availabilityMounted.current&&request===urgentRequest.current;
+    try {
 
     const userId =
       knownUserId ||
@@ -7457,11 +7468,8 @@ function TradeJobsScreen({
       ).data.user?.id ||
       null;
 
-    if (!userId) {
-      setJobs([]);
-      setLoading(false);
-      return;
-    }
+    if (!current())return;
+    if (!userId)throw new Error('Sign in to load job offers.');
 
     setCurrentUserId(userId);
 
@@ -7472,15 +7480,17 @@ function TradeJobsScreen({
       .in('status', ['offered', 'accepted'])
       .order('offered_at', { ascending: false });
 
-    if (offerError || !offerRows?.length) {
+    if(!current())return;
+    if(offerError)throw offerError;
+    if(!offerRows?.length){
       setJobs([]);
-      setLoading(false);
+      setUrgentLoadError(false);
       return;
     }
 
     const requestIds = Array.from(new Set(offerRows.map(row => row.request_id)));
 
-    const [{ data: requestRows }, { data: exactLocationRows }] = await Promise.all([
+    const [{ data: requestRows, error: requestError }, { data: exactLocationRows }] = await Promise.all([
       supabase
         .from('urgent_requests')
         .select(
@@ -7493,6 +7503,8 @@ function TradeJobsScreen({
         .in('request_id', requestIds),
     ]);
 
+    if(!current())return;
+    if(requestError)throw requestError;
     const exactMap = new Map(
       (exactLocationRows ?? []).map(row => [
         row.request_id,
@@ -7522,12 +7534,20 @@ function TradeJobsScreen({
         .filter(item => item.request)
     );
 
-    setLoading(false);
+    setUrgentLoadError(false);
+    }catch{
+      if(current())setUrgentLoadError(true);
+    }finally{
+      if(current())setLoading(false);
+    }
   };
 
 
   const loadMarketJobs = async (knownUserId?: string) => {
     setLoadingMarket(true);
+    const request=++marketRequest.current;
+    const current=()=>availabilityMounted.current&&request===marketRequest.current;
+    try {
 
     const userId =
       knownUserId ||
@@ -7536,11 +7556,8 @@ function TradeJobsScreen({
       ).data.user?.id ||
       null;
 
-    if (!userId) {
-      setMarketJobs([]);
-      setLoadingMarket(false);
-      return;
-    }
+    if (!current())return;
+    if (!userId)throw new Error('Sign in to load job offers.');
 
     const { data: offerRows, error: offerError } = await supabase
       .from('job_offers')
@@ -7549,15 +7566,17 @@ function TradeJobsScreen({
       .in('status', ['offered', 'accepted'])
       .order('offered_at', { ascending: false });
 
-    if (offerError || !offerRows?.length) {
+    if(!current())return;
+    if(offerError)throw offerError;
+    if(!offerRows?.length){
       setMarketJobs([]);
-      setLoadingMarket(false);
+      setMarketLoadError(false);
       return;
     }
 
     const jobIds = Array.from(new Set(offerRows.map(row => row.job_id)));
 
-    const [{ data: jobRows }, { data: exactLocationRows }] = await Promise.all([
+    const [{ data: jobRows, error: jobError }, { data: exactLocationRows }] = await Promise.all([
       supabase
         .from('jobs')
         .select('id, customer_id, trade, issue, job_mode, timing, status, accepted_tradesperson_id, standard_price, route_price, detour_minutes, requested_start, requested_end, appointment_id, estimated_arrival_minutes, eta_updated_at, flexible_deadline, created_at')
@@ -7568,6 +7587,8 @@ function TradeJobsScreen({
         .in('job_id', jobIds),
     ]);
 
+    if(!current())return;
+    if(jobError)throw jobError;
     const exactMap = new Map(
       (exactLocationRows ?? []).map(row => [
         row.job_id,
@@ -7604,7 +7625,12 @@ function TradeJobsScreen({
         .filter(item => item.request)
     );
 
-    setLoadingMarket(false);
+    setMarketLoadError(false);
+    }catch{
+      if(current())setMarketLoadError(true);
+    }finally{
+      if(current())setLoadingMarket(false);
+    }
   };
 
   useEffect(() => {
@@ -7618,6 +7644,7 @@ function TradeJobsScreen({
       } = await supabase.auth.getUser();
 
       if (!user || !mounted) {
+        if(mounted)setUrgentLoadError(true);
         setLoading(false);
         return;
       }
@@ -7674,6 +7701,7 @@ function TradeJobsScreen({
       } = await supabase.auth.getUser();
 
       if (!user || !mounted) {
+        if(mounted)setMarketLoadError(true);
         setLoadingMarket(false);
         return;
       }
@@ -8006,7 +8034,8 @@ function TradeJobsScreen({
   const filteredMarketOffers = marketOffered.filter(job =>
     flexibleMode === 'all' || job.request.job_mode === flexibleMode
   );
-  const allOffersEmpty=offerFilter==='all'&&!loading&&!loadingMarket&&offered.length===0&&marketOffered.length===0;
+  const offersLoadError=urgentLoadError||marketLoadError;
+  const allOffersEmpty=offerFilter==='all'&&!loading&&!loadingMarket&&!offersLoadError&&offered.length===0&&marketOffered.length===0;
   const offerFilterDescription = offerFilter === 'urgent'
     ? 'Fast-response call-outs matched to your trade and work radius.'
     : offerFilter === 'flexible'
@@ -8035,17 +8064,17 @@ function TradeJobsScreen({
         <View style={styles.premiumJobOverview}>
           <View pointerEvents="none" style={styles.tradeJobsMetricAccent}/>
           <View style={styles.premiumJobMetric}>
-            <View style={styles.tradeJobsMetricIcon}><BriefcaseBusiness size={22} color={theme.colors.white}/></View>
+            {showMetricIcons?<View style={styles.tradeJobsMetricIcon}><BriefcaseBusiness size={22} color={theme.colors.white}/></View>:null}
             <View style={{flex:1,minWidth:0}}>
-              <Text style={styles.premiumJobMetricNumber}>{loading||loadingMarket?'–':active.length + marketActive.length}</Text>
+              <Text style={styles.premiumJobMetricNumber}>{loading||loadingMarket||offersLoadError?'–':active.length + marketActive.length}</Text>
               <Text style={styles.premiumJobMetricLabel}>Active jobs</Text>
             </View>
           </View>
           <View style={styles.premiumJobDivider} />
           <View style={styles.premiumJobMetric}>
-            <View style={styles.tradeJobsMetricIcon}><Inbox size={22} color={theme.colors.white}/></View>
+            {showMetricIcons?<View style={styles.tradeJobsMetricIcon}><Inbox size={22} color={theme.colors.white}/></View>:null}
             <View style={{flex:1,minWidth:0}}>
-              <Text style={styles.premiumJobMetricNumber}>{loading||loadingMarket?'–':offered.length + marketOffered.length}</Text>
+              <Text style={styles.premiumJobMetricNumber}>{loading||loadingMarket||offersLoadError?'–':offered.length + marketOffered.length}</Text>
               <Text style={styles.premiumJobMetricLabel}>New offers</Text>
             </View>
           </View>
@@ -8086,7 +8115,7 @@ function TradeJobsScreen({
                   accessibilityState={{ selected: offerFilter === value }}
                   style={[styles.tradeOfferFilter, offerFilter === value && styles.tradeOfferFilterActive]}>
                   <Text style={[styles.tradeOfferFilterText, offerFilter === value && styles.tradeOfferFilterTextActive]}>
-                    {title} · {count}
+                    {title} · {value==='all'?(loading||loadingMarket||offersLoadError?'–':count):value==='urgent'?(loading||urgentLoadError?'–':count):(loadingMarket||marketLoadError?'–':count)}
                   </Text>
                 </MotionPressable>
               ))}
@@ -8157,18 +8186,18 @@ function TradeJobsScreen({
               <View style={[styles.tradeOfflineDot,isReceivingOffers&&{backgroundColor:theme.colors.success}]}/>
               <View style={{flex:1,minWidth:0}}>
                 <StatusSwap value={isReceivingOffers}>
+                  <View style={{flex:1,minWidth:0}}>
                   <Text style={styles.tradeOfflineTitle}>{isReceivingOffers?"You're currently online":"You're currently offline"}</Text>
                   <Text style={styles.tradeOfflineSub}>{savingJobsAvailability?'Saving your availability…':isReceivingOffers
                     ?jobsAvailableUntil?'Available until '+formatUKDateTime(jobsAvailableUntil)+'.':'Available for nearby job offers.'
                     :'Go online for 2 hours using your saved work settings.'}</Text>
+                  </View>
                 </StatusSwap>
               </View>
               {savingJobsAvailability?<ActivityIndicator color={theme.colors.teal} style={{width:48}}/>:
-                <View pointerEvents="none" accessible={false}>
-                  <Switch value={isReceivingOffers} trackColor={{false:'#C6CECC',true:theme.colors.teal}}
-                    ios_backgroundColor="#C6CECC" thumbColor={theme.colors.white}
-                    accessible={false} importantForAccessibility="no-hide-descendants"
-                    onValueChange={()=>{}}/>
+                <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
+                  style={[styles.tradeJobsSwitchTrack,isReceivingOffers&&styles.tradeJobsSwitchTrackOn]}>
+                  <View style={styles.tradeJobsSwitchThumb}/>
                 </View>}
             </MotionPressable>
           )}
@@ -8210,6 +8239,13 @@ function TradeJobsScreen({
             <Text style={{color:theme.colors.muted,fontSize:12,lineHeight:17}}>Get extras approved and share completed-work handovers</Text></View>
           <ChevronRight size={18} color={theme.colors.teal}/>
         </MotionPressable>
+        {offersLoadError?<MotionPressable style={styles.tradeOfflineBanner}
+          onPress={()=>{void loadJobs(currentUserId||undefined);void loadMarketJobs(currentUserId||undefined);}}
+          accessibilityLabel="Retry loading jobs" accessibilityRole="button">
+          <RotateCw size={20} color={theme.colors.teal}/>
+          <View style={{flex:1}}><Text style={styles.tradeOfflineTitle}>Couldn't refresh all jobs</Text>
+          <Text style={styles.tradeOfflineSub}>Tap to retry. Previously loaded jobs may still be shown.</Text></View>
+        </MotionPressable>:null}
         {jobsView === 'active' ? (
           <>
         {active.length ? (
@@ -8355,7 +8391,7 @@ function TradeJobsScreen({
         ) : null}
 
 
-          {(active.length + marketActive.length) === 0 ? (
+          {!loading&&!loadingMarket&&!offersLoadError&&(active.length + marketActive.length) === 0 ? (
             <View style={styles.premiumEmptyCard}>
               <BriefcaseBusiness size={30} strokeWidth={2} color={theme.colors.teal} />
               <Text style={styles.premiumEmptyTitle}>No active jobs yet</Text>
@@ -8421,7 +8457,7 @@ function TradeJobsScreen({
               </View>
             </View>
           ))
-        ) : (
+        ) : urgentLoadError?null:(
           <View style={styles.tradeEmptyLarge}>
             <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
@@ -8514,7 +8550,7 @@ function TradeJobsScreen({
               </View>
             </View>
           ))
-        ) : (
+        ) : marketLoadError?null:(
           <View style={styles.tradeEmptyCompact}>
             <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={25} color="#4B7779" /></View>
             <Text style={styles.tradeEmptyLargeTitle}>No flexible offers yet</Text>
@@ -8529,14 +8565,14 @@ function TradeJobsScreen({
 
           </>
         ) : null}
-          {offerFilter === 'urgent' && !loading && offered.length === 0 ? (
+          {offerFilter === 'urgent' && !loading && !urgentLoadError && offered.length === 0 ? (
             <MotionPressable style={styles.tradeOtherOfferLink} onPress={() => setOfferFilter('flexible')}
               accessibilityRole="button" accessibilityLabel="See flexible offers">
               <Text style={styles.tradeOtherOfferLinkText}>See flexible and scheduled offers instead</Text>
               <ArrowRight size={17} color={theme.colors.teal} />
             </MotionPressable>
           ) : null}
-          {offerFilter === 'flexible' && !loadingMarket && filteredMarketOffers.length === 0 ? (
+          {offerFilter === 'flexible' && !loadingMarket && !marketLoadError && filteredMarketOffers.length === 0 ? (
             <MotionPressable style={styles.tradeOtherOfferLink}
               onPress={() => { setOfferFilter('all'); setFlexibleMode('all'); }}
               accessibilityRole="button" accessibilityLabel="See all job offers">
@@ -11676,6 +11712,9 @@ const styles = StyleSheet.create({
   premiumJobMetricLabel:{color:'#C0D1D2',fontSize:12,lineHeight:16,marginTop:1},
   premiumJobDivider:{width:1,height:44,backgroundColor:'#355258'},
   tradeJobsOnlineBanner:{backgroundColor:'#EAF4ED',borderColor:'#B8DAC8'},
+  tradeJobsSwitchTrack:{width:49,height:29,borderRadius:16,backgroundColor:'#C6CECC',padding:3,justifyContent:'center',alignItems:'flex-start'},
+  tradeJobsSwitchTrackOn:{backgroundColor:theme.colors.teal,alignItems:'flex-end'},
+  tradeJobsSwitchThumb:{width:23,height:23,borderRadius:12,backgroundColor:theme.colors.white,shadowColor:theme.colors.ink,shadowOpacity:.16,shadowRadius:2,shadowOffset:{width:0,height:1},elevation:1},
   tradeJobsCheckingAvailability:{flexDirection:'row',alignItems:'center',gap:10,minHeight:52,paddingHorizontal:12},
   tradeJobsUtilityIcon:{width:35,height:35,borderRadius:12,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
   tradeJobsAssurance:{minHeight:60,flexDirection:'row',alignItems:'center',gap:10,backgroundColor:'#EAF4ED',borderWidth:1,borderColor:'#B8DAC8',borderRadius:17,paddingHorizontal:12,paddingVertical:9,marginBottom:9},

@@ -91,8 +91,12 @@ assert.ok(writer.includes('availabilityRequest.current+=1')&&writer.includes('av
 assert.ok(writer.indexOf('setIsReceivingOffers(confirmed)')>writer.indexOf('if(error||!saved)'),'Online label must follow server confirmation');
 assert.ok(jobs.includes('changeJobsAvailability(!isReceivingOffers)')&&jobs.includes('accessibilityRole="switch"'),'Jobs availability is actionable on the page');
 assert.ok(jobs.indexOf('styles.premiumJobOverview')<jobs.indexOf('styles.premiumSegment')&&jobs.indexOf('styles.premiumSegment')<jobs.indexOf('styles.tradeOfflineBanner'),'Summary and offer tabs must precede availability');
-assert.ok(jobs.includes('allOffersEmpty=offerFilter===\'all\'&&!loading&&!loadingMarket&&offered.length===0&&marketOffered.length===0'),'Only confirmed empty all-offers state gets one illustration');
+assert.ok(jobs.includes('allOffersEmpty=offerFilter===\'all\'&&!loading&&!loadingMarket&&!offersLoadError&&offered.length===0&&marketOffered.length===0'),'Only confirmed empty all-offers state gets one illustration');
 assert.ok(jobs.includes('<TradeJobsEmptyMotion online={isReceivingOffers}/>'),'Empty state must have native motion');
 const emptyArt=app.slice(app.indexOf('function TradeJobsEmptyMotion('),jobsStart);
 assert.ok(emptyArt.includes('useNativeDriver:true')&&emptyArt.includes('isInteraction:false')&&emptyArt.includes('if(reduce||!foreground)return')&&emptyArt.includes('loop.stop()'),'Empty animation must be native, nonblocking and respect accessibility/background');
 console.log('PASS: direct Jobs availability, preserved privacy settings, compact layout and accessible animation');
+
+assert.ok(jobs.includes('if(offerError)throw offerError')&&jobs.includes('if(requestError)throw requestError')&&jobs.includes('if(jobError)throw jobError'),'Failed requests cannot become empty offers');
+assert.ok(jobs.includes('urgentRequest.current')&&jobs.includes('marketRequest.current'),'Stale refresh responses must not overwrite newer requests');
+assert.ok(jobs.includes('tradeJobsSwitchTrackOn')&&!jobs.includes('onValueChange={()=>{}}'),'Availability card itself is the one real switch action');
