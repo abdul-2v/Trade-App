@@ -25,6 +25,7 @@ export default function CustomerHomePassportScreen({goBack}:{goBack:()=>void}){
  const [propertyName,setPropertyName]=useState(''),[address,setAddress]=useState('');
  const [title,setTitle]=useState(''),[kind,setKind]=useState<Category>('repair'),[completed,setCompleted]=useState(today()),[due,setDue]=useState(''),[notes,setNotes]=useState('');
  const [error,setError]=useState('');
+ const [detailsExpanded,setDetailsExpanded]=useState(false);
  const selected=properties.find(p=>p.id===selectedId)||properties[0]||null;
  const currentRecords=records.filter(r=>r.property_id===selected?.id);
  const upcoming=useMemo(()=>currentRecords.filter(r=>r.next_due&&r.next_due<=new Date(Date.now()+30*86400000).toISOString().slice(0,10))
@@ -67,7 +68,7 @@ export default function CustomerHomePassportScreen({goBack}:{goBack:()=>void}){
   }).select('*').single();
   setSaving(false);
   if(e||!data){Alert.alert('Could not save record',e?.message||'Please try again.');return;}
-  setRecords(old=>[data as RecordRow,...old]);setTitle('');setNotes('');setDue('');setCompleted(today());setKind('repair');setScreen('list');
+  setRecords(old=>[data as RecordRow,...old]);setTitle('');setNotes('');setDue('');setCompleted(today());setKind('repair');setDetailsExpanded(false);setScreen('list');
  };
  const removeRecord=(v:RecordRow)=>Alert.alert('Delete this record?',v.title,[{text:'Cancel',style:'cancel'},
   {text:'Delete',style:'destructive',onPress:async()=>{
@@ -100,8 +101,17 @@ export default function CustomerHomePassportScreen({goBack}:{goBack:()=>void}){
        <Text style={[s.chipText,kind===c&&s.chipTextOn]}>{c[0].toUpperCase()+c.slice(1)}</Text></MotionPressable>)}
      </View>
      <Field label="Work date (YYYY-MM-DD, optional)" value={completed} set={setCompleted} placeholder="2026-11-16"/>
-     <Field label="Next due (YYYY-MM-DD, optional)" value={due} set={setDue} placeholder="2027-11-16"/>
-     <Field label="Details or warranty notes (optional)" value={notes} set={setNotes} multi placeholder="Who did the work, what was replaced, document reference..."/>
+     <MotionPressable style={s.moreDetails} onPress={()=>setDetailsExpanded(v=>!v)}
+       accessibilityRole="button" accessibilityLabel="Reminders and additional record details"
+       accessibilityState={{expanded:detailsExpanded}}>
+      <View style={{flex:1}}><Text style={s.moreTitle}>Reminders & further details</Text>
+       <Text style={s.moreHint}>Next due date, warranty or work notes · optional</Text></View>
+      <ChevronRight size={18} color={C.teal} style={detailsExpanded?{transform:[{rotate:'90deg'}]}:undefined}/>
+     </MotionPressable>
+     {detailsExpanded&&<View>
+      <Field label="Next due (YYYY-MM-DD, optional)" value={due} set={setDue} placeholder="2027-11-16"/>
+      <Field label="Details or warranty notes (optional)" value={notes} set={setNotes} multi placeholder="Who did the work, what was replaced, document reference..."/>
+     </View>}
      <Text style={s.tiny}>Reminders currently appear inside My Home only. They are not push notifications.</Text>
      <MotionPressable onPress={()=>{void createRecord()}} disabled={saving} style={s.primary}>
       {saving?<ActivityIndicator color="#FFFFFF"/>:<Text style={s.primaryText}>Save home record</Text>}</MotionPressable>
@@ -152,6 +162,10 @@ export default function CustomerHomePassportScreen({goBack}:{goBack:()=>void}){
 }
 const s=StyleSheet.create({
  root:{flex:1,backgroundColor:C.customerBackground},
+ moreDetails:{flexDirection:'row',alignItems:'center',gap:10,backgroundColor:C.tealTint,borderRadius:14,
+  padding:13,marginTop:4,marginBottom:12},
+ moreTitle:{fontSize:13,fontWeight:'800',color:C.teal},
+ moreHint:{fontSize:11,lineHeight:16,color:C.muted,marginTop:4},
  header:{flexDirection:'row',alignItems:'center',gap:13,paddingHorizontal:20,paddingTop:17,paddingBottom:14},
  back:{width:44,height:44,backgroundColor:'#FFFFFF',borderRadius:23,alignItems:'center',justifyContent:'center'},
  overline:{fontSize:10,fontWeight:'800',color:C.teal,letterSpacing:1.3},
