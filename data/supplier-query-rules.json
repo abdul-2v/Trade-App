@@ -1,0 +1,28 @@
+{
+  "shopTypes": [
+    "trade",
+    "doityourself",
+    "hardware",
+    "building_materials",
+    "builders_merchant",
+    "building_supplies",
+    "electrical",
+    "wholesale",
+    "paint",
+    "tiles",
+    "flooring",
+    "doors",
+    "windows",
+    "power_tools",
+    "bathroom_furnishing",
+    "plumbing",
+    "roofing",
+    "timber",
+    "ironmonger",
+    "locksmith",
+    "tool",
+    "tools",
+    "tool_hire"
+  ],
+  "brandPattern": "Screwfix|Toolstation|B&Q|Wickes|Homebase|TradePoint|City Plumbing|Wolseley|Plumbase|Plumb Centre|Plumb Center|Graham Plumbers|James Hargreaves|PTS Plumbing|UK Plumbing Supplies|Williams Trade Supplies|Plumbing Supplies|Plumbing Merchant|Heating Supplies|Heating Merchant|City Electrical Factors|CEF|YESSS|Rexel|Edmundson|Denmans|Electrical Wholesale|Electrical Supplies|Electric Center|Electric Centre|TLC Electrical|Travis Perkins|Jewson|Selco|MKM|Huws Gray|Huws Grey|Buildbase|Builders Merchant|Building Supplies|Building Materials|Bradfords|EH Smith|JT Atkinson|Howdens|Benchmarx|Timber Merchant|Timber Supplies|SIG Roofing|Burton Roofing|Roofbase|Roofing Supplies|Roofing Merchant|Ironmongery|Lock Supplies|Door Hardware"
+}

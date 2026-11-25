@@ -4,6 +4,8 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { supabase } from './lib/supabase';
 import { LEICESTER_SUPPLIER_SEEDS } from './TradeSuppliersLeicester';
+import { directoryElements } from './data/TradeSupplierDirectory';
+import supplierRules from './data/supplier-query-rules.json';
 import { theme } from './theme';
 import { MotionPressable } from './Motion';
 import { Crosshair, RotateCw, X, Navigation, Store, ChevronRight, ChevronUp, ChevronDown, Search } from 'lucide-react-native';
@@ -60,7 +62,7 @@ async function lookupUKArea(input: string): Promise<{point: Coordinates; label: 
 // Real, verified Leicester merchants are ready instantly, even if the public
 // Overpass endpoint is slow or unavailable. Pins are postcode-centre approximations.
 function localDirectorySuppliers(near: Coordinates, radiusMiles: number): Supplier[] {
-  return LEICESTER_SUPPLIER_SEEDS
+  const legacy = LEICESTER_SUPPLIER_SEEDS
     .map(store => ({
       ...store,
       postcodeApproximate: true,
@@ -68,11 +70,14 @@ function localDirectorySuppliers(near: Coordinates, radiusMiles: number): Suppli
     }))
     .filter(store => store.distance <= radiusMiles)
     .sort((a, b) => a.distance - b.distance);
+  return mergeMerchantSources(legacy, convertResults(directoryElements, near, radiusMiles));
 }
 
 function mergeMerchantSources(directory: Supplier[], live: Supplier[]): Supplier[] {
   const combined = [...live];
+  const ids=new Set(live.map(shop=>shop.id));
   for (const shop of directory) {
+    if(ids.has(shop.id))continue;
     const duplicate = combined.some(other => {
       const a = other.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       const b = shop.name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -82,19 +87,19 @@ function mergeMerchantSources(directory: Supplier[], live: Supplier[]): Supplier
           { latitude: shop.latitude, longitude: shop.longitude }
         ) < 0.35;
     });
-    if (!duplicate) combined.push(shop);
+    if (!duplicate){combined.push(shop);ids.add(shop.id);}
   }
   return combined.sort((a, b) => a.distance - b.distance);
 }
 
 const merchantGroups: Array<{ match: RegExp; trades: TradeName[]; general?: boolean }> = [
-  { match: /screwfix|toolstation|b\s*&\s*q|wickes|homebase|home hardware/i, trades: ALL_TRADES, general: true },
-  { match: /city plumbing|wolseley|plumbase|plumbing trade|plumbing supplies|plumb centre|graham plumbers|james hargreaves|heat merchant|heating supplies|pts plumbing/i, trades: PLUMBING },
-  { match: /\bcef\b|city electrical factors|yesss|rexel|edmundson|denmans|electrical wholesalers|electrical supplies|electric center|electric centre|tlc electrical/i, trades: ['Electrician'] },
-  { match: /travis perkins|jewson|selco|mkm building|huws gray|huws grey|buildbase|builders merchant|building supplies/i, trades: BUILDING },
-  { match: /howdens|benchmarx|timber merchant|timber centre|timber yard|wood supplier|joinery supplies/i, trades: ['Carpenter', 'Builder'] },
-  { match: /sig roofing|roofing supplies|roofing merchant|roofing centre|roofing depot/i, trades: ['Roofer', 'Builder'] },
-  { match: /ironmong|lock supplies|lock centre|locksmith supplies|security hardware/i, trades: ['Locksmith', 'Carpenter'] },
+  { match: /screwfix|toolstation|b\s*&\s*q|wickes|homebase|home hardware|selco|tradepoint|trade point|fixings and fasteners|tool supplies/i, trades: ALL_TRADES, general: true },
+  { match: /city plumbing|wolseley|plumbase|plumbing trade|plumbing supplies|plumb cent(?:re|er)|graham plumbers|james hargreaves|heat merchant|heating supplies|pts plumbing|\bpts\b|the bathroom showroom|uk plumbing supplies|\bhps\b|williams trade supplies|plumbworld|plumbing merchant|heating merchant|plumbers merchant/i, trades: PLUMBING },
+  { match: /\bcef\b|city electrical factors|yesss|rexel|edmundson|denmans|electrical wholesale|electrical supplies|electric center|electric centre|tlc electrical|\baw electrical\b|electrical distributor|electrical merchant|\bnewey\b|\bwilts electrical\b|\bqvs electrical\b/i, trades: ['Electrician'] },
+  { match: /travis perkins|jewson|\bmkm\b|huws gray|huws grey|buildbase|builders.? merchant|building supplies|building materials|bradfords|eh smith|\bj t atkinson\b|\bjt atkinson\b|\blbs builders\b|\bturnbull\b.*(?:building|merchant)|\bsand and gravel\b|\baggregate supplies\b|\binsulation supplies\b/i, trades: BUILDING },
+  { match: /howdens|benchmarx|timber merchant|timber centre|timber yard|wood supplier|joinery supplies|timber supplies|timber and plywood|\btravis perkins timber\b|\balsford\b|\bkj howells\b|\bchandlers timber\b/i, trades: ['Carpenter', 'Builder'] },
+  { match: /sig roofing|roofing supplies|roofing merchant|roofing centre|roofing depot|\bburton roofing\b|\broofbase\b|\bmagma roofing\b|roofing materials/i, trades: ['Roofer', 'Builder'] },
+  { match: /ironmong|lock supplies|lock centre|locksmith supplies|security hardware|door hardware|lock wholesal|lock merchant/i, trades: ['Locksmith', 'Carpenter'] },
 ];
 
 async function getFreshDeviceLocation(): Promise<Location.LocationObject | null> {
@@ -130,23 +135,25 @@ function haversine(a: Coordinates, b: Coordinates) {
 
 function classifyShop(tags: Record<string, string>): { kinds: TradeName[]; general: boolean } | null {
   const name = [tags.name, tags.brand, tags.operator].filter(Boolean).join(' ');
-  const specialty = (tags.trade || '').toLowerCase();
+  const specialty = [tags.trade,tags.wholesale,tags['shop:trade']].filter(Boolean).join(' ').toLowerCase();
+  const shop = (tags.shop || '').toLowerCase();
+  // Never reintroduce a mapped closed or vacant branch via brand-only matching.
+  if(['vacant','closed','disused','abandoned'].includes(shop)||tags.disused==='yes'||tags.abandoned==='yes'||tags.closed==='yes')return null;
   for (const group of merchantGroups) {
     if (group.match.test(name)) return { kinds: group.trades, general: Boolean(group.general) };
   }
 
-  const shop = (tags.shop || '').toLowerCase();
-  if (['hardware', 'doityourself', 'power_tools'].includes(shop)) {
+  if (['hardware', 'doityourself', 'power_tools','tool','tools','tool_hire'].includes(shop)) {
     return { kinds: ALL_TRADES, general: true };
   }
-  if (shop === 'electrical' || /electric/.test(specialty)) {
+  if (shop === 'electrical' || /electric|lighting/.test(specialty)) {
     return { kinds: ['Electrician'], general: false };
   }
-  if (/plumb|bathroom|heating|gas/.test(specialty)) return { kinds: PLUMBING, general: false };
-  if (/roof/.test(specialty)) return { kinds: ['Roofer', 'Builder'], general: false };
-  if (/timber|joinery|wood/.test(specialty)) return { kinds: ['Carpenter', 'Builder'], general: false };
-  if (/lock|ironmong/.test(specialty)) return { kinds: ['Locksmith', 'Carpenter'], general: false };
-  if (/building|construction/.test(specialty) || shop === 'building_materials') {
+  if (shop==='plumbing'||/plumb|bathroom|heating|gas|hvac/.test(specialty)) return { kinds: PLUMBING, general: false };
+  if (shop==='roofing'||/roof/.test(specialty)) return { kinds: ['Roofer', 'Builder'], general: false };
+  if (shop==='timber'||/timber|joinery|wood/.test(specialty)) return { kinds: ['Carpenter', 'Builder'], general: false };
+  if (shop==='ironmonger'||shop==='locksmith'||/lock|ironmong|security_hardware/.test(specialty)) return { kinds: ['Locksmith', 'Carpenter'], general: false };
+  if (/building|construction|aggregate|insulation|cement|brick/.test(specialty) || ['building_materials','builders_merchant','building_supplies'].includes(shop)) {
     return { kinds: BUILDING, general: false };
   }
   if (shop === 'tiles' || shop === 'bathroom_furnishing') {
@@ -155,7 +162,8 @@ function classifyShop(tags: Record<string, string>): { kinds: TradeName[]; gener
   if (shop === 'doors' || shop === 'windows' || shop === 'flooring') {
     return { kinds: ['Carpenter', 'Builder'], general: false };
   }
-  if (shop === 'paint') return { kinds: ['Builder', 'Carpenter'], general: false };
+  if (shop === 'paint'||/paint|decorat/.test(specialty)) return { kinds: ['Builder', 'Carpenter'], general: false };
+  if (/tool|hardware|fastener|fixing|industrial_supplies/.test(specialty)||(shop==='trade'&&!specialty)) return { kinds: ALL_TRADES, general: true };
   // Unknown wholesale and unrelated trade shops are deliberately excluded.
   return null;
 }
@@ -171,12 +179,20 @@ type OsmElement = {
 
 function convertResults(elements: OsmElement[], near: Coordinates, radiusMiles: number): Supplier[] {
   const deduped: Supplier[] = [];
+  const byName=new Map<string,Supplier[]>();
+  const seenIds=new Set<string>();
+  // Cheap bounding box first; the downloaded directory covers many counties.
+  const deltaLat=radiusMiles/69+0.01;
+  const deltaLon=radiusMiles/(69*Math.max(.15,Math.cos(near.latitude*Math.PI/180)))+0.01;
   for (const element of elements) {
     const tags = element.tags || {};
     const name = (tags.name || tags.brand || '').trim();
     const latitude = element.lat ?? element.center?.lat;
     const longitude = element.lon ?? element.center?.lon;
-    if (!name || latitude === undefined || longitude === undefined) continue;
+    if (!name || latitude === undefined || longitude === undefined || !Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180) continue;
+    if(Math.abs(latitude-near.latitude)>deltaLat||Math.abs(longitude-near.longitude)>deltaLon)continue;
+    const id=element.type+'/'+element.id;
+    if(seenIds.has(id))continue;
 
     const classification = classifyShop(tags);
     if (!classification) continue;
@@ -185,17 +201,16 @@ function convertResults(elements: OsmElement[], near: Coordinates, radiusMiles: 
 
     const address = [
       [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' '),
-      tags['addr:city'],
+      tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || tags['addr:suburb'],
       tags['addr:postcode'],
     ].filter(Boolean).join(', ');
 
-    const exists = deduped.some(other =>
-      other.name.toLowerCase().replace(/[^a-z0-9]/g, '') === name.toLowerCase().replace(/[^a-z0-9]/g, '')
-      && haversine({ latitude: other.latitude, longitude: other.longitude }, { latitude, longitude }) < 0.09
-    );
-    if (exists) continue;
-    deduped.push({
-      id: element.type + '/' + element.id,
+    const nameKey=name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matches=byName.get(nameKey)||[];
+    const exists=matches.some(other=>haversine(other,{latitude,longitude})<0.09);
+    if(exists)continue;
+    const supplier:Supplier={
+      id,
       name,
       latitude,
       longitude,
@@ -206,36 +221,40 @@ function convertResults(elements: OsmElement[], near: Coordinates, radiusMiles: 
       phone: tags['contact:phone'] || tags.phone,
       website: tags['contact:website'] || tags.website,
       openingHours: tags.opening_hours,
-    });
+    };
+    seenIds.add(id);
+    matches.push(supplier);byName.set(nameKey,matches);deduped.push(supplier);
   }
-  return deduped.sort((a, b) => a.distance - b.distance).slice(0, 180);
+  return deduped.sort((a, b) => a.distance - b.distance);
 }
 
 function overpassQuery(centre: Coordinates, radiusMiles: number) {
-  const radius = Math.round(radiusMiles * 1609.344);
-  const at = '(around:' + radius + ',' + centre.latitude.toFixed(5) + ',' + centre.longitude.toFixed(5) + ')';
-  return '[out:json][timeout:22];('
-    + 'nwr' + at + '["shop"~"^(trade|doityourself|hardware|building_materials|electrical|wholesale|paint|tiles|flooring|doors|windows|power_tools|bathroom_furnishing)$"];'
-    + 'nwr' + at + '["name"~"Screwfix|Toolstation|B&Q|Wickes|City Plumbing|Wolseley|Plumbase|CEF|YESSS|Rexel|Edmundson|Travis Perkins|Jewson|Selco|MKM|Howdens|Benchmarx|SIG Roofing",i];'
-    + ');out center tags;';
+  // Round the external query origin to roughly 100m, and add a small buffer.
+  // The device applies the final distance filter locally.
+  const radius = Math.round((radiusMiles+0.2) * 1609.344);
+  const at = '(around:' + radius + ',' + centre.latitude.toFixed(3) + ',' + centre.longitude.toFixed(3) + ')';
+  const shopPattern='^('+supplierRules.shopTypes.join('|')+')$';
+  const brandPattern=supplierRules.brandPattern;
+  const selectors=['["shop"~"'+shopPattern+'"]',
+    '["trade"]["shop"]','["wholesale"]["shop"]',
+    ...['name','brand','operator'].map(key=>'["'+key+'"~"'+brandPattern+'",i]')];
+  return '[out:json][timeout:20];('+selectors.map(selector=>'nwr'+at+selector+';').join('')+');out center tags;';
 }
 
 async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<Supplier[]> {
-  const key = centre.latitude.toFixed(2) + ':' + centre.longitude.toFixed(2) + ':' + radiusMiles;
+  const key = centre.latitude.toFixed(4) + ':' + centre.longitude.toFixed(4) + ':' + radiusMiles;
   const cached = STORE_CACHE.get(key);
   if (cached && cached.expires > Date.now()) return cached.stores;
 
-  // Public Overpass is best-effort, not a production guaranteed live service.
-  // Use one maintained endpoint, with an absolute deadline even on devices where
-  // AbortController does not reliably stop a React Native fetch.
+  // Public Overpass is best effort. The bundled directory is independent of it.
   const query = overpassQuery(centre, radiusMiles);
   // Public OSM endpoints are best effort. Retry a different operator on timeout or rate limit.
   // Keep each request bounded so a trader outside Leicester never sees a permanent spinner.
   let lastError: Error = new Error('Merchant lookup unavailable.');
   for (const endpoint of ['https://overpass.private.coffee/api/interpreter',
-                           'https://overpass.kumi.systems/api/interpreter']) {
+                           'https://overpass-api.de/api/interpreter']) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8500);
+    const timeout = setTimeout(() => controller.abort(), 14000);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -247,6 +266,7 @@ async function loadSuppliers(centre: Coordinates, radiusMiles: number): Promise<
       const data = await response.json() as { elements?: OsmElement[]; remark?: string };
       if (data.remark || !Array.isArray(data.elements)) throw new Error('Merchant map returned incomplete data.');
       const result = convertResults(data.elements, centre, radiusMiles);
+      if(STORE_CACHE.size>=40)STORE_CACHE.delete(STORE_CACHE.keys().next().value!);
       STORE_CACHE.set(key, {stores: result, expires: Date.now() + 15 * 60 * 1000});
       return result;
     } catch (error: any) {
@@ -628,13 +648,13 @@ export default function TradeSuppliersMap() {
     let active = true;
     const nearbyDirectory = localDirectorySuppliers(centre, radius);
 
-    // Never block Leicester tradespeople behind a remote loading spinner.
+    // Show the bundled directory immediately; live results enrich it when available.
     setShops(nearbyDirectory);
     setSelected(null);
     setLoading(nearbyDirectory.length === 0);
     setProblem(null);
     setSourceNote(nearbyDirectory.length
-      ? 'Leicester directory locations shown · checking latest map records…'
+      ? 'Directory locations shown · checking latest map records…'
       : 'Checking map records…');
 
     loadSuppliers(centre, radius)
@@ -644,7 +664,7 @@ export default function TradeSuppliersMap() {
         setShops(combined);
         setLoading(false);
         setSourceNote(nearbyDirectory.length
-          ? 'Leicester directory + OpenStreetMap locations'
+          ? 'Supplier directory + OpenStreetMap locations'
           : 'Locations from OpenStreetMap');
         if (!combined.length) {
           setProblem('No merchants found within this radius. Try expanding the area or open Maps to search directly.');
@@ -655,7 +675,7 @@ export default function TradeSuppliersMap() {
         setShops(nearbyDirectory);
         setLoading(false);
         setSourceNote(nearbyDirectory.length
-          ? 'Leicester directory locations · map search temporarily unavailable'
+          ? 'Supplier directory locations · live map search temporarily unavailable'
           : 'Live merchant lookup is temporarily unavailable');
         if (!nearbyDirectory.length) {
           setProblem('The map service is unavailable. Use Find shops in Maps or try again.');
