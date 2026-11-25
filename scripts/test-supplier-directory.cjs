@@ -15,7 +15,7 @@ assert.ok(!app.includes('.slice(0, 180)'));
 assert.ok(app.includes('seenIds')&&app.includes('byName')&&app.includes('deltaLat'));
 assert.ok(rules.shopTypes.includes('trade')&&rules.shopTypes.includes('hardware')&&rules.shopTypes.includes('building_materials'));
 assert.ok(app.includes('supplierRules.shopTypes')&&app.includes('supplierRules.brandPattern'));
-const records=data.split('\n').filter(l=>l.startsWith('{"type":')).map(l=>JSON.parse(l.replace(/,$/,'')));
+const records=data.split('\n').filter(l=>l.startsWith('{"type":')).map(l=>JSON.parse(l.replace(/ as DirectoryElement,?$/,'').replace(/,$/,'')));
 if(process.argv.includes('--require-data')){
  assert.ok(records.length>=500,'Missing Midlands data');
  const meta=JSON.parse(data.match(/export const directoryMetadata=(.*);/)[1]);
@@ -79,7 +79,7 @@ const selectedBatch=process.argv.find(x=>x.startsWith('--batch='))?.split('=')[1
 for(const [name,batch] of Object.entries(registry)){
  if(name==='Midlands')continue;
  const content=fs.readFileSync(batch.file,'utf8');
- const points=content.split('\n').filter(l=>l.startsWith('{"type":')).map(l=>JSON.parse(l.replace(/,$/,'')));
+ const points=content.split('\n').filter(l=>l.startsWith('{"type":')).map(l=>JSON.parse(l.replace(/ as DirectoryElement,?$/,'').replace(/,$/,'')));
  if(name===selectedBatch){
   assert.ok(points.length>=500,'No usable '+name+' snapshot');
   const meta=JSON.parse(content.match(/export const directoryMetadata=(.*);/)[1]);

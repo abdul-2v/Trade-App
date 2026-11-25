@@ -544,13 +544,13 @@ export default function TradeSuppliersMap() {
   const [tradeChoice,setTradeChoice]=useState<TradeName|'mine'|'specialist'>('mine');
   const [tradeMenuOpen,setTradeMenuOpen]=useState(false);
   const [tradeMenuAnchor,setTradeMenuAnchor]=useState({x:14,y:150,width:100,height:35});
-  const tradeAnchorRef=useRef<View>(null);
+  const tradeAnchorRef=useRef<React.ComponentRef<typeof View>>(null);
   const {width:windowWidth,height:windowHeight}=useWindowDimensions();
   const menuWidth=Math.min(272,Math.max(0,windowWidth-28));
   const menuLeft=Math.max(14,Math.min(tradeMenuAnchor.x,windowWidth-menuWidth-14));
   const menuTop=Math.max(12,Math.min(tradeMenuAnchor.y+tradeMenuAnchor.height+6,windowHeight-220));
   const openTradeMenu=()=>{
-    tradeAnchorRef.current?.measureInWindow((x,y,width,height)=>{
+    tradeAnchorRef.current?.measureInWindow((x:number,y:number,width:number,height:number)=>{
       if(width>0&&height>0)setTradeMenuAnchor({x,y,width,height});
     });
     setTradeMenuOpen(true);

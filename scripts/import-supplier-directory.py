@@ -94,7 +94,7 @@ def main():
     output='// Generated: ODbL 1.0; © OpenStreetMap contributors. See data/SUPPLIER_DATA.md.\n'
     output+='export type DirectoryElement={type:string;id:number;lat:number;lon:number;tags:Record<string,string>};\n'
     output+='export const directoryMetadata='+dump(meta)+';\n'
-    output+='export const directoryElements:DirectoryElement[]=[\n'+',\n'.join(dump(r) for r in records)+'\n];\n'
+    output+='export const directoryElements:DirectoryElement[]=[\n'+',\n'.join(dump(r)+' as DirectoryElement' for r in records)+'\n];\n'
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(output)
     print('Total unique OSM objects:',len(records),flush=True)

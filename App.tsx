@@ -2752,7 +2752,7 @@ function MapScreen({
             </MotionPressable>
           ) : (
             <View style={styles.mapCompactStatus}>
-              <LiveStatusDot color={theme.colors.teal}/>
+              <View style={{width:8,height:8,borderRadius:4,backgroundColor:theme.colors.teal}}/>
               <Text style={styles.mapCompactStatusText} numberOfLines={1}>{filtered.length+' found'}</Text>
               {__DEV__?<MotionPressable onPress={()=>{setShowDemoProfiles(true);setSelectedMapTrade(null);}} accessibilityLabel="Show fictional demo profiles"><Text style={styles.mapCompactLink}>Demo</Text></MotionPressable>:null}
             </View>
