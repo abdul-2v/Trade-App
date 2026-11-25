@@ -10,7 +10,7 @@ import type {QuoteDraftFromSuite} from './TradeBusinessSuiteScreen';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 import {formatTradeQuantity,hasInvalidTradeQuantity,unitOptionLabel} from './lib/documentUnits';
-import {FormFlowSteps,FormFlowFooter,FormFlowFloatingPreview} from './PremiumFormFlow';
+import {FormFlowSteps,FormFlowFooter} from './PremiumFormFlow';
 import {SavedWorkLibrary,SaveWorkPreset,DocumentPresetBar,type WorkHistory,type WorkLine} from './SavedWorkLibrary';
 import DocumentComposerOverview from './DocumentComposerOverview';
 
@@ -656,10 +656,13 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
        {title:'Work & pricing',detail:'Labour, materials and optional extras',label:lines.filter(l=>l.description.trim()).length+' line items',done:subtotal>0},
        {title:'Terms & VAT',detail:'Validity, deposit, business details and notes',label:validUntil,done:!!businessName&&!!validUntil}
       ]}
-      amount={money(total)} onEdit={index=>setStage(index===0?'scope':index===1?'pricing':'terms')} onPreview={()=>setScreen('draftPreview')}>
-       <SavedWorkLibrary ownerId={uid} history={workHistory} onAdd={addSuggestedLine}/>
-       <DocumentPresetBar ownerId={uid} scope="quote" snapshot={quoteSetup} onApply={applyQuoteSetup}/>
-      </DocumentComposerOverview>:null}
+      amount={money(total)} onEdit={index=>setStage(index===0?'scope':index===1?'pricing':'terms')}
+      onPreview={()=>setScreen('draftPreview')} onSave={()=>{void saveQuote()}} saving={saving}
+      renderWorkLibrary={close=><SavedWorkLibrary initiallyOpen ownerId={uid} history={workHistory}
+       onAdd={line=>{addSuggestedLine(line);close();}}/>}
+      renderSetups={close=><DocumentPresetBar initiallyOpen ownerId={uid} scope="quote"
+       snapshot={quoteSetup} onApply={preset=>{applyQuoteSetup(preset);close();}}/>}
+      note="Tap any section to edit. Saved work is reusable and the quotation is never sent automatically."/>:null}
     {stage!=='overview'&&<FormFlowSteps labels={['Scope','Pricing','Final details']} active={stage==='scope'?0:stage==='pricing'?1:2}
       onSelect={index=>setStage(index===0?'scope':index===1?'pricing':'terms')}
       subtitle={stage==='scope'?'Who is the job for and what are you including?':stage==='pricing'?'Build the price and optional upgrades.':'Set validity, VAT and final customer-facing terms.'}/>}
@@ -806,8 +809,8 @@ export default function TradeQuotesScreen({goBack,onInvoiceCreated,onMaterialsCr
     onPrevious={()=>setStage('overview')}
     onNext={()=>setStage('overview')}
     primaryLabel="Done · Back to overview" amount={money(total)}
+    preview={()=>setScreen('draftPreview')}
     />}
-   <FormFlowFloatingPreview onPress={()=>setScreen('draftPreview')} label="A4 preview"/>
    </View>}
  </View>;
 }
