@@ -173,14 +173,6 @@ type RequestItem = {
 
 type DispatchStage = 'form' | 'searching' | 'matched' | 'unavailable';
 
-type LiveDispatchCandidate = {
-  userId: string;
-  trade: Trade;
-  distance: number;
-  eta: number;
-  nearbyNow: boolean;
-};
-
 const distanceMilesBetween = (
   a: { latitude: number; longitude: number },
   b: { latitude: number; longitude: number }
@@ -4092,107 +4084,6 @@ function UrgentScreen({
     }
   };
 
-  const loadLiveCandidates = async (
-    coords: { latitude: number; longitude: number },
-    searchRadius: number
-  ): Promise<LiveDispatchCandidate[]> => {
-    const { data: profileRows, error: profileError } = await supabase
-      .from('tradesperson_profiles')
-      .select(
-        'user_id, display_name, primary_trade, avatar_url, public_phone, is_verified, is_insured, rating, review_count, bio'
-      )
-      .eq('primary_trade', trade);
-
-    if (profileError) throw profileError;
-    if (!profileRows?.length) return [];
-
-    const ids = profileRows.map(row => row.user_id);
-
-    const [{ data: availabilityRows, error: availabilityError }, { data: presenceRows, error: presenceError }] =
-      await Promise.all([
-        supabase.from('trade_availability')
-          .select('user_id, is_available, emergency_opt_in, radius_miles, service_radius_miles, location_mode, available_until, work_area_latitude, work_area_longitude')
-          .in('user_id', ids)
-          .eq('is_available', true)
-          .eq('emergency_opt_in', true),
-        supabase.from('trade_map_presence')
-          .select('user_id, latitude, longitude, source_mode, updated_at')
-          .in('user_id', ids),
-      ]);
-
-    if (availabilityError) throw availabilityError;
-    if (presenceError) throw presenceError;
-
-    const availabilityMap = new Map((availabilityRows ?? []).map(row => [row.user_id, row]));
-    const presenceMap = new Map((presenceRows ?? []).map(row => [row.user_id, row]));
-    const now = Date.now();
-
-    return profileRows
-      .map(profile => {
-        const availability = availabilityMap.get(profile.user_id);
-        const presence = presenceMap.get(profile.user_id);
-        if (!availability?.is_available || !availability.emergency_opt_in) return null;
-        if (availability.available_until &&
-          new Date(availability.available_until).getTime() <= now) return null;
-
-        const areaLat = Number(availability.work_area_latitude);
-        const areaLon = Number(availability.work_area_longitude);
-        if (availability.work_area_latitude == null || availability.work_area_longitude == null ||
-          !Number.isFinite(areaLat) || !Number.isFinite(areaLon)) return null;
-        const workCentre = {latitude:areaLat,longitude:areaLon};
-        const coverageDistance = distanceMilesBetween(coords,workCentre);
-        const serviceRadius = Math.min(50,Math.max(1,Number(availability.service_radius_miles) || 20));
-        if (coverageDistance > serviceRadius + .6) return null;
-
-        const nearbyNow = Boolean(availability.location_mode === 'live' &&
-          presence?.source_mode === 'live' && presence?.updated_at &&
-          now - new Date(presence.updated_at).getTime() >= 0 &&
-          now - new Date(presence.updated_at).getTime() <= 10 * 60 * 1000);
-        const point = nearbyNow && Number.isFinite(Number(presence?.latitude)) &&
-          Number.isFinite(Number(presence?.longitude))
-          ? {latitude:Number(presence?.latitude),longitude:Number(presence?.longitude)}
-          : workCentre;
-        const distance = distanceMilesBetween(coords,point);
-        const urgentRadius = Math.min(searchRadius,Number(availability.radius_miles) || 10);
-        if (distance > urgentRadius) return null;
-
-        // A rough dispatch estimate, not a confirmed travel time or live ETA.
-        const eta = estimatedDispatchEta(distance);
-        const liveTrade: Trade = {
-          id:'live-' + profile.user_id,
-          name:profile.display_name || 'Local tradesperson',
-          role:trade,
-          distance:Number(distance.toFixed(1)),
-          eta,
-          rating:Number(profile.rating) || 0,
-          reviews:Number(profile.review_count) || 0,
-          image:profile.avatar_url || '',
-          accent:C.blue,
-          callout:0,
-          available:true,
-          verified:Boolean(profile.is_verified),
-          insured:Boolean(profile.is_insured),
-          response:eta,
-          years:0,
-          phone:profile.public_phone || '',
-          about:profile.bio || 'Available for urgent local work.',
-          services:['Urgent call-out'],
-          mapLatitude:point.latitude,
-          mapLongitude:point.longitude,
-          nearbyNow,
-          emergencyOptIn:true,
-          serviceRadiusMiles:serviceRadius,
-          coverageDistanceMiles:Number(coverageDistance.toFixed(1)),
-        };
-        return {userId:profile.user_id,trade:liveTrade,distance,eta,nearbyNow};
-      })
-      .filter(Boolean)
-      // An actively sharing nearby tradesperson takes priority over a work-area pin.
-      .sort((a,b) => Number(Boolean((b as LiveDispatchCandidate).nearbyNow)) -
-                       Number(Boolean((a as LiveDispatchCandidate).nearbyNow)) ||
-        (a as LiveDispatchCandidate).distance - (b as LiveDispatchCandidate).distance) as LiveDispatchCandidate[];
-  };
-
   const loadAcceptedTrade = async (userId: string, etaMinutes?: number | null) => {
     const [{ data: profile }, { data: presenceRows }, { data: offerRows }] = await Promise.all([
       supabase
@@ -4254,18 +4145,8 @@ function UrgentScreen({
   useEffect(() => {
     if (!requestId) return;
 
-    const channel = supabase
-      .channel('urgent-request-' + requestId)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'urgent_requests',
-          filter: 'id=eq.' + requestId,
-        },
-        async payload => {
-          const row = payload.new as any;
+    let active=true;
+    const applyRow=async(row:any)=>{if(!active||!row)return;
           setMatchStatus(row.status || 'searching');
 
           if (
@@ -4288,13 +4169,17 @@ function UrgentScreen({
             setMatchedTrade(null);
             setMatchedTradeUserId(null);
           }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
     };
+    const reconcile=async()=>{
+      const {data,error}=await supabase.from('urgent_requests').select('status,accepted_tradesperson_id,estimated_arrival_minutes').eq('id',requestId).maybeSingle();
+      if(!error&&active)await applyRow(data);
+    };
+    const channel=supabase.channel('urgent-request-'+requestId)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'urgent_requests',filter:'id=eq.'+requestId},payload=>{void applyRow(payload.new)})
+      .subscribe(status=>{if(status==='SUBSCRIBED')void reconcile()});
+    void reconcile();
+    const retry=setInterval(()=>{void reconcile()},15000);
+    return ()=>{active=false;clearInterval(retry);supabase.removeChannel(channel)};
   }, [requestId, matchedTradeUserId]);
 
   useEffect(() => {
@@ -4338,145 +4223,37 @@ function UrgentScreen({
   }, [matchedTradeUserId, demoMode, jobLocation, stage]);
 
   const find = async () => {
-    if (!issue.trim()) {
-      Alert.alert('Tell us what happened', 'Add a short description of the job before searching.');
-      return;
-    }
-
+    if(submitting)return;
+    if(issue.trim().length<3){Alert.alert('Tell us what happened','Add a short description before searching.');return;}
     setSubmitting(true);
-
-    try {
-      const coords = jobLocation ?? (await resolveCurrentLocation());
-      if (!coords) return;
-
-      const searchRadius = urgency === 'ASAP' ? 10 : urgency === 'Today' ? 15 : 20;
-      let liveCandidates: LiveDispatchCandidate[] = [];
-
-      try {
-        liveCandidates = await loadLiveCandidates(coords, searchRadius);
-      } catch {
-        Alert.alert('Availability unavailable', 'We could not check which professionals are online. Please check your connection and try again.');
-        setStage('form');
-        return;
-      }
-
-      setStage('searching');
-      setMatchStatus('searching');
-      setMatchedTrade(null);
-      setMatchedTradeUserId(null);
-
-      if (!liveCandidates.length) {
-        setCandidateCount(0);
-        setSearchNote('No available ' + trade.toLowerCase() + 's found nearby at the moment.');
-        setDemoMode(false);
-        setStage('unavailable');
-        return;
-      }
-
-      setCandidateCount(liveCandidates.length);
-      setSearchNote(
-        'Request sent to the closest available ' +
-          trade.toLowerCase() +
-          (liveCandidates.length === 1 ? '.' : 's first.')
-      );
-      setDemoMode(false);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        Alert.alert('Sign in required', 'Please sign in again to send an urgent request.');
-        setStage('form');
-        return;
-      }
-
-      const approximateLatitude = Number(coords.latitude.toFixed(2));
-      const approximateLongitude = Number(coords.longitude.toFixed(2));
-
-      const { data: request, error: requestError } = await supabase
-        .from('urgent_requests')
-        .insert({
-          customer_id: user.id,
-          trade,
-          issue: issue.trim(),
-          urgency,
-          latitude: approximateLatitude,
-          longitude: approximateLongitude,
-          location_label: 'Approximate job area',
-          photo_url: null,
-          search_radius_miles: searchRadius,
-          status: 'searching',
-        })
-        .select('id')
-        .single();
-
-      if (requestError || !request) throw requestError || new Error('Could not create request');
-
-      const { error: exactLocationError } = await supabase
-        .from('urgent_request_locations')
-        .insert({
-          request_id: request.id,
-          customer_id: user.id,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        });
-
-      if (exactLocationError) {
-        await supabase
-          .from('urgent_requests')
-          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-          .eq('id', request.id);
-        throw exactLocationError;
-      }
-
-      setRequestId(request.id);
-
-      const offerRows = liveCandidates.slice(0, 8).map(candidate => ({
-        request_id: request.id,
-        tradesperson_id: candidate.userId,
-        distance_miles: Number(candidate.distance.toFixed(2)),
-        eta_minutes: candidate.eta,
-        status: 'offered',
-      }));
-
-      const { error: offerError } = await supabase
-        .from('urgent_request_offers')
-        .insert(offerRows);
-
-      if (offerError) throw offerError;
-
-      addRequest({
-        id: request.id,
-        trade,
-        issue: issue.trim(),
-        urgency,
-        status: 'Searching',
+    try{
+      const coords=jobLocation ?? await resolveCurrentLocation();
+      if(!coords)return;
+      const searchRadius=urgency==='ASAP'?10:urgency==='Today'?15:20;
+      const {data,error}=await supabase.rpc('tradarr_dispatch_urgent',{
+        p_trade:trade,p_issue:issue.trim(),p_urgency:urgency,p_latitude:coords.latitude,p_longitude:coords.longitude,p_radius:searchRadius
       });
-    } catch (error: any) {
-      setStage('form');
-      Alert.alert(
-        'Could not start the search',
-        error?.message || 'Something went wrong while contacting nearby tradespeople.'
-      );
-    } finally {
-      setSubmitting(false);
-    }
+      if(error)throw error;
+      const result=data as {id:string|null;candidate_count:number}|null;
+      setMatchedTrade(null);setMatchedTradeUserId(null);setDemoMode(false);
+      setCandidateCount(result?.candidate_count||0);
+      if(!result?.id){setSearchNote('No available '+trade.toLowerCase()+'s found nearby at the moment.');setStage('unavailable');return;}
+      setRequestId(result.id);setMatchStatus('searching');setStage('searching');
+      setSearchNote('Request sent to available nearby professionals.');
+      addRequest({id:result.id,trade,issue:issue.trim(),urgency,status:'Searching',source:'urgent'});
+    }catch(error:any){
+      setStage('form');Alert.alert('Could not start the search',error?.message||'Check your connection and try again.');
+    }finally{setSubmitting(false);}
   };
 
   const cancelSearch = async () => {
-    if (requestId) {
-      await supabase
-        .from('urgent_requests')
-        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-        .eq('id', requestId);
+    if(requestId){
+      const {data,error}=await supabase.from('urgent_requests')
+        .update({status:'cancelled',updated_at:new Date().toISOString()})
+        .eq('id',requestId).in('status',['searching','matched','en_route']).select('id').maybeSingle();
+      if(error||!data){Alert.alert('Could not cancel',error?.message||'This request may have changed. Check its latest status.');return;}
     }
-
-    setRequestId(null);
-    setMatchedTrade(null);
-    setMatchedTradeUserId(null);
-    setDemoMode(false);
-    setStage('form');
+    setRequestId(null);setMatchedTrade(null);setMatchedTradeUserId(null);setDemoMode(false);setStage('form');
   };
 
   const messageMatchedTrade = async () => {
