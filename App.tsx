@@ -37,6 +37,7 @@ import TradarrCrewScreen from './TradarrCrewScreen';
 import TradeBusinessSuiteScreen from './TradeBusinessSuiteScreen';
 import type {BusinessFeature,QuoteDraftFromSuite} from './TradeBusinessSuiteScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
+import CustomerHomeMapHero from './CustomerHomeMapHero';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
 import TradarrInboxScreen from './TradarrInboxScreen';
@@ -48,7 +49,7 @@ import {ARRIVAL_ETA_PRESETS,etaAgeLabel,shareJobArrivalEstimate} from './lib/job
 import type {PublishedRoute,RouteCandidate} from './lib/routeMatching';
 import { theme } from './theme';
 import { MotionPressable, FadeSlideIn, LiveStatusDot, MovingArrow, ScreenReveal, NavPill, JobMatchJourney, FlowStep, FlowProgressSegment, ChoiceIndicator, StatusSwap, ContentSwap, MapCardReveal } from './Motion';
-import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone } from 'lucide-react-native';
+import { Compass, BarChart3, HandCoins, FileText, Users, Package, TrendingUp, Home as HomeIcon, BriefcaseBusiness, Map as MapIcon, MessageCircle, UserRound, RotateCw, MapPin, Power, Crosshair, Zap, CalendarDays, Inbox, ShieldCheck, ChevronRight, Camera, Pencil, Route, ArrowLeft, ArrowUp, ArrowRight, Clock3, Send, Search, X, Wrench, Hammer, PlugZap, Flame, Navigation2, SlidersHorizontal, List as ListIcon, Heart, Star, CalendarClock, CheckCircle2, Check, Plus, ClipboardList, CircleHelp, Bell, LockKeyhole, Radar, Sparkles, Bot, FolderLock, Repeat, Globe, ClipboardCheck, Megaphone, Bookmark, Layers } from 'lucide-react-native';
 import { supabase } from './lib/supabase';
 import * as Updates from 'expo-updates';
 import { SymbolView } from 'expo-symbols';
@@ -147,6 +148,8 @@ type CustomerScreen =
   | 'discover'
   | 'messages'
   | 'customerProfile'
+  | 'savedTrades'
+  | 'addressSettings'
   | 'assurance';
 
 type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeDocuments' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro' | 'tradeAssurance';
@@ -793,6 +796,7 @@ function TradarrApp() {
   const [selectedCategory, setSelectedCategory] = useState<TradeCategory | 'All'>('All');
   const [serviceIntent, setServiceIntent] = useState<{ trade: TradeCategory; service: string; timing: string } | null>(null);
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [requestsOwner,setRequestsOwner]=useState<string|null>(null);
   const [customerRequestsSyncError,setCustomerRequestsSyncError]=useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
 
@@ -857,7 +861,7 @@ function TradarrApp() {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .map(({ createdAt, ...item }) => item);
 
-      setRequests(merged);
+      setRequests(merged);setRequestsOwner(userId);
     };
 
     void loadCustomerRequests();
@@ -1391,9 +1395,9 @@ function TradarrApp() {
   if (customerScreen === 'discover') {
     return <CustomerDiscoverScreen navigate={screen=>{if(screen==='myHome')setHomeBackScreen('discover');setCustomerScreen(screen);}} />;
   }
-  if (customerScreen === 'customerProfile') {
+  if (customerScreen === 'customerProfile' || customerScreen === 'savedTrades' || customerScreen === 'addressSettings') {
     return (
-      <CustomerProfileScreen
+      <CustomerProfileScreen key={customerScreen} initialPanel={customerScreen==='savedTrades'?'saved':customerScreen==='addressSettings'?'address':null}
         navigate={screen => {if(screen==='myHome')setHomeBackScreen('customerProfile');setCustomerScreen(screen);}}
         openTrade={openTrade}
         switchToTrade={() => {
@@ -1411,6 +1415,8 @@ function TradarrApp() {
 
   return (
     <MarketplaceHomeScreen
+      key={session?.user.id||'customer'} requests={requestsOwner===session?.user.id?requests:[]} syncError={customerRequestsSyncError||requestsOwner!==session?.user.id}
+      onOpenRequest={request=>{setSelectedRequest(request);setCustomerScreen('requestDetail')}}
       selectedCategory={selectedCategory}
       setSelectedCategory={setSelectedCategory}
       navigate={screen => {if(screen==='myHome')setHomeBackScreen('home');setCustomerScreen(screen);}}
@@ -1558,18 +1564,24 @@ function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>vo
 }
 
 function MarketplaceHomeScreen({
+  requests,syncError,onOpenRequest,
   selectedCategory,
   setSelectedCategory,
   navigate,
   onStartIntent,
   onOpenRoute,
 }: {
+  requests:RequestItem[];syncError:boolean;onOpenRequest:(request:RequestItem)=>void;
   selectedCategory: TradeCategory | 'All';
   setSelectedCategory: (category: TradeCategory | 'All') => void;
   navigate: (screen: CustomerScreen) => void;
   onStartIntent: (trade: TradeCategory, service: string, timing: string) => void;
   onOpenRoute: () => void;
 }) {
+  const {width,fontScale}=useWindowDimensions();
+  const compact=width<350||fontScale>1.25;
+  const [savedCount,setSavedCount]=useState<number|null>(null);
+  const [unreadCount,setUnreadCount]=useState<number|null>(null);
   const [firstName, setFirstName] = useState('');
   const [address, setAddress] = useState('');
   const [flowOpen, setFlowOpen] = useState(false);
@@ -1584,17 +1596,19 @@ function MarketplaceHomeScreen({
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !active) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('first_name, default_address')
-        .eq('id', user.id)
-        .single();
-      if (!active || !data) return;
-      setFirstName(data.first_name || '');
-      setAddress(data.default_address || '');
+      const [profile,saved,unread]=await Promise.all([
+        supabase.from('profiles').select('first_name, default_address').eq('id',user.id).single(),
+        supabase.from('saved_tradespeople').select('tradesperson_id',{count:'exact',head:true}).eq('customer_id',user.id),
+        supabase.rpc('tradarr_unread_conversation_counts')
+      ]);
+      if(!active)return;
+      if(profile.data){setFirstName(profile.data.first_name||'');setAddress(profile.data.default_address||'');}
+      if(!saved.error)setSavedCount(saved.count??0);
+      if(!unread.error&&Array.isArray(unread.data))setUnreadCount(unread.data.reduce((sum:number,row:{unread_count?:number|string})=>sum+(Number(row.unread_count)||0),0));
     };
-    load();
-    return () => { active = false; };
+    void load();
+    const foreground=AppState.addEventListener('change',state=>{if(state==='active')void load()});
+    return () => { active = false; foreground.remove(); };
   }, []);
 
   const beginFlow = (trade?: TradeCategory, urgent = false) => {
@@ -1628,137 +1642,51 @@ function MarketplaceHomeScreen({
 
   return (
     <CustomerShell current="home" navigate={navigate}>
-      <ScrollView style={styles.customerHome} contentContainerStyle={styles.customerHomeContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.customerHomeHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.customerHomeGreeting}>{firstName ? 'Hi ' + firstName : 'Welcome to Tradarr'}</Text>
-            <Text style={styles.customerHomeSub}>Find the right help, without the hassle.</Text>
+      <ScrollView style={styles.customerHome} contentContainerStyle={styles.mapHomeContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.mapHomeHeader}>
+          <View style={{flex:1,minWidth:0}}>
+            <Text style={styles.mapHomeGreeting}>{firstName?'Hi '+firstName:'Welcome to Tradarr'}</Text>
+            <Text style={styles.mapHomeSubtitle}>Find the right help, without the hassle.</Text>
           </View>
-          <MotionPressable style={styles.customerHomeAvatar} onPress={() => navigate('customerProfile')}
-            accessibilityRole="button" accessibilityLabel="Open account">
-            <Text style={styles.customerHomeAvatarText}>{(firstName || 'T').charAt(0).toUpperCase()}</Text>
+          <MotionPressable style={styles.mapHomeAvatar} onPress={()=>navigate('customerProfile')} accessibilityRole="button" accessibilityLabel="Open account">
+            <Text style={styles.customerHomeAvatarText}>{(firstName||'T').charAt(0).toUpperCase()}</Text>
           </MotionPressable>
         </View>
-
-        <MotionPressable style={styles.customerAddress} onPress={() => navigate('customerProfile')}
-          accessibilityRole="button" accessibilityLabel="Choose or update your address">
-          <View style={styles.customerAddressIcon}><Navigation2 color={theme.colors.teal} size={22} strokeWidth={2} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.customerAddressEyebrow}>WHERE YOU NEED HELP</Text>
-            <Text style={styles.customerAddressText} numberOfLines={1}>{address || 'Choose an address'}</Text>
-          </View>
-          <ChevronRight color={theme.colors.muted} size={19} strokeWidth={2} />
+        <MotionPressable style={styles.mapHomeAddress} onPress={()=>navigate('addressSettings')} accessibilityRole="button" accessibilityLabel="Choose or update your address">
+          <View style={styles.mapHomeGlyph}><Navigation2 color={theme.colors.teal} size={22}/></View>
+          <View style={{flex:1,minWidth:0}}><Text style={styles.mapHomeEyebrow}>WHERE YOU NEED HELP</Text><Text style={styles.mapHomeAddressText} numberOfLines={2}>{address||'Choose an address'}</Text></View>
+          <ChevronRight size={19} color={theme.colors.muted}/>
         </MotionPressable>
-
-        <FadeSlideIn>
-        <View style={styles.customerJobHero}>
-          <MotionPressable onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Describe a job"
-            style={styles.customerJobHeroMain}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerJobHeroTitle}>Stop chasing tradespeople.</Text>
-              <Text style={styles.customerJobHeroSub}>Post your job once. Nearby pros can respond.</Text>
-            </View>
-            <View style={styles.customerJobHeroArrow}><MovingArrow><ArrowRight color={theme.colors.ink} size={23} strokeWidth={2.3} /></MovingArrow></View>
+        <CustomerHomeMapHero onPost={()=>beginFlow()} onExplore={()=>{setSelectedCategory('All');navigate('map')}} compact={compact}/>
+        <Text style={styles.mapHomeSection}>Choose your route</Text>
+        <View style={[styles.mapHomeRouteRow,compact&&{flexDirection:'column'}]}>
+          <MotionPressable style={[styles.mapHomeRoute,styles.mapHomeUrgent]} onPress={()=>beginFlow(undefined,true)} accessibilityRole="button" accessibilityLabel="Help ASAP">
+            <View style={[styles.mapHomeGlyph,{backgroundColor:'#E77C58'}]}><Zap size={24} color="#fff"/></View>
+            <View style={{flex:1,minWidth:0}}><Text style={[styles.mapHomeRouteTitle,{color:'#fff'}]}>Help ASAP</Text><Text style={[styles.mapHomeRouteCopy,{color:'#FFF5EF'}]}>Get urgent help from available trades.</Text></View>
+            <ArrowRight size={17} color="#fff"/>
           </MotionPressable>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.customerQuickChips}>
-            {([
-              ['Taps & pipework', 'Plumber'],
-              ['Sockets & switches', 'Electrician'],
-              ['No heating', 'Heating'],
-            ] as [string, TradeCategory][]).map(([label, trade]) => (
-              <MotionPressable key={label} style={styles.customerQuickChip} onPress={() => beginFlow(trade)}
-                accessibilityRole="button" accessibilityLabel={'Start ' + label + ' request'}>
-                <Text style={styles.customerQuickChipText}>{label}</Text>
-              </MotionPressable>
-            ))}
-          </ScrollView>
-          <JobMatchJourney/>
-        </View>
-        </FadeSlideIn>
-
-        <View style={styles.customerUSPHeading}>
-          <Text style={styles.customerUSPTitle}>Two ways to get the job done</Text>
-          <Text style={styles.customerUSPSubtitle}>Urgent help or flexible timing — you choose.</Text>
-        </View>
-        <FadeSlideIn delay={85}>
-        <View style={styles.customerActionRow}>
-          <MotionPressable style={[styles.customerActionCard, styles.customerUrgent]} onPress={() => beginFlow(undefined, true)}
-            accessibilityRole="button" accessibilityLabel="Find urgent help">
-            <View style={styles.customerActionTop}>
-              <View style={styles.customerUrgentIcon}><Zap size={23} color="#FFFFFF" strokeWidth={2} /></View>
-              <ArrowRight color="#FFFFFF" size={21} strokeWidth={2} />
-            </View>
-            <Text style={styles.customerActionTitleWhite}>Help ASAP</Text>
-            <Text style={styles.customerActionBodyWhite}>Send your job to available tradespeople nearby.</Text>
-          </MotionPressable>
-          <MotionPressable style={[styles.customerActionCard, styles.customerFlexible]} onPress={onOpenRoute}
-            accessibilityRole="button" accessibilityLabel="Find a flexible appointment">
-            <View style={styles.customerActionTop}>
-              <View style={styles.customerFlexIcon}><Route size={23} color={theme.colors.ink} strokeWidth={2} /></View>
-              <ArrowRight color={theme.colors.ink} size={21} strokeWidth={2} />
-            </View>
-            <Text style={styles.customerActionTitle}>Fit a local route</Text>
-            <Text style={styles.customerActionBody}>Nearby pros may fit your job around other work.</Text>
+          <MotionPressable style={[styles.mapHomeRoute,{backgroundColor:'#DCECEB'}]} onPress={onOpenRoute} accessibilityRole="button" accessibilityLabel="Plan it around you">
+            <View style={[styles.mapHomeGlyph,{backgroundColor:'#C9E0DE'}]}><CalendarDays size={23} color={theme.colors.teal}/></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.mapHomeRouteTitle}>Plan it around you</Text><Text style={styles.mapHomeRouteCopy}>Find flexible local appointments.</Text></View>
+            <ArrowRight size={17} color={theme.colors.ink}/>
           </MotionPressable>
         </View>
-        </FadeSlideIn>
-
-        <View style={styles.customerSectionHeading}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.customerSectionTitle}>Browse by trade</Text>
-            <Text style={styles.customerSectionSub}>Choose a service to get started</Text>
-          </View>
-          <MotionPressable style={styles.customerSeeAll} onPress={() => { setSelectedCategory('All'); navigate('map'); }}
-            accessibilityRole="button" accessibilityLabel="See all tradespeople">
-            <Text style={styles.customerSeeAllText}>See all</Text>
-            <ChevronRight size={16} color={theme.colors.teal} strokeWidth={2} />
-          </MotionPressable>
-        </View>
-        <FadeSlideIn delay={130}>
-        <View style={styles.customerTradeGrid}>
-          {customerCategoryOrder.slice(0, 4).map((category, index) => {
-            const meta = categories.find(item => item.label === category);
-            const Icon = category === 'Plumber' ? Wrench : category === 'Electrician' ? PlugZap : category === 'Builder' ? Hammer : Flame;
-            return (
-              <MotionPressable key={category} style={styles.customerTradeCard} onPress={() => beginFlow(category)}
-                accessibilityRole="button" accessibilityLabel={'Find a ' + category.toLowerCase()}>
-                <View style={styles.customerTradeIconRow}>
-                  <View style={[styles.customerTradeIcon, index % 2 ? styles.customerTradeIconCool : styles.customerTradeIconWarm]}>
-                    <Icon size={22} strokeWidth={2} color={index % 2 ? theme.colors.teal : theme.colors.coralDark} />
-                  </View>
-                  <Text style={styles.customerTradeIndex}>{String(index + 1).padStart(2, '0')}</Text>
-                </View>
-                <Text style={styles.customerTradeName}>{category}</Text>
-                <Text style={styles.customerTradeDesc} numberOfLines={3}>{categoryDescriptions[category]}</Text>
-              </MotionPressable>
-            );
-          })}
-        </View>
-        </FadeSlideIn>
-        <MotionPressable style={styles.customerMoreTrades} onPress={() => beginFlow()} accessibilityRole="button" accessibilityLabel="Browse more trades">
-          <View style={styles.customerAddressIcon}><Wrench size={20} color={theme.colors.teal} strokeWidth={2} /></View>
-          <Text style={[styles.customerTradeName, { flex: 1, marginTop: 0 }]}>More trades & services</Text>
-          <ChevronRight size={20} color={theme.colors.teal} />
+        <Text style={styles.mapHomeSection}>Quick access</Text>
+        {[
+          [{label:'Saved trades',sub:savedCount===null?'Your shortlist':savedCount+' saved',Icon:Bookmark,action:()=>navigate('savedTrades')},{label:'Messages',sub:'',Icon:MessageCircle,action:()=>navigate('messages'),count:unreadCount}],
+          [{label:'Recent activity',sub:'Your job history',Icon:Clock3,action:()=>navigate('requests')},{label:'Track requests',sub:syncError?'View requests':requests.filter(r=>!['Completed','Cancelled','Expired'].includes(r.status)).length+' active',Icon:Layers,action:()=>navigate('requests')}]
+        ].map((row,index)=><View key={index} style={[styles.mapHomeShortcutRow,compact&&{flexDirection:'column'}]}>{row.map(({label,sub,Icon,action,count})=><MotionPressable key={label} style={styles.mapHomeShortcut} onPress={action} accessibilityRole="button" accessibilityLabel={label+(sub?', '+sub:'')}>
+          <View style={styles.mapHomeShortcutGlyph}><Icon size={21} color={theme.colors.teal}/></View>
+          <View style={{flex:1,minWidth:0}}><Text style={styles.mapHomeShortcutTitle}>{label}</Text>{sub?<Text style={styles.mapHomeShortcutCopy}>{sub}</Text>:null}</View>
+          {typeof count==='number'&&count>0?<View style={styles.mapHomeCount}><Text style={styles.mapHomeCountText}>{count>99?'99+':count}</Text></View>:null}
+          <ChevronRight size={17} color={theme.colors.muted}/>
+        </MotionPressable>)}</View>)}
+        <MotionPressable style={styles.mapHomeRecent} onPress={()=>requests[0]?onOpenRequest(requests[0]):navigate('requests')} accessibilityRole="button" accessibilityLabel={requests[0]?'Open recent request':'View your requests'}>
+          <View style={[styles.mapHomeGlyph,{backgroundColor:'#31565B'}]}><Wrench size={22} color="#fff"/></View>
+          <View style={{flex:1,minWidth:0}}><Text style={[styles.mapHomeEyebrow,{color:'#DCECEB',fontSize:9}]}>{requests[0]?'RECENT REQUEST':'YOUR REQUESTS'}</Text><Text style={styles.mapHomeRecentTitle} numberOfLines={2}>{requests[0]?requests[0].trade+' – '+requests[0].issue:'No requests yet'}</Text><Text style={styles.mapHomeRecentSub}>{syncError?'Last saved activity':requests[0]?.status||'Your posted jobs will appear here.'}</Text></View>
+          {requests[0]&&!['Completed','Cancelled','Expired'].includes(requests[0].status)?<View style={styles.mapHomeActive}><Text style={{color:'#DCECEB',fontWeight:'700',fontSize:10}}>Active</Text></View>:null}
+          <ChevronRight color="#fff" size={19}/>
         </MotionPressable>
-
-        <Text style={[styles.customerSectionTitle, { marginTop: 28, marginBottom: 14 }]}>How it works</Text>
-        <View style={styles.customerSteps}>
-          {[
-            ['Describe the job', 'Tell us what needs doing and where.'],
-            ['Get matched', 'Nearby pros can respond to your request.'],
-            ['Chat and arrange', 'Agree the details with your chosen pro.'],
-          ].map(([title, copy], index) => (
-            <View key={title} style={styles.customerStepRow}>
-              <View style={[styles.customerStepNumber, index === 0 && styles.customerStepNumberFirst]}>
-                <Text style={[styles.customerStepDigit, index === 0 && { color: '#FFFFFF' }]}>{index + 1}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.customerStepTitle}>{title}</Text>
-                <Text style={styles.customerStepSub}>{copy}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
       </ScrollView>
 
       <Modal visible={flowOpen} transparent animationType="slide" onRequestClose={() => setFlowOpen(false)}>
@@ -5871,6 +5799,7 @@ function MessagesScreen({navigate,userId,initialConversationId,openActivity,onNa
 }
 
 function CustomerProfileScreen({
+  initialPanel=null,
   navigate,
   openTrade,
   switchToTrade,
@@ -5884,6 +5813,7 @@ function CustomerProfileScreen({
   signOut: () => void;
   accountType: 'customer' | 'tradesperson';
   staffAccess:boolean;
+  initialPanel?:'saved'|'address'|null;
 }) {
   const [profile, setProfile] = useState({
     first_name: '',
@@ -5892,7 +5822,7 @@ function CustomerProfileScreen({
     default_address: '',
     notifications_enabled: true,
   });
-  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | 'help' | null>(null);
+  const [editMode, setEditMode] = useState<'details' | 'address' | 'notifications' | 'saved' | 'help' | null>(initialPanel);
   const [saving, setSaving] = useState(false);
   const [profileLoaded,setProfileLoaded]=useState(false);
   const [profileLoadError,setProfileLoadError]=useState(false);
@@ -6046,9 +5976,11 @@ function CustomerProfileScreen({
 
   useEffect(() => {
     loadProfile();
+    if(initialPanel==='saved')void loadSavedTrades();
   }, []);
 
   const saveProfile = async () => {
+    if(!profileLoaded){Alert.alert('Account details not loaded','Wait for your account details to load, or reopen your account and try again.');return;}
     setSaving(true);
     const {
       data: { user },
@@ -11865,6 +11797,32 @@ const styles = StyleSheet.create({
   customerNavText: { fontSize: 10, fontWeight: '600', color: theme.colors.muted, marginTop: 3 },
   customerNavTextActive: { fontWeight: '800', color: theme.colors.ink },
   customerHome: { flex: 1, backgroundColor: theme.colors.customerBackground },
+  mapHomeContent:{paddingHorizontal:15,paddingTop:18,paddingBottom:16,gap:0},
+  mapHomeHeader:{flexDirection:'row',alignItems:'center',gap:10,marginBottom:14},
+  mapHomeGreeting:{fontFamily:theme.font.heading,fontSize:27,fontWeight:'800',letterSpacing:-.8,color:theme.colors.ink},
+  mapHomeSubtitle:{fontSize:13,color:theme.colors.muted,marginTop:4,lineHeight:18},
+  mapHomeAvatar:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center',backgroundColor:theme.colors.darkTeal},
+  mapHomeAddress:{flexDirection:'row',alignItems:'center',gap:12,minHeight:51,borderRadius:19,paddingHorizontal:12,paddingVertical:7,backgroundColor:'#fff',marginBottom:12},
+  mapHomeGlyph:{width:38,height:38,borderRadius:12,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center',flexShrink:0},
+  mapHomeEyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1.1,color:theme.colors.muted},
+  mapHomeAddressText:{fontSize:16,fontWeight:'800',color:theme.colors.ink,marginTop:2},
+  mapHomeSection:{fontSize:20,fontWeight:'800',letterSpacing:-.55,color:theme.colors.ink,marginTop:14,marginBottom:9},
+  mapHomeRouteRow:{flexDirection:'row',gap:8},
+  mapHomeRoute:{flex:1,minWidth:0,minHeight:72,borderRadius:17,flexDirection:'row',alignItems:'center',gap:6,padding:9},
+  mapHomeUrgent:{backgroundColor:'#C74D28'},
+  mapHomeRouteTitle:{fontSize:13,fontWeight:'800',letterSpacing:-.25,color:theme.colors.ink},
+  mapHomeRouteCopy:{fontSize:11,lineHeight:14,color:theme.colors.muted,marginTop:3},
+  mapHomeShortcutRow:{flexDirection:'row',gap:8,marginBottom:7},
+  mapHomeShortcut:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:7,minHeight:52,borderRadius:16,padding:9,backgroundColor:'#fff'},
+  mapHomeShortcutGlyph:{width:33,height:33,borderRadius:10,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center',flexShrink:0},
+  mapHomeShortcutTitle:{fontSize:13,fontWeight:'800',color:theme.colors.ink,letterSpacing:-.15},
+  mapHomeShortcutCopy:{fontSize:10.5,color:theme.colors.muted,marginTop:3},
+  mapHomeCount:{backgroundColor:theme.colors.coralTint,borderRadius:10,paddingHorizontal:6,paddingVertical:3},
+  mapHomeCountText:{color:theme.colors.coralText,fontSize:11,fontWeight:'800'},
+  mapHomeRecent:{flexDirection:'row',alignItems:'center',gap:9,backgroundColor:theme.colors.darkTeal,borderRadius:18,padding:11,marginTop:5,minHeight:62},
+  mapHomeRecentTitle:{fontSize:14,fontWeight:'800',color:'#fff',marginTop:3},
+  mapHomeRecentSub:{fontSize:11,color:'#D2E2E1',marginTop:3},
+  mapHomeActive:{backgroundColor:'#426B67',borderRadius:15,paddingVertical:5,paddingHorizontal:9},
   customerHomeContent: { paddingHorizontal: 23, paddingTop: 27, paddingBottom: 40 },
   customerHomeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 22 },
   customerHomeGreeting: {fontFamily:theme.font.editorial,  color: theme.colors.ink, fontSize: 29, fontWeight: '800', letterSpacing: -0.9 },
