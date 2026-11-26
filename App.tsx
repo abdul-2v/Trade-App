@@ -1644,7 +1644,7 @@ function MarketplaceHomeScreen({
 
   return (
     <CustomerShell current="home" navigate={navigate}>
-      <ScrollView style={styles.customerHome} contentContainerStyle={styles.mapHomeContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.customerHome} contentContainerStyle={styles.mapHomeContent} showsVerticalScrollIndicator={false} directionalLockEnabled bounces={false}>
         <View style={styles.mapHomeHeader}>
           <View style={{flex:1,minWidth:0}}>
             <Text style={styles.mapHomeGreeting}>{firstName?'Hi '+firstName:'Welcome to Tradarr'}</Text>

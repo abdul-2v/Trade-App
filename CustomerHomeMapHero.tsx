@@ -1,10 +1,10 @@
-import React,{useEffect,useMemo,useRef,useState} from 'react';
-import {AccessibilityInfo,Animated,Easing,StyleSheet,Text,View,Pressable,PanResponder} from 'react-native';
+import React,{useEffect,useRef,useState} from 'react';
+import {AccessibilityInfo,Animated,Easing,StyleSheet,Text,View,Pressable,AppState} from 'react-native';
 import Svg,{Path,Rect,Circle} from 'react-native-svg';
-import {ArrowRight,Zap,Map as MapIcon,Wrench,PlugZap,Hammer,X,Crosshair,Flame,Ruler} from 'lucide-react-native';
+import {ArrowRight,Zap,Map as MapIcon,Wrench,PlugZap,Hammer,X,Crosshair,Flame,Ruler,ChevronLeft,ChevronRight} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import {theme} from './theme';
-import {clampHomePan,settleHomePan,isHomePan} from './lib/homeMapMotion';
+import {clampHomePage,stepHomePage,HOME_MAP_TRAVEL} from './lib/homeMapMotion';
 
 const roads=['M-15 140 L125 65 L365 12','M-10 100 L365 155','M20 -10 L95 185','M82 -10 L185 185','M160 -10 L265 185','M235 -10 L330 185','M-10 32 L365 100','M-10 67 L365 130','M-10 167 L365 57','M-5 185 L365 110','M115 -10 L25 185','M275 -10 L188 185'];
 export type HomeMapTrade='Plumber'|'Electrician'|'Builder'|'Heating'|'Carpenter';
@@ -14,38 +14,33 @@ export default function CustomerHomeMapHero({onPost,onExplore,onAddress,compact=
  const [reduce,setReduce]=useState(true);
  const [selected,setSelected]=useState<HomeMapTrade|null>(null);
  const selectedPin=pins.find(pin=>pin.trade===selected);
- const pan=useRef(new Animated.ValueXY()).current;
- const start=useRef({x:0,y:0});
- const position=useRef({x:0,y:0});
- const dimensions=useRef({width:360,height:154});
+ // A deliberate tap moves between three camera positions. No competing pan
+ // responder, per-frame JS state updates or release velocity.
+ const camera=useRef(new Animated.Value(0)).current;
+ const pageRef=useRef(0);
+ const [page,setPage]=useState(0);
  const [mapWidth,setMapWidth]=useState(360);
- const [settled,setSettled]=useState({x:0,y:0});
- const [dragging,setDragging]=useState(false);
- const animateTo=(target:{x:number;y:number})=>{
-  setSettled(target);setDragging(false);
-  if(reduce){pan.setValue(target);position.current=target;return;}
-  Animated.timing(pan,{toValue:target,duration:280,easing:Easing.out(Easing.cubic),useNativeDriver:false,isInteraction:false}).start();
+ const [foreground,setForeground]=useState(AppState.currentState!=='background');
+ const moveTo=(requested:number)=>{
+  const next=clampHomePage(requested);
+  if(next===pageRef.current)return;
+  pageRef.current=next;setPage(next);
+  if(reduce){camera.stopAnimation();camera.setValue(next);return;}
+  Animated.timing(camera,{toValue:next,duration:380,easing:Easing.inOut(Easing.cubic),useNativeDriver:true,isInteraction:false}).start();
  };
- useEffect(()=>{const listener=pan.addListener(value=>{position.current=value});return()=>{pan.removeListener(listener);pan.stopAnimation()}},[pan]);
- const responder=useMemo(()=>PanResponder.create({
-  onMoveShouldSetPanResponderCapture:(_,g)=>isHomePan(g.dx,g.dy),
-  onMoveShouldSetPanResponder:(_,g)=>isHomePan(g.dx,g.dy),
-  onPanResponderGrant:()=>{pan.stopAnimation();start.current={...position.current};setDragging(true)},
-  onPanResponderMove:(_,g)=>{const d=dimensions.current;pan.setValue(clampHomePan(start.current.x+g.dx,start.current.y+g.dy,d.width,d.height))},
-  onPanResponderRelease:(_,g)=>{const d=dimensions.current;const next=clampHomePan(start.current.x+g.dx,start.current.y+g.dy,d.width,d.height);animateTo(reduce?next:settleHomePan(next,{x:g.vx,y:g.vy},d.width,d.height))},
-  onPanResponderTerminationRequest:()=>true,
-  onPanResponderTerminate:()=>{pan.stopAnimation();setSettled(position.current);setDragging(false)}
- }),[pan,reduce]);
- const recenter=()=>{pan.stopAnimation();animateTo({x:0,y:0});};
- const browseSide=(direction:number)=>{pan.stopAnimation();const d=dimensions.current;animateTo(clampHomePan(direction*d.width*.25,0,d.width,d.height));};
- const pinVisible=(x:number)=>{const centre=x/360*mapWidth+settled.x;return centre>=15&&centre<=mapWidth-15;};
+ const browse=(direction:number)=>moveTo(stepHomePage(pageRef.current,direction));
+ const pinVisible=(x:number)=>{const centre=x/360*mapWidth+page*mapWidth*HOME_MAP_TRAVEL;return centre>=18&&centre<=mapWidth-18;};
+ useEffect(()=>{const sub=AppState.addEventListener('change',state=>setForeground(state==='active'));return()=>sub.remove()},[]);
+ useEffect(()=>()=>camera.stopAnimation(),[camera]);
+ useEffect(()=>{if(reduce||!foreground){camera.stopAnimation();camera.setValue(pageRef.current)}},[reduce,foreground,camera]);
+ const translateX=camera.interpolate({inputRange:[-1,1],outputRange:[-mapWidth*HOME_MAP_TRAVEL,mapWidth*HOME_MAP_TRAVEL]});
  useEffect(()=>{let active=true;AccessibilityInfo.isReduceMotionEnabled().then(v=>{if(active)setReduce(v)}).catch(()=>{});const sub=AccessibilityInfo.addEventListener('reduceMotionChanged',setReduce);return()=>{active=false;sub.remove()}},[]);
- useEffect(()=>{pulse.stopAnimation();pulse.setValue(0);if(reduce)return;const anim=Animated.loop(Animated.timing(pulse,{toValue:1,duration:2900,easing:Easing.out(Easing.cubic),useNativeDriver:true,isInteraction:false}));anim.start();return()=>anim.stop()},[reduce,pulse]);
+ useEffect(()=>{pulse.stopAnimation();pulse.setValue(0);if(reduce||!foreground)return;const anim=Animated.loop(Animated.timing(pulse,{toValue:1,duration:4200,easing:Easing.out(Easing.cubic),useNativeDriver:true,isInteraction:false}));anim.start();return()=>anim.stop()},[reduce,foreground,pulse]);
  return <View style={S.hero}>
-  <View style={S.header}><Text style={S.title}>Find help near you</Text><Text style={S.subtitle}>Swipe trades · Explore real listings</Text></View>
-  <View style={S.map} {...responder.panHandlers} onLayout={e=>{const {width,height}=e.nativeEvent.layout;dimensions.current={width,height};setMapWidth(width);const next=clampHomePan(position.current.x,position.current.y,width,height);pan.stopAnimation();pan.setValue(next);setSettled(next)}}>
+  <View style={S.header}><Text style={S.title}>Find help near you</Text><Text style={S.subtitle}>Browse trades · Explore real listings</Text></View>
+  <View style={S.map} onLayout={e=>{const width=e.nativeEvent.layout.width;if(width>0)setMapWidth(width)}}>
    <Pressable style={StyleSheet.absoluteFill} onPress={()=>setSelected(null)} accessible={false}/>
-   <Animated.View pointerEvents="box-none" style={[S.overscan,{transform:pan.getTranslateTransform()}]}>
+   <Animated.View pointerEvents="box-none" style={[S.overscan,{transform:[{translateX}]}]}>
    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
    <Svg width="100%" height="100%" viewBox="-108 -33 576 231" preserveAspectRatio="none">
     <Rect x="-108" y="-33" width="576" height="231" fill="#E9E3D6"/>
@@ -59,19 +54,21 @@ export default function CustomerHomeMapHero({onPost,onExplore,onAddress,compact=
     <Circle cx="173" cy="89" r="29" fill="#E0704C" opacity=".16"/>
    </Svg></View>
    <Pressable onPress={onAddress} accessibilityRole="button" accessibilityLabel="Choose your search address" style={[S.pinAt,{left:'48.7847%',top:'52.8139%'}]}>
-    <Animated.View pointerEvents="none" style={[S.ripple,{opacity:reduce ? .16 : pulse.interpolate({inputRange:[0,1],outputRange:[.28,0]}),transform:[{scale:reduce?1:pulse.interpolate({inputRange:[0,1],outputRange:[.5,2.4]})}]}]}/>
+    <Animated.View pointerEvents="none" style={[S.ripple,{opacity:reduce ? .16 : pulse.interpolate({inputRange:[0,1],outputRange:[.18,0]}),transform:[{scale:reduce?1:pulse.interpolate({inputRange:[0,1],outputRange:[.75,1.85]})}]}]}/>
     <View pointerEvents="none" style={S.centerPin}><View style={S.centerDot}/></View>
    </Pressable>
-   {pins.map(({x,y,Icon,trade,label},index)=><Pressable key={trade} accessibilityElementsHidden={!pinVisible(x)} importantForAccessibility={pinVisible(x)?'auto':'no-hide-descendants'} style={[S.pinAt,{left:((x+108)/576*100)+'%' as `${number}%`,top:((y+33)/231*100)+'%' as `${number}%`},selected===trade&&{zIndex:3}]} onPress={()=>setSelected(current=>current===trade?null:trade)} accessibilityRole="button" accessibilityLabel={'Select '+label.toLowerCase()} accessibilityState={{selected:selected===trade}}>
-    <Animated.View pointerEvents="none" style={[S.pinMotion,{transform:[{translateY:reduce||dragging||selected===trade?0:pulse.interpolate({inputRange:[0,.35,.7,1],outputRange:[0,-(index+2),-1,0]})}]}]}>
+   {pins.map(({x,y,Icon,trade,label})=><Pressable key={trade} accessibilityElementsHidden={!pinVisible(x)} importantForAccessibility={pinVisible(x)?'auto':'no-hide-descendants'} style={[S.pinAt,{left:((x+108)/576*100)+'%' as `${number}%`,top:((y+33)/231*100)+'%' as `${number}%`},selected===trade&&{zIndex:3}]} onPress={()=>setSelected(current=>current===trade?null:trade)} accessibilityRole="button" accessibilityLabel={'Select '+label.toLowerCase()} accessibilityState={{selected:selected===trade}}>
+    <View pointerEvents="none" style={S.pinMotion}>
       {selected===trade&&<View style={S.selectionHalo}/>}
       <View style={[S.pinTail,selected===trade&&S.pinSelected]}/><View style={[S.pin,selected===trade&&S.pinSelected]}><Icon size={17} color="#fff" strokeWidth={2.5}/></View>
-    </Animated.View>
+    </View>
    </Pressable>)}
    </Animated.View>
    <View pointerEvents="none" style={[StyleSheet.absoluteFill,{zIndex:3}]}><Svg width="100%" height="100%" viewBox="0 0 360 165" preserveAspectRatio="none"><Path d="M0 0 H360 V0 Q339 -2 316 3 Q260 7 210 26 Q182 32 144 31 H42 Q10 31 0 49 Z" fill="#0F2A30"/></Svg></View>
    {selectedPin&&<Pressable style={S.selection} onPress={()=>setSelected(null)} accessibilityRole="button" accessibilityLabel={'Clear '+selectedPin.label.toLowerCase()+' selection'}><Text style={S.selectionText}>{selectedPin.label} selected</Text><X size={13} color={theme.colors.teal}/></Pressable>}
-   <Pressable style={S.recenter} onPress={recenter} accessibilityRole="button" accessibilityLabel="Recenter trade map" accessibilityHint="Additional actions reveal more trade shortcuts" accessibilityActions={[{name:"heating",label:"Show heating engineers"},{name:"carpentry",label:"Show carpenters"}]} onAccessibilityAction={e=>{if(e.nativeEvent.actionName==="heating")browseSide(1);if(e.nativeEvent.actionName==="carpentry")browseSide(-1)}}><View style={S.recenterIcon}><Crosshair size={17} color={theme.colors.teal}/></View></Pressable>
+   <Pressable style={[S.browse,S.browseLeft]} onPress={()=>browse(1)} disabled={page===1} accessibilityRole="button" accessibilityLabel="Browse trades to the left" accessibilityState={{disabled:page===1}}><View style={[S.browseIcon,page===1&&S.controlDisabled]}><ChevronLeft size={17} color={theme.colors.teal}/></View></Pressable>
+   <Pressable style={[S.browse,S.browseRight]} onPress={()=>browse(-1)} disabled={page===-1} accessibilityRole="button" accessibilityLabel="Browse trades to the right" accessibilityState={{disabled:page===-1}}><View style={[S.browseIcon,page===-1&&S.controlDisabled]}><ChevronRight size={17} color={theme.colors.teal}/></View></Pressable>
+   <Pressable style={S.recenter} onPress={()=>moveTo(0)} disabled={page===0} accessibilityRole="button" accessibilityLabel="Recenter trade map" accessibilityState={{disabled:page===0}}><View style={[S.recenterIcon,page===0&&S.controlDisabled]}><Crosshair size={17} color={theme.colors.teal}/></View></Pressable>
   </View>
   <View style={[S.actions,compact&&{flexDirection:'column'}]}>
    <MotionPressable style={[S.button,{backgroundColor:'#D9633C'}]} onPress={()=>onPost(selected||undefined)} accessibilityRole="button" accessibilityLabel={selected?'Post a job for a '+selected.toLowerCase():'Post a job'}><Zap size={19} color="#fff"/><Text style={[S.actionText,{color:'#fff'}]}>Post a job</Text><ArrowRight size={18} color="#fff"/></MotionPressable>
@@ -97,6 +94,10 @@ const S=StyleSheet.create({
  centerPin:{width:26,height:26,borderRadius:13,backgroundColor:'#D9633C',borderWidth:2,borderColor:'#fff',alignItems:'center',justifyContent:'center'},
  centerDot:{width:9,height:9,borderRadius:5,backgroundColor:'#fff'},
  ripple:{position:'absolute',width:42,height:42,borderRadius:21,backgroundColor:'#E0704C'},
+ browse:{position:'absolute',top:'47%',marginTop:-22,width:44,height:44,alignItems:'center',justifyContent:'center',zIndex:5},
+ browseLeft:{left:0},browseRight:{right:0},
+ browseIcon:{width:26,height:26,borderRadius:13,backgroundColor:'#FFFDF8',alignItems:'center',justifyContent:'center'},
+ controlDisabled:{opacity:.4},
  recenter:{position:'absolute',right:3,bottom:1,width:44,height:44,alignItems:'center',justifyContent:'center',zIndex:5},
  recenterIcon:{width:28,height:28,borderRadius:10,backgroundColor:'#FFFDF8',alignItems:'center',justifyContent:'center'},
  actions:{flexDirection:'row',gap:9,padding:11},

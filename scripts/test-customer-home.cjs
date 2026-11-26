@@ -12,6 +12,9 @@ assert(hero.includes('onPost(selected||undefined)')&&hero.includes('onExplore(se
 assert(app.includes("setServiceIntent(null);setSelectedCategory(trade||'All')"));
 console.log('Interactive illustrated map selection and filtered actions contract passed.');
 
-const vm=require('node:vm');const motionSource=fs.readFileSync('lib/homeMapMotion.ts','utf8');const moduleBox={exports:{}};vm.runInNewContext(ts.transpileModule(motionSource,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:moduleBox.exports});const {isHomePan,clampHomePan,settleHomePan}=moduleBox.exports;
-assert(isHomePan(25,5));assert(!isHomePan(8,0));assert(!isHomePan(10,40));assert.equal(clampHomePan(999,-999,360,154).x,90);assert.equal(clampHomePan(999,-999,360,154).y,-154*.065);assert.equal(settleHomePan({x:30,y:0},{x:9,y:0},360,154).x,90);assert.equal(settleHomePan({x:0,y:0},{x:0,y:0},360,154).x,0);
-assert(hero.includes('PanResponder.create')&&hero.includes('pan.getTranslateTransform()')&&hero.includes('Recenter trade map')&&hero.includes('viewBox="-108 -33 576 231"'));console.log('Home map drag bounds, momentum and layout contract passed.');
+const vm=require('node:vm');const motionSource=fs.readFileSync('lib/homeMapMotion.ts','utf8');const moduleBox={exports:{}};vm.runInNewContext(ts.transpileModule(motionSource,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:moduleBox.exports});const {clampHomePage,stepHomePage,HOME_MAP_TRAVEL}=moduleBox.exports;
+for(const page of [-1,0,1])for(const direction of [-1,0,1])assert.equal(stepHomePage(page,direction),Math.max(-1,Math.min(1,page+direction)));
+assert.equal(clampHomePage(NaN),0);assert.equal(clampHomePage(99),1);assert.equal(HOME_MAP_TRAVEL,.25);
+assert(!hero.includes('PanResponder')&&!hero.includes('useNativeDriver:false')&&hero.includes('transform:[{translateX}]')&&hero.includes('duration:380')&&hero.includes('onPress={()=>moveTo(0)}'));
+assert(app.includes('directionalLockEnabled bounces={false}'));
+console.log('Deliberate native-driver map camera, scroll isolation and bounds contract passed.');
