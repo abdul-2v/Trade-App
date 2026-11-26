@@ -1878,54 +1878,24 @@ function RouteSaverScreen({
       const {data:{user}}=await supabase.auth.getUser();
       if(!user)throw new Error('Please sign in again.');
       const point=await getJobPoint();
-      const matches=await findPlans(point);
       const mode=streetRun&&deadline!=='Today'?'street_run':'route';
       const timing='Flexible request · '+deadline;
-      const {data:job,error:jobError}=await supabase.from('jobs').insert({
-        customer_id:user.id,trade,issue:service,
-        job_mode:mode,timing,
-        latitude:Number(point.latitude.toFixed(2)),
-        longitude:Number(point.longitude.toFixed(2)),
-        location_label:point.source==='postcode'?'Approximate postcode work area':'Approximate requested area',
-        search_radius_miles:15,
-        flexible_deadline:deadlineISO(),
-        status:matches.length?'offered':'posted'
-      }).select('id').single();
-      if(jobError||!job)throw jobError||new Error('Could not create request.');
-
-      const {error:locationError}=await supabase.from('job_locations').insert({
-        job_id:job.id,customer_id:user.id,latitude:point.latitude,
-        longitude:point.longitude,
-        address_label:point.source==='postcode'
-          ? 'Postcode approximation; exact property address must be confirmed'
-          : 'Phone position approximation; confirm property address before visiting'
+      const {data,error}=await supabase.rpc('tradarr_post_flexible_job',{
+        p_trade:trade,p_issue:service,p_mode:mode==='street_run'?'street_run':'on_my_way',
+        p_deadline:deadlineISO(),p_latitude:point.latitude,p_longitude:point.longitude,p_area_source:point.source
       });
-      if(locationError){
-        await supabase.from('jobs').update({status:'cancelled'}).eq('id',job.id);
-        throw locationError;
-      }
-      if(matches.length){
-        const rows=matches.map(p=>({
-          job_id:job.id,tradesperson_id:p.plan.tradesperson_id,
-          route_plan_id:p.plan.id,
-          distance_miles:p.proximityMiles,
-          eta_minutes:null,route_price:null,detour_minutes:null,status:'offered'
-        }));
-        const {error:offerError}=await supabase.from('job_offers').insert(rows);
-        if(offerError){
-          await supabase.from('jobs').update({status:'cancelled'}).eq('id',job.id);
-          throw offerError;
-        }
-      }
+      if(error||!data?.id)throw error||new Error('Could not create request.');
+      const job={id:data.id};
+      const matchCount=Number(data.candidate_count)||0;
       addRequest({
         id:job.id,trade,issue:service,
         urgency:(mode==='street_run'?'Street Run':'On My Way')+' · '+timing,
-        status:matches.length?'Sent to published journeys':'Posted · awaiting a matching journey',
+        status:matchCount?'Sent to published journeys':'Posted · awaiting a matching journey',
         source:'job'
       });
       Alert.alert('Flexible request posted',
-        matches.length
-          ? 'Found '+matches.length+' relevant published journey'+(matches.length===1?'':'s')+
+        matchCount
+          ? 'Found '+matchCount+' relevant published journey'+(matchCount===1?'':'s')+
             '. Professionals must still accept, agree a time and confirm pricing. Route fit uses approximate geography.'
           : 'No eligible published journeys exist for this area and window yet. Your request will be considered when a suitable new journey is published. No visit, price or saving is confirmed.');
       navigate('requests');
@@ -4329,7 +4299,7 @@ function UrgentScreen({
               <AppIcon icon={{ ios: 'location.fill', android: 'location_on' }} size={18} color={C.blue} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.dispatchInfoTitle}>Job location confirmed</Text>
-                <Text style={styles.dispatchInfoSub}>Your exact location is only shared with tradespeople offered this job.</Text>
+                <Text style={styles.dispatchInfoSub}>Your exact job location is only shared with the assigned tradesperson after acceptance.</Text>
               </View>
             </View>
             <View style={styles.dispatchDivider} />
