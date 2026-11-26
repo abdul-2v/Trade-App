@@ -1,3 +1,2 @@
-export const HOME_MAP_TRAVEL=.25;
-export const clampHomePage=(value:number)=>Number.isFinite(value)?Math.max(-1,Math.min(1,Math.round(value))):0;
-export const stepHomePage=(page:number,direction:number)=>clampHomePage(clampHomePage(page)+(direction>0?1:direction<0?-1:0));
+export const HOME_TRADE_GROUPS=[['Plumber','Electrician','Builder'],['Heating','Carpenter','Locksmith']] as const;
+export const nextHomeTradeGroup=(group:number)=>group===0?1:0;

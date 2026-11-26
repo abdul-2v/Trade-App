@@ -12,9 +12,9 @@ assert(hero.includes('onPost(selected||undefined)')&&hero.includes('onExplore(se
 assert(app.includes("setServiceIntent(null);setSelectedCategory(trade||'All')"));
 console.log('Interactive illustrated map selection and filtered actions contract passed.');
 
-const vm=require('node:vm');const motionSource=fs.readFileSync('lib/homeMapMotion.ts','utf8');const moduleBox={exports:{}};vm.runInNewContext(ts.transpileModule(motionSource,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:moduleBox.exports});const {clampHomePage,stepHomePage,HOME_MAP_TRAVEL}=moduleBox.exports;
-for(const page of [-1,0,1])for(const direction of [-1,0,1])assert.equal(stepHomePage(page,direction),Math.max(-1,Math.min(1,page+direction)));
-assert.equal(clampHomePage(NaN),0);assert.equal(clampHomePage(99),1);assert.equal(HOME_MAP_TRAVEL,.25);
-assert(!hero.includes('PanResponder')&&!hero.includes('useNativeDriver:false')&&hero.includes('transform:[{translateX}]')&&hero.includes('duration:380')&&hero.includes('onPress={()=>moveTo(0)}'));
+const vm=require('node:vm');const motionSource=fs.readFileSync('lib/homeMapMotion.ts','utf8');const moduleBox={exports:{}};vm.runInNewContext(ts.transpileModule(motionSource,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:moduleBox.exports});const {HOME_TRADE_GROUPS,nextHomeTradeGroup}=moduleBox.exports;
+assert.equal(HOME_TRADE_GROUPS.length,2);assert.equal(new Set(HOME_TRADE_GROUPS.flat()).size,6);assert.equal(nextHomeTradeGroup(0),1);assert.equal(nextHomeTradeGroup(1),0);
+assert(!/PanResponder|translateX|Recenter trade map|ChevronLeft|ChevronRight/.test(hero));assert(hero.includes('useNativeDriver:true')&&hero.includes('onPress={switchGroup}')&&hero.includes('setSelected(null);setGroup(next)'));
+assert(hero.includes("pointerEvents={group===index?'box-none':'none'}")&&hero.includes('accessibilityElementsHidden={group!==index}'));
 assert(app.includes('directionalLockEnabled bounces={false}'));
-console.log('Deliberate native-driver map camera, scroll isolation and bounds contract passed.');
+console.log('Fixed map, accessible trade crossfade and scroll isolation checks passed.');
