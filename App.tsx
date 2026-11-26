@@ -1421,6 +1421,7 @@ function TradarrApp() {
       setSelectedCategory={setSelectedCategory}
       navigate={screen => {if(screen==='myHome')setHomeBackScreen('home');setCustomerScreen(screen);}}
       onOpenRoute={() => setCustomerScreen('route')}
+      onExploreTrade={trade=>{setServiceIntent(null);setSelectedCategory(trade||'All');setCustomerScreen('map')}}
       onStartIntent={(trade, service, timing) => {
         setSelectedCategory(trade);
         setServiceIntent({ trade, service, timing });
@@ -1564,7 +1565,7 @@ function CustomerDiscoverScreen({navigate}:{navigate:(screen:CustomerScreen)=>vo
 }
 
 function MarketplaceHomeScreen({
-  requests,syncError,onOpenRequest,
+  requests,syncError,onOpenRequest,onExploreTrade,
   selectedCategory,
   setSelectedCategory,
   navigate,
@@ -1572,6 +1573,7 @@ function MarketplaceHomeScreen({
   onOpenRoute,
 }: {
   requests:RequestItem[];syncError:boolean;onOpenRequest:(request:RequestItem)=>void;
+  onExploreTrade:(trade?:TradeCategory)=>void;
   selectedCategory: TradeCategory | 'All';
   setSelectedCategory: (category: TradeCategory | 'All') => void;
   navigate: (screen: CustomerScreen) => void;
@@ -1657,7 +1659,7 @@ function MarketplaceHomeScreen({
           <View style={{flex:1,minWidth:0}}><Text style={styles.mapHomeEyebrow}>WHERE YOU NEED HELP</Text><Text style={styles.mapHomeAddressText} numberOfLines={2}>{address||'Choose an address'}</Text></View>
           <ChevronRight size={19} color={theme.colors.muted}/>
         </MotionPressable>
-        <CustomerHomeMapHero onPost={()=>beginFlow()} onExplore={()=>{setSelectedCategory('All');navigate('map')}} compact={compact}/>
+        <CustomerHomeMapHero onPost={trade=>beginFlow(trade)} onExplore={onExploreTrade} onAddress={()=>navigate('addressSettings')} compact={compact}/>
         <Text style={styles.mapHomeSection}>Choose your route</Text>
         <View style={[styles.mapHomeRouteRow,compact&&{flexDirection:'column'}]}>
           <MotionPressable style={[styles.mapHomeRoute,styles.mapHomeUrgent]} onPress={()=>beginFlow(undefined,true)} accessibilityRole="button" accessibilityLabel="Help ASAP">
