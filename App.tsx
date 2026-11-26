@@ -1659,7 +1659,7 @@ function MarketplaceHomeScreen({
           <View style={{flex:1,minWidth:0}}><Text style={styles.mapHomeEyebrow}>WHERE YOU NEED HELP</Text><Text style={styles.mapHomeAddressText} numberOfLines={2}>{address||'Choose an address'}</Text></View>
           <ChevronRight size={19} color={theme.colors.muted}/>
         </MotionPressable>
-        <CustomerHomeMapHero onPost={trade=>beginFlow(trade)} onExplore={onExploreTrade} onAddress={()=>navigate('addressSettings')} compact={compact}/>
+        <CustomerHomeMapHero onPost={()=>beginFlow()} onExplore={()=>onExploreTrade()} compact={compact}/>
         <Text style={styles.mapHomeSection}>Choose your route</Text>
         <View style={[styles.mapHomeRouteRow,compact&&{flexDirection:'column'}]}>
           <MotionPressable style={[styles.mapHomeRoute,styles.mapHomeUrgent]} onPress={()=>beginFlow(undefined,true)} accessibilityRole="button" accessibilityLabel="Help ASAP">
