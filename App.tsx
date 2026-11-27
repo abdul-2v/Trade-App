@@ -37,6 +37,7 @@ import TradarrCrewScreen from './TradarrCrewScreen';
 import TradeBusinessSuiteScreen from './TradeBusinessSuiteScreen';
 import type {BusinessFeature,QuoteDraftFromSuite} from './TradeBusinessSuiteScreen';
 import WorkAreaMapPreview from './WorkAreaMapPreview';
+import {TradarrPulse,CustomerOpportunity,recordPulseSearch,recordPulseProfile} from './TradarrPulse';
 import CustomerHomeMapHero from './CustomerHomeMapHero';
 import BookingReschedulePanel from './BookingReschedulePanel';
 import UnifiedMessagesScreen from './UnifiedMessagesScreen';
@@ -152,7 +153,7 @@ type CustomerScreen =
   | 'addressSettings'
   | 'assurance';
 
-type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeDocuments' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro' | 'tradeAssurance';
+type TradeScreen = 'tradeHome' | 'tradeJobs' | 'tradeMap' | 'tradeMessages' | 'tradeTools' | 'tradeProfile' | 'tradeInvoices' | 'tradeQuotes' | 'tradeCustomers' | 'tradeDiary' | 'tradeProfit' | 'tradeMaterials' | 'tradeDocuments' | 'tradeGrid' | 'tradeCollective' | 'tradeCrew' | 'tradeBusinessSuite' | 'tradeRoutes' | 'tradeHours' | 'tradeTrust' | 'tradeSupport' | 'tradeSafety' | 'tradeStaff' | 'tradePro' | 'tradeAssurance' | 'tradePulse';
 type Mode = 'customer' | 'tradesperson' | 'crew';
 type TradeJobsEntry = { view: 'offers' | 'active'; filter: 'all' | 'urgent' | 'flexible' };
 
@@ -1041,6 +1042,7 @@ function TradarrApp() {
     if (tradeScreen === 'tradeAssurance') return <TradeShell current="tradeJobs" navigate={navigateTrade}>
       <TradarrJobAssuranceScreen role="tradesperson" onBack={()=>navigateTrade('tradeJobs')}/>
     </TradeShell>;
+    if (tradeScreen === 'tradePulse') return <TradeShell current="tradeJobs" navigate={navigateTrade}><ScrollView contentContainerStyle={styles.premiumPage}><MotionPressable style={styles.dispatchBackButton} onPress={()=>navigateTrade('tradeJobs')} accessibilityRole="button" accessibilityLabel="Back to Jobs"><ArrowLeft size={22} color={theme.colors.ink}/></MotionPressable><TradarrPulse mode="board" onProfile={()=>navigateTrade('tradeProfile')}/></ScrollView></TradeShell>;
     if (tradeScreen === 'tradeJobs') return <TradeJobsScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMap') return <TradeMapScreen {...tradeProps} />;
     if (tradeScreen === 'tradeMessages') return <TradeMessagesScreen {...tradeProps}
@@ -2310,6 +2312,7 @@ function MapScreen({
         ? String(result.outcode || code.slice(0,-3)).toUpperCase()
         : code;
       setManualArea({latitude:result.latitude,longitude:result.longitude,label});
+      recordPulseSearch(selectedCategory,result.latitude,result.longitude);
       setSelectedMapTrade(null);
     } catch (error:any) {
       setAreaSearchError(error?.message || 'Could not search this area. Check your connection.');
@@ -2609,13 +2612,13 @@ function MapScreen({
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           <Chip label="All trades" active={selectedCategory === 'All'} onPress={() => setSelectedCategory('All')} />
-          <Chip label="Plumber" active={selectedCategory === 'Plumber'} onPress={() => setSelectedCategory('Plumber')} />
-          <Chip label="Electrician" active={selectedCategory === 'Electrician'} onPress={() => setSelectedCategory('Electrician')} />
-          <Chip label="Builder" active={selectedCategory === 'Builder'} onPress={() => setSelectedCategory('Builder')} />
-          <Chip label="Heating" active={selectedCategory === 'Heating'} onPress={() => setSelectedCategory('Heating')} />
-          <Chip label="Locksmith" active={selectedCategory === 'Locksmith'} onPress={() => setSelectedCategory('Locksmith')} />
-          <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={() => setSelectedCategory('Carpenter')} />
-          <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={() => setSelectedCategory('Roofer')} />
+          <Chip label="Plumber" active={selectedCategory === 'Plumber'} onPress={()=>{setSelectedCategory('Plumber');if(manualArea)recordPulseSearch('Plumber',manualArea.latitude,manualArea.longitude)}} />
+          <Chip label="Electrician" active={selectedCategory === 'Electrician'} onPress={()=>{setSelectedCategory('Electrician');if(manualArea)recordPulseSearch('Electrician',manualArea.latitude,manualArea.longitude)}} />
+          <Chip label="Builder" active={selectedCategory === 'Builder'} onPress={()=>{setSelectedCategory('Builder');if(manualArea)recordPulseSearch('Builder',manualArea.latitude,manualArea.longitude)}} />
+          <Chip label="Heating" active={selectedCategory === 'Heating'} onPress={()=>{setSelectedCategory('Heating');if(manualArea)recordPulseSearch('Heating',manualArea.latitude,manualArea.longitude)}} />
+          <Chip label="Locksmith" active={selectedCategory === 'Locksmith'} onPress={()=>{setSelectedCategory('Locksmith');if(manualArea)recordPulseSearch('Locksmith',manualArea.latitude,manualArea.longitude)}} />
+          <Chip label="Carpenter" active={selectedCategory === 'Carpenter'} onPress={()=>{setSelectedCategory('Carpenter');if(manualArea)recordPulseSearch('Carpenter',manualArea.latitude,manualArea.longitude)}} />
+          <Chip label="Roofer" active={selectedCategory === 'Roofer'} onPress={()=>{setSelectedCategory('Roofer');if(manualArea)recordPulseSearch('Roofer',manualArea.latitude,manualArea.longitude)}} />
         </ScrollView>
         <View style={styles.mapCompactControls}>
           <MotionPressable onPress={() => setShowAreaSearch(v=>!v)}
@@ -3736,6 +3739,7 @@ function TradeProfileScreen({
     }
   };
   const isLiveProfile = trade.id.startsWith('live-');
+  useEffect(()=>{recordPulseProfile(trade.id,trade.role)},[trade.id,trade.role]);
 
   useEffect(() => {
     if (!isLiveProfile) {
@@ -5320,6 +5324,7 @@ function RequestDetailScreen({
               <BookingReschedulePanel jobId={request.id}
                 currentStart={null} currentEnd={null} onUpdated={()=>{void loadRequest()}} />
             ) : null}
+            {!isDemo&&isMarketJob&&details?.job_mode==='normal'&&['Flexible','Scheduled'].includes(details?.timing)&&['posted','offered'].includes(rawStatus)&&<CustomerOpportunity jobId={request.id} onChanged={()=>void loadRequest()}/>}
             <View style={styles.customerTrackerCard}>
               <View style={styles.customerTrackerHeading}>
                 <View style={styles.customerTrackerBadge}><Clock3 size={21} color={theme.colors.teal}/></View>
@@ -6726,6 +6731,7 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
+        <TradarrPulse onOpen={()=>navigate('tradePulse')} onProfile={()=>navigate('tradeProfile')}/>
         <View style={styles.tradeDiscoverIntro}>
           <View style={{ flex: 1 }}>
             <Text style={styles.tradeDiscoverTitle}>Find your next job</Text>
@@ -7799,6 +7805,7 @@ function TradeJobsScreen({
             </View>
           </View>
         </View>
+        <MotionPressable style={styles.tradeDiscoverMain} onPress={()=>navigate('tradePulse')} accessibilityRole="button"><View style={{flex:1}}><Text style={styles.tradeDiscoverMainTitle}>Open opportunities</Text><Text style={styles.tradeDiscoverMainSub}>Browse customer-shared jobs and express interest</Text></View><ArrowRight color={theme.colors.white} size={20}/></MotionPressable>
         <View style={styles.premiumSegment}>
           <MotionPressable onPress={() => setJobsView('offers')} style={styles.premiumSegmentTab}
             pressScale={0.991} disableFlash
@@ -8310,9 +8317,13 @@ function TradeJobsScreen({
 }
 
 function TradeMapScreen({ navigate }: { screen: TradeScreen; navigate: (screen: TradeScreen) => void; switchToCustomer: () => void }) {
+  const [view,setView]=useState<'merchants'|'demand'>('merchants');
   return (
     <TradeShell current="tradeMap" navigate={navigate}>
-      <TradeSuppliersMap />
+      <View style={{flexDirection:'row',gap:8,paddingHorizontal:15,paddingVertical:6,backgroundColor:theme.colors.proBackground}}>
+       {(['merchants','demand'] as const).map(v=><Pressable key={v} accessibilityRole="button" accessibilityState={{selected:view===v}} onPress={()=>setView(v)} style={{flex:1,padding:11,borderRadius:13,backgroundColor:view===v?theme.colors.darkTeal:theme.colors.white}}><Text style={{fontWeight:'700',textAlign:'center',color:view===v?theme.colors.white:theme.colors.ink}}>{v==='merchants'?'Merchants':'Local demand'}</Text></Pressable>)}
+      </View>
+      {view==='merchants'?<TradeSuppliersMap />:<ScrollView contentContainerStyle={styles.premiumPage}><TradarrPulse mode="map" onProfile={()=>navigate('tradeProfile')}/><MotionPressable style={styles.tradeDiscoverMain} onPress={()=>navigate('tradePulse')}><Text style={styles.tradeDiscoverMainTitle}>View local opportunities</Text><ArrowRight color={theme.colors.white} size={19}/></MotionPressable></ScrollView>}
     </TradeShell>
   );
 }
@@ -8793,6 +8804,7 @@ function TradeSettingsScreen({
                 <Text style={styles.premiumPreviewText}>Preview</Text>
               </MotionPressable>
             </View>
+            <TradarrPulse mode="reach" onProfile={()=>setProfilePage('overview')}/>
             <View style={styles.premiumProfileHero}>
               <View style={styles.premiumProfileHeroTop}>
                 {avatarUrl

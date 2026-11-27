@@ -8,13 +8,16 @@ type WorkAreaMapPreviewProps = {
   longitude: number;
   showPin: boolean;
   trade?: string;
+  demandZones?: {lat:number;lng:number;band:string}[];
+  demandRadius?: number;
 };
 
 /** Lightweight, view-only map. The full merchant finder lives in the Map tab. */
-export default function WorkAreaMapPreview({ latitude, longitude, showPin, trade = '' }: WorkAreaMapPreviewProps) {
+export default function WorkAreaMapPreview({ latitude, longitude, showPin, trade = '', demandZones, demandRadius=20 }: WorkAreaMapPreviewProps) {
   const lat = Number.isFinite(latitude) && Math.abs(latitude) <= 90 ? Number(latitude.toFixed(4)) : 52.6369;
   const lon = Number.isFinite(longitude) && Math.abs(longitude) <= 180 ? Number(longitude.toFixed(4)) : -1.1398;
   const nearby = useMemo(() => {
+    if(demandZones)return [];
     const kind = trade.toLowerCase().trim();
     return LEICESTER_SUPPLIER_SEEDS
       .filter(shop => !kind || shop.kinds.some(item => item.toLowerCase() === kind))
@@ -26,7 +29,7 @@ export default function WorkAreaMapPreview({ latitude, longitude, showPin, trade
       })
       .slice(0, 9)
       .map(shop => [shop.longitude, shop.latitude]);
-  }, [lat, lon, trade]);
+  }, [lat, lon, trade, demandZones]);
 
   const html = useMemo(() => `
 <!doctype html>
@@ -58,21 +61,23 @@ box-shadow:0 0 0 6px rgba(206,112,82,.20),0 4px 14px #203E5555;box-sizing:border
 .maplibregl-control-container{display:none}
 #attribution{position:absolute;z-index:4;right:5px;bottom:3px;background:#ffffffc4;color:#637683;font-size:8px;padding:2px 4px;border-radius:4px}
 </style></head><body>
-<div id="fallback">Work area preview</div><div id="map"></div><div class="preview-sheen" aria-hidden="true"></div>
+<div id="fallback">${demandZones?"Demand map loading":"Work area preview"}</div><div id="map"></div><div class="preview-sheen" aria-hidden="true"></div>
 <div id="attribution">© OpenStreetMap contributors · OpenFreeMap</div>
 <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script>
 try {
   var map = new maplibregl.Map({
     container:'map',style:'https://tiles.openfreemap.org/styles/liberty',
-    center:[${lon},${lat}],zoom:11.25,interactive:false,attributionControl:false,fadeDuration:200
+    center:[${lon},${lat}],zoom:${demandZones?Math.max(8,Math.min(12,12-Math.log2(Math.max(1,demandRadius)/5))):11.25},interactive:false,attributionControl:false,fadeDuration:200
   });
   map.on('load',function(){
     document.getElementById('fallback').style.display='none';
-    if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    if(!${Boolean(demandZones)} && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
       map.easeTo({center:[${lon},${lat}],zoom:11.9,duration:870,
         easing:function(t){return 1-Math.pow(1-t,3)}});
-    }else{map.jumpTo({zoom:11.9});}
+    }else if(!${Boolean(demandZones)}){map.jumpTo({zoom:11.9});}
+    var zones = ${JSON.stringify((demandZones||[]).filter(z=>Number.isFinite(z.lat)&&Number.isFinite(z.lng)&&['5–9','10–19','20+'].includes(z.band)))};
+    if(zones.length){map.addSource('pulse-zones',{type:'geojson',data:{type:'FeatureCollection',features:zones.map(z=>({type:'Feature',geometry:{type:'Point',coordinates:[z.lng,z.lat]},properties:{band:z.band}}))}});map.addLayer({id:'pulse-zones',type:'circle',source:'pulse-zones',paint:{'circle-radius':['interpolate',['linear'],['zoom'],8,13,12,47],'circle-color':'#E0704C','circle-opacity':0.28,'circle-stroke-width':1,'circle-stroke-color':'#C4502B'}});zones.forEach(z=>{var label=document.createElement('div');label.style.cssText='background:#0F2A30;color:white;border-radius:12px;padding:4px 8px;font-weight:700;font-size:12px';label.textContent=z.band;new maplibregl.Marker({element:label}).setLngLat([z.lng,z.lat]).addTo(map)});}
     var shops = ${JSON.stringify(nearby)};
     shops.forEach(function(coords,index){
       var pin=document.createElement('div');pin.className='shop-pin';pin.style.setProperty('--delay',(index*95)+'ms');
@@ -83,8 +88,8 @@ try {
       new maplibregl.Marker({element:dot,anchor:'center'}).setLngLat([${lon},${lat}]).addTo(map);
     }
   });
-}catch(error){ document.getElementById('fallback').textContent='Open map to explore your area'; }
-</script></body></html>`, [lat, lon, showPin, nearby]);
+}catch(error){ document.getElementById('fallback').textContent='Map temporarily unavailable'; }
+</script></body></html>`, [lat, lon, showPin, nearby,demandZones,demandRadius]);
 
   return (
     <View style={styles.frame}>
