@@ -12,7 +12,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "check:syntax": "node scripts/check-syntax.cjs",
-    "test:logic": "node scripts/test-marketplace-logic.cjs && npm run test:scheduling && npm run test:messaging-postcodes && npm run test:launch-security && npm run test:customer-home && npm run test:pulse",
+    "test:logic": "node scripts/test-marketplace-logic.cjs && npm run test:scheduling && npm run test:messaging-postcodes && npm run test:launch-security && npm run test:customer-home && npm run test:pulse && npm run test:compact-dashboard",
     "check:ux": "node scripts/check-ux.cjs",
     "test:account": "node scripts/test-account-registration.cjs",
     "dev:auto:tunnel": "TRADARR_EXPO_CONNECTION=tunnel bash scripts/dev-auto.sh",
@@ -20,7 +20,8 @@
     "test:messaging-postcodes": "node scripts/test-messaging-postcodes.cjs",
     "test:launch-security": "node scripts/test-launch-security.cjs",
     "test:customer-home": "node scripts/test-customer-home.cjs",
-    "test:pulse": "node scripts/test-pulse.cjs"
+    "test:pulse": "node scripts/test-pulse.cjs",
+    "test:compact-dashboard": "node scripts/test-compact-dashboard.cjs"
   },
   "dependencies": {
     "expo": "~58.0.0",

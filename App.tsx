@@ -6170,6 +6170,15 @@ function TradeToolsOrbit({customer=false}:{customer?:boolean}={}){
  </View>;
 }
 
+function CompactDashboardFrame({children,contentStyle}:{children:React.ReactNode;contentStyle:any}){
+ const [viewport,setViewport]=useState(0),[content,setContent]=useState(0);
+ const overflow=viewport>0&&content>viewport+2;
+ return <ScrollView style={{flex:1,backgroundColor:theme.colors.proBackground}}
+  contentContainerStyle={contentStyle} scrollEnabled={overflow} bounces={false}
+  showsVerticalScrollIndicator={overflow} onLayout={e=>setViewport(e.nativeEvent.layout.height)}
+  onContentSizeChange={(_,h)=>setContent(h)}>{children}</ScrollView>;
+}
+
 function TradeToolsScreen({navigate,openBusinessSuite}:{
  navigate:(screen:TradeScreen,startCreate?:boolean)=>void;openBusinessSuite:(feature:BusinessFeature)=>void;
 }){
@@ -6213,7 +6222,11 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
   ]}
  ];
  const selected=groups.find(group=>group.id===category);
- const {width,fontScale}=useWindowDimensions();
+ const {width,height,fontScale}=useWindowDimensions();
+ const [toolPage,setToolPage]=useState(0);
+ const pageSize=height<700||fontScale>1.2?3:height<790?5:7;
+ const pages=Math.max(1,Math.ceil((selected?.tools.length||0)/pageSize));
+ const currentPage=Math.min(toolPage,pages-1);
  const compact=width<350||fontScale>1.2;
  const showOrbit=width>=365&&fontScale<=1.15;
  const shortcuts:Array<{title:string;Icon:typeof FileText;onPress:()=>void;hint:string}>=[
@@ -6223,27 +6236,26 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
   {title:'Upload file',Icon:FolderLock,onPress:()=>openBusinessSuite('documentVault'),hint:'Open the document vault to upload a file'},
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
-  <ScrollView key={category||'categories'} style={{backgroundColor:theme.colors.proBackground}} contentContainerStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,{paddingBottom:30}]}
-    showsVerticalScrollIndicator={false}>
-   {selected?<MotionPressable onPress={()=>setCategory('')} accessibilityRole="button"
+  <CompactDashboardFrame key={category||'categories'} contentStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,styles.compactToolsPage]}>
+   {selected?<MotionPressable onPress={()=>{setCategory('');setToolPage(0)}} accessibilityRole="button"
      accessibilityLabel="Back to tool categories" style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44,marginBottom:8}}>
      <ArrowLeft size={18} color={theme.colors.teal}/>
      <Text style={{fontFamily:theme.font.heading,color:theme.colors.teal,fontWeight:'800',fontSize:13}}>All categories</Text>
     </MotionPressable>:null}
-   <View style={[styles.premiumScreenHeading,!selected&&{marginBottom:15,gap:7}]}>
+   <View style={[styles.premiumScreenHeading,{marginBottom:10,gap:7}]}>
     <View style={{flex:1}}>
      <Text style={styles.premiumEyebrow}>Run your business</Text>
-     <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
+     <Text style={[styles.premiumPageTitle,styles.compactToolsTitle]}>{selected?selected.title:'Tools'}</Text>
      <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Your business, all in one place.'}</Text>
     </View>
-    {!selected&&showOrbit?<TradeToolsOrbit/>:null}
+    {!selected&&showOrbit?<View style={styles.compactOrbitFrame}><View style={styles.compactOrbitInner}><TradeToolsOrbit/></View></View>:null}
    </View>
    {!selected?<FadeSlideIn>
-    <View style={[styles.tradeToolsShortcutBar,compact&&{flexWrap:'wrap'}]}>
+    <View style={[styles.tradeToolsShortcutBar,styles.compactToolShortcuts,compact&&{flexWrap:'wrap'}]}>
      {shortcuts.map(({title,Icon,onPress,hint},index)=><MotionPressable key={title} onPress={onPress}
       accessibilityLabel={title} accessibilityHint={hint} pressScale={.96}
-      style={[styles.tradeToolsShortcutButton,compact&&{flexBasis:'48%',flexGrow:1},!compact&&index>0&&styles.tradeToolsShortcutDivider]}>
-      <View style={styles.tradeToolsShortcutGlyph}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
+      style={[styles.tradeToolsShortcutButton,styles.compactToolShortcut,compact&&{flexBasis:'48%',flexGrow:1},!compact&&index>0&&styles.tradeToolsShortcutDivider]}>
+      <View style={[styles.tradeToolsShortcutGlyph,{width:31,height:31,borderRadius:10}]}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
       <Text style={styles.tradeToolsShortcutLabel}>{title}</Text>
      </MotionPressable>)}
     </View>
@@ -6251,32 +6263,28 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
      <Text style={styles.tradeToolsSectionTitleNew}>All tools</Text>
      <Text style={styles.tradeToolsIndexMeta}>{groups.reduce((sum,group)=>sum+group.tools.length,0)} tools · {groups.length} categories</Text>
     </View>
-    <View style={styles.tradeToolsTileGrid}>
-     {groups.map(group=>{
-      const wide=compact||group.id==='people';
+    <View style={styles.compactToolCategories}>
+     {groups.map((group,index)=>{
       const Icon=group.Icon;
-      return <MotionPressable key={group.id} onPress={()=>setCategory(group.id)}
+      return <MotionPressable key={group.id} onPress={()=>{setCategory(group.id);setToolPage(0)}}
        accessibilityRole="button" accessibilityLabel={'Open '+group.title+', '+group.tools.length+' tools'}
-       accessibilityHint={group.detail} pressScale={.975}
-       style={[styles.tradeToolsTile,wide&&styles.tradeToolsTileWide]}>
-       <View pointerEvents="none" style={styles.tradeToolsTileAccent}/>
-       <View style={[styles.tradeToolsTileGlyph,wide&&{marginBottom:0}]}><Icon size={25} color={theme.colors.teal} strokeWidth={1.9}/></View>
-       <View style={styles.tradeToolsTileBody}>
-        <View>
-         <Text style={styles.tradeToolsTileTitle}>{group.title}</Text>
-         <Text style={styles.tradeToolsTileDetail}>{group.detail}</Text>
-        </View>
-        <View style={styles.tradeToolsTileCount}><Text style={styles.tradeToolsTileCountText}>{group.tools.length} tools</Text></View>
+       accessibilityHint={group.detail}
+       style={[styles.compactToolCategory,index>0&&styles.tradeToolsRowDivider]}>
+       <View style={styles.compactToolCategoryGlyph}><Icon size={23} color={theme.colors.teal} strokeWidth={1.9}/></View>
+       <View style={{flex:1,minWidth:0}}>
+        <Text style={styles.tradeToolsTileTitle}>{group.title}</Text>
+        <Text style={styles.compactToolDetail}>{group.detail}</Text>
        </View>
-       <View style={wide?styles.tradeToolsTileArrowWide:styles.tradeToolsTileArrow}><ChevronRight size={17} strokeWidth={2} color={theme.colors.teal}/></View>
+       <Text style={styles.compactToolCount}>{group.tools.length}</Text>
+       <ChevronRight size={17} color={theme.colors.teal}/>
       </MotionPressable>;
      })}
     </View>
    </FadeSlideIn>:<FadeSlideIn><View style={styles.tradeToolsUnifiedList}>
-     {selected.tools.map((item,index)=>{const Icon=item.Icon;return <MotionPressable key={item.title}
+     {selected.tools.slice(currentPage*pageSize,(currentPage+1)*pageSize).map((item,index)=>{const Icon=item.Icon;return <MotionPressable key={item.title}
        accessibilityRole="button" accessibilityLabel={'Open '+item.title} accessibilityHint={item.detail}
        onPress={()=>item.route?navigate(item.route):item.feature?openBusinessSuite(item.feature):undefined}
-       style={[styles.tradeToolsUnifiedRow,index>0&&styles.tradeToolsRowDivider]}>
+       style={[styles.tradeToolsUnifiedRow,styles.compactToolItem,index>0&&styles.tradeToolsRowDivider]}>
        <View style={styles.tradeToolsRowIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
        <View style={{flex:1}}>
         <Text style={styles.tradeToolsRowTitle}>{item.title}</Text>
@@ -6284,9 +6292,9 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        </View>
        <ChevronRight size={19} color="#82958D"/>
       </MotionPressable>})}
-    </View></FadeSlideIn>}
-   <Text style={styles.tradeToolsFooter}>Your private business records are only shared when you choose to share them.</Text>
-  </ScrollView>
+    </View>{pages>1&&<View style={styles.dashboardPager}><MotionPressable accessibilityRole="button" accessibilityLabel="Previous tools page" disabled={currentPage===0} onPress={()=>setToolPage(currentPage-1)} style={[styles.dashboardPageButton,currentPage===0&&{opacity:.35}]}><ArrowLeft size={19} color={theme.colors.teal}/></MotionPressable><Text style={styles.dashboardPageText}>Page {currentPage+1} of {pages}</Text><MotionPressable accessibilityRole="button" accessibilityLabel="Next tools page" disabled={currentPage===pages-1} onPress={()=>setToolPage(currentPage+1)} style={[styles.dashboardPageButton,currentPage===pages-1&&{opacity:.35}]}><ArrowRight size={19} color={theme.colors.teal}/></MotionPressable></View>}</FadeSlideIn>}
+   <Text style={[styles.tradeToolsFooter,{marginTop:9}]}>Your private business records are only shared when you choose to share them.</Text>
+  </CompactDashboardFrame>
  </TradeShell>;
 }
 
@@ -6307,6 +6315,10 @@ function TradeHomeScreen({
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [showWorkSettings, setShowWorkSettings] = useState(false);
   const [showPlanning, setShowPlanning] = useState(false);
+  const [showHomeMore,setShowHomeMore]=useState(false);
+  const [showHomePulse,setShowHomePulse]=useState(false);
+  const {width:homeWidth,fontScale:homeFontScale}=useWindowDimensions();
+  const stackHomeChoices=homeWidth<345||homeFontScale>1.25;
   const [offersRefreshKey, setOffersRefreshKey] = useState(0);
   const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
   const [locationMode, setLocationMode] = useState<'work_area' | 'live'>('work_area');
@@ -6681,8 +6693,8 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeHomePage]} showsVerticalScrollIndicator={false}>
-        <View style={styles.premiumTopRow}>
+      <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeHomePage,styles.compactHomePage]} showsVerticalScrollIndicator={false} directionalLockEnabled>
+        <View style={[styles.premiumTopRow,{marginBottom:11}]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
             <Text style={styles.premiumPageTitle} numberOfLines={1}>{firstName}</Text>
@@ -6695,7 +6707,7 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
-        <View style={styles.premiumHomeMap}>
+        <View style={[styles.premiumHomeMap,styles.compactHomeMap,homeFontScale>1.25&&{height:225}]}>
           <View style={styles.premiumMapPreview} pointerEvents="none">
             <WorkAreaMapPreview
               latitude={previewArea?.latitude ?? 52.6369}
@@ -6706,19 +6718,19 @@ function TradeHomeScreen({
           </View>
           <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
-          <View style={styles.premiumMapStatus}>
+          <View style={[styles.premiumMapStatus,styles.compactMapStatus]}>
             <StatusSwap value={available}>
               <LiveStatusDot online={available} style={styles.premiumOnlineDot} />
               <Text style={styles.premiumMapStatusText}>
-                {available ? 'Online · receiving nearby job offers' : 'Offline · go online for local work'}
+                {available ? 'Online · receiving offers' : 'Offline · go online for work'}
               </Text>
             </StatusSwap>
           </View>
-          <MotionPressable style={styles.premiumMapLocate} onPress={() => navigate('tradeMap')}
+          <MotionPressable style={[styles.premiumMapLocate,styles.compactMapLocate]} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Find your location on the map">
             <Crosshair size={21} color={theme.colors.white} strokeWidth={2} />
           </MotionPressable>
-          <MotionPressable style={styles.premiumAvailabilityButton}
+          <MotionPressable style={[styles.premiumAvailabilityButton,styles.compactAvailabilityButton]}
             onPress={() => changeAvailable(!available)}
             disabled={savingAvailability}
             accessibilityRole="button" accessibilityLabel={available ? 'Go offline' : 'Go online'}>
@@ -6731,90 +6743,100 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
-        <View style={styles.tradeDiscoverIntro}>
+        <View style={[styles.tradeDiscoverIntro,{marginTop:2,marginBottom:7}]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.tradeDiscoverTitle}>Find your next job</Text>
-            <Text style={styles.tradeDiscoverSubtitle}>Choose the kind of work you want to review.</Text>
           </View>
         </View>
         <FadeSlideIn delay={80}>
-        <MotionPressable style={styles.tradeDiscoverMain} onPress={() => openJobs('offers', 'all')}
+        <MotionPressable style={[styles.tradeDiscoverMain,styles.compactDiscoverMain]} onPress={() => openJobs('offers', 'all')}
           accessibilityRole="button" accessibilityLabel="View all matched job offers">
-          <View style={styles.tradeDiscoverMainIcon}><Search size={23} color={theme.colors.white} strokeWidth={2.2} /></View>
+          <View style={[styles.tradeDiscoverMainIcon,{width:38,height:38,borderRadius:12}]}><Search size={23} color={theme.colors.white} strokeWidth={2.2} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tradeDiscoverEyebrow}>NEW WORK</Text>
             <Text style={styles.tradeDiscoverMainTitle}>View job offers</Text>
             <Text style={styles.tradeDiscoverMainSub}>Review work matched to your trade and area</Text>
           </View>
           <ArrowRight size={20} color={theme.colors.white} strokeWidth={2.4} />
         </MotionPressable>
-        <View style={styles.tradeDiscoverChoices}>
-          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'urgent')}
+        <View style={[styles.tradeDiscoverChoices,styles.compactDiscoverChoices,stackHomeChoices&&{flexDirection:'column'}]}>
+          <MotionPressable style={[styles.tradeDiscoverChoice,styles.compactDiscoverChoice]} onPress={() => openJobs('offers', 'urgent')}
             accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
-            <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.coralTint}]}>
+            <View style={[styles.tradeDiscoverChoiceIcon,{width:34,height:34,borderRadius:11,backgroundColor:theme.colors.coralTint}]}>
               <Zap size={23} color={theme.colors.coralDark} strokeWidth={2.2}/>
             </View>
-            <View style={{minWidth:0,width:'100%'}}>
-              <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Urgent call-outs</Text>
-              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Jobs needing a quick response</Text>
+            <View style={{minWidth:0,flex:1}}>
+              <Text style={styles.tradeDiscoverChoiceTitle}>Urgent call-outs</Text>
+              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Quick response</Text>
             </View>
           </MotionPressable>
-          <MotionPressable style={styles.tradeDiscoverChoice} onPress={() => openJobs('offers', 'flexible')}
+          <MotionPressable style={[styles.tradeDiscoverChoice,styles.compactDiscoverChoice]} onPress={() => openJobs('offers', 'flexible')}
             accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
-            <View style={[styles.tradeDiscoverChoiceIcon,{backgroundColor:theme.colors.tealTint}]}>
+            <View style={[styles.tradeDiscoverChoiceIcon,{width:34,height:34,borderRadius:11,backgroundColor:theme.colors.tealTint}]}>
               <Route size={23} color={theme.colors.teal} strokeWidth={2.2}/>
             </View>
-            <View style={{minWidth:0,width:'100%'}}>
-              <Text style={styles.tradeDiscoverChoiceTitle} numberOfLines={2}>Flexible jobs</Text>
-              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Scheduled, On My Way and Street Run</Text>
+            <View style={{minWidth:0,flex:1}}>
+              <Text style={styles.tradeDiscoverChoiceTitle}>Flexible jobs</Text>
+              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Bookings & route work</Text>
             </View>
           </MotionPressable>
         </View>
         </FadeSlideIn>
 
-                 <MotionPressable onPress={()=>navigate('tradeGrid')} style={styles.tradeGridHomeCard}
+                 <MotionPressable onPress={()=>navigate('tradeGrid')} style={[styles.tradeGridHomeCard,styles.compactGridHome]}
           accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
-          <View style={styles.tradeGridHomeIcon}><Route size={23} color={theme.colors.teal}/></View>
+          <View style={[styles.tradeGridHomeIcon,{width:35,height:35,borderRadius:11}]}><Route size={23} color={theme.colors.teal}/></View>
           <View style={{flex:1}}><Text style={styles.tradeGridHomeTitle}>A gap in your diary?</Text>
-            <Text style={styles.tradeGridHomeSub}>Publish a Grid slot and receive local enquiries.</Text></View>
+            <Text style={styles.tradeGridHomeSub}>Publish a Grid slot for local enquiries.</Text></View>
           <ChevronRight color={theme.colors.teal} size={20}/>
         </MotionPressable>
-        <View style={styles.premiumSectionRow}>
-          <Text style={styles.premiumSectionTitle}>Urgent job matches</Text>
-          <MotionPressable style={styles.premiumRefresh} onPress={() => setOffersRefreshKey(value => value + 1)}
-            accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities">
-            <RotateCw size={17} strokeWidth={2} color={theme.colors.teal} />
-            <Text style={styles.premiumRefreshText}>Refresh</Text>
+        <View style={styles.compactUrgentRow}>
+          <MotionPressable style={styles.compactUrgentLink} onPress={()=>openJobs('offers','urgent')} accessibilityRole="button" accessibilityLabel="Review urgent job matches">
+            <View style={styles.compactUtilityIcon}><Zap size={19} color={theme.colors.coralDark}/></View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.compactUtilityTitle}>Urgent job matches</Text><Text style={styles.compactUtilitySub}>{incomingOffers.length?incomingOffers.length+' ready to review':'No current matches'}</Text></View>
+            <ChevronRight size={17} color={theme.colors.teal}/>
+          </MotionPressable>
+          <MotionPressable style={styles.compactRefreshButton} onPress={()=>setOffersRefreshKey(value=>value+1)} accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities"><RotateCw size={17} color={theme.colors.teal}/></MotionPressable>
+        </View>
+
+        <View style={[styles.premiumShortcuts,styles.compactHomeShortcuts,stackHomeChoices&&{flexDirection:'column'}]}>
+          <MotionPressable style={[styles.premiumShortcut,styles.compactHomeShortcut]} onPress={() => openJobs('active', 'all')}
+            accessibilityRole="button" accessibilityLabel="View accepted active jobs">
+            <View style={[styles.premiumShortcutIcon, { width:30,height:30,borderRadius:10,marginBottom:3,backgroundColor: theme.colors.tealTint }]}>
+              <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
+            </View>
+            <Text style={styles.premiumShortcutTitle}>Active jobs</Text>
+            <Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text>
+          </MotionPressable>
+          <MotionPressable style={[styles.premiumShortcut,styles.compactHomeShortcut]} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Find merchants">
+            <View style={[styles.premiumShortcutIcon, { width:30,height:30,borderRadius:10,marginBottom:3,backgroundColor: theme.colors.coralTint }]}>
+              <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
+            </View>
+            <Text style={styles.premiumShortcutTitle}>Merchants</Text>
+            <Text style={styles.premiumShortcutSub}>Find supplies nearby</Text>
+          </MotionPressable>
+          <MotionPressable style={[styles.premiumShortcut,styles.compactHomeShortcut]} onPress={() => openJobs('offers', 'flexible')}
+            accessibilityRole="button" accessibilityLabel="View On My Way and Street Run job offers">
+            <View style={[styles.premiumShortcutIcon, { width:30,height:30,borderRadius:10,marginBottom:3,backgroundColor: '#E8EDF3' }]}>
+              <Route size={22} strokeWidth={2} color="#365875" />
+            </View>
+            <Text style={styles.premiumShortcutTitle}>Route jobs</Text>
+            <Text style={styles.premiumShortcutSub}>On My Way & Street Run</Text>
           </MotionPressable>
         </View>
 
-        <Text style={styles.tradeHomeSectionHint}>
-          Nearby urgent requests matched to you appear here. For bookings and route jobs, use Jobs → Flexible.
-        </Text>
-        {incomingOffers.length ? incomingOffers.map(offer => (
-          <MotionPressable key={offer.offerId} onPress={() => openJobs('offers', 'urgent')}
-            style={styles.premiumOfferCard} accessibilityRole="button" accessibilityLabel={'View ' + offer.issue + ' job'}>
-            <View style={styles.premiumOfferHeading}>
-              <View style={styles.premiumUrgentTag}><Text style={styles.premiumUrgentText}>{offer.urgency || 'REQUEST'}</Text></View>
-              <Text style={styles.premiumOfferDistance}>{offer.distance.toFixed(1)} mi away</Text>
-            </View>
-            <Text style={styles.premiumOfferTitle} numberOfLines={2}>{offer.issue}</Text>
-            <Text style={styles.premiumOfferMeta}>{offer.trade} · ~{offer.eta} min ETA</Text>
-            <View style={styles.premiumPrimaryButton}><Text style={styles.premiumPrimaryText}>View offer</Text></View>
-          </MotionPressable>
-        )) : (
-          <View style={styles.premiumEmptyCard}>
-            <View style={styles.premiumEmptyIcon}><Inbox size={27} strokeWidth={2} color={theme.colors.teal} /></View>
-            <Text style={styles.premiumEmptyTitle}>No live opportunities</Text>
-            <Text style={styles.premiumEmptyText}>No urgent matches right now. Turn on availability for local call-outs or review flexible job offers.</Text>
-            <MotionPressable onPress={() => openJobs('offers', 'flexible')} accessibilityRole="button"
-              style={styles.tradeDiscoverEmptyAction}>
-              <Text style={styles.tradeDiscoverEmptyActionText}>Check flexible offers</Text>
-              <ChevronRight size={17} color={theme.colors.teal} />
-            </MotionPressable>
-          </View>
-        )}
-
+        <MotionPressable style={styles.compactUtilityRow} onPress={()=>setShowHomePulse(v=>!v)} accessibilityRole="button" accessibilityState={{expanded:showHomePulse}}>
+          <View style={styles.compactUtilityIcon}><TrendingUp size={19} color={theme.colors.teal}/></View>
+          <View style={{flex:1,minWidth:0}}><Text style={styles.compactUtilityTitle}>Tradarr Pulse</Text><Text style={styles.compactUtilitySub}>Local demand & opportunities</Text></View>
+          <ChevronRight size={18} color={theme.colors.teal} style={showHomePulse?{transform:[{rotate:'90deg'}]}:undefined}/>
+        </MotionPressable>
+        {showHomePulse&&<TradarrPulse onOpen={()=>navigate('tradePulse')} onProfile={()=>navigate('tradeProfile')}/>}
+        <MotionPressable style={styles.compactUtilityRow} onPress={()=>setShowHomeMore(v=>!v)} accessibilityRole="button" accessibilityState={{expanded:showHomeMore}}>
+          <View style={styles.compactUtilityIcon}><AppIcon icon={{ios:'slider.horizontal.3',android:'tune'}} size={19} color={theme.colors.teal}/></View>
+          <View style={{flex:1,minWidth:0}}><Text style={styles.compactUtilityTitle}>Business & settings</Text><Text style={styles.compactUtilitySub}>{profileCompletion===100?'Profile complete · preferences':profileCompletion+'% profile complete · preferences'}</Text></View>
+          <ChevronRight size={18} color={theme.colors.teal} style={showHomeMore?{transform:[{rotate:'90deg'}]}:undefined}/>
+        </MotionPressable>
+        {showHomeMore&&<>
         <MotionPressable style={styles.premiumProgress} onPress={() => navigate('tradeProfile')}
           accessibilityRole="button" accessibilityLabel="Continue setting up your trade profile">
           <View style={styles.premiumProgressCircle}><Text style={styles.premiumProgressPercent}>{profileCompletion}%</Text></View>
@@ -6824,35 +6846,6 @@ function TradeHomeScreen({
           </View>
           <View style={styles.premiumSmallButton}><Text style={styles.premiumSmallButtonText}>{profileCompletion === 100 ? 'View' : 'Continue'}</Text></View>
         </MotionPressable>
-
-        <View style={styles.premiumShortcuts}>
-          <MotionPressable style={styles.premiumShortcut} onPress={() => openJobs('active', 'all')}
-            accessibilityRole="button" accessibilityLabel="View accepted active jobs">
-            <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.tealTint }]}>
-              <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
-            </View>
-            <Text style={styles.premiumShortcutTitle}>Active jobs</Text>
-            <Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text>
-          </MotionPressable>
-          <MotionPressable style={styles.premiumShortcut} onPress={() => navigate('tradeMap')}
-            accessibilityRole="button" accessibilityLabel="Find merchants">
-            <View style={[styles.premiumShortcutIcon, { backgroundColor: theme.colors.coralTint }]}>
-              <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
-            </View>
-            <Text style={styles.premiumShortcutTitle}>Merchants</Text>
-            <Text style={styles.premiumShortcutSub}>Find supplies nearby</Text>
-          </MotionPressable>
-          <MotionPressable style={styles.premiumShortcut} onPress={() => openJobs('offers', 'flexible')}
-            accessibilityRole="button" accessibilityLabel="View On My Way and Street Run job offers">
-            <View style={[styles.premiumShortcutIcon, { backgroundColor: '#E8EDF3' }]}>
-              <Route size={22} strokeWidth={2} color="#365875" />
-            </View>
-            <Text style={styles.premiumShortcutTitle}>Route jobs</Text>
-            <Text style={styles.premiumShortcutSub}>On My Way & Street Run</Text>
-          </MotionPressable>
-        </View>
-
-        <TradarrPulse onOpen={()=>navigate('tradePulse')} onProfile={()=>navigate('tradeProfile')}/>
 
         <View style={styles.proReferenceSettingsList}>
         <MotionPressable
@@ -6972,7 +6965,8 @@ function TradeHomeScreen({
         ) : null}
 
         </View>
-        <View style={{ height: 70 }} />
+        </>}
+        <View style={{ height: 4 }} />
       </ScrollView>
     </TradeShell>
   );
@@ -7004,12 +6998,12 @@ function TradeJobsEmptyMotion({online}:{online:boolean|null}){
   const rise=progress.interpolate({inputRange:[0,1],outputRange:[0,-6]});
   const shadow=progress.interpolate({inputRange:[0,1],outputRange:[1,.85]});
   const accent=progress.interpolate({inputRange:[0,1],outputRange:[.48,1]});
-  return <View style={styles.tradeJobsEmpty}>
+  return <View style={[styles.tradeJobsEmpty,{paddingTop:5,paddingBottom:8}]}>
     <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      pointerEvents="none" style={styles.tradeJobsEmptyArt}>
+      pointerEvents="none" style={[styles.tradeJobsEmptyArt,{height:68,width:100}]}>
       <Animated.View style={[styles.tradeJobsEmptyShadow,{transform:[{scaleX:shadow}]}]}/>
-      <Animated.View style={[styles.tradeJobsEmptyBag,{transform:[{translateY:rise}]}]}>
-        <BriefcaseBusiness size={67} color={theme.colors.teal} strokeWidth={1.65}/>
+      <Animated.View style={[styles.tradeJobsEmptyBag,{width:62,height:61,transform:[{translateY:rise}]}]}>
+        <BriefcaseBusiness size={49} color={theme.colors.teal} strokeWidth={1.65}/>
         <Animated.View style={[styles.tradeJobsEmptyRays,{opacity:accent}]}>
           <View style={[styles.tradeJobsEmptyRay,{left:1,top:0,transform:[{rotate:'16deg'}]}]}/>
           <View style={[styles.tradeJobsEmptyRay,{left:12,top:5,transform:[{rotate:'46deg'}]}]}/>
@@ -7017,8 +7011,8 @@ function TradeJobsEmptyMotion({online}:{online:boolean|null}){
         </Animated.View>
       </Animated.View>
     </View>
-    <Text style={styles.tradeJobsEmptyTitle}>No offers yet</Text>
-    <Text style={styles.tradeJobsEmptyCopy}>{online===true
+    <Text style={[styles.tradeJobsEmptyTitle,{fontSize:19}]}>No offers yet</Text>
+    <Text style={[styles.tradeJobsEmptyCopy,{fontSize:12,lineHeight:17,marginTop:3}]}>{online===true
       ?'When new work matches your trade and area, it will appear here.'
       :online===false?'Turn on your availability to receive nearby and relevant job offers.'
       :'Check your availability above to make sure you can receive new job offers.'}</Text>
@@ -7069,6 +7063,9 @@ function TradeJobsScreen({
   const [offerFilter, setOfferFilter] = useState<TradeJobsEntry['filter']>(jobsEntry.filter);
   const [flexibleMode, setFlexibleMode] = useState<'all' | 'normal' | 'route' | 'street_run'>('all');
   const [showJobGuide, setShowJobGuide] = useState(false);
+  const [jobPage,setJobPage]=useState(0);
+  const [detailKey,setDetailKey]=useState<string|null>(null);
+  const [showJobFilters,setShowJobFilters]=useState(false);
   const [marketEtaPickerJobId,setMarketEtaPickerJobId]=useState<string|null>(null);
   const [isReceivingOffers, setIsReceivingOffers] = useState<boolean | null>(null);
   const [availabilityCheckError, setAvailabilityCheckError] = useState(false);
@@ -7762,24 +7759,34 @@ function TradeJobsScreen({
     flexibleMode === 'all' || job.request.job_mode === flexibleMode
   );
   const offersLoadError=urgentLoadError||marketLoadError;
-  const allOffersEmpty=offerFilter==='all'&&!loading&&!loadingMarket&&!offersLoadError&&offered.length===0&&marketOffered.length===0;
   const offerFilterDescription = offerFilter === 'urgent'
     ? 'Fast-response call-outs matched to your trade and work radius.'
     : offerFilter === 'flexible'
       ? 'Scheduled bookings and jobs that fit a route or local area.'
       : 'These are offers matched to you, not a public list of every job. Choose a type to narrow the list.';
 
+  const visibleJobs: Array<{key:string;source:'urgent'|'market';job:OfferJob|MarketOfferJob}>=jobsView==='active'
+    ?[...active.map(job=>({key:'urgent:'+job.offerId,source:'urgent' as const,job})),...marketActive.map(job=>({key:'market:'+job.offerId,source:'market' as const,job}))]
+    :[...(offerFilter==='flexible'?[]:offered.map(job=>({key:'urgent:'+job.offerId,source:'urgent' as const,job}))),...(offerFilter==='urgent'?[]:filteredMarketOffers.map(job=>({key:'market:'+job.offerId,source:'market' as const,job})))];
+  const selectedJob=visibleJobs.find(row=>row.key===detailKey);
+  const selectedActive=jobsView==='active'&&selectedJob?.source==='urgent'?active.filter(job=>'urgent:'+job.offerId===detailKey):[];
+  const selectedMarketActive=jobsView==='active'&&selectedJob?.source==='market'?marketActive.filter(job=>'market:'+job.offerId===detailKey):[];
+  const selectedOffered=jobsView==='offers'&&selectedJob?.source==='urgent'?offered.filter(job=>'urgent:'+job.offerId===detailKey):[];
+  const selectedMarketOffered=jobsView==='offers'&&selectedJob?.source==='market'?filteredMarketOffers.filter(job=>'market:'+job.offerId===detailKey):[];
+  const pageCount=Math.max(1,visibleJobs.length);
+  const currentPage=Math.min(jobPage,pageCount-1);
+  const pageJob=visibleJobs[currentPage];
+  useEffect(()=>{setJobPage(0);setDetailKey(null)},[jobsView,offerFilter,flexibleMode]);
+  useEffect(()=>{if(detailKey&&!selectedJob)setDetailKey(null)},[detailKey,selectedJob]);
+  const filterName=flexibleMode==='normal'?'Bookings':flexibleMode==='route'?'On My Way':flexibleMode==='street_run'?'Street Run':'All flexible';
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
-      <ScrollView style={{backgroundColor:theme.colors.proBackground}}
-        contentContainerStyle={[styles.premiumPage,styles.tradeJobsDashboardPage]} showsVerticalScrollIndicator={false}>
-        <View style={[styles.premiumScreenHeading,{marginBottom:15}]}>
+      <CompactDashboardFrame contentStyle={[styles.premiumPage,styles.tradeJobsDashboardPage,styles.compactJobsPage]}>
+        <View style={[styles.premiumScreenHeading,{marginBottom:9}]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.premiumEyebrow}>Your work</Text>
-            <Text style={styles.premiumPageTitle}>Jobs</Text>
-            <Text style={styles.premiumScreenSub}>Nearby work, flexible offers and active bookings.</Text>
+            <Text style={[styles.premiumPageTitle,styles.compactToolsTitle]}>Jobs</Text>
           </View>
-          <MotionPressable style={styles.premiumHeaderRefresh} accessibilityRole="button"
+          <MotionPressable style={[styles.premiumHeaderRefresh,{width:44,height:44}]} accessibilityRole="button"
             accessibilityLabel="Refresh job offers" onPress={() => {
               void refreshAvailability();
               void loadJobs(currentUserId || undefined);
@@ -7788,7 +7795,7 @@ function TradeJobsScreen({
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </MotionPressable>
         </View>
-        <View style={styles.premiumJobOverview}>
+        <View style={[styles.premiumJobOverview,styles.compactJobOverview]}>
           <View pointerEvents="none" style={styles.tradeJobsMetricAccent}/>
           <View style={styles.premiumJobMetric}>
             {showMetricIcons?<View style={styles.tradeJobsMetricIcon}><BriefcaseBusiness size={22} color={theme.colors.white}/></View>:null}
@@ -7806,9 +7813,9 @@ function TradeJobsScreen({
             </View>
           </View>
         </View>
-        <MotionPressable style={styles.tradeDiscoverMain} onPress={()=>navigate('tradePulse')} accessibilityRole="button"><View style={{flex:1}}><Text style={styles.tradeDiscoverMainTitle}>Open opportunities</Text><Text style={styles.tradeDiscoverMainSub}>Browse customer-shared jobs and express interest</Text></View><ArrowRight color={theme.colors.white} size={20}/></MotionPressable>
-        <View style={styles.premiumSegment}>
-          <MotionPressable onPress={() => setJobsView('offers')} style={styles.premiumSegmentTab}
+        <MotionPressable style={styles.compactJobOpportunity} onPress={()=>navigate('tradePulse')} accessibilityRole="button"><Search size={19} color={theme.colors.white}/><View style={{flex:1,minWidth:0}}><Text style={{color:theme.colors.white,fontWeight:'800',fontSize:14}}>Open opportunities</Text><Text style={{color:'#D3E3E1',fontSize:11}}>Browse jobs and express interest</Text></View><ArrowRight color={theme.colors.white} size={18}/></MotionPressable>
+        <View style={[styles.premiumSegment,styles.compactJobSegment]}>
+          <MotionPressable onPress={() => {setJobsView('offers');setJobPage(0)}} style={[styles.premiumSegmentTab,{height:40}]}
             pressScale={0.991} disableFlash
             accessibilityRole="tab" accessibilityLabel="Job offers"
             accessibilityState={{ selected: jobsView === 'offers' }}>
@@ -7818,7 +7825,7 @@ function TradeJobsScreen({
               </Text>
             </NavPill>
           </MotionPressable>
-          <MotionPressable onPress={() => setJobsView('active')} style={styles.premiumSegmentTab}
+          <MotionPressable onPress={() => {setJobsView('active');setJobPage(0)}} style={[styles.premiumSegmentTab,{height:40}]}
             pressScale={0.991} disableFlash
             accessibilityRole="tab" accessibilityLabel="Active jobs"
             accessibilityState={{ selected: jobsView === 'active' }}>
@@ -7829,10 +7836,9 @@ function TradeJobsScreen({
             </NavPill>
           </MotionPressable>
         </View>
-        <ContentSwap value={jobsView+':'+(jobsView==='offers'?offerFilter+':'+flexibleMode:'active')}>
-        {jobsView === 'offers' ? (
-          <>
-            <View style={styles.tradeOfferFilterRow}>
+
+        {jobsView==='offers'&&<>
+            <View style={[styles.tradeOfferFilterRow,{marginBottom:7}]}>
               {([
                 ['all', 'All', offered.length + marketOffered.length],
                 ['urgent', 'Urgent', offered.length],
@@ -7841,56 +7847,20 @@ function TradeJobsScreen({
                 <MotionPressable key={value} onPress={() => { setOfferFilter(value); setFlexibleMode('all'); }}
                   accessibilityRole="tab" accessibilityLabel={title + ' job offers'}
                   accessibilityState={{ selected: offerFilter === value }}
-                  style={[styles.tradeOfferFilter, offerFilter === value && styles.tradeOfferFilterActive]}>
+                  style={[styles.tradeOfferFilter,{minHeight:44}, offerFilter === value && styles.tradeOfferFilterActive]}>
                   <Text style={[styles.tradeOfferFilterText, offerFilter === value && styles.tradeOfferFilterTextActive]}>
                     {title} · {value==='all'?(loading||loadingMarket||offersLoadError?'–':count):value==='urgent'?(loading||urgentLoadError?'–':count):(loadingMarket||marketLoadError?'–':count)}
                   </Text>
                 </MotionPressable>
               ))}
             </View>
-            {offerFilter!=='all'?<Text style={styles.tradeOfferExplanation}>{offerFilterDescription}</Text>:null}
-            {offerFilter === 'flexible' ? (
-              <>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.tradeModeOptions}>
-                  {([
-                    ['all', 'All flexible'],
-                    ['normal', 'Bookings'],
-                    ['route', 'On My Way'],
-                    ['street_run', 'Street Run'],
-                  ] as const).map(([mode, label]) => (
-                    <MotionPressable key={mode} onPress={() => setFlexibleMode(mode)}
-                      accessibilityRole="tab" accessibilityState={{ selected: flexibleMode === mode }}
-                      style={[styles.tradeModeChip, flexibleMode === mode && styles.tradeModeChipActive]}>
-                      <Text style={[styles.tradeModeChipLabel, flexibleMode === mode && styles.tradeModeChipLabelActive]}>{label}</Text>
-                    </MotionPressable>
-                  ))}
-                </ScrollView>
-                <MotionPressable
-                  onPress={() => navigate('tradeRoutes')}
-                  accessibilityRole="button" accessibilityLabel="Publish a real journey"
-                  style={{marginHorizontal:15,marginBottom:10,borderRadius:13,
-                    minHeight:46,backgroundColor:theme.colors.tealTint,
-                    paddingHorizontal:13,flexDirection:'row',alignItems:'center',gap:9}}>
-                  <Route size={18} color={theme.colors.teal}/>
-                  <Text style={{fontWeight:'800',fontSize:12,color:theme.colors.teal,flex:1}}>
-                    Publish your On My Way or Street Run journey
-                  </Text>
-                  <ChevronRight size={16} color={theme.colors.teal}/>
-                </MotionPressable>
-                <Text style={styles.tradeModeExplanation}>
-                  {flexibleMode === 'route' ? 'On My Way offers aim to fit journeys you are already making.'
-                    : flexibleMode === 'street_run' ? 'Street Run offers focus on jobs close together in a local area.'
-                      : flexibleMode === 'normal' ? 'Bookings are customer requests for planned or flexible appointments.'
-                        : 'Choose Bookings, On My Way or Street Run to see how each type of work fits your day.'}
-                </Text>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <Text style={styles.tradeOfferExplanation}>Track accepted jobs, get directions and update each stage until completion.</Text>
-        )}
-        <View style={{marginBottom:10}}>
+
+          {offerFilter==='flexible'&&<View style={styles.compactJobUtilities}>
+            <MotionPressable style={styles.compactJobUtility} accessibilityRole="button" onPress={()=>setShowJobFilters(true)}><SlidersHorizontal size={18} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>{filterName}</Text><ChevronRight size={16} color={theme.colors.teal}/></MotionPressable>
+            <MotionPressable style={styles.compactJobUtility} accessibilityRole="button" accessibilityLabel="Publish an On My Way or Street Run journey" onPress={()=>navigate('tradeRoutes')}><Route size={18} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>Publish journey</Text></MotionPressable>
+          </View>}
+        </>}
+        <View style={{marginBottom:7}}>
           {isReceivingOffers===null?(
             availabilityCheckError?<MotionPressable style={styles.tradeOfflineBanner}
               onPress={()=>{void refreshAvailability();}} accessibilityRole="button"
@@ -7906,7 +7876,7 @@ function TradeJobsScreen({
               <Text style={styles.tradeOfflineSub}>Checking availability…</Text>
             </View>
           ):(
-            <MotionPressable style={[styles.tradeOfflineBanner,isReceivingOffers&&styles.tradeJobsOnlineBanner]}
+            <MotionPressable style={[styles.tradeOfflineBanner,styles.compactJobAvailability,isReceivingOffers&&styles.tradeJobsOnlineBanner]}
               onPress={()=>{void changeJobsAvailability(!isReceivingOffers);}}
               disabled={savingJobsAvailability} accessibilityRole="switch"
               accessibilityLabel="Job availability" accessibilityState={{checked:isReceivingOffers,disabled:savingJobsAvailability,busy:savingJobsAvailability}}
@@ -7918,7 +7888,7 @@ function TradeJobsScreen({
                   <Text style={styles.tradeOfflineTitle}>{isReceivingOffers?"You're currently online":"You're currently offline"}</Text>
                   <Text style={styles.tradeOfflineSub}>{savingJobsAvailability?'Saving your availability…':isReceivingOffers
                     ?jobsAvailableUntil?'Available until '+formatUKDateTime(jobsAvailableUntil)+'.':'Available for nearby job offers.'
-                    :'Go online for 2 hours using your saved work settings.'}</Text>
+                    :'Go online for 2 hours.'}</Text>
                   </View>
                 </StatusSwap>
               </View>
@@ -7930,56 +7900,41 @@ function TradeJobsScreen({
             </MotionPressable>
           )}
         </View>
-        <MotionPressable style={styles.tradeHowToggle} onPress={() => setShowJobGuide(value => !value)}
-          accessibilityRole="button" accessibilityState={{ expanded: showJobGuide }}
-          accessibilityLabel="How getting jobs on Tradarr works">
-          <View style={styles.tradeJobsUtilityIcon}><CircleHelp size={22} color={theme.colors.teal}/></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.tradeHowToggleTitle}>How do I get jobs?</Text>
-            <Text style={styles.tradeHowToggleSub}>Go online → review matches → accept work</Text>
-          </View>
-          <ChevronRight size={20} color={theme.colors.teal}
-            style={showJobGuide ? { transform: [{ rotate: '90deg' }] } : undefined} />
-        </MotionPressable>
-        {showJobGuide ? (
-          <FadeSlideIn>
-          <View style={styles.tradeHowPanel}>
-            {([
-              ['1', 'Go online here', 'Your saved work area and radius are used. You can change these on Home.'],
-              ['2', 'Check your offers', 'Matched customer requests appear here. Accept or decline each offer.'],
-              ['3', 'Manage your jobs', 'Accepted jobs move to Active, where you can update their progress.'],
-            ] as const).map(([number, title, detail]) => (
-              <View key={number} style={styles.tradeHowStep}>
-                <View style={styles.tradeHowNumber}><Text style={styles.tradeHowNumberText}>{number}</Text></View>
-                <View style={{ flex: 1 }}><Text style={styles.tradeHowStepTitle}>{title}</Text>
-                  <Text style={styles.tradeHowStepDetail}>{detail}</Text></View>
-              </View>
-            ))}
-            <Text style={styles.tradeHowExtra}>On My Way matches work to an existing journey. Street Run groups nearby jobs in the same area.</Text>
-          </View>
-          </FadeSlideIn>
-        ) : null}
-        <MotionPressable onPress={()=>navigate('tradeAssurance')} accessibilityRole="button"
-         accessibilityLabel="Open job assurance tools"
-         style={styles.tradeJobsAssurance}>
-          <View style={styles.tradeJobsUtilityIcon}><ShieldCheck size={23} color={theme.colors.teal}/></View>
-          <View style={{flex:1,gap:4}}><Text style={{color:theme.colors.ink,fontWeight:'800',fontSize:14}}>ScopeGuard & FinishProof</Text>
-            <Text style={{color:theme.colors.muted,fontSize:12,lineHeight:17}}>Get extras approved and share completed-work handovers</Text></View>
-          <ChevronRight size={18} color={theme.colors.teal}/>
-        </MotionPressable>
-        {offersLoadError?<MotionPressable style={styles.tradeOfflineBanner}
+
+        {offersLoadError?<MotionPressable style={[styles.tradeOfflineBanner,{minHeight:44,paddingVertical:4,marginBottom:5}]}
           onPress={()=>{void loadJobs(currentUserId||undefined);void loadMarketJobs(currentUserId||undefined);}}
           accessibilityLabel="Retry loading jobs" accessibilityRole="button">
           <RotateCw size={20} color={theme.colors.teal}/>
-          <View style={{flex:1}}><Text style={styles.tradeOfflineTitle}>Couldn't refresh all jobs</Text>
-          <Text style={styles.tradeOfflineSub}>Tap to retry. Previously loaded jobs may still be shown.</Text></View>
+          <View style={{flex:1}}><Text style={styles.tradeOfflineTitle}>Couldn't refresh jobs</Text>
+          <Text style={styles.tradeOfflineSub}>Tap to retry.</Text></View>
         </MotionPressable>:null}
-        {jobsView === 'active' ? (
-          <>
-        {active.length ? (
-          <>
-            <Text style={styles.dispatchTradeSectionTitle}>Active job</Text>
-            {active.map(job => (
+
+        {pageJob?<View style={styles.dashboardJobPreview}>
+          <MotionPressable style={styles.dashboardJobSummary} onPress={()=>setDetailKey(pageJob.key)} accessibilityRole="button" accessibilityLabel={'View '+pageJob.job.request.trade+' job details'}>
+            <View style={styles.compactUtilityIcon}>{pageJob.source==='urgent'?<Zap size={20} color={theme.colors.coralDark}/>:<CalendarDays size={20} color={theme.colors.teal}/>}</View>
+            <View style={{flex:1,minWidth:0}}><Text style={styles.compactUtilityTitle}>{pageJob.job.request.trade} · {jobsView==='active'?'Active':pageJob.source==='urgent'?'Urgent':'Flexible'}</Text><Text numberOfLines={2} style={styles.compactUtilitySub}>{pageJob.job.request.issue}</Text></View><ChevronRight size={19} color={theme.colors.teal}/>
+          </MotionPressable>
+          <MotionPressable accessibilityRole="button" onPress={()=>setDetailKey(pageJob.key)} style={styles.dashboardJobAction}><Text style={{color:theme.colors.white,fontWeight:'800',fontSize:13}}>{jobsView==='active'?'Manage job':'Review job offer'}</Text><ArrowRight size={17} color={theme.colors.white}/></MotionPressable>
+        </View>:loading||loadingMarket?<View style={styles.dashboardJobEmpty}><ActivityIndicator color={theme.colors.teal}/><Text style={styles.compactUtilitySub}>Checking jobs…</Text></View>:offersLoadError?<View style={styles.dashboardJobEmpty}><Text style={styles.compactUtilitySub}>Some jobs couldn't be loaded. Retry above.</Text></View>:jobsView==='active'?<View style={styles.dashboardJobEmpty}><BriefcaseBusiness size={30} color={theme.colors.teal}/><Text style={styles.compactUtilityTitle}>No active jobs yet</Text><Text style={styles.compactUtilitySub}>Accepted jobs and bookings appear here.</Text></View>:<TradeJobsEmptyMotion online={isReceivingOffers}/>}
+        {pageCount>1&&<View style={styles.dashboardPager}>
+          <MotionPressable accessibilityRole="button" accessibilityLabel="Previous job" disabled={currentPage===0} onPress={()=>setJobPage(currentPage-1)} style={[styles.dashboardPageButton,currentPage===0&&{opacity:.35}]}><ArrowLeft size={19} color={theme.colors.teal}/></MotionPressable>
+          <Text style={styles.dashboardPageText}>Job {currentPage+1} of {visibleJobs.length}</Text>
+          <MotionPressable accessibilityRole="button" accessibilityLabel="Next job" disabled={currentPage===pageCount-1} onPress={()=>setJobPage(currentPage+1)} style={[styles.dashboardPageButton,currentPage===pageCount-1&&{opacity:.35}]}><ArrowRight size={19} color={theme.colors.teal}/></MotionPressable>
+        </View>}
+        <View style={styles.compactJobUtilities}>
+          <MotionPressable style={styles.compactJobUtility} onPress={()=>setShowJobGuide(v=>!v)} accessibilityRole="button" accessibilityState={{expanded:showJobGuide}} accessibilityLabel="How getting jobs on Tradarr works">
+            <CircleHelp size={19} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>Job guide</Text><ChevronRight size={15} color={theme.colors.teal} style={showJobGuide?{transform:[{rotate:'90deg'}]}:undefined}/>
+          </MotionPressable>
+          <MotionPressable style={styles.compactJobUtility} onPress={()=>navigate('tradeAssurance')} accessibilityRole="button" accessibilityLabel="ScopeGuard and FinishProof job assurance tools">
+            <ShieldCheck size={19} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>ScopeGuard &amp; FinishProof</Text><ChevronRight size={15} color={theme.colors.teal}/>
+          </MotionPressable>
+        </View>
+
+      </CompactDashboardFrame>
+      <Modal visible={Boolean(selectedJob)} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setDetailKey(null)}>
+        <SafeAreaView style={styles.dashboardDetail}><View style={styles.dashboardDetailHeader}><Text style={styles.compactUtilityTitle}>{jobsView==='active'?'Manage job':'Job offer details'}</Text><MotionPressable accessibilityRole="button" accessibilityLabel="Close job details" onPress={()=>setDetailKey(null)} style={styles.dashboardPageButton}><X size={22} color={theme.colors.teal}/></MotionPressable></View>
+        <ScrollView contentContainerStyle={{padding:14,paddingBottom:24}} showsVerticalScrollIndicator={false}>
+{selectedActive.map(job => (
               <View key={job.offerId} style={styles.dispatchTradeActiveCard}>
                 <View style={styles.dispatchTradeTopRow}>
                   <View style={{ flex: 1 }}>
@@ -8022,13 +7977,7 @@ function TradeJobsScreen({
                 </View>
               </View>
             ))}
-          </>
-        ) : null}
-
-        {marketActive.length ? (
-          <>
-            <Text style={styles.dispatchTradeSectionTitle}>Scheduled & flexible jobs</Text>
-            {marketActive.map(job => (
+{selectedMarketActive.map(job => (
               <View key={job.offerId} style={styles.marketTradeActiveCard}>
                 <View style={styles.dispatchTradeTopRow}>
                   <View style={{ flex: 1 }}>
@@ -8115,32 +8064,7 @@ function TradeJobsScreen({
                  </View>:null}
               </View>
             ))}
-          </>
-        ) : null}
-
-
-          {!loading&&!loadingMarket&&!offersLoadError&&(active.length + marketActive.length) === 0 ? (
-            <View style={styles.premiumEmptyCard}>
-              <BriefcaseBusiness size={30} strokeWidth={2} color={theme.colors.teal} />
-              <Text style={styles.premiumEmptyTitle}>No active jobs yet</Text>
-              <Text style={styles.premiumEmptyText}>Accepted jobs and bookings will appear here.</Text>
-            </View>
-          ) : null}
-          </>
-        ) : (
-          <>
-        {allOffersEmpty?<TradeJobsEmptyMotion online={isReceivingOffers}/>:null}
-        {!allOffersEmpty&&offerFilter !== 'flexible' ? (
-          <>
-        <Text style={styles.dispatchTradeSectionTitle}>New urgent offers</Text>
-
-        {loading ? (
-          <View style={styles.tradeEmptyLarge}>
-            <ActivityIndicator color={C.cyan} />
-            <Text style={styles.tradeEmptyLargeText}>Checking for nearby requests…</Text>
-          </View>
-        ) : offered.length ? (
-          offered.map(job => (
+{selectedOffered.map(job => (
             <View key={job.offerId} style={styles.dispatchTradeOfferCard}>
               <View style={styles.dispatchTradeTopRow}>
                 <View style={styles.dispatchTradeUrgentIcon}>
@@ -8184,32 +8108,8 @@ function TradeJobsScreen({
                 </MotionPressable>
               </View>
             </View>
-          ))
-        ) : urgentLoadError?null:(
-          <View style={styles.tradeEmptyLarge}>
-            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'bolt.fill', android: 'bolt' }} size={25} color="#BA715B" /></View>
-            <Text style={styles.tradeEmptyLargeTitle}>No urgent offers right now</Text>
-            <Text style={styles.tradeEmptyLargeText}>
-              When an urgent customer request matches your availability and area, you can review and accept it here.
-            </Text>
-          </View>
-        )}
-
-
-          </>
-        ) : null}
-
-        {!allOffersEmpty&&offerFilter !== 'urgent' ? (
-          <>
-        <Text style={styles.dispatchTradeSectionTitle}>Flexible & scheduled offers</Text>
-
-        {loadingMarket ? (
-          <View style={styles.tradeEmptyCompact}>
-            <ActivityIndicator color={C.green} />
-            <Text style={styles.tradeEmptyLargeText}>Checking route and booking offers…</Text>
-          </View>
-        ) : filteredMarketOffers.length ? (
-          filteredMarketOffers.map(job => (
+          ))}
+{selectedMarketOffered.map(job => (
             <View key={job.offerId} style={styles.marketTradeOfferCard}>
               <View style={styles.dispatchTradeTopRow}>
                 <View style={styles.marketTradeOfferIcon}>
@@ -8277,42 +8177,32 @@ function TradeJobsScreen({
                 </MotionPressable>
               </View>
             </View>
-          ))
-        ) : marketLoadError?null:(
-          <View style={styles.tradeEmptyCompact}>
-            <View style={styles.proEmptyIcon}><AppIcon icon={{ ios: 'arrow.triangle.branch', android: 'alt_route' }} size={25} color="#4B7779" /></View>
-            <Text style={styles.tradeEmptyLargeTitle}>No flexible offers yet</Text>
-            <Text style={styles.tradeEmptyLargeText}>
-              {flexibleMode === 'all'
-                ? 'No matching flexible or scheduled offers yet. Check back when a customer sends one.'
-                : 'No ' + (flexibleMode === 'route' ? 'On My Way' : flexibleMode === 'street_run' ? 'Street Run' : 'booking') + ' offers right now. Try All flexible to see other types.'}
-            </Text>
+          ))}
+        </ScrollView></SafeAreaView>
+      </Modal>
+      <Modal visible={showJobGuide} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setShowJobGuide(false)}>
+        <SafeAreaView style={styles.dashboardDetail}><View style={styles.dashboardDetailHeader}><Text style={styles.compactUtilityTitle}>How do I get jobs?</Text><MotionPressable accessibilityRole="button" accessibilityLabel="Close job guide" onPress={()=>setShowJobGuide(false)} style={styles.dashboardPageButton}><X size={22} color={theme.colors.teal}/></MotionPressable></View><ScrollView contentContainerStyle={{padding:14}}>
+          <View style={styles.tradeHowPanel}>
+            {([
+              ['1', 'Go online here', 'Your saved work area and radius are used. You can change these on Home.'],
+              ['2', 'Check your offers', 'Matched customer requests appear here. Accept or decline each offer.'],
+              ['3', 'Manage your jobs', 'Accepted jobs move to Active, where you can update their progress.'],
+            ] as const).map(([number, title, detail]) => (
+              <View key={number} style={styles.tradeHowStep}>
+                <View style={styles.tradeHowNumber}><Text style={styles.tradeHowNumberText}>{number}</Text></View>
+                <View style={{ flex: 1 }}><Text style={styles.tradeHowStepTitle}>{title}</Text>
+                  <Text style={styles.tradeHowStepDetail}>{detail}</Text></View>
+              </View>
+            ))}
+            <Text style={styles.tradeHowExtra}>On My Way matches work to an existing journey. Street Run groups nearby jobs in the same area.</Text>
           </View>
-        )}
 
-
-          </>
-        ) : null}
-          {offerFilter === 'urgent' && !loading && !urgentLoadError && offered.length === 0 ? (
-            <MotionPressable style={styles.tradeOtherOfferLink} onPress={() => setOfferFilter('flexible')}
-              accessibilityRole="button" accessibilityLabel="See flexible offers">
-              <Text style={styles.tradeOtherOfferLinkText}>See flexible and scheduled offers instead</Text>
-              <ArrowRight size={17} color={theme.colors.teal} />
-            </MotionPressable>
-          ) : null}
-          {offerFilter === 'flexible' && !loadingMarket && !marketLoadError && filteredMarketOffers.length === 0 ? (
-            <MotionPressable style={styles.tradeOtherOfferLink}
-              onPress={() => { setOfferFilter('all'); setFlexibleMode('all'); }}
-              accessibilityRole="button" accessibilityLabel="See all job offers">
-              <Text style={styles.tradeOtherOfferLinkText}>See all available offer types</Text>
-              <ArrowRight size={17} color={theme.colors.teal} />
-            </MotionPressable>
-          ) : null}
-          </>
-        )}
-        </ContentSwap>
-        <View style={{ height: 24 }} />
-      </ScrollView>
+        </ScrollView></SafeAreaView>
+      </Modal>
+      <Modal visible={showJobFilters} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setShowJobFilters(false)}>
+        <SafeAreaView style={styles.dashboardDetail}><View style={styles.dashboardDetailHeader}><Text style={styles.compactUtilityTitle}>Flexible job types</Text><MotionPressable accessibilityRole="button" accessibilityLabel="Close job filters" onPress={()=>setShowJobFilters(false)} style={styles.dashboardPageButton}><X size={22} color={theme.colors.teal}/></MotionPressable></View>
+        <View style={{padding:14,gap:8}}><Text style={styles.compactUtilitySub}>{offerFilterDescription}</Text>{([['all','All flexible'],['normal','Bookings'],['route','On My Way'],['street_run','Street Run']] as const).map(([value,label])=><MotionPressable key={value} accessibilityRole="button" accessibilityState={{selected:flexibleMode===value}} onPress={()=>{setFlexibleMode(value);setShowJobFilters(false)}} style={[styles.compactUtilityRow,flexibleMode===value&&{backgroundColor:theme.colors.tealTint}]}><Text style={[styles.compactUtilityTitle,{flex:1}]}>{label}</Text>{flexibleMode===value&&<Check size={19} color={theme.colors.teal}/>}</MotionPressable>)}</View></SafeAreaView>
+      </Modal>
     </TradeShell>
   );
 }
@@ -11326,6 +11216,55 @@ const styles = StyleSheet.create({
   premiumTabLabelActive: { color: theme.colors.ink, fontWeight: '800' },
   premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
   tradeHomePage: { paddingHorizontal: 22, paddingTop: 20 },
+  // Compact tradesperson dashboard overrides. Existing detail screens keep their original styles.
+  compactHomePage:{paddingHorizontal:16,paddingTop:12,paddingBottom:12},
+  compactHomeMap:{height:184,marginBottom:9,borderRadius:25},
+  compactMapStatus:{top:10,left:10,right:65,minHeight:44,paddingHorizontal:10},
+  compactMapLocate:{top:10,right:10},
+  compactAvailabilityButton:{height:46,bottom:12,left:12,right:12},
+  compactDiscoverMain:{minHeight:62,paddingHorizontal:12,paddingVertical:9,gap:9,marginBottom:7,borderRadius:18},
+  compactDiscoverChoices:{gap:8,marginBottom:8},
+  compactDiscoverChoice:{minHeight:76,paddingHorizontal:9,paddingVertical:10,gap:7,flexDirection:'row',alignItems:'center',justifyContent:'flex-start',borderRadius:17},
+  compactGridHome:{minHeight:57,marginTop:0,marginBottom:7,paddingVertical:8,borderRadius:17},
+  compactUrgentRow:{flexDirection:'row',alignItems:'center',backgroundColor:theme.colors.white,borderRadius:16,marginBottom:8},
+  compactUrgentLink:{flex:1,minHeight:53,flexDirection:'row',alignItems:'center',paddingHorizontal:9,paddingVertical:6,gap:8},
+  compactRefreshButton:{width:44,height:44,alignItems:'center',justifyContent:'center',borderLeftWidth:1,borderLeftColor:theme.colors.line},
+  compactUtilityIcon:{width:34,height:34,borderRadius:11,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
+  compactUtilityTitle:{color:theme.colors.ink,fontSize:14,fontWeight:'800'},
+  compactUtilitySub:{color:theme.colors.muted,fontSize:11,lineHeight:15,marginTop:2},
+  compactUtilityRow:{backgroundColor:theme.colors.white,borderRadius:15,flexDirection:'row',alignItems:'center',paddingHorizontal:10,paddingVertical:7,minHeight:51,gap:9,marginBottom:7},
+  compactHomeShortcuts:{gap:7,marginTop:0,marginBottom:8},
+  compactHomeShortcut:{minHeight:72,padding:8,borderRadius:15},
+  compactToolsPage:{paddingHorizontal:16,paddingTop:12,paddingBottom:12},
+  compactToolsTitle:{fontSize:29,lineHeight:35},
+  compactOrbitFrame:{width:92,height:80,position:'relative',flexShrink:0},
+  compactOrbitInner:{position:'absolute',left:-20,top:-17,transform:[{scale:.69}]},
+  compactToolShortcuts:{marginBottom:11,paddingVertical:5},
+  compactToolShortcut:{minHeight:57,gap:4,paddingVertical:3},
+  compactToolCategories:{backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.line,borderRadius:19,paddingHorizontal:11,overflow:'hidden'},
+  compactToolCategory:{minHeight:63,paddingVertical:8,flexDirection:'row',alignItems:'center',gap:9},
+  compactToolCategoryGlyph:{width:38,height:38,borderRadius:12,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
+  compactToolDetail:{fontSize:11,lineHeight:15,color:theme.colors.muted,marginTop:2},
+  compactToolCount:{fontSize:12,fontWeight:'800',color:theme.colors.teal,backgroundColor:theme.colors.tealTint,borderRadius:10,minWidth:25,paddingHorizontal:6,paddingVertical:4,textAlign:'center'},
+  compactToolItem:{minHeight:59,paddingVertical:9},
+  compactJobsPage:{paddingHorizontal:16,paddingTop:12,paddingBottom:12},
+  compactJobOverview:{minHeight:62,paddingVertical:8,marginBottom:8,borderRadius:18},
+  compactJobOpportunity:{minHeight:51,backgroundColor:theme.colors.darkTeal,borderRadius:15,paddingHorizontal:11,paddingVertical:7,flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
+  compactJobSegment:{height:48,marginBottom:8,borderRadius:16},
+  compactJobAvailability:{minHeight:53,paddingVertical:6,borderRadius:15},
+  compactJobUtilities:{flexDirection:'row',gap:7,marginBottom:8},
+  compactJobUtility:{flex:1,minWidth:0,minHeight:44,paddingHorizontal:8,paddingVertical:6,backgroundColor:theme.colors.white,borderRadius:13,flexDirection:'row',alignItems:'center',gap:5},
+  compactJobUtilityText:{flex:1,minWidth:0,fontSize:12,fontWeight:'700',color:theme.colors.ink},
+  dashboardPager:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:7},
+  dashboardPageButton:{width:44,height:44,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:theme.colors.tealTint},
+  dashboardPageText:{color:theme.colors.muted,fontSize:12,fontWeight:'700'},
+  dashboardJobPreview:{backgroundColor:theme.colors.white,borderRadius:17,padding:9,gap:7,marginBottom:8},
+  dashboardJobSummary:{flexDirection:'row',alignItems:'center',gap:8,minHeight:49},
+  dashboardJobAction:{minHeight:44,borderRadius:12,backgroundColor:theme.colors.darkTeal,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+  dashboardJobEmpty:{minHeight:79,backgroundColor:theme.colors.white,borderRadius:15,alignItems:'center',justifyContent:'center',padding:8,gap:4,marginBottom:8},
+  dashboardDetail:{flex:1,backgroundColor:theme.colors.proBackground},
+  dashboardDetailHeader:{minHeight:55,paddingHorizontal:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:theme.colors.white},
+
   premiumTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   premiumEyebrow: { color: theme.colors.muted, fontSize: 16, fontWeight: '500' },
   premiumPageTitle: {fontFamily:theme.font.editorial,  color: theme.colors.ink, fontSize: 34, lineHeight: 40, letterSpacing: -1.3, fontWeight: '800' },
