@@ -39,7 +39,7 @@ assert(inbox.includes("setUid('');setItems([]);setHasOlder(false);setTotalUnread
  'Signed-out users must not see previous notification contents');
 assert(inbox.includes('if(activeUserRef.current!==user.id)'),
  'Switching accounts must discard previous account notification state');
-assert(inbox.includes(".lt('created_at',oldest.created_at)"),
+assert(inbox.includes('.or(historyBefore(oldest))')&&inbox.includes(".order('id',{ascending:false})"),
  'Use keyset pagination to avoid missing alerts when new notifications arrive');
 assert(!inbox.includes('.range(items.length,items.length+PAGE_SIZE-1)'),
  'Offset paging skips records under concurrent notification inserts');
