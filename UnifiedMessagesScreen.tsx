@@ -10,6 +10,7 @@ import ConversationJobCards from './ConversationJobCards';
 import {chatPhotoPath,decodeChatPhotoBase64,detectChatPhotoMime} from './lib/chatPhoto';
 import type {ChatPhotoMime} from './lib/chatPhoto';
 import {supabase} from './lib/supabase';
+import {historyBefore,compareHistory} from './lib/historyCursor';
 import {theme} from './theme';
 import {MotionPressable} from './Motion';
 import InboxEmptyMotion from './InboxEmptyMotion';
@@ -192,10 +193,11 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
 
  const loadThread=useCallback(async(id:string,showSpinner=false)=>{
   const version=++threadLoadVersion.current;
+  setLoadingOlder(false);
   if(showSpinner)setLoadingThread(true);
   const {data, error:readError}=await supabase.from('messages')
    .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
-   .eq('conversation_id',id).order('created_at',{ascending:false}).limit(50);
+   .eq('conversation_id',id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(50);
   if(selectedRef.current!==id||version!==threadLoadVersion.current)return;
   if(readError){setChatError(readError.message);setLoadingThread(false);return;}
   const next=((data||[]) as Message[]).reverse();
@@ -207,7 +209,7 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
     if(m.conversation_id===id&&!saved.has(m.id)&&Date.parse(m.created_at)>=cutoff)
      saved.set(m.id,m);
    }
-   return [...saved.values()].sort((a,b)=>Date.parse(a.created_at)-Date.parse(b.created_at)||a.id-b.id);
+   return [...saved.values()].sort((a,b)=>compareHistory(a,b));
   });
   setHasOlder((data||[]).length===50);setLoadingThread(false);setChatError('');
   void signPhotos(next);
@@ -220,10 +222,12 @@ export default function UnifiedMessagesScreen({role,onClose,embedded=false,
   stickToBottomRef.current=false;
   setLoadingOlder(true);
   const first=thread[0],requestId=selectedId,version=threadLoadVersion.current;
+  let cursor:string;
+  try{cursor=historyBefore(first)}catch{setLoadingOlder(false);setChatError('Could not load earlier messages. Refresh and try again.');return;}
   const {data,error:loadError}=await supabase.from('messages')
    .select('id,conversation_id,sender_id,body,read_at,created_at,client_token,attachment_path,attachment_mime')
-   .eq('conversation_id',selectedId).lt('created_at',first.created_at)
-   .order('created_at',{ascending:false}).limit(50);
+   .eq('conversation_id',selectedId).or(cursor)
+   .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(50);
   if(selectedRef.current!==requestId||version!==threadLoadVersion.current)return;
   setLoadingOlder(false);
   if(loadError){setChatError(loadError.message);return;}

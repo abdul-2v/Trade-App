@@ -5,6 +5,7 @@ import {ArrowLeft,Bell,BellRing,BriefcaseBusiness,CalendarClock,
 import {MotionPressable} from './Motion';
 import TradarrPushControl from './TradarrPushControl';
 import {supabase} from './lib/supabase';
+import {historyBefore} from './lib/historyCursor';
 import {theme} from './theme';
 
 type AlertKind='message'|'job_offer'|'job_accepted'|'job_status'|'appointment'|
@@ -33,6 +34,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
 
  const refresh=useCallback(async()=>{
   const version=++refreshVersion.current;
+  setLoadingOlder(false);
   const {data:{user},error:authError}=await supabase.auth.getUser();
   if(version!==refreshVersion.current)return;
   if(authError||!user){
@@ -50,7 +52,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   const [alerts,unreadCount]=await Promise.all([
    supabase.from('tradarr_notifications')
     .select('id,kind,title,body,data,created_at,read_at')
-    .eq('recipient_id',user.id).order('created_at',{ascending:false}).limit(PAGE_SIZE),
+    .eq('recipient_id',user.id).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(PAGE_SIZE),
    supabase.from('tradarr_notifications').select('id',{count:'exact',head:true})
     .eq('recipient_id',user.id).is('read_at',null)
   ]);
@@ -96,15 +98,14 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
  const loadOlder=async()=>{
   if(loadingOlder||!hasOlder||!uid||!items.length)return;
   const oldest=items[items.length-1],version=refreshVersion.current,userId=uid;
-  if(!Number.isFinite(Date.parse(oldest.created_at)))return;
   setLoadingOlder(true);setOlderError('');
   try{
    // A new alert arriving while scrolling shifts OFFSET pages and skips
-   // records. Page by the previously loaded oldest timestamp instead.
+   // records. Page by both the oldest timestamp and its unique id.
    const {data,error:pageError}=await supabase.from('tradarr_notifications')
     .select('id,kind,title,body,data,created_at,read_at')
-    .eq('recipient_id',userId).lt('created_at',oldest.created_at)
-    .order('created_at',{ascending:false}).limit(PAGE_SIZE);
+    .eq('recipient_id',userId).or(historyBefore(oldest))
+    .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(PAGE_SIZE);
    if(version!==refreshVersion.current||activeUserRef.current!==userId)return;
    if(pageError)throw pageError;
    const next=(data||[]) as TradarrAlert[];
@@ -150,7 +151,8 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
   const confirmed=new Set(saved.map(row=>row.id));
   setItems(old=>old.map(item=>confirmed.has(item.id)
     ?{...item,read_at:item.read_at||stamp}:item));
-  setTotalUnread(0);
+  // New notifications may arrive during the update; re-read the actual unread count.
+  await refresh();
  };
  const iconFor=(kind:AlertKind)=>{
    if(kind==='message')return MessageCircle;
