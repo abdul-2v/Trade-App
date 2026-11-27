@@ -8804,7 +8804,6 @@ function TradeSettingsScreen({
                 <Text style={styles.premiumPreviewText}>Preview</Text>
               </MotionPressable>
             </View>
-            <TradarrPulse mode="reach" onProfile={()=>setProfilePage('overview')}/>
             <View style={styles.premiumProfileHero}>
               <View style={styles.premiumProfileHeroTop}>
                 {avatarUrl
@@ -8930,6 +8929,7 @@ function TradeSettingsScreen({
               <Text style={[styles.premiumChecklistTitle, { flex: 1 }]}>Account & settings</Text>
               <ChevronRight size={20} color={theme.colors.muted} />
             </MotionPressable>
+            <TradarrPulse mode="reach" onProfile={()=>setProfilePage('overview')}/>
           </>
         ) : profilePage === 'edit' ? (
           <>
