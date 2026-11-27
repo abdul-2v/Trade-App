@@ -6731,7 +6731,6 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
-        <TradarrPulse onOpen={()=>navigate('tradePulse')} onProfile={()=>navigate('tradeProfile')}/>
         <View style={styles.tradeDiscoverIntro}>
           <View style={{ flex: 1 }}>
             <Text style={styles.tradeDiscoverTitle}>Find your next job</Text>
@@ -6852,6 +6851,8 @@ function TradeHomeScreen({
             <Text style={styles.premiumShortcutSub}>On My Way & Street Run</Text>
           </MotionPressable>
         </View>
+
+        <TradarrPulse onOpen={()=>navigate('tradePulse')} onProfile={()=>navigate('tradeProfile')}/>
 
         <View style={styles.proReferenceSettingsList}>
         <MotionPressable
