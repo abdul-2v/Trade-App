@@ -17,4 +17,8 @@ assert(a.includes("restoredJobContent:{flexGrow:1,justifyContent:'center'"),'Job
 assert(a.includes("restoredToolsFill:{justifyContent:'flex-start',paddingTop:24}"),'Tools should have a small top inset without creating an oversized gap');
 assert(!tools.includes('Your private business records are only shared when you choose to share them.'),'Do not restore the removed footer');
 assert(tools.includes('marginBottom:selected?14:16'),'Keep a small natural gap below the original Tools heading');
+assert(a.includes('restoredJobsPage:{paddingHorizontal:18,paddingTop:14,paddingBottom:10,flexGrow:1}'),'Keep the small Jobs viewport insets');
+assert(a.includes("restoredJobContent:{flexGrow:1,justifyContent:'center',paddingVertical:2}"),'Use available space without extra empty-state padding');
+assert(a.includes('restoredJobUtility:{minHeight:54'),'Keep bottom cards full-sized');
+assert(a.includes('tradeJobsEmptyArt:{width:146,height:95'),'Preserve the original animation size');
 console.log('Restored dashboard cards, all 25 tools, job paging, spacing and detail actions passed');

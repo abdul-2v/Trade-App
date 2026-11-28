@@ -7786,7 +7786,7 @@ function TradeJobsScreen({
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
       <CompactDashboardFrame contentStyle={[styles.premiumPage,styles.tradeJobsDashboardPage,styles.restoredJobsPage]}>
-        <View style={[styles.premiumScreenHeading,{marginBottom:13}]}>
+        <View style={[styles.premiumScreenHeading,{marginBottom:10}]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumPageTitle}>Jobs</Text>
           </View>
@@ -7842,7 +7842,7 @@ function TradeJobsScreen({
         </View>
 
         {jobsView==='offers'&&<>
-            <View style={[styles.tradeOfferFilterRow,{marginBottom:10}]}>
+            <View style={[styles.tradeOfferFilterRow,{marginBottom:8}]}>
               {([
                 ['all', 'All', offered.length + marketOffered.length],
                 ['urgent', 'Urgent', offered.length],
@@ -7864,7 +7864,7 @@ function TradeJobsScreen({
             <MotionPressable style={styles.compactJobUtility} accessibilityRole="button" accessibilityLabel="Publish an On My Way or Street Run journey" onPress={()=>navigate('tradeRoutes')}><Route size={18} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>Publish journey</Text></MotionPressable>
           </View>}
         </>}
-        <View style={{marginBottom:11}}>
+        <View style={{marginBottom:8}}>
           {isReceivingOffers===null?(
             availabilityCheckError?<MotionPressable style={styles.tradeOfflineBanner}
               onPress={()=>{void refreshAvailability();}} accessibilityRole="button"
@@ -11253,14 +11253,14 @@ const styles = StyleSheet.create({
   restoredToolDetail:{fontSize:12,lineHeight:15,color:theme.colors.muted,marginTop:3},
   restoredToolCount:{alignSelf:'flex-start',borderRadius:10,backgroundColor:theme.colors.tealTint,paddingHorizontal:8,paddingVertical:2,marginTop:5},
   restoredToolItem:{minHeight:68,paddingVertical:11},
-  restoredJobsPage:{paddingHorizontal:18,paddingTop:18,paddingBottom:18,flexGrow:1},
-  restoredJobOverview:{minHeight:80,paddingVertical:11,marginBottom:11,borderRadius:21},
-  restoredJobOpportunity:{minHeight:60,backgroundColor:theme.colors.darkTeal,borderRadius:18,paddingHorizontal:13,paddingVertical:10,flexDirection:'row',alignItems:'center',gap:10,marginBottom:11},
-  restoredJobSegment:{marginBottom:10},
+  restoredJobsPage:{paddingHorizontal:18,paddingTop:14,paddingBottom:10,flexGrow:1},
+  restoredJobOverview:{minHeight:80,paddingVertical:11,marginBottom:9,borderRadius:21},
+  restoredJobOpportunity:{minHeight:60,backgroundColor:theme.colors.darkTeal,borderRadius:18,paddingHorizontal:13,paddingVertical:10,flexDirection:'row',alignItems:'center',gap:10,marginBottom:9},
+  restoredJobSegment:{marginBottom:8},
   restoredJobAvailability:{minHeight:64,paddingVertical:10,borderRadius:18},
-  restoredJobContent:{flexGrow:1,justifyContent:'center',paddingVertical:6},
+  restoredJobContent:{flexGrow:1,justifyContent:'center',paddingVertical:2},
   restoredJobPreview:{padding:13,gap:10,borderRadius:20},
-  restoredJobUtilities:{marginTop:10,marginBottom:0,gap:9},
+  restoredJobUtilities:{marginTop:6,marginBottom:0,gap:9},
   restoredJobUtility:{minHeight:54,paddingHorizontal:10,paddingVertical:9,borderRadius:16},
   compactToolsPage:{paddingHorizontal:16,paddingTop:12,paddingBottom:12},
   compactToolsTitle:{fontSize:29,lineHeight:35},
@@ -11417,7 +11417,7 @@ const styles = StyleSheet.create({
   tradeJobsCheckingAvailability:{flexDirection:'row',alignItems:'center',gap:10,minHeight:52,paddingHorizontal:12},
   tradeJobsUtilityIcon:{width:35,height:35,borderRadius:12,backgroundColor:theme.colors.tealTint,alignItems:'center',justifyContent:'center'},
   tradeJobsAssurance:{minHeight:60,flexDirection:'row',alignItems:'center',gap:10,backgroundColor:'#EAF4ED',borderWidth:1,borderColor:'#B8DAC8',borderRadius:17,paddingHorizontal:12,paddingVertical:9,marginBottom:9},
-  tradeJobsEmpty:{alignItems:'center',paddingHorizontal:16,paddingTop:11,paddingBottom:16},
+  tradeJobsEmpty:{alignItems:'center',paddingHorizontal:16,paddingTop:8,paddingBottom:10},
   tradeJobsEmptyArt:{width:146,height:95,alignItems:'center',justifyContent:'center'},
   tradeJobsEmptyShadow:{position:'absolute',bottom:6,width:112,height:13,borderRadius:56,backgroundColor:theme.colors.tealTint},
   tradeJobsEmptyBag:{width:88,height:82,alignItems:'center',justifyContent:'center'},
