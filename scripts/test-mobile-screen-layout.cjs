@@ -15,9 +15,9 @@ const screen=app.slice(start,end);
 const labels=['Quotes & finance','Jobs & scheduling','Documents & reports','Materials & suppliers','Customers & team'];
 for(const label of labels)assert.ok(screen.includes("title:'"+label+"'"),'Missing category '+label);
 assert.ok(screen.includes("const [category,setCategory]=useState('')"),'Categories need their own screen state');
-assert.ok(screen.includes("onPress={()=>setCategory(group.id)}"),'Category cards must open the selected category');
-assert.ok(screen.includes('selected.tools.map('),'A category must show only its own tools');
-assert.ok(screen.includes("onPress={()=>setCategory('')}"),'A category needs an All categories back action');
+assert.ok(screen.includes("onPress={()=>{setCategory(group.id);setToolPage(0)}}"),'Category cards must open the selected category');
+assert.ok(screen.includes('selected.tools.slice('),'A category must show only its own tools');
+assert.ok(screen.includes("onPress={()=>{setCategory('');setToolPage(0)}}"),'A category needs an All categories back action');
 assert.ok(screen.includes('style={styles.tradeToolsUnifiedList}'),'Category tools should share a consistent list');
 assert.ok(screen.includes('style={[styles.tradeToolsUnifiedRow,'),'All individual tools should use uniform rows');
 assert.ok(screen.includes("route:'tradeInvoices',title:'Invoices & payments'"),
@@ -73,7 +73,7 @@ for(const [route,file,guard] of [
   'Create mode must wait, open the original composer and consume its intent: '+route);
 }
 assert.equal((screen.match(/(?:route|feature):'/g)||[]).length,25,'All 25 tools must be retained');
-assert.ok(screen.includes('fontScale>1.2')&&screen.includes('wide=compact'),'Large text must switch to wide cards');
+assert.ok(screen.includes('fontScale>1.2')&&screen.includes('wide=compact||index===groups.length-1'),'Large text must switch to wide cards');
 assert.ok(app.includes('tradeToolsTileBody:{flex:1,minWidth:0,justifyContent:'),'Card content must flex without truncation');
 const orbit=app.slice(app.indexOf('function TradeToolsOrbit'),start);
 assert.ok(orbit.includes('useNativeDriver:true')&&orbit.includes('isInteraction:false'),'Native decoration must not block user interaction');
@@ -91,7 +91,7 @@ assert.ok(writer.includes('availabilityRequest.current+=1')&&writer.includes('av
 assert.ok(writer.indexOf('setIsReceivingOffers(confirmed)')>writer.indexOf('if(error||!saved)'),'Online label must follow server confirmation');
 assert.ok(jobs.includes('changeJobsAvailability(!isReceivingOffers)')&&jobs.includes('accessibilityRole="switch"'),'Jobs availability is actionable on the page');
 assert.ok(jobs.indexOf('styles.premiumJobOverview')<jobs.indexOf('styles.premiumSegment')&&jobs.indexOf('styles.premiumSegment')<jobs.indexOf('styles.tradeOfflineBanner'),'Summary and offer tabs must precede availability');
-assert.ok(jobs.includes('allOffersEmpty=offerFilter===\'all\'&&!loading&&!loadingMarket&&!offersLoadError&&offered.length===0&&marketOffered.length===0'),'Only confirmed empty all-offers state gets one illustration');
+assert.ok(jobs.includes('pageJob?<View')&&jobs.includes('loading||loadingMarket?')&&jobs.includes('offersLoadError?')&&jobs.includes("jobsView==='active'?"),'Only a successfully loaded empty offers view gets the illustration');
 assert.ok(jobs.includes('<TradeJobsEmptyMotion online={isReceivingOffers}/>'),'Empty state must have native motion');
 const emptyArt=app.slice(app.indexOf('function TradeJobsEmptyMotion('),jobsStart);
 assert.ok(emptyArt.includes('useNativeDriver:true')&&emptyArt.includes('isInteraction:false')&&emptyArt.includes('if(reduce||!foreground)return')&&emptyArt.includes('loop.stop()'),'Empty animation must be native, nonblocking and respect accessibility/background');
