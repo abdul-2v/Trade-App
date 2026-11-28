@@ -6322,6 +6322,10 @@ function TradeHomeScreen({
   const [showHomeMore,setShowHomeMore]=useState(false);
   const [showHomePulse,setShowHomePulse]=useState(false);
   const {width:homeWidth,fontScale:homeFontScale}=useWindowDimensions();
+  const [homeViewport,setHomeViewport]=useState(0);
+  const [showHomeExtras,setShowHomeExtras]=useState(false);
+  const shortHome=homeViewport>0&&homeViewport<630;
+  const homeMapHeight=Math.min(270,Math.max(158,Math.round((homeViewport||680)*.32)));
   const stackHomeChoices=homeWidth<345||homeFontScale>1.25;
   const [offersRefreshKey, setOffersRefreshKey] = useState(0);
   const [activeJobCount, setActiveJobCount] = useState<number | null>(null);
@@ -6697,11 +6701,11 @@ function TradeHomeScreen({
 
   return (
     <TradeShell current="tradeHome" navigate={navigate}>
-      <ScrollView contentContainerStyle={[styles.premiumPage,styles.tradeHomePage,styles.compactHomePage]} showsVerticalScrollIndicator={false} directionalLockEnabled>
-        <View style={[styles.premiumTopRow,{marginBottom:11}]}>
+      <CompactDashboardFrame onViewport={setHomeViewport} contentStyle={[styles.premiumPage,styles.refinedHomePage,shortHome&&styles.refinedHomeShortPage]}>
+        <View style={[styles.premiumTopRow,styles.refinedHomeHeader]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumEyebrow}>Good {greetingSecond.toLowerCase()}</Text>
-            <Text style={styles.premiumPageTitle} numberOfLines={1}>{firstName}</Text>
+            <Text style={styles.premiumPageTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{firstName}</Text>
           </View>
           <MotionPressable style={styles.premiumHeaderAvatar} onPress={() => navigate('tradeProfile')}
             accessibilityRole="button" accessibilityLabel="Open your profile">
@@ -6711,7 +6715,7 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
-        <View style={[styles.premiumHomeMap,styles.compactHomeMap,homeFontScale>1.25&&{height:225}]}>
+        <View style={[styles.premiumHomeMap,styles.refinedHomeMap,{height:homeFontScale>1.25?Math.max(225,homeMapHeight):homeMapHeight}]}>
           <View style={styles.premiumMapPreview} pointerEvents="none">
             <WorkAreaMapPreview
               latitude={previewArea?.latitude ?? 52.6369}
@@ -6722,7 +6726,7 @@ function TradeHomeScreen({
           </View>
           <Pressable style={styles.premiumMapOpen} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Open the map of nearby suppliers" />
-          <View style={[styles.premiumMapStatus,styles.compactMapStatus]}>
+          <View style={[styles.premiumMapStatus,styles.refinedHomeMapStatus]}>
             <StatusSwap value={available}>
               <LiveStatusDot online={available} style={styles.premiumOnlineDot} />
               <Text style={styles.premiumMapStatusText}>
@@ -6730,11 +6734,11 @@ function TradeHomeScreen({
               </Text>
             </StatusSwap>
           </View>
-          <MotionPressable style={[styles.premiumMapLocate,styles.compactMapLocate]} onPress={() => navigate('tradeMap')}
+          <MotionPressable style={[styles.premiumMapLocate,styles.refinedHomeMapLocate]} onPress={() => navigate('tradeMap')}
             accessibilityRole="button" accessibilityLabel="Find your location on the map">
             <Crosshair size={21} color={theme.colors.white} strokeWidth={2} />
           </MotionPressable>
-          <MotionPressable style={[styles.premiumAvailabilityButton,styles.compactAvailabilityButton]}
+          <MotionPressable style={[styles.premiumAvailabilityButton,styles.refinedHomeAvailability]}
             onPress={() => changeAvailable(!available)}
             disabled={savingAvailability}
             accessibilityRole="button" accessibilityLabel={available ? 'Go offline' : 'Go online'}>
@@ -6747,46 +6751,84 @@ function TradeHomeScreen({
           </MotionPressable>
         </View>
 
-        <View style={[styles.tradeDiscoverIntro,{marginTop:2,marginBottom:7}]}>
-          <View style={{ flex: 1 }}>
+        <View style={[styles.tradeDiscoverIntro,styles.refinedHomeIntro]}>
+          <View style={{flex:1,minWidth:0}}>
             <Text style={styles.tradeDiscoverTitle}>Find your next job</Text>
           </View>
+          <MotionPressable style={styles.refinedHomeMoreButton} onPress={()=>setShowHomeExtras(true)}
+            accessibilityRole="button" accessibilityLabel="More business tools, opportunities and work preferences">
+            <Text style={styles.refinedHomeMoreText}>More</Text><ChevronRight size={15} color={theme.colors.teal}/>
+          </MotionPressable>
         </View>
         <FadeSlideIn delay={80}>
-        <MotionPressable style={[styles.tradeDiscoverMain,styles.compactDiscoverMain]} onPress={() => openJobs('offers', 'all')}
+        <MotionPressable style={[styles.tradeDiscoverMain,styles.refinedHomeMain]} onPress={() => openJobs('offers', 'all')}
           accessibilityRole="button" accessibilityLabel="View all matched job offers">
-          <View style={[styles.tradeDiscoverMainIcon,{width:38,height:38,borderRadius:12}]}><Search size={23} color={theme.colors.white} strokeWidth={2.2} /></View>
+          <View style={[styles.tradeDiscoverMainIcon,styles.refinedHomeMainIcon]}><Search size={23} color={theme.colors.white} strokeWidth={2.2} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.tradeDiscoverMainTitle}>View job offers</Text>
             <Text style={styles.tradeDiscoverMainSub}>Review work matched to your trade and area</Text>
           </View>
           <ArrowRight size={20} color={theme.colors.white} strokeWidth={2.4} />
         </MotionPressable>
-        <View style={[styles.tradeDiscoverChoices,styles.compactDiscoverChoices,stackHomeChoices&&{flexDirection:'column'}]}>
-          <MotionPressable style={[styles.tradeDiscoverChoice,styles.compactDiscoverChoice]} onPress={() => openJobs('offers', 'urgent')}
+        <View style={[styles.tradeDiscoverChoices,styles.refinedHomeChoices,stackHomeChoices&&{flexDirection:'column'}]}>
+          <MotionPressable style={[styles.tradeDiscoverChoice,styles.refinedHomeChoice,shortHome&&styles.refinedHomeChoiceShort]} onPress={() => openJobs('offers', 'urgent')}
             accessibilityRole="button" accessibilityLabel="View urgent nearby call-out offers">
-            <View style={[styles.tradeDiscoverChoiceIcon,{width:34,height:34,borderRadius:11,backgroundColor:theme.colors.coralTint}]}>
+            <View style={[styles.tradeDiscoverChoiceIcon,{width:35,height:35,borderRadius:12,backgroundColor:theme.colors.coralTint}]}>
               <Zap size={23} color={theme.colors.coralDark} strokeWidth={2.2}/>
             </View>
             <View style={{minWidth:0,flex:1}}>
               <Text style={styles.tradeDiscoverChoiceTitle}>Urgent call-outs</Text>
-              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Quick response</Text>
+              <Text style={styles.tradeDiscoverChoiceSub}>{incomingOffers.length?incomingOffers.length+' ready to review':'Quick response'}</Text>
             </View>
+            {homeWidth>=365&&homeFontScale<=1.15?<ChevronRight size={14} color={theme.colors.teal}/>:null}
           </MotionPressable>
-          <MotionPressable style={[styles.tradeDiscoverChoice,styles.compactDiscoverChoice]} onPress={() => openJobs('offers', 'flexible')}
+          <MotionPressable style={[styles.tradeDiscoverChoice,styles.refinedHomeChoice,shortHome&&styles.refinedHomeChoiceShort]} onPress={() => openJobs('offers', 'flexible')}
             accessibilityRole="button" accessibilityLabel="View scheduled and route-based job offers">
-            <View style={[styles.tradeDiscoverChoiceIcon,{width:34,height:34,borderRadius:11,backgroundColor:theme.colors.tealTint}]}>
+            <View style={[styles.tradeDiscoverChoiceIcon,{width:35,height:35,borderRadius:12,backgroundColor:theme.colors.tealTint}]}>
               <Route size={23} color={theme.colors.teal} strokeWidth={2.2}/>
             </View>
             <View style={{minWidth:0,flex:1}}>
               <Text style={styles.tradeDiscoverChoiceTitle}>Flexible jobs</Text>
-              <Text style={styles.tradeDiscoverChoiceSub} numberOfLines={2}>Bookings & route work</Text>
+              <Text style={styles.tradeDiscoverChoiceSub}>Bookings & route work</Text>
             </View>
+            {homeWidth>=365&&homeFontScale<=1.15?<ChevronRight size={14} color={theme.colors.teal}/>:null}
           </MotionPressable>
         </View>
         </FadeSlideIn>
 
-                 <MotionPressable onPress={()=>navigate('tradeGrid')} style={[styles.tradeGridHomeCard,styles.compactGridHome]}
+        <View style={[styles.premiumShortcuts,styles.refinedHomeShortcuts,stackHomeChoices&&{flexDirection:'column'}]}>
+          <MotionPressable style={[styles.premiumShortcut,styles.refinedHomeShortcut,shortHome&&styles.refinedHomeShortcutShort]} onPress={() => openJobs('active', 'all')}
+            accessibilityRole="button" accessibilityLabel="View accepted active jobs">
+            <View style={[styles.premiumShortcutIcon, { width:38,height:38,borderRadius:12,marginBottom:7,backgroundColor: theme.colors.tealTint }]}>
+              <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
+            </View>
+            <View style={styles.refinedHomeShortcutBody}><Text style={styles.premiumShortcutTitle}>Active jobs</Text><Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text></View>
+          </MotionPressable>
+          <MotionPressable style={[styles.premiumShortcut,styles.refinedHomeShortcut,shortHome&&styles.refinedHomeShortcutShort]} onPress={() => navigate('tradeMap')}
+            accessibilityRole="button" accessibilityLabel="Find merchants">
+            <View style={[styles.premiumShortcutIcon, { width:38,height:38,borderRadius:12,marginBottom:7,backgroundColor: theme.colors.coralTint }]}>
+              <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
+            </View>
+            <View style={styles.refinedHomeShortcutBody}><Text style={styles.premiumShortcutTitle}>Merchants</Text><Text style={styles.premiumShortcutSub}>Find supplies nearby</Text></View>
+          </MotionPressable>
+          <MotionPressable style={[styles.premiumShortcut,styles.refinedHomeShortcut,shortHome&&styles.refinedHomeShortcutShort]} onPress={() => openJobs('offers', 'flexible')}
+            accessibilityRole="button" accessibilityLabel="View On My Way and Street Run job offers">
+            <View style={[styles.premiumShortcutIcon, { width:38,height:38,borderRadius:12,marginBottom:7,backgroundColor: '#E8EDF3' }]}>
+              <Route size={22} strokeWidth={2} color="#365875" />
+            </View>
+            <View style={styles.refinedHomeShortcutBody}><Text style={styles.premiumShortcutTitle}>Route jobs</Text><Text style={styles.premiumShortcutSub}>On My Way & Street Run</Text></View>
+          </MotionPressable>
+        </View>
+
+      </CompactDashboardFrame>
+      <Modal visible={showHomeExtras} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setShowHomeExtras(false)}>
+        <SafeAreaView style={styles.dashboardDetail}>
+          <View style={styles.dashboardDetailHeader}>
+            <Text style={styles.tradeDiscoverTitle}>More</Text>
+            <MotionPressable style={styles.dashboardPageButton} onPress={()=>setShowHomeExtras(false)} accessibilityRole="button" accessibilityLabel="Close more tools and settings"><X size={22} color={theme.colors.teal}/></MotionPressable>
+          </View>
+          <ScrollView contentContainerStyle={{paddingHorizontal:18,paddingTop:16,paddingBottom:24}}>
+        <MotionPressable onPress={()=>navigate('tradeGrid')} style={[styles.tradeGridHomeCard,styles.compactGridHome]}
           accessibilityRole="button" accessibilityLabel="Publish your spare time on Grid">
           <View style={[styles.tradeGridHomeIcon,{width:35,height:35,borderRadius:11}]}><Route size={23} color={theme.colors.teal}/></View>
           <View style={{flex:1}}><Text style={styles.tradeGridHomeTitle}>A gap in your diary?</Text>
@@ -6800,33 +6842,6 @@ function TradeHomeScreen({
             <ChevronRight size={17} color={theme.colors.teal}/>
           </MotionPressable>
           <MotionPressable style={styles.compactRefreshButton} onPress={()=>setOffersRefreshKey(value=>value+1)} accessibilityRole="button" accessibilityLabel="Refresh incoming opportunities"><RotateCw size={17} color={theme.colors.teal}/></MotionPressable>
-        </View>
-
-        <View style={[styles.premiumShortcuts,styles.compactHomeShortcuts,stackHomeChoices&&{flexDirection:'column'}]}>
-          <MotionPressable style={[styles.premiumShortcut,styles.compactHomeShortcut]} onPress={() => openJobs('active', 'all')}
-            accessibilityRole="button" accessibilityLabel="View accepted active jobs">
-            <View style={[styles.premiumShortcutIcon, { width:30,height:30,borderRadius:10,marginBottom:3,backgroundColor: theme.colors.tealTint }]}>
-              <BriefcaseBusiness size={22} strokeWidth={2} color={theme.colors.teal} />
-            </View>
-            <Text style={styles.premiumShortcutTitle}>Active jobs</Text>
-            <Text style={styles.premiumShortcutSub}>{activeJobCount === null ? 'Your jobs' : activeJobCount + ' active'}</Text>
-          </MotionPressable>
-          <MotionPressable style={[styles.premiumShortcut,styles.compactHomeShortcut]} onPress={() => navigate('tradeMap')}
-            accessibilityRole="button" accessibilityLabel="Find merchants">
-            <View style={[styles.premiumShortcutIcon, { width:30,height:30,borderRadius:10,marginBottom:3,backgroundColor: theme.colors.coralTint }]}>
-              <MapPin size={22} strokeWidth={2} color={theme.colors.coralDark} />
-            </View>
-            <Text style={styles.premiumShortcutTitle}>Merchants</Text>
-            <Text style={styles.premiumShortcutSub}>Find supplies nearby</Text>
-          </MotionPressable>
-          <MotionPressable style={[styles.premiumShortcut,styles.compactHomeShortcut]} onPress={() => openJobs('offers', 'flexible')}
-            accessibilityRole="button" accessibilityLabel="View On My Way and Street Run job offers">
-            <View style={[styles.premiumShortcutIcon, { width:30,height:30,borderRadius:10,marginBottom:3,backgroundColor: '#E8EDF3' }]}>
-              <Route size={22} strokeWidth={2} color="#365875" />
-            </View>
-            <Text style={styles.premiumShortcutTitle}>Route jobs</Text>
-            <Text style={styles.premiumShortcutSub}>On My Way & Street Run</Text>
-          </MotionPressable>
         </View>
 
         <MotionPressable style={styles.compactUtilityRow} onPress={()=>setShowHomePulse(v=>!v)} accessibilityRole="button" accessibilityState={{expanded:showHomePulse}}>
@@ -6970,8 +6985,9 @@ function TradeHomeScreen({
 
         </View>
         </>}
-        <View style={{ height: 4 }} />
-      </ScrollView>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </TradeShell>
   );
 }
@@ -11223,6 +11239,27 @@ const styles = StyleSheet.create({
   premiumPage: { paddingHorizontal: 24, paddingTop: 27, paddingBottom: 124, backgroundColor: theme.colors.proBackground },
   tradeHomePage: { paddingHorizontal: 22, paddingTop: 20 },
   // Compact tradesperson dashboard overrides. Existing detail screens keep their original styles.
+  // Map-led Home: the main six actions fit the measured safe-area viewport.
+  // Secondary controls live in a separate sheet, not additional dashboard rows.
+  refinedHomePage:{paddingHorizontal:16,paddingTop:20,paddingBottom:20,flexGrow:1,justifyContent:'space-between'},
+  refinedHomeShortPage:{paddingTop:12,paddingBottom:12},
+  refinedHomeHeader:{marginBottom:8,gap:9},
+  refinedHomeMap:{borderRadius:26,marginBottom:0},
+  refinedHomeMapStatus:{top:12,left:12,right:68,minHeight:40,paddingHorizontal:11},
+  refinedHomeMapLocate:{top:12,right:12},
+  refinedHomeAvailability:{height:50,bottom:14,left:14,right:14},
+  refinedHomeIntro:{marginTop:0,marginBottom:0,alignItems:'center',gap:5},
+  refinedHomeMoreButton:{minHeight:44,minWidth:44,flexDirection:'row',alignItems:'center',justifyContent:'flex-end',gap:2,paddingLeft:4},
+  refinedHomeMoreText:{fontSize:12,fontWeight:'700',color:theme.colors.teal},
+  refinedHomeMain:{minHeight:74,paddingHorizontal:13,paddingVertical:10,gap:11,marginBottom:10,borderRadius:21},
+  refinedHomeMainIcon:{width:44,height:44,borderRadius:14},
+  refinedHomeChoices:{gap:9,marginBottom:0},
+  refinedHomeChoice:{minHeight:85,paddingHorizontal:9,paddingVertical:10,gap:5,flexDirection:'row',alignItems:'center',justifyContent:'flex-start',borderRadius:20},
+  refinedHomeChoiceShort:{minHeight:74,paddingVertical:7},
+  refinedHomeShortcuts:{gap:8,marginTop:0,marginBottom:0},
+  refinedHomeShortcut:{minHeight:107,padding:10,borderRadius:20},
+  refinedHomeShortcutShort:{minHeight:94,padding:8},
+  refinedHomeShortcutBody:{flex:1,minWidth:0,justifyContent:'center'},
   compactHomePage:{paddingHorizontal:16,paddingTop:12,paddingBottom:12},
   compactHomeMap:{height:184,marginBottom:9,borderRadius:25},
   compactMapStatus:{top:10,left:10,right:65,minHeight:44,paddingHorizontal:10},
