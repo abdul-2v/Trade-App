@@ -4,6 +4,7 @@ import {ArrowLeft,Bell,BellRing,BriefcaseBusiness,CalendarClock,
  CheckCheck,ChevronRight,MessageCircle,RefreshCw,FileText,Users} from 'lucide-react-native';
 import {MotionPressable} from './Motion';
 import TradarrPushControl from './TradarrPushControl';
+import TradarrEmailPreferences from './TradarrEmailPreferences';
 import {supabase} from './lib/supabase';
 import {theme} from './theme';
 
@@ -180,6 +181,7 @@ export default function TradarrNotificationsScreen({onBack,onOpen,embedded=false
    </MotionPressable>
   </View>:null}
   <TradarrPushControl/>
+  <TradarrEmailPreferences/>
   <View style={[s.tools,embedded&&{paddingTop:9}]}>
    <View style={s.tabs}>
     {([{key:'all',label:'All'},{key:'unread',label:'Unread'}] as const).map(tab=>{
