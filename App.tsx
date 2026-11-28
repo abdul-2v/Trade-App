@@ -6170,12 +6170,12 @@ function TradeToolsOrbit({customer=false}:{customer?:boolean}={}){
  </View>;
 }
 
-function CompactDashboardFrame({children,contentStyle}:{children:React.ReactNode;contentStyle:any}){
+function CompactDashboardFrame({children,contentStyle,onViewport}:{children:React.ReactNode;contentStyle:any;onViewport?:(height:number)=>void}){
  const [viewport,setViewport]=useState(0),[content,setContent]=useState(0);
  const overflow=viewport>0&&content>viewport+2;
  return <ScrollView style={{flex:1,backgroundColor:theme.colors.proBackground}}
   contentContainerStyle={contentStyle} scrollEnabled={overflow} bounces={false}
-  showsVerticalScrollIndicator={overflow} onLayout={e=>setViewport(e.nativeEvent.layout.height)}
+  showsVerticalScrollIndicator={overflow} onLayout={e=>{const h=e.nativeEvent.layout.height;setViewport(h);onViewport?.(h)}}
   onContentSizeChange={(_,h)=>setContent(h)}>{children}</ScrollView>;
 }
 
@@ -6228,7 +6228,12 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
  const pages=Math.max(1,Math.ceil((selected?.tools.length||0)/pageSize));
  const currentPage=Math.min(toolPage,pages-1);
  const compact=width<350||fontScale>1.2;
- const showOrbit=width>=365&&fontScale<=1.15;
+ const showOrbit=width>=350&&fontScale<=1.2;
+ const [viewport,setViewport]=useState(0);
+ const tall=viewport>=720;
+ const short=viewport>0&&viewport<630;
+ const tileHeight=tall?150:short?126:136;
+ const wideHeight=tall?102:short?78:88;
  const shortcuts:Array<{title:string;Icon:typeof FileText;onPress:()=>void;hint:string}>=[
   {title:'New invoice',Icon:ClipboardList,onPress:()=>navigate('tradeInvoices',true),hint:'Start a new editable invoice draft'},
   {title:'New booking',Icon:CalendarDays,onPress:()=>navigate('tradeDiary',true),hint:'Start a new appointment'},
@@ -6236,26 +6241,26 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
   {title:'Upload file',Icon:FolderLock,onPress:()=>openBusinessSuite('documentVault'),hint:'Open the document vault to upload a file'},
  ];
  return <TradeShell current="tradeTools" navigate={navigate}>
-  <CompactDashboardFrame key={category||'categories'} contentStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,styles.compactToolsPage]}>
+  <CompactDashboardFrame key={category||'categories'} onViewport={setViewport} contentStyle={[styles.premiumPage,styles.tradeToolsUnifiedPage,styles.restoredToolsPage,!selected&&styles.restoredToolsFill]}>
    {selected?<MotionPressable onPress={()=>{setCategory('');setToolPage(0)}} accessibilityRole="button"
      accessibilityLabel="Back to tool categories" style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:44,marginBottom:8}}>
      <ArrowLeft size={18} color={theme.colors.teal}/>
      <Text style={{fontFamily:theme.font.heading,color:theme.colors.teal,fontWeight:'800',fontSize:13}}>All categories</Text>
     </MotionPressable>:null}
-   <View style={[styles.premiumScreenHeading,{marginBottom:10,gap:7}]}>
+   <View style={[styles.premiumScreenHeading,{marginBottom:selected?14:12,gap:9}]}>
     <View style={{flex:1}}>
      <Text style={styles.premiumEyebrow}>Run your business</Text>
-     <Text style={[styles.premiumPageTitle,styles.compactToolsTitle]}>{selected?selected.title:'Tools'}</Text>
+     <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
      <Text style={styles.premiumScreenSub}>{selected?selected.detail:'Your business, all in one place.'}</Text>
     </View>
-    {!selected&&showOrbit?<View style={styles.compactOrbitFrame}><View style={styles.compactOrbitInner}><TradeToolsOrbit/></View></View>:null}
+    {!selected&&showOrbit?<View style={[styles.restoredOrbitFrame,short&&{width:100,height:88}]}><View style={[styles.restoredOrbitInner,short&&{transform:[{scale:.76}],left:-16,top:-14}]}><TradeToolsOrbit/></View></View>:null}
    </View>
    {!selected?<FadeSlideIn>
-    <View style={[styles.tradeToolsShortcutBar,styles.compactToolShortcuts,compact&&{flexWrap:'wrap'}]}>
+    <View style={[styles.tradeToolsShortcutBar,styles.restoredToolShortcuts,compact&&{flexWrap:'wrap'}]}>
      {shortcuts.map(({title,Icon,onPress,hint},index)=><MotionPressable key={title} onPress={onPress}
       accessibilityLabel={title} accessibilityHint={hint} pressScale={.96}
-      style={[styles.tradeToolsShortcutButton,styles.compactToolShortcut,compact&&{flexBasis:'48%',flexGrow:1},!compact&&index>0&&styles.tradeToolsShortcutDivider]}>
-      <View style={[styles.tradeToolsShortcutGlyph,{width:31,height:31,borderRadius:10}]}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
+      style={[styles.tradeToolsShortcutButton,styles.restoredToolShortcut,compact&&{flexBasis:'48%',flexGrow:1},!compact&&index>0&&styles.tradeToolsShortcutDivider]}>
+      <View style={styles.tradeToolsShortcutGlyph}><Icon size={23} color={theme.colors.teal} strokeWidth={1.9}/></View>
       <Text style={styles.tradeToolsShortcutLabel}>{title}</Text>
      </MotionPressable>)}
     </View>
@@ -6263,20 +6268,20 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
      <Text style={styles.tradeToolsSectionTitleNew}>All tools</Text>
      <Text style={styles.tradeToolsIndexMeta}>{groups.reduce((sum,group)=>sum+group.tools.length,0)} tools · {groups.length} categories</Text>
     </View>
-    <View style={styles.compactToolCategories}>
+    <View style={styles.tradeToolsTileGrid}>
      {groups.map((group,index)=>{
-      const Icon=group.Icon;
+      const wide=compact||index===groups.length-1;
       return <MotionPressable key={group.id} onPress={()=>{setCategory(group.id);setToolPage(0)}}
        accessibilityRole="button" accessibilityLabel={'Open '+group.title+', '+group.tools.length+' tools'}
-       accessibilityHint={group.detail}
-       style={[styles.compactToolCategory,index>0&&styles.tradeToolsRowDivider]}>
-       <View style={styles.compactToolCategoryGlyph}><Icon size={23} color={theme.colors.teal} strokeWidth={1.9}/></View>
-       <View style={{flex:1,minWidth:0}}>
-        <Text style={styles.tradeToolsTileTitle}>{group.title}</Text>
-        <Text style={styles.compactToolDetail}>{group.detail}</Text>
+       accessibilityHint={group.detail} pressScale={.975}
+       style={[styles.tradeToolsTile,styles.restoredToolTile,{minHeight:tileHeight},wide&&styles.tradeToolsTileWide,wide&&{minHeight:wideHeight}]}>
+       <View pointerEvents="none" style={styles.tradeToolsTileAccent}/>
+       <View style={[styles.tradeToolsTileGlyph,styles.restoredToolGlyph,wide&&{marginBottom:0}]}><group.Icon size={24} color={theme.colors.teal} strokeWidth={1.9}/></View>
+       <View style={styles.tradeToolsTileBody}>
+        <View><Text style={styles.tradeToolsTileTitle}>{group.title}</Text><Text style={styles.restoredToolDetail}>{group.detail}</Text></View>
+        <View style={styles.restoredToolCount}><Text style={styles.tradeToolsTileCountText}>{group.tools.length} tools</Text></View>
        </View>
-       <Text style={styles.compactToolCount}>{group.tools.length}</Text>
-       <ChevronRight size={17} color={theme.colors.teal}/>
+       <View style={wide?styles.tradeToolsTileArrowWide:styles.tradeToolsTileArrow}><ChevronRight size={17} color={theme.colors.teal}/></View>
       </MotionPressable>;
      })}
     </View>
@@ -6284,7 +6289,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
      {selected.tools.slice(currentPage*pageSize,(currentPage+1)*pageSize).map((item,index)=>{const Icon=item.Icon;return <MotionPressable key={item.title}
        accessibilityRole="button" accessibilityLabel={'Open '+item.title} accessibilityHint={item.detail}
        onPress={()=>item.route?navigate(item.route):item.feature?openBusinessSuite(item.feature):undefined}
-       style={[styles.tradeToolsUnifiedRow,styles.compactToolItem,index>0&&styles.tradeToolsRowDivider]}>
+       style={[styles.tradeToolsUnifiedRow,styles.restoredToolItem,index>0&&styles.tradeToolsRowDivider]}>
        <View style={styles.tradeToolsRowIcon}><Icon size={21} color={theme.colors.teal} strokeWidth={1.9}/></View>
        <View style={{flex:1}}>
         <Text style={styles.tradeToolsRowTitle}>{item.title}</Text>
@@ -6293,7 +6298,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        <ChevronRight size={19} color="#82958D"/>
       </MotionPressable>})}
     </View>{pages>1&&<View style={styles.dashboardPager}><MotionPressable accessibilityRole="button" accessibilityLabel="Previous tools page" disabled={currentPage===0} onPress={()=>setToolPage(currentPage-1)} style={[styles.dashboardPageButton,currentPage===0&&{opacity:.35}]}><ArrowLeft size={19} color={theme.colors.teal}/></MotionPressable><Text style={styles.dashboardPageText}>Page {currentPage+1} of {pages}</Text><MotionPressable accessibilityRole="button" accessibilityLabel="Next tools page" disabled={currentPage===pages-1} onPress={()=>setToolPage(currentPage+1)} style={[styles.dashboardPageButton,currentPage===pages-1&&{opacity:.35}]}><ArrowRight size={19} color={theme.colors.teal}/></MotionPressable></View>}</FadeSlideIn>}
-   <Text style={[styles.tradeToolsFooter,{marginTop:9}]}>Your private business records are only shared when you choose to share them.</Text>
+   <Text style={[styles.tradeToolsFooter,{marginTop:12}]}>Your private business records are only shared when you choose to share them.</Text>
   </CompactDashboardFrame>
  </TradeShell>;
 }
@@ -6998,12 +7003,12 @@ function TradeJobsEmptyMotion({online}:{online:boolean|null}){
   const rise=progress.interpolate({inputRange:[0,1],outputRange:[0,-6]});
   const shadow=progress.interpolate({inputRange:[0,1],outputRange:[1,.85]});
   const accent=progress.interpolate({inputRange:[0,1],outputRange:[.48,1]});
-  return <View style={[styles.tradeJobsEmpty,{paddingTop:5,paddingBottom:8}]}>
+  return <View style={styles.tradeJobsEmpty}>
     <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      pointerEvents="none" style={[styles.tradeJobsEmptyArt,{height:68,width:100}]}>
+      pointerEvents="none" style={styles.tradeJobsEmptyArt}>
       <Animated.View style={[styles.tradeJobsEmptyShadow,{transform:[{scaleX:shadow}]}]}/>
-      <Animated.View style={[styles.tradeJobsEmptyBag,{width:62,height:61,transform:[{translateY:rise}]}]}>
-        <BriefcaseBusiness size={49} color={theme.colors.teal} strokeWidth={1.65}/>
+      <Animated.View style={[styles.tradeJobsEmptyBag,{transform:[{translateY:rise}]}]}>
+        <BriefcaseBusiness size={61} color={theme.colors.teal} strokeWidth={1.65}/>
         <Animated.View style={[styles.tradeJobsEmptyRays,{opacity:accent}]}>
           <View style={[styles.tradeJobsEmptyRay,{left:1,top:0,transform:[{rotate:'16deg'}]}]}/>
           <View style={[styles.tradeJobsEmptyRay,{left:12,top:5,transform:[{rotate:'46deg'}]}]}/>
@@ -7011,8 +7016,8 @@ function TradeJobsEmptyMotion({online}:{online:boolean|null}){
         </Animated.View>
       </Animated.View>
     </View>
-    <Text style={[styles.tradeJobsEmptyTitle,{fontSize:19}]}>No offers yet</Text>
-    <Text style={[styles.tradeJobsEmptyCopy,{fontSize:12,lineHeight:17,marginTop:3}]}>{online===true
+    <Text style={styles.tradeJobsEmptyTitle}>No offers yet</Text>
+    <Text style={styles.tradeJobsEmptyCopy}>{online===true
       ?'When new work matches your trade and area, it will appear here.'
       :online===false?'Turn on your availability to receive nearby and relevant job offers.'
       :'Check your availability above to make sure you can receive new job offers.'}</Text>
@@ -7781,10 +7786,10 @@ function TradeJobsScreen({
   const filterName=flexibleMode==='normal'?'Bookings':flexibleMode==='route'?'On My Way':flexibleMode==='street_run'?'Street Run':'All flexible';
   return (
     <TradeShell current="tradeJobs" navigate={navigate}>
-      <CompactDashboardFrame contentStyle={[styles.premiumPage,styles.tradeJobsDashboardPage,styles.compactJobsPage]}>
-        <View style={[styles.premiumScreenHeading,{marginBottom:9}]}>
+      <CompactDashboardFrame contentStyle={[styles.premiumPage,styles.tradeJobsDashboardPage,styles.restoredJobsPage]}>
+        <View style={[styles.premiumScreenHeading,{marginBottom:13}]}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.premiumPageTitle,styles.compactToolsTitle]}>Jobs</Text>
+            <Text style={styles.premiumPageTitle}>Jobs</Text>
           </View>
           <MotionPressable style={[styles.premiumHeaderRefresh,{width:44,height:44}]} accessibilityRole="button"
             accessibilityLabel="Refresh job offers" onPress={() => {
@@ -7795,7 +7800,7 @@ function TradeJobsScreen({
             <RotateCw size={23} color={theme.colors.tealMid} strokeWidth={2} />
           </MotionPressable>
         </View>
-        <View style={[styles.premiumJobOverview,styles.compactJobOverview]}>
+        <View style={[styles.premiumJobOverview,styles.restoredJobOverview]}>
           <View pointerEvents="none" style={styles.tradeJobsMetricAccent}/>
           <View style={styles.premiumJobMetric}>
             {showMetricIcons?<View style={styles.tradeJobsMetricIcon}><BriefcaseBusiness size={22} color={theme.colors.white}/></View>:null}
@@ -7813,9 +7818,9 @@ function TradeJobsScreen({
             </View>
           </View>
         </View>
-        <MotionPressable style={styles.compactJobOpportunity} onPress={()=>navigate('tradePulse')} accessibilityRole="button"><Search size={19} color={theme.colors.white}/><View style={{flex:1,minWidth:0}}><Text style={{color:theme.colors.white,fontWeight:'800',fontSize:14}}>Open opportunities</Text><Text style={{color:'#D3E3E1',fontSize:11}}>Browse jobs and express interest</Text></View><ArrowRight color={theme.colors.white} size={18}/></MotionPressable>
-        <View style={[styles.premiumSegment,styles.compactJobSegment]}>
-          <MotionPressable onPress={() => {setJobsView('offers');setJobPage(0)}} style={[styles.premiumSegmentTab,{height:40}]}
+        <MotionPressable style={styles.restoredJobOpportunity} onPress={()=>navigate('tradePulse')} accessibilityRole="button"><Search size={19} color={theme.colors.white}/><View style={{flex:1,minWidth:0}}><Text style={{color:theme.colors.white,fontWeight:'800',fontSize:15}}>Open opportunities</Text><Text style={{color:'#D3E3E1',fontSize:12,lineHeight:17}}>Browse jobs and express interest</Text></View><ArrowRight color={theme.colors.white} size={18}/></MotionPressable>
+        <View style={[styles.premiumSegment,styles.restoredJobSegment]}>
+          <MotionPressable onPress={() => {setJobsView('offers');setJobPage(0)}} style={styles.premiumSegmentTab}
             pressScale={0.991} disableFlash
             accessibilityRole="tab" accessibilityLabel="Job offers"
             accessibilityState={{ selected: jobsView === 'offers' }}>
@@ -7825,7 +7830,7 @@ function TradeJobsScreen({
               </Text>
             </NavPill>
           </MotionPressable>
-          <MotionPressable onPress={() => {setJobsView('active');setJobPage(0)}} style={[styles.premiumSegmentTab,{height:40}]}
+          <MotionPressable onPress={() => {setJobsView('active');setJobPage(0)}} style={styles.premiumSegmentTab}
             pressScale={0.991} disableFlash
             accessibilityRole="tab" accessibilityLabel="Active jobs"
             accessibilityState={{ selected: jobsView === 'active' }}>
@@ -7838,7 +7843,7 @@ function TradeJobsScreen({
         </View>
 
         {jobsView==='offers'&&<>
-            <View style={[styles.tradeOfferFilterRow,{marginBottom:7}]}>
+            <View style={[styles.tradeOfferFilterRow,{marginBottom:10}]}>
               {([
                 ['all', 'All', offered.length + marketOffered.length],
                 ['urgent', 'Urgent', offered.length],
@@ -7860,7 +7865,7 @@ function TradeJobsScreen({
             <MotionPressable style={styles.compactJobUtility} accessibilityRole="button" accessibilityLabel="Publish an On My Way or Street Run journey" onPress={()=>navigate('tradeRoutes')}><Route size={18} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>Publish journey</Text></MotionPressable>
           </View>}
         </>}
-        <View style={{marginBottom:7}}>
+        <View style={{marginBottom:11}}>
           {isReceivingOffers===null?(
             availabilityCheckError?<MotionPressable style={styles.tradeOfflineBanner}
               onPress={()=>{void refreshAvailability();}} accessibilityRole="button"
@@ -7876,7 +7881,7 @@ function TradeJobsScreen({
               <Text style={styles.tradeOfflineSub}>Checking availability…</Text>
             </View>
           ):(
-            <MotionPressable style={[styles.tradeOfflineBanner,styles.compactJobAvailability,isReceivingOffers&&styles.tradeJobsOnlineBanner]}
+            <MotionPressable style={[styles.tradeOfflineBanner,styles.restoredJobAvailability,isReceivingOffers&&styles.tradeJobsOnlineBanner]}
               onPress={()=>{void changeJobsAvailability(!isReceivingOffers);}}
               disabled={savingJobsAvailability} accessibilityRole="switch"
               accessibilityLabel="Job availability" accessibilityState={{checked:isReceivingOffers,disabled:savingJobsAvailability,busy:savingJobsAvailability}}
@@ -7909,7 +7914,8 @@ function TradeJobsScreen({
           <Text style={styles.tradeOfflineSub}>Tap to retry.</Text></View>
         </MotionPressable>:null}
 
-        {pageJob?<View style={styles.dashboardJobPreview}>
+        <View style={styles.restoredJobContent}>
+        {pageJob?<View style={[styles.dashboardJobPreview,styles.restoredJobPreview]}>
           <MotionPressable style={styles.dashboardJobSummary} onPress={()=>setDetailKey(pageJob.key)} accessibilityRole="button" accessibilityLabel={'View '+pageJob.job.request.trade+' job details'}>
             <View style={styles.compactUtilityIcon}>{pageJob.source==='urgent'?<Zap size={20} color={theme.colors.coralDark}/>:<CalendarDays size={20} color={theme.colors.teal}/>}</View>
             <View style={{flex:1,minWidth:0}}><Text style={styles.compactUtilityTitle}>{pageJob.job.request.trade} · {jobsView==='active'?'Active':pageJob.source==='urgent'?'Urgent':'Flexible'}</Text><Text numberOfLines={2} style={styles.compactUtilitySub}>{pageJob.job.request.issue}</Text></View><ChevronRight size={19} color={theme.colors.teal}/>
@@ -7921,11 +7927,12 @@ function TradeJobsScreen({
           <Text style={styles.dashboardPageText}>Job {currentPage+1} of {visibleJobs.length}</Text>
           <MotionPressable accessibilityRole="button" accessibilityLabel="Next job" disabled={currentPage===pageCount-1} onPress={()=>setJobPage(currentPage+1)} style={[styles.dashboardPageButton,currentPage===pageCount-1&&{opacity:.35}]}><ArrowRight size={19} color={theme.colors.teal}/></MotionPressable>
         </View>}
-        <View style={styles.compactJobUtilities}>
-          <MotionPressable style={styles.compactJobUtility} onPress={()=>setShowJobGuide(v=>!v)} accessibilityRole="button" accessibilityState={{expanded:showJobGuide}} accessibilityLabel="How getting jobs on Tradarr works">
+        </View>
+        <View style={[styles.compactJobUtilities,styles.restoredJobUtilities]}>
+          <MotionPressable style={[styles.compactJobUtility,styles.restoredJobUtility]} onPress={()=>setShowJobGuide(v=>!v)} accessibilityRole="button" accessibilityState={{expanded:showJobGuide}} accessibilityLabel="How getting jobs on Tradarr works">
             <CircleHelp size={19} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>Job guide</Text><ChevronRight size={15} color={theme.colors.teal} style={showJobGuide?{transform:[{rotate:'90deg'}]}:undefined}/>
           </MotionPressable>
-          <MotionPressable style={styles.compactJobUtility} onPress={()=>navigate('tradeAssurance')} accessibilityRole="button" accessibilityLabel="ScopeGuard and FinishProof job assurance tools">
+          <MotionPressable style={[styles.compactJobUtility,styles.restoredJobUtility]} onPress={()=>navigate('tradeAssurance')} accessibilityRole="button" accessibilityLabel="ScopeGuard and FinishProof job assurance tools">
             <ShieldCheck size={19} color={theme.colors.teal}/><Text style={styles.compactJobUtilityText}>ScopeGuard &amp; FinishProof</Text><ChevronRight size={15} color={theme.colors.teal}/>
           </MotionPressable>
         </View>
@@ -11235,6 +11242,27 @@ const styles = StyleSheet.create({
   compactUtilityRow:{backgroundColor:theme.colors.white,borderRadius:15,flexDirection:'row',alignItems:'center',paddingHorizontal:10,paddingVertical:7,minHeight:51,gap:9,marginBottom:7},
   compactHomeShortcuts:{gap:7,marginTop:0,marginBottom:8},
   compactHomeShortcut:{minHeight:72,padding:8,borderRadius:15},
+  // Original card hierarchy with responsive spacing and natural text sizing.
+  restoredToolsPage:{paddingHorizontal:18,paddingTop:16,paddingBottom:14,flexGrow:1},
+  restoredToolsFill:{justifyContent:'space-between'},
+  restoredOrbitFrame:{width:116,height:101,position:'relative',flexShrink:0},
+  restoredOrbitInner:{position:'absolute',left:-8,top:-7,transform:[{scale:.88}]},
+  restoredToolShortcuts:{marginBottom:13,paddingVertical:6},
+  restoredToolShortcut:{minHeight:65,gap:5,paddingVertical:3},
+  restoredToolTile:{padding:11},
+  restoredToolGlyph:{width:35,height:35,borderRadius:11,marginBottom:6},
+  restoredToolDetail:{fontSize:12,lineHeight:15,color:theme.colors.muted,marginTop:3},
+  restoredToolCount:{alignSelf:'flex-start',borderRadius:10,backgroundColor:theme.colors.tealTint,paddingHorizontal:8,paddingVertical:2,marginTop:5},
+  restoredToolItem:{minHeight:68,paddingVertical:11},
+  restoredJobsPage:{paddingHorizontal:18,paddingTop:18,paddingBottom:18,flexGrow:1},
+  restoredJobOverview:{minHeight:80,paddingVertical:11,marginBottom:11,borderRadius:21},
+  restoredJobOpportunity:{minHeight:60,backgroundColor:theme.colors.darkTeal,borderRadius:18,paddingHorizontal:13,paddingVertical:10,flexDirection:'row',alignItems:'center',gap:10,marginBottom:11},
+  restoredJobSegment:{marginBottom:10},
+  restoredJobAvailability:{minHeight:64,paddingVertical:10,borderRadius:18},
+  restoredJobContent:{flexGrow:1,justifyContent:'center',paddingVertical:6},
+  restoredJobPreview:{padding:13,gap:10,borderRadius:20},
+  restoredJobUtilities:{marginTop:10,marginBottom:0,gap:9},
+  restoredJobUtility:{minHeight:54,paddingHorizontal:10,paddingVertical:9,borderRadius:16},
   compactToolsPage:{paddingHorizontal:16,paddingTop:12,paddingBottom:12},
   compactToolsTitle:{fontSize:29,lineHeight:35},
   compactOrbitFrame:{width:92,height:80,position:'relative',flexShrink:0},

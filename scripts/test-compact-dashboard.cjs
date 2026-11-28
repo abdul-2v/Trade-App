@@ -4,10 +4,15 @@ const screen=n=>{const i=a.indexOf('function '+n+'(');assert(i>=0);return a.slic
 const home=screen('TradeHomeScreen'),tools=screen('TradeToolsScreen'),jobs=screen('TradeJobsScreen'),frame=screen('CompactDashboardFrame');
 assert(home.includes('showHomePulse&&<TradarrPulse')&&home.includes('showHomeMore&&<>'));
 for(const feature of ['View job offers','Urgent call-outs','Flexible jobs','A gap in your diary?','Urgent job matches','Active jobs','Merchants','Route jobs'])assert(home.indexOf(feature)>=0&&home.indexOf(feature)<home.indexOf('showHomePulse&&'));
-assert(tools.includes('groups.map')&&tools.includes('selected.tools.slice')&&tools.includes('compactToolCategories'));for(const title of ['Quotes & finance','Jobs & scheduling','Documents & reports','Materials & suppliers','Customers & team','New invoice','New booking','New quote','Upload file'])assert(tools.includes(title));
+assert(tools.includes('groups.map')&&tools.includes('selected.tools.slice')&&tools.includes('styles.tradeToolsTileGrid')&&tools.includes('styles.tradeToolsTileWide')&&tools.includes('index===groups.length-1')&&tools.includes('onViewport={setViewport}'));for(const title of ['Quotes & finance','Jobs & scheduling','Documents & reports','Materials & suppliers','Customers & team','New invoice','New booking','New quote','Upload file'])assert(tools.includes(title));
 assert.equal((tools.match(/\{(?:route|feature):'/g)||[]).length,25);
 assert(frame.includes('scrollEnabled={overflow}')&&tools.includes('<CompactDashboardFrame')&&jobs.includes('<CompactDashboardFrame'));
 assert(jobs.includes('visibleJobs[currentPage]')&&jobs.includes('Job {currentPage+1} of {visibleJobs.length}'));for(const action of ['respondToOffer','respondToMarketOffer','advanceMarketJob','advanceJob','openDirections','setMarketJourneyEta','loadMarketJobs','changeJobsAvailability',"navigate('tradeAssurance')","navigate('tradePulse')","navigate('tradeRoutes')"])assert(jobs.includes(action));
 for(const list of ['selectedActive','selectedMarketActive','selectedOffered','selectedMarketOffered'])assert(jobs.includes(list+'.map(job'));
 assert(jobs.includes('visible={showJobGuide}')&&jobs.includes('visible={showJobFilters}')&&jobs.includes('visible={Boolean(selectedJob)}'));
-console.log('Compact dashboard syntax, all 25 tools, job paging and detail actions passed');
+assert(tools.includes('styles.restoredToolsFill')&&tools.includes('styles.tradeToolsTileAccent')&&tools.includes('group.tools.length} tools'));
+assert(!tools.includes('styles.compactToolCategories'),'Keep the original separate cards, not a compressed list');
+assert(jobs.includes('styles.restoredJobContent')&&jobs.includes('styles.restoredJobUtilities'));
+assert(a.includes("restoredJobContent:{flexGrow:1,justifyContent:'center'"),'Jobs must use the space between controls and bottom actions');
+assert(a.includes("restoredToolsFill:{justifyContent:'space-between'}"),'Tools should distribute available screen space');
+console.log('Restored dashboard cards, all 25 tools, job paging, spacing and detail actions passed');
