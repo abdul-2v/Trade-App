@@ -6247,7 +6247,7 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
      <ArrowLeft size={18} color={theme.colors.teal}/>
      <Text style={{fontFamily:theme.font.heading,color:theme.colors.teal,fontWeight:'800',fontSize:13}}>All categories</Text>
     </MotionPressable>:null}
-   <View style={[styles.premiumScreenHeading,{marginBottom:selected?14:12,gap:9}]}>
+   <View style={[styles.premiumScreenHeading,{marginBottom:selected?14:16,gap:9}]}>
     <View style={{flex:1}}>
      <Text style={styles.premiumEyebrow}>Run your business</Text>
      <Text style={styles.premiumPageTitle}>{selected?selected.title:'Tools'}</Text>
@@ -6298,7 +6298,6 @@ function TradeToolsScreen({navigate,openBusinessSuite}:{
        <ChevronRight size={19} color="#82958D"/>
       </MotionPressable>})}
     </View>{pages>1&&<View style={styles.dashboardPager}><MotionPressable accessibilityRole="button" accessibilityLabel="Previous tools page" disabled={currentPage===0} onPress={()=>setToolPage(currentPage-1)} style={[styles.dashboardPageButton,currentPage===0&&{opacity:.35}]}><ArrowLeft size={19} color={theme.colors.teal}/></MotionPressable><Text style={styles.dashboardPageText}>Page {currentPage+1} of {pages}</Text><MotionPressable accessibilityRole="button" accessibilityLabel="Next tools page" disabled={currentPage===pages-1} onPress={()=>setToolPage(currentPage+1)} style={[styles.dashboardPageButton,currentPage===pages-1&&{opacity:.35}]}><ArrowRight size={19} color={theme.colors.teal}/></MotionPressable></View>}</FadeSlideIn>}
-   <Text style={[styles.tradeToolsFooter,{marginTop:12}]}>Your private business records are only shared when you choose to share them.</Text>
   </CompactDashboardFrame>
  </TradeShell>;
 }
@@ -11244,10 +11243,10 @@ const styles = StyleSheet.create({
   compactHomeShortcut:{minHeight:72,padding:8,borderRadius:15},
   // Original card hierarchy with responsive spacing and natural text sizing.
   restoredToolsPage:{paddingHorizontal:18,paddingTop:16,paddingBottom:14,flexGrow:1},
-  restoredToolsFill:{justifyContent:'space-between'},
+  restoredToolsFill:{justifyContent:'flex-start',paddingTop:24},
   restoredOrbitFrame:{width:116,height:101,position:'relative',flexShrink:0},
   restoredOrbitInner:{position:'absolute',left:-8,top:-7,transform:[{scale:.88}]},
-  restoredToolShortcuts:{marginBottom:13,paddingVertical:6},
+  restoredToolShortcuts:{marginBottom:15,paddingVertical:6},
   restoredToolShortcut:{minHeight:65,gap:5,paddingVertical:3},
   restoredToolTile:{padding:11},
   restoredToolGlyph:{width:35,height:35,borderRadius:11,marginBottom:6},

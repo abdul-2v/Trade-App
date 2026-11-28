@@ -14,5 +14,7 @@ assert(tools.includes('styles.restoredToolsFill')&&tools.includes('styles.tradeT
 assert(!tools.includes('styles.compactToolCategories'),'Keep the original separate cards, not a compressed list');
 assert(jobs.includes('styles.restoredJobContent')&&jobs.includes('styles.restoredJobUtilities'));
 assert(a.includes("restoredJobContent:{flexGrow:1,justifyContent:'center'"),'Jobs must use the space between controls and bottom actions');
-assert(a.includes("restoredToolsFill:{justifyContent:'space-between'}"),'Tools should distribute available screen space');
+assert(a.includes("restoredToolsFill:{justifyContent:'flex-start',paddingTop:24}"),'Tools should have a small top inset without creating an oversized gap');
+assert(!tools.includes('Your private business records are only shared when you choose to share them.'),'Do not restore the removed footer');
+assert(tools.includes('marginBottom:selected?14:16'),'Keep a small natural gap below the original Tools heading');
 console.log('Restored dashboard cards, all 25 tools, job paging, spacing and detail actions passed');
